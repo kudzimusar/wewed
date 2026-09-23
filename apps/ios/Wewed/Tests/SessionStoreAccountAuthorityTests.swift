@@ -290,10 +290,11 @@ final class SessionStoreAccountAuthorityTests: XCTestCase {
         let session = SessionStore(storage: InMemorySecureStorage(), environment: .production, authorityClient: client())
         await session.signInWithServer(client: client(), email: "couple@example.com", password: "correct horse battery staple")
 
-        let source = ActorAssignmentSources.forEnvironment(
-            .production,
-            repository: ShadowReferenceWeddingRepository(),
-            productionAuthority: session.productionAuthority,
+        // Master plan Phase 8 closure round 5 — forProduction() takes no repository parameter at
+        // all: this proves a real production ActorAssignmentSource is constructible from nothing
+        // but the resolved authority, with no Shadow/Fixture repository needed or read.
+        let source = ActorAssignmentSources.forProduction(
+            productionAuthority: session.productionAuthority!,
             selectedGrantIds: session.selectedGrantIds
         )
         let assignments = await source.assignments(actorId: "user-1")

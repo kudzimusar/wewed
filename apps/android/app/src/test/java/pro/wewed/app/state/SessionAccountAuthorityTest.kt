@@ -318,10 +318,11 @@ class SessionAccountAuthorityTest {
         val session = sessionWith(transport)
         session.signIn("couple@example.com", "correct horse battery staple")
 
-        val source = ActorAssignmentSources.forEnvironment(
-            NativeDataEnvironment.PRODUCTION,
-            pro.wewed.app.services.ShadowReferenceWeddingRepository(),
-            productionAuthority = session.productionAuthority.value,
+        // Master plan Phase 8 closure round 5 — forProduction() takes no repository parameter at
+        // all: this proves a real production ActorAssignmentSource is constructible from nothing
+        // but the resolved authority, with no Shadow/Fixture repository needed or read.
+        val source = ActorAssignmentSources.forProduction(
+            productionAuthority = requireNotNull(session.productionAuthority.value),
             selectedGrantIds = session.selectedGrantIds.value,
         )
         val assignments = kotlinx.coroutines.runBlocking { source.assignments("user-1") }

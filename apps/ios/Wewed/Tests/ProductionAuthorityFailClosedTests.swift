@@ -122,19 +122,21 @@ final class ProductionAuthorityFailClosedTests: XCTestCase {
 
     // MARK: - Production resolves no Shadow authority and no wedding (§8.2, §8.9)
 
+    /// Master plan Phase 8 closure round 5 — `ActorAssignmentSources.empty()` takes no repository
+    /// parameter at all, so this proves "no authority yet" is resolved without ever needing, reading
+    /// or constructing a repository of any kind (not even a Shadow/Fixture one).
     func testProductionSelectsNoAssignmentSource() {
-        for environment in productionEnvironments {
-            let source = ActorAssignmentSources.forEnvironment(
-                environment, repository: ShadowReferenceWeddingRepository())
+        for _ in productionEnvironments {
+            let source = ActorAssignmentSources.empty()
             XCTAssertTrue(source is EmptyActorAssignmentSource)
         }
     }
 
     func testDevelopmentEnvironmentsStillSelectShadowAuthority() async {
-        let source = ActorAssignmentSources.forEnvironment(
-            .sanitizedShadow,
+        let source = ActorAssignmentSources.forShadow(
             repository: ShadowReferenceWeddingRepository(),
-            plannerRepository: ShadowReferencePlannerRepository()
+            plannerRepository: ShadowReferencePlannerRepository(),
+            environment: .sanitizedShadow
         )
         XCTAssertTrue(source is ShadowActorAssignmentSource)
         let assignments = await source.assignments(actorId: DevelopmentPersona.defaultShadowPersonaId)

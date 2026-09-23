@@ -60,18 +60,19 @@ public struct RootView: View {
         // Shadow authority only where Shadow personas exist; production/verify resolve a real
         // ProductionActorAssignmentSource once an authority has actually been fetched (master plan
         // §8.9, Phase 5) — until then they still get no assignments at all.
-        // Master plan Phase 8 closure round 4 §1 — `appState.repository`/`plannerRepository` now
-        // throw `ProductionRepositoryUnbound` instead of a boundary placeholder while PRODUCTION is
-        // unbound, and `currentRole` can resolve (synchronously, inside `applyAuthority`) before the
-        // async production-repository bind effects below have run. `ActorAssignmentSources` never
-        // actually reads `repository`/`plannerRepository` for the PRODUCTION branch (only Shadow
-        // uses them) — they are the same kind of harmless, provably-unread placeholder the deleted
-        // `ProductionBoundary*Repository` used to be for this one purpose, never repository-shaped
-        // production state a caller could act on.
-        let source = ActorAssignmentSources.forEnvironment(
-            appState.dataEnvironment,
-            repository: (try? appState.repository) ?? FixtureWeddingRepository(),
-            plannerRepository: try? appState.plannerRepository,
+        //
+        // Master plan Phase 8 closure round 5 — delegates to the extracted, directly unit-tested
+        // `resolveActorAssignmentSource` (ActorAssignment.swift) rather than eagerly evaluating
+        // `appState.repository`/`plannerRepository` as call arguments. The previous
+        // `(try? appState.repository) ?? FixtureWeddingRepository()` was an invalid production
+        // fallback that existed only because `ActorAssignmentSources.forEnvironment` still demanded
+        // a repository parameter PRODUCTION never needed — a moderator finding, not a demonstrated
+        // leak (the production branch never actually read it), but removed outright:
+        // `resolveActorAssignmentSource` only reads a repository inside the Shadow/dev-persona
+        // branch, so a PRODUCTION `appState` (bound or not) never reaches it and no Fixture/Shadow
+        // repository is ever constructed for it.
+        let source = resolveActorAssignmentSource(
+            appState: appState,
             productionAuthority: session.productionAuthority,
             selectedGrantIds: session.selectedGrantIds,
             selectedEngagementId: session.selectedEngagementId

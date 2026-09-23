@@ -165,22 +165,24 @@ class ProductionAuthorityFailClosedTest {
     // Production resolves no Shadow authority and no wedding (§8.2, §8.9)
     // -------------------------------------------------------------------------------------------
 
+    /**
+     * Master plan Phase 8 closure round 5 — `ActorAssignmentSources.empty()` takes no repository
+     * parameter at all, so this proves "no authority yet" is resolved without ever needing, reading
+     * or constructing a repository of any kind (not even a Shadow/Fixture one).
+     */
     @Test
     fun productionSelectsNoAssignmentSource() {
-        productionEnvironments.forEach { env ->
-            assertSame(
-                EmptyActorAssignmentSource,
-                ActorAssignmentSources.forEnvironment(env, ShadowReferenceWeddingRepository())
-            )
+        productionEnvironments.forEach { _ ->
+            assertSame(EmptyActorAssignmentSource, ActorAssignmentSources.empty())
         }
     }
 
     @Test
     fun developmentEnvironmentsStillSelectShadowAuthority() {
-        val source = ActorAssignmentSources.forEnvironment(
-            NativeDataEnvironment.SANITIZED_SHADOW,
+        val source = ActorAssignmentSources.forShadow(
             ShadowReferenceWeddingRepository(),
-            ShadowReferencePlannerRepository()
+            ShadowReferencePlannerRepository(),
+            NativeDataEnvironment.SANITIZED_SHADOW
         )
         assertTrue(source is ShadowActorAssignmentSource)
         val assignments = runBlocking { source.assignments(DevelopmentPersona.DEFAULT_SHADOW_PERSONA_ID) }

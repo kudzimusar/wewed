@@ -72,31 +72,76 @@ public struct EmptyActorAssignmentSource: ActorAssignmentSource {
 /// successful authority fetch yet — they still get `EmptyActorAssignmentSource`, so every scoped
 /// workspace is denied rather than opened with Shadow test access. The root used to build the
 /// Shadow source unconditionally (master plan §8.9).
+///
+/// Master plan Phase 8 closure round 5 — split into three narrowly-typed constructors on purpose.
+/// The previous single `forEnvironment(_:repository:plannerRepository:...)` function required a
+/// `WeddingRepositoryProtocol` argument for EVERY environment, including PRODUCTION, even though
+/// `forProduction`/`empty` never read one. `RootView.resolveContext()` used to work around that by
+/// passing `(try? appState.repository) ?? FixtureWeddingRepository()` — an invalid production
+/// fallback that existed only because this API still demanded a repository parameter production
+/// does not need. `forProduction` and `empty` have NO repository parameter at all, so it is not
+/// possible for a caller to accidentally reintroduce that fallback by construction: there is
+/// nothing to pass, and nothing this enum can misuse even if a caller wanted to. `forShadow` is the
+/// only constructor that takes a repository, and only Shadow/dev-persona environments have one to
+/// give it (`AppState`'s non-production repositories are always real and non-throwing, unlike
+/// PRODUCTION's `get throws` properties).
 public enum ActorAssignmentSources {
-    public static func forEnvironment(
-        _ environment: NativeDataEnvironment,
+    /// Shadow/Fixture/dev-persona environments only — the repository is real and always available.
+    public static func forShadow(
         repository: WeddingRepositoryProtocol,
-        plannerRepository: PlannerDashboardRepositoryProtocol? = nil,
-        productionAuthority: ProductionAuthority? = nil,
+        plannerRepository: PlannerDashboardRepositoryProtocol?,
+        environment: NativeDataEnvironment
+    ) -> ActorAssignmentSource {
+        ShadowActorAssignmentSource(repository: repository, environment: environment, plannerRepository: plannerRepository)
+    }
+
+    /// PRODUCTION/PRODUCTION_READ_VERIFY once a `ProductionAuthority` has been fetched and verified. No repository is read or required.
+    public static func forProduction(
+        productionAuthority: ProductionAuthority,
         selectedGrantIds: Set<String> = [],
         selectedEngagementId: String? = nil
     ) -> ActorAssignmentSource {
-        if environment.allowsDevelopmentPersonaSwitching {
-            return ShadowActorAssignmentSource(
-                repository: repository,
-                environment: environment,
-                plannerRepository: plannerRepository
-            )
-        }
-        if let productionAuthority {
-            return ProductionActorAssignmentSource(
-                authority: productionAuthority,
-                selectedGrantIds: selectedGrantIds,
-                selectedEngagementId: selectedEngagementId
-            )
-        }
-        return EmptyActorAssignmentSource()
+        ProductionActorAssignmentSource(
+            authority: productionAuthority,
+            selectedGrantIds: selectedGrantIds,
+            selectedEngagementId: selectedEngagementId
+        )
     }
+
+    /// No identity session yet, or no successful authority fetch yet. No repository is read or required.
+    public static func empty() -> ActorAssignmentSource {
+        EmptyActorAssignmentSource()
+    }
+}
+
+/// Master plan Phase 8 closure round 5 — the exact pure decision `RootView.resolveContext()` makes,
+/// extracted so it has a real executable unit test independent of SwiftUI. This is the ONLY place
+/// `appState.repository`/`plannerRepository` may be read for the purpose of building an
+/// `ActorAssignmentSource` — and only inside the branch where `AppState.dataEnvironment` allows
+/// development persona switching. A caller passing a PRODUCTION `appState` (bound or not) never
+/// reaches that branch, so `ProductionRepositoryUnbound` is structurally unreachable from here, and
+/// no Fixture/Shadow fallback repository is ever constructed for it either.
+public func resolveActorAssignmentSource(
+    appState: AppState,
+    productionAuthority: ProductionAuthority?,
+    selectedGrantIds: Set<String>,
+    selectedEngagementId: String?
+) -> ActorAssignmentSource {
+    if appState.dataEnvironment.allowsDevelopmentPersonaSwitching {
+        return ActorAssignmentSources.forShadow(
+            repository: try! appState.repository,
+            plannerRepository: try? appState.plannerRepository,
+            environment: appState.dataEnvironment
+        )
+    }
+    if let productionAuthority {
+        return ActorAssignmentSources.forProduction(
+            productionAuthority: productionAuthority,
+            selectedGrantIds: selectedGrantIds,
+            selectedEngagementId: selectedEngagementId
+        )
+    }
+    return ActorAssignmentSources.empty()
 }
 
 /// A fixed set of assignments, used by fixtures, Shadow provisioning and tests.

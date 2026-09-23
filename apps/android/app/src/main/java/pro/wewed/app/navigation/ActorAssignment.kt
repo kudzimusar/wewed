@@ -64,23 +64,38 @@ object EmptyActorAssignmentSource : ActorAssignmentSource {
  * authority fetch yet — they still get [EmptyActorAssignmentSource], so every scoped workspace is
  * denied rather than opened with Shadow test access. The root used to build the Shadow source
  * unconditionally (master plan §8.9).
+ *
+ * Master plan Phase 8 closure round 5 — split into three narrowly-typed constructors on purpose.
+ * The previous single `forEnvironment(environment, repository, plannerRepository, ...)` function
+ * required a `WeddingRepository` argument for EVERY environment, including PRODUCTION, even though
+ * [forProduction]/[empty] never read one. Kotlin evaluates call-site arguments eagerly, so a caller
+ * writing `ActorAssignmentSources.forEnvironment(env, appViewModel.repository, ...)` evaluated
+ * `appViewModel.repository` — which throws `ProductionRepositoryUnbound` in PRODUCTION before any
+ * bind has occurred (see `AppState.kt`) — before `forEnvironment` was ever entered, regardless of
+ * what that function did internally with the value. [forProduction] and [empty] have NO repository
+ * parameter at all, so it is not possible for a caller to accidentally reintroduce that read by
+ * construction: there is nothing to pass, and nothing this object can misuse even if a caller wanted
+ * to. [forShadow] is the only constructor that takes a repository, and only Shadow/dev-persona
+ * environments have one to give it (`AppState`'s non-production repositories are always real and
+ * non-throwing, unlike PRODUCTION's).
  */
 object ActorAssignmentSources {
-    fun forEnvironment(
-        environment: NativeDataEnvironment,
+    /** Shadow/Fixture/dev-persona environments only — the repository is real and always available. */
+    fun forShadow(
         repository: WeddingRepository,
-        plannerRepository: PlannerDashboardRepository? = null,
-        productionAuthority: ProductionAuthority? = null,
+        plannerRepository: PlannerDashboardRepository?,
+        environment: NativeDataEnvironment,
+    ): ActorAssignmentSource = ShadowActorAssignmentSource(repository, environment, plannerRepository)
+
+    /** PRODUCTION/PRODUCTION_READ_VERIFY once a [ProductionAuthority] has been fetched and verified. No repository is read or required. */
+    fun forProduction(
+        productionAuthority: ProductionAuthority,
         selectedGrantIds: Set<String> = emptySet(),
         selectedEngagementId: String? = null,
-    ): ActorAssignmentSource =
-        if (environment.allowsDevelopmentPersonaSwitching) {
-            ShadowActorAssignmentSource(repository, environment, plannerRepository)
-        } else if (productionAuthority != null) {
-            ProductionActorAssignmentSource(productionAuthority, selectedGrantIds, selectedEngagementId)
-        } else {
-            EmptyActorAssignmentSource
-        }
+    ): ActorAssignmentSource = ProductionActorAssignmentSource(productionAuthority, selectedGrantIds, selectedEngagementId)
+
+    /** No identity session yet, or no successful authority fetch yet. No repository is read or required. */
+    fun empty(): ActorAssignmentSource = EmptyActorAssignmentSource
 }
 
 /** A fixed set of assignments, used by fixtures, Shadow provisioning and tests. */
@@ -90,3 +105,26 @@ class StaticActorAssignmentSource(
     override suspend fun assignments(actorId: String): List<ActorAssignment> =
         all.filter { it.actorId == actorId }
 }
+
+/**
+ * Master plan Phase 8 closure round 5 — the exact pure decision `RootScreen.kt`'s
+ * `remember(appViewModel, productionAuthority, selectedGrantIds, selectedEngagementId) { ... }`
+ * block makes, extracted so it has a real executable unit test independent of Compose. This is the
+ * ONLY place `appViewModel.repository`/`plannerRepository` may be read for the purpose of building
+ * an [ActorAssignmentSource] — and only inside the branch where [pro.wewed.app.state.AppViewModel.dataEnvironment]
+ * allows development persona switching. A caller passing a PRODUCTION `appViewModel` (bound or not)
+ * never reaches that branch, so `ProductionRepositoryUnbound` is structurally unreachable from here.
+ */
+fun resolveActorAssignmentSource(
+    appViewModel: pro.wewed.app.state.AppViewModel,
+    productionAuthority: ProductionAuthority?,
+    selectedGrantIds: Set<String>,
+    selectedEngagementId: String?,
+): ActorAssignmentSource =
+    if (appViewModel.dataEnvironment.allowsDevelopmentPersonaSwitching) {
+        ActorAssignmentSources.forShadow(appViewModel.repository, appViewModel.plannerRepository, appViewModel.dataEnvironment)
+    } else if (productionAuthority != null) {
+        ActorAssignmentSources.forProduction(productionAuthority, selectedGrantIds, selectedEngagementId)
+    } else {
+        ActorAssignmentSources.empty()
+    }

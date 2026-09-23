@@ -21,6 +21,7 @@ import pro.wewed.app.models.NativeDataEnvironment
 import pro.wewed.app.navigation.DeepLinkRouter
 import pro.wewed.app.navigation.IANavigationContract
 import pro.wewed.app.navigation.ActorAssignmentSources
+import pro.wewed.app.navigation.resolveActorAssignmentSource
 import pro.wewed.app.navigation.NavigationContext
 import pro.wewed.app.navigation.RoleShellAuthorization
 import pro.wewed.app.navigation.ProductionAuthority
@@ -361,15 +362,18 @@ fun RootScreen(
     // Shadow authority only where Shadow personas exist; production/verify resolve a real
     // ProductionActorAssignmentSource once an authority has actually been fetched (master plan
     // §8.9, Phase 5) — until then they still get no assignments at all.
+    //
+    // Master plan Phase 8 closure round 5 — delegates to the extracted, directly unit-tested
+    // `resolveActorAssignmentSource` (ActorAssignment.kt) rather than evaluating
+    // `appViewModel.repository`/`plannerRepository` unconditionally as call arguments to a single
+    // `forEnvironment(...)` function. Reading `appViewModel.repository` here for PRODUCTION used to
+    // throw `ProductionRepositoryUnbound` (Kotlin evaluates call arguments eagerly, before the
+    // callee runs) during this very composition — i.e. before the `LaunchedEffect` below has had
+    // any chance to bind a real repository, and before the render gate further down gets a chance
+    // to show its loading state. `resolveActorAssignmentSource` only reads a repository inside the
+    // Shadow/dev-persona branch, so a PRODUCTION `appViewModel` (bound or not) never reaches it.
     val assignmentSource = remember(appViewModel, productionAuthority, selectedGrantIds, selectedEngagementId) {
-        ActorAssignmentSources.forEnvironment(
-            appViewModel.dataEnvironment,
-            appViewModel.repository,
-            appViewModel.plannerRepository,
-            productionAuthority,
-            selectedGrantIds,
-            selectedEngagementId
-        )
+        resolveActorAssignmentSource(appViewModel, productionAuthority, selectedGrantIds, selectedEngagementId)
     }
 
     // Master plan Phase 8 — rebinds appViewModel's domain repositories to real, grant-scoped
