@@ -646,8 +646,7 @@ public struct RootView: View {
                 } else {
                     productionWorkspaceUnavailable
                 }
-                return
-            }
+            } else {
             // Master plan Phase 8 closure round 3 §6 — Couple/Planner/Coordinator/Admin/Vendor now
             // render through the SAME real role shells every other environment uses, backed by the
             // production repositories bound above/below. Usher/Guest reaching this point still render
@@ -764,6 +763,7 @@ public struct RootView: View {
                 }
             } else {
                 productionWorkspaceUnavailable
+            }
             }
         } else {
         switch context.activeRole {
