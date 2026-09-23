@@ -247,36 +247,93 @@ final class WeddingDayOfflineTests: XCTestCase {
 
     func testRevokePassCallsRevokeEndpoint() async throws {
         RevokeStubProtocol.lastRequest = nil
+        RevokeStubProtocol.statusCode = 200
+        RevokeStubProtocol.responseBody = "{\"success\":true}"
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [RevokeStubProtocol.self]
         let session = URLSession(configuration: config)
         let service = WeddingDaySyncService(session: session)
 
-        let success = await service.revokePass(
+        let result = await service.revokePass(
             baseURL: URL(string: "https://example.com")!,
             bearerToken: "test-token",
             passSerial: "WWTEST999",
             reason: "Lost pass",
             grantId: "grant-456"
         )
-        XCTAssertTrue(success)
+        XCTAssertTrue(result.success)
         let req = try XCTUnwrap(RevokeStubProtocol.lastRequest)
         XCTAssertEqual(req.url?.path, "/api/native/gate/wedding-day/pass/revoke")
         XCTAssertEqual(req.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
         XCTAssertEqual(req.value(forHTTPHeaderField: "x-wewed-grant-id"), "grant-456")
         XCTAssertEqual(req.httpMethod, "POST")
+        let data = try XCTUnwrap(req.httpBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(json["passSerial"] as? String, "WWTEST999")
+        XCTAssertEqual(json["reason"] as? String, "Lost pass")
+        for forbidden in ["weddingId", "gateId", "usherId", "operatorUserId"] {
+            XCTAssertNil(json[forbidden])
+        }
+    }
+
+    func testRevokePassPreservesServerFailureReason() async {
+        RevokeStubProtocol.lastRequest = nil
+        RevokeStubProtocol.statusCode = 403
+        RevokeStubProtocol.responseBody = "{\"success\":false,\"code\":\"GATE_GRANT_REVOKED\",\"error\":\"This gate assignment is no longer authorized.\"}"
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [RevokeStubProtocol.self]
+        let service = WeddingDaySyncService(session: URLSession(configuration: config))
+
+        let result = await service.revokePass(
+            baseURL: URL(string: "https://example.com")!,
+            bearerToken: "test-token",
+            passSerial: "WWTEST999",
+            reason: "Lost pass",
+            grantId: "grant-456"
+        )
+        XCTAssertFalse(result.success)
+        XCTAssertEqual(result.code, "GATE_GRANT_REVOKED")
+        XCTAssertEqual(result.error, "This gate assignment is no longer authorized.")
+    }
+
+    func testLocallyMarkedRevocationFailsClosedOffline() async throws {
+        let store = OfflineManifestStore(storageDirectory: nil)
+        try await store.saveManifest(
+            weddingId: "wedding-local-revoke",
+            items: [
+                GuestManifestItem(
+                    id: "guest-1",
+                    serial: "WWLOCALREVOKE",
+                    guestName: "Guest",
+                    partySize: 1,
+                    attendeeKeys: ["primary"],
+                    eligible: true
+                )
+            ]
+        )
+        try await store.markPassRevoked(weddingId: "wedding-local-revoke", serial: "WWLOCALREVOKE")
+        let result = try await store.recordOfflineCheckIn(
+            weddingId: "wedding-local-revoke",
+            serial: "WWLOCALREVOKE",
+            count: 1,
+            usherId: ""
+        )
+        XCTAssertEqual(result.status, .invalidPass)
+        XCTAssertTrue(await store.getPendingCheckIns(weddingId: "wedding-local-revoke").isEmpty)
     }
 }
 
 private final class RevokeStubProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var lastRequest: URLRequest?
+    nonisolated(unsafe) static var statusCode = 200
+    nonisolated(unsafe) static var responseBody = "{\"success\":true}"
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         RevokeStubProtocol.lastRequest = request
-        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!
+        let response = HTTPURLResponse(url: request.url!, statusCode: RevokeStubProtocol.statusCode, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data("{\"success\":true}".utf8))
+        client?.urlProtocol(self, didLoad: Data(RevokeStubProtocol.responseBody.utf8))
         client?.urlProtocolDidFinishLoading(self)
     }
     override func stopLoading() {}
