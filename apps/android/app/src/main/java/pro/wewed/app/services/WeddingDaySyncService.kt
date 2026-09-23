@@ -12,6 +12,18 @@ import java.util.TimeZone
 
 data class WeddingDayHttpResponse(val status: Int, val body: String)
 
+data class WeddingDayRevokeResult(
+    val success: Boolean,
+    val code: String? = null,
+    val error: String? = null
+)
+
+private data class WeddingDayMutationEnvelope(
+    val success: Boolean = false,
+    val code: String? = null,
+    val error: String? = null
+)
+
 interface WeddingDayHttpTransport {
     suspend fun get(path: String, headers: Map<String, String>): WeddingDayHttpResponse
     suspend fun post(path: String, headers: Map<String, String>, body: String): WeddingDayHttpResponse
@@ -365,7 +377,7 @@ class WeddingDaySyncService(
         passSerial: String,
         reason: String,
         grantId: String? = null
-    ): Boolean {
+    ): WeddingDayRevokeResult {
         val path = if (grantId != null) {
             "/api/native/gate/wedding-day/pass/revoke?grantId=${grantId}"
         } else {
@@ -382,9 +394,26 @@ class WeddingDaySyncService(
         val body = gson.toJson(mapOf("passSerial" to passSerial, "reason" to reason))
         return try {
             val response = transport.post(path, headers, body)
-            response.status in 200..299
+            val envelope = try {
+                gson.fromJson(response.body, WeddingDayMutationEnvelope::class.java)
+            } catch (_: Exception) {
+                null
+            }
+            if (response.status in 200..299 && envelope?.success != false) {
+                WeddingDayRevokeResult(success = true, code = envelope?.code)
+            } else {
+                WeddingDayRevokeResult(
+                    success = false,
+                    code = envelope?.code ?: "HTTP_${response.status}",
+                    error = envelope?.error ?: "Wedding pass revocation was rejected by the server."
+                )
+            }
         } catch (_: Exception) {
-            false
+            WeddingDayRevokeResult(
+                success = false,
+                code = "NETWORK_ERROR",
+                error = "Wedding pass revocation could not reach the server."
+            )
         }
     }
 
