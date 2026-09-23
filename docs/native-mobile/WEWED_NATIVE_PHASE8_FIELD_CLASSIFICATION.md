@@ -573,3 +573,68 @@ current answer — this document records classification and reasoning, it does n
 phase accepted.** Remaining, honestly, exactly as before this round (none of it was in scope for round
 4 and none of it changed): Contracts/Vault write actions, Budget line edits, Seating/Timeline/
 Vendor-planning writes, and the Admin domains beyond overview/accounts/support/incidents.
+
+## 14. Phase 8 closure round 5 — production root bootstrap correction
+
+A fifth moderator review inspected the actual round-4 shipped code (not the completion report) and
+found one real defect in the production root, distinct from round 4's own three items: round 4
+correctly deleted the `ProductionBoundary*Repository` objects and made every production repository
+getter throw `ProductionRepositoryUnbound` until a verified binding exists — but the actual
+authenticated-root construction on both platforms still called the old, single
+`ActorAssignmentSources.forEnvironment(environment, repository, plannerRepository, ...)` API, whose
+signature demanded a `WeddingRepository`/`WeddingRepositoryProtocol` argument even for PRODUCTION,
+which never needed one. Because Kotlin/Swift both evaluate call arguments before entering the callee,
+Android's `appViewModel.repository` was read (and thrown) at that call site BEFORE the async bind
+effect had any chance to run and before the render gate could show its loading state — a genuine
+runtime bootstrap crash, not merely a theoretical one. iOS avoided the equivalent crash only via an
+invalid production fallback, `(try? appState.repository) ?? FixtureWeddingRepository()`, which existed
+for the identical reason (the API still required a repository parameter) rather than because
+production context resolution had any legitimate use for a Fixture repository. This section records
+round 5's closure of exactly this one item.
+
+**1. `ActorAssignmentSources` no longer has a repository dependency for PRODUCTION at all.** The
+previous single `forEnvironment(...)` function is deleted on both platforms, replaced with three
+narrowly-typed constructors: `forShadow(repository, plannerRepository, environment)` (Shadow/Fixture/
+dev-persona environments only — the only one that takes a repository, since those environments always
+have a real, non-throwing one), `forProduction(productionAuthority, selectedGrantIds,
+selectedEngagementId)` and `empty()` (neither takes a repository parameter at all — there is
+structurally nothing for a caller to misuse even by accident). `RootScreen.kt`/`RootView.swift` now
+branch on `dataEnvironment`/authority themselves BEFORE ever touching
+`appViewModel.repository`/`appState.repository`, delegating to a new pure, directly unit-tested helper
+(`resolveActorAssignmentSource`, `ActorAssignment.kt`/`.swift`) rather than evaluating the repository
+unconditionally as a call argument. iOS's invalid `?? FixtureWeddingRepository()` fallback is deleted
+outright, not merely made harder to reach.
+
+**2. Regression tests prove the exact scenario that broke, directly, on both platforms
+(`RootAssignmentBootstrapTest.kt` / `RootAssignmentBootstrapTests.swift`).** An unbound PRODUCTION
+app-state with a valid, freshly-resolved authority now builds a real `ProductionActorAssignmentSource`
+without ever throwing `ProductionRepositoryUnbound` and without constructing or requiring any
+Fixture/Shadow repository (a structural guarantee via the type signature, not just a runtime one); no
+authority yet still yields `EmptyActorAssignmentSource`, also without touching a repository; Shadow
+environments are unchanged and still require a real repository; `clearProductionBinding()` leaves
+assignment resolution safe while the mature repository domains remain correctly unreachable until a
+fresh bind; an Account A → Account B replacement on the same app-state instance is proven to never mix
+assignments or consult a stale repository; and the Vendor same-grant `selectedEngagementId` (round 4
+§2) is proven to still flow all the way through the new three-constructor API unchanged.
+
+**3. Scope discipline — native-only, nothing else changed.** No server product code was touched this
+round; round 4's server qualification evidence (run `35813862536`, product SHA
+`36e02adc9420b96f9dd18f8063fc7b55ed74f110`) is retained rather than rerun. Round 4's closures are
+unchanged and unregressed: `NativeRepositoryOutcome.ProductionBootstrap`, the `ProductionRepositoryUnbound`
+distinction, the deleted `ProductionBoundary*Repository` classes, the Vendor
+`(accessUserId, grantId, engagementId)` binding key and `ENGAGEMENT_SELECTION_REQUIRED`, the native
+Deal Room client/repository/UI, Documents, Contributions, Admin failure semantics, and shared task
+operations. The P1-N4 "20 dead composables" line in round 4's own completion report was itself stale —
+independent inspection of the current native files found only explanatory comments describing an
+already-completed deletion, not a reachable fabricated surface; no P1-N4 work was reopened or
+reattempted this round.
+
+**4. Qualification evidence — see the completion report for this round** for the exact, full
+qualified and final native SHA, temporary reviewer-CI run id
+(`.github/workflows/_tmp-phase8-round5-native-qualification.yml` — removed after a successful run),
+and the explicit Preview-vs-Production deployment confirmation.
+
+**Phase-8 acceptance: see the completion report's own explicit statement, not this document, for the
+current answer.** Remaining, honestly, unchanged by this round: Contracts/Vault write actions, Budget
+line edits, Seating/Timeline/Vendor-planning writes, and the Admin domains beyond
+overview/accounts/support/incidents.
