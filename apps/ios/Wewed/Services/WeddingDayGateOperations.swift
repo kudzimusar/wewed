@@ -1,23 +1,23 @@
 import Foundation
 
 public protocol WeddingDayGateOperations: Sendable {
+    var gateContext: GateOperationalContext { get }
     func refreshManifest() async throws
-    func checkIn(qrPayload: String, count: Int, usherId: String) async throws -> CheckInVerificationResult
+    func checkIn(qrPayload: String, count: Int) async throws -> CheckInVerificationResult
     func reconcilePending() async -> WeddingDaySyncResult
 }
 
 /// Opt-in Wedding Day gate runtime used by isolated integration builds/tests.
 ///
-/// AppState continues to default to FixtureWeddingRepository, so merely landing this type does not
-/// connect the protected native build to a backend. A caller must explicitly inject this runtime
-/// with an isolated base URL, operator bearer token, wedding id and trusted root public key.
+/// Phase 10 hardens only the authority seam. The runtime remains opt-in and is not connected to
+/// Production until Phase 11. Wedding, gate and operator identity come from one immutable
+/// server-derived GateOperationalContext rather than caller-controlled strings.
 public actor ManifestBackedWeddingDayGate: WeddingDayGateOperations {
     private let baseURL: URL
     private let bearerToken: String
-    private let weddingId: String
+    public nonisolated let gateContext: GateOperationalContext
     private let trustedRootPublicKeyDerBase64: String
     private let trustedRootKeyId: String?
-    private let gateId: String?
     private let offlineStore: OfflineManifestStoreProtocol
     private let trustStore: WeddingDayManifestTrustStore
     private let syncService: WeddingDaySyncService
@@ -25,20 +25,22 @@ public actor ManifestBackedWeddingDayGate: WeddingDayGateOperations {
     public init(
         baseURL: URL,
         bearerToken: String,
-        weddingId: String,
+        gateContext: GateOperationalContext,
         trustedRootPublicKeyDerBase64: String,
         trustedRootKeyId: String? = nil,
-        gateId: String? = nil,
         offlineStore: OfflineManifestStoreProtocol,
         trustStore: WeddingDayManifestTrustStore,
         syncService: WeddingDaySyncService = WeddingDaySyncService()
     ) {
+        precondition(gateContext.capabilities.contains("gate.manifest.read"),
+                     "Gate context does not authorize manifest access.")
+        precondition(gateContext.capabilities.contains("gate.checkin.write"),
+                     "Gate context does not authorize check-in.")
         self.baseURL = baseURL
         self.bearerToken = bearerToken
-        self.weddingId = weddingId
+        self.gateContext = gateContext
         self.trustedRootPublicKeyDerBase64 = trustedRootPublicKeyDerBase64
         self.trustedRootKeyId = trustedRootKeyId
-        self.gateId = gateId
         self.offlineStore = offlineStore
         self.trustStore = trustStore
         self.syncService = syncService
@@ -48,7 +50,7 @@ public actor ManifestBackedWeddingDayGate: WeddingDayGateOperations {
         _ = try await syncService.downloadAndCacheManifest(
             baseURL: baseURL,
             bearerToken: bearerToken,
-            expectedWeddingId: weddingId,
+            expectedWeddingId: gateContext.weddingId,
             trustedRootPublicKeyDerBase64: trustedRootPublicKeyDerBase64,
             trustedRootKeyId: trustedRootKeyId,
             offlineStore: offlineStore,
@@ -58,24 +60,21 @@ public actor ManifestBackedWeddingDayGate: WeddingDayGateOperations {
 
     public func checkIn(
         qrPayload: String,
-        count: Int,
-        usherId: String
+        count: Int
     ) async throws -> CheckInVerificationResult {
         _ = try await syncService.verifyOfflinePass(
             token: qrPayload,
-            weddingId: weddingId,
+            weddingId: gateContext.weddingId,
             offlineStore: offlineStore,
             trustStore: trustStore
         )
         let result = try await offlineStore.recordOfflineCheckIn(
-            weddingId: weddingId,
+            weddingId: gateContext.weddingId,
             serial: passSerial(from: qrPayload),
             count: count,
-            usherId: usherId
+            usherId: gateContext.operatorUserId
         )
 
-        // The legacy iOS store historically returned VALID_PASS for both partial and full offline
-        // admissions. Normalize only at this runtime seam so existing fixture contracts remain stable.
         if result.status == .validPass && result.remainingCount > 0 {
             return CheckInVerificationResult(
                 status: .partialCheckedIn,
@@ -96,8 +95,8 @@ public actor ManifestBackedWeddingDayGate: WeddingDayGateOperations {
         await syncService.syncPendingCheckIns(
             baseURL: baseURL,
             bearerToken: bearerToken,
-            weddingId: weddingId,
-            gateId: gateId,
+            weddingId: gateContext.weddingId,
+            gateId: gateContext.gateId,
             offlineStore: offlineStore,
             trustStore: trustStore
         )
