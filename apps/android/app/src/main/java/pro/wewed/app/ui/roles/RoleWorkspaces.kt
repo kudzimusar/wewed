@@ -14,6 +14,7 @@ import pro.wewed.app.models.NativeDataEnvironment
 import kotlinx.coroutines.launch
 import pro.wewed.app.navigation.IANavigationContract
 import pro.wewed.app.navigation.NavigationContext
+import pro.wewed.app.navigation.GateOperationalContext
 import pro.wewed.app.services.AdminSystemRepository
 import pro.wewed.app.services.AdminSystemSnapshot
 import pro.wewed.app.services.forWedding
@@ -653,8 +654,35 @@ fun UsherShell(
     onOpenPersonaPicker: (() -> Unit)? = null
 ) {
     var isScannerOpen by remember { mutableStateOf(false) }
+    val productionGateContext by sessionViewModel.activeGateContext.collectAsState()
+    val scannerGateContext = productionGateContext ?: if (
+        context.environment.allowsMutableNativeDevelopment &&
+        !context.activeGateId.isNullOrBlank() &&
+        context.activeWeddingId.isNotBlank()
+    ) {
+        // Explicit Shadow-only operational context. Never used in Production.
+        GateOperationalContext(
+            grantId = "shadow-gate-${context.activeGateId}",
+            assignmentId = "shadow-assignment-${context.actorId}-${context.activeGateId}",
+            weddingId = context.activeWeddingId,
+            weddingTitle = context.activeWeddingTitle,
+            gateId = context.activeGateId!!,
+            gateName = context.activeGateId!!,
+            operatorUserId = context.actorId,
+            capabilities = setOf(
+                "gate.manifest.read",
+                "gate.checkin.write",
+                "gate.guest_search.read",
+                "gate.audit.read"
+            )
+        )
+    } else null
     if (isScannerOpen) {
-        UsherScannerScreen(appViewModel = appViewModel, onClose = { isScannerOpen = false })
+        UsherScannerScreen(
+            appViewModel = appViewModel,
+            gateContext = scannerGateContext,
+            onClose = { isScannerOpen = false }
+        )
         return
     }
 
