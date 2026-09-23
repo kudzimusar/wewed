@@ -1277,6 +1277,82 @@ Phase gate:
 - Phase 4: **ACCEPTED**;
 - Phase 5: **READY TO BEGIN**.
 
+### D-023 — Phase 9 execution evidence, submitted for moderator review (2026-09-23)
+**IMPLEMENTATION-AGENT SUBMISSION, NOT A MODERATOR VERDICT.** Phase 9 acceptance is the moderator's
+decision alone. New branches created directly from the D-022-accepted Phase-8 heads, never from
+`main`:
+- server `backend/digital-invitation-rsvp-phase9-20260923` from `ba38cf3c66105f5a7326bef27aecf428e47f3f5e`;
+- native `native-mobile/digital-invitation-rsvp-phase9-20260923` from `1e7ec407f04de2366fa64b3bbc735b22bc58f63e`.
+
+**§5 — RSVP mutation domain reconciled.** `PUT /api/weddings/[slug]/guest-session` (Guest Session
+v2) and `POST /api/rsvp` (a second, older guest-facing transport) had drifted into two separate
+implementations of RSVP business rules: `/api/rsvp` had NO adults-only enforcement at all, and
+unconditionally overwrote `plusOneName`/`plusOneMeal`/`dietaryNotes`/`message` with `null` whenever
+a caller omitted them, silently erasing previously-saved answers on every partial edit. Extracted
+the actual mutation semantics into a new shared operation, `applyGuestRsvpUpdate`
+(`src/lib/guest-rsvp-mutation.ts`), used by both routes; each route keeps its own transport-specific
+authorization (`originGuestId` stale-context check on guest-session, cookie-based
+`resolveWeddingAccessForRequest` on `/api/rsvp`). `songRequests` (a real but not-yet-converged RSVP
+column) is intentionally excluded — no current caller, outside Phase 9's 9-field scope.
+
+**§6-9 — full native RSVP field parity, both platforms.** Android/iOS `saveRsvp`/`answer` previously
+sent only `attending`/`dietaryNotes`/`message`. Both platforms gained a `GuestRsvpUpdate` (all 9
+converged fields, `nil`/`null` = omit-from-request, never coerced to a destructive overwrite) and a
+`GuestRsvpRecord` (the full authoritative stored row), and a full RSVP form (meal, plus-one +
+name/meal, children + count respecting server-provided adults-only policy, dietary notes, message)
+replacing the previous 2-button accept/decline dialog — mirroring the PWA's own
+`premium-invitation-rsvp-dialog.tsx` submission shape field-for-field. `originGuestId`/
+`presentedGuestId` stale-context binding is unchanged on both platforms. A `CHILDREN_NOT_ALLOWED`
+response now surfaces its own distinct message instead of being folded into the generic
+"reopen your invitation" notice (a real, if minor, pre-existing UX defect fixed on both platforms).
+
+**§10 — invitation-style authority proven for all 12 styles.** The wedding's own saved
+`invitationCardStyle` was already authoritative server-side (`resolvePersonalInvitation`'s
+`requestedCard` parameter is deliberately never read); added disposable-DB executable proof across
+every supported style, not just the Ivory flagship.
+
+**§11-13 — explicitly unchanged, verified by construction.** No entry/navigation code, invitation
+motion/style visual presentation, or Guest Session v2 credential/fingerprint code was touched by
+this round; the full pre-existing regression suites on both platforms and the server continue to
+pass unchanged, proving these invariants survived intact rather than merely asserting it.
+
+**§14-16 — same-record and policy-matrix proof.** A new disposable-DB integration suite
+(`src/lib/guest-rsvp-convergence.integration.test.ts`, 16 tests) proves: the full field/policy
+matrix (attendance, meal, plus-one, children, dietary, message, adults-only refusal, partial-update
+non-destructiveness); the `originGuestId` stale-context matrix (missing, mismatched, invalid
+session, expired session); and that both guest self-service transports read/write the exact SAME
+`RSVP` row — no replication, no second record, no mobile-only schema.
+
+Qualification (temporary reviewer CI, removed after a successful run):
+- server: run `35826332669` (`_tmp-phase9-server-qualification.yml`) — PASS at
+  `72f34663535d5fbbfbbb6bb79319ae69327a2994` (fresh Postgres, full migration chain, the new Phase 9
+  guest-RSVP-convergence suite, Guest Session v2/projection regressions, digital-invitation/
+  navigation/privacy source-contract regressions, Phase 2/7/8 disposable-DB regressions, production
+  build);
+- native: run `35826403947` (`_tmp-phase9-native-qualification.yml`) — PASS at
+  `26baf9cc04f985a4621660880a9a9d9abaf095f3` (Android `testDebugUnitTest`/`assembleDebug`/
+  `assembleRelease`; iOS `swift test`/`swift build`, XcodeGen, real Simulator Debug build, unsigned
+  Release device build).
+
+Full `bun test src` regression: byte-identical to the documented clean baseline (850 pass / 36 fail
+/ 8 errors — the 36/8 are pre-existing and unrelated to this phase).
+
+Production safety (verified via the GitHub Deployments API): every deployment recorded for every SHA
+produced this phase, on both branches, is `environment: "Preview"` — never `"Production"`. No
+production database read or written, no production migration applied, `WEWED_SESSION_SECRET` never
+read or changed, F-3/F-4/F-6 untouched, no Android/iOS build published, no signing credential
+touched, Phase 10 not started.
+
+Remaining, honestly, unchanged in scope: `songRequests` convergence, Gate/Usher authority, WW2
+production activation, Wedding Day migrations, F-3/F-4/F-6, `WEWED_SESSION_SECRET` configuration,
+universal/app-links (Phase 13) — none of this was in scope for Phase 9 and none of it was attempted.
+
+Phase gate:
+- Phase 9: **implementation agent reports the Digital Invitation + RSVP convergence work complete
+  and independently re-verified; acceptance is NOT self-declared and awaits moderator review of the
+  actual remote code above**;
+- Phase 10: **NOT STARTED / NOT AUTHORIZED**.
+
 ### D-022 — Phase 8 accepted; Phase 9 authorized (2026-09-23)
 **PHASE 8 — ACCEPTED.** Moderator acceptance date: 2026-09-23. This is a moderator decision, not an
 implementation-agent submission — unlike D-019/D-020/D-021, which are left unmodified below as the
