@@ -76,7 +76,7 @@ private struct NativeManifestHouseholdMember: Decodable {
     let attendeeName: String
 }
 
-private struct OfflineSyncBody: Encodable {
+struct OfflineSyncBody: Encodable {
     let passSerial: String
     let attendeeKeys: [String]
     let deviceId: String?
