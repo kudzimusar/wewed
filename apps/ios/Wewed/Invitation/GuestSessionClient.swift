@@ -41,9 +41,96 @@ public struct GuestInvitationSnapshot: Equatable, Sendable {
     public let checkedInAt: String?
 }
 
+/// Master plan WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01, Phase 9 — Digital Invitation + RSVP
+/// convergence.
+///
+/// The full guest-editable RSVP field set, matching the server's shared `applyGuestRsvpUpdate`
+/// operation exactly (`GUEST_RSVP_FIELDS` in the server's `guest-rsvp-mutation.ts`) — the SAME
+/// fields the PWA's premium invitation RSVP dialog can already edit.
+///
+/// `nil` means "leave this field exactly as it is currently stored" — ``GuestSessionClient/saveRsvp(weddingSlug:originGuestId:update:)``
+/// never sends a key for a `nil` property at all, so a partial edit (e.g. changing only the meal
+/// choice) can never erase an already-saved answer for every other field. This is deliberately NOT
+/// the same as "clear this field": to intentionally clear a free-text field (`mealChoice`/
+/// `plusOneName`/`plusOneMeal`/`dietaryNotes`/`message`), send an empty string — the server already
+/// trims an empty string to a stored `nil` for exactly this purpose. Booleans/`kidsCount` have no
+/// "cleared" state on the wire; omitting them (leaving the property `nil` here) is the only way to
+/// leave them untouched.
+public struct GuestRsvpUpdate: Equatable, Sendable {
+    public let attending: Bool?
+    public let mealChoice: String?
+    public let plusOne: Bool?
+    public let plusOneName: String?
+    public let plusOneMeal: String?
+    public let kidsAttending: Bool?
+    public let kidsCount: Int?
+    public let dietaryNotes: String?
+    public let message: String?
+
+    public init(
+        attending: Bool? = nil,
+        mealChoice: String? = nil,
+        plusOne: Bool? = nil,
+        plusOneName: String? = nil,
+        plusOneMeal: String? = nil,
+        kidsAttending: Bool? = nil,
+        kidsCount: Int? = nil,
+        dietaryNotes: String? = nil,
+        message: String? = nil
+    ) {
+        self.attending = attending
+        self.mealChoice = mealChoice
+        self.plusOne = plusOne
+        self.plusOneName = plusOneName
+        self.plusOneMeal = plusOneMeal
+        self.kidsAttending = kidsAttending
+        self.kidsCount = kidsCount
+        self.dietaryNotes = dietaryNotes
+        self.message = message
+    }
+}
+
+/// The RSVP exactly as the server now stores it, returned from a successful
+/// ``GuestSessionClient/saveRsvp(weddingSlug:originGuestId:update:)``.
+public struct GuestRsvpRecord: Equatable, Sendable {
+    public let attending: Bool?
+    public let mealChoice: String?
+    public let plusOne: Bool
+    public let plusOneName: String?
+    public let plusOneMeal: String?
+    public let kidsAttending: Bool
+    public let kidsCount: Int?
+    public let dietaryNotes: String?
+    public let message: String?
+
+    public init(
+        attending: Bool?,
+        mealChoice: String?,
+        plusOne: Bool,
+        plusOneName: String?,
+        plusOneMeal: String?,
+        kidsAttending: Bool,
+        kidsCount: Int?,
+        dietaryNotes: String?,
+        message: String?
+    ) {
+        self.attending = attending
+        self.mealChoice = mealChoice
+        self.plusOne = plusOne
+        self.plusOneName = plusOneName
+        self.plusOneMeal = plusOneMeal
+        self.kidsAttending = kidsAttending
+        self.kidsCount = kidsCount
+        self.dietaryNotes = dietaryNotes
+        self.message = message
+    }
+}
+
 /// What happened when a guest answered.
 public enum RsvpSaveResult: Equatable, Sendable {
-    case saved(attending: Bool?)
+    /// Master plan Phase 9 — carries the full record the server actually stored, not just
+    /// `attending`.
+    case saved(rsvp: GuestRsvpRecord)
     /// The session moved on while the form was open — Guest B became authoritative, or the session
     /// expired. The server refuses rather than writing the answer to whoever is active now.
     case staleGuestContext
@@ -261,16 +348,27 @@ public actor GuestSessionClient {
     /// `originGuestId` is the binding the server checks. It is what turns "save this answer" into
     /// "save this answer *for the guest whose card is open*", so an answer typed as Guest A can
     /// never land on Guest B after a switch.
+    ///
+    /// Master plan Phase 9 — `update` carries the full converged RSVP field set; only the
+    /// properties a caller actually set are sent, so a partial edit (e.g. changing only
+    /// ``GuestRsvpUpdate/mealChoice``) can never overwrite an unrelated already-saved answer. The
+    /// exact PATCH/PUT semantics follow the server's own shared `applyGuestRsvpUpdate` operation —
+    /// this method never re-implements them.
     public func saveRsvp(
         weddingSlug: String,
         originGuestId: String,
-        attending: Bool,
-        dietaryNotes: String? = nil,
-        message: String? = nil
+        update: GuestRsvpUpdate
     ) async throws -> RsvpSaveResult {
-        var payload: [String: Any] = ["originGuestId": originGuestId, "attending": attending]
-        if let dietaryNotes { payload["dietaryNotes"] = dietaryNotes }
-        if let message { payload["message"] = message }
+        var payload: [String: Any] = ["originGuestId": originGuestId]
+        if let attending = update.attending { payload["attending"] = attending }
+        if let mealChoice = update.mealChoice { payload["mealChoice"] = mealChoice }
+        if let plusOne = update.plusOne { payload["plusOne"] = plusOne }
+        if let plusOneName = update.plusOneName { payload["plusOneName"] = plusOneName }
+        if let plusOneMeal = update.plusOneMeal { payload["plusOneMeal"] = plusOneMeal }
+        if let kidsAttending = update.kidsAttending { payload["kidsAttending"] = kidsAttending }
+        if let kidsCount = update.kidsCount { payload["kidsCount"] = kidsCount }
+        if let dietaryNotes = update.dietaryNotes { payload["dietaryNotes"] = dietaryNotes }
+        if let message = update.message { payload["message"] = message }
         let response = try await perform(
             method: "PUT",
             path: "/api/weddings/\(encode(weddingSlug))/guest-session",
@@ -282,8 +380,8 @@ public actor GuestSessionClient {
             let json = response.body.flatMap {
                 try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
             }
-            let rsvp = json?["rsvp"] as? [String: Any]
-            return .saved(attending: rsvp?["attending"] as? Bool)
+            let rsvp = json?["rsvp"] as? [String: Any] ?? [:]
+            return .saved(rsvp: GuestRsvpRecord(fromResponse: rsvp))
         case 401:
             return .notAuthorized
         case 409:
@@ -460,6 +558,27 @@ private final class RedirectBlocker: NSObject, URLSessionTaskDelegate, Sendable 
 private extension String {
     func trimmingTrailingSlash() -> String {
         hasSuffix("/") ? String(dropLast()) : self
+    }
+}
+
+extension GuestRsvpRecord {
+    /// Maps a `{ "rsvp": {...} }` response payload's `rsvp` object into ``GuestRsvpRecord``.
+    init(fromResponse json: [String: Any]) {
+        func text(_ key: String) -> String? {
+            guard let value = json[key] as? String, !value.isEmpty, value != "null" else { return nil }
+            return value
+        }
+        self.init(
+            attending: json["attending"] as? Bool,
+            mealChoice: text("mealChoice"),
+            plusOne: json["plusOne"] as? Bool ?? false,
+            plusOneName: text("plusOneName"),
+            plusOneMeal: text("plusOneMeal"),
+            kidsAttending: json["kidsAttending"] as? Bool ?? false,
+            kidsCount: json["kidsCount"] as? Int,
+            dietaryNotes: text("dietaryNotes"),
+            message: text("message")
+        )
     }
 }
 

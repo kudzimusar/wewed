@@ -23,6 +23,7 @@ public struct LiveGuestInvitationView: View {
     @State private var rsvpPrompt = false
     @State private var submitting = false
     @State private var reopenRequired = false
+    @State private var childrenNotAllowed = false
     @State private var showNote = false
 
     public init(
@@ -41,11 +42,14 @@ public struct LiveGuestInvitationView: View {
         self.onViewPass = onViewPass
     }
 
-    private func answer(attending: Bool) {
+    // Master plan Phase 9 — the full converged RSVP field set, not just attendance. Respects
+    // server-provided policy (adults-only) rather than inventing wedding rules client-side; the
+    // server remains the final enforcement authority regardless of what this form allows.
+    private func answer(_ update: GuestRsvpUpdate) {
         guard !submitting else { return }
         submitting = true
         Task {
-            let outcome = await coordinator.answer(attending: attending)
+            let outcome = await coordinator.answer(update)
             switch outcome {
             case .saved:
                 rsvpPrompt = false
@@ -54,9 +58,13 @@ public struct LiveGuestInvitationView: View {
                 onRefreshed(await coordinator.refresh())
             // The card belongs to a guest who is no longer the active one. Saying nothing here
             // would let the guest believe their answer was recorded.
-            case .reopenRequired, .childrenNotAllowed, .unavailable:
+            case .reopenRequired, .unavailable:
                 rsvpPrompt = false
                 reopenRequired = true
+            // Distinct from reopenRequired: this is a policy refusal (adults-only), not a stale
+            // session — a "reopen your invitation" message would be actively misleading here.
+            case .childrenNotAllowed:
+                childrenNotAllowed = true
             }
             submitting = false
         }
@@ -100,7 +108,18 @@ public struct LiveGuestInvitationView: View {
                     Spacer()
                 }
             }
-            if rsvpPrompt { rsvpPromptView }
+            if rsvpPrompt {
+                LiveRsvpFormView(
+                    guestName: presentation.guestName,
+                    childrenPolicy: presentation.childrenPolicy,
+                    initial: presentation,
+                    isSubmitting: submitting,
+                    childrenNotAllowed: childrenNotAllowed,
+                    onDismissChildrenNotice: { childrenNotAllowed = false },
+                    onSubmit: { answer($0) },
+                    onDismiss: { if !submitting { rsvpPrompt = false } }
+                )
+            }
             if reopenRequired { reopenRequiredView }
             if showNote, let note = presentation.invitationCardMessage, !note.isEmpty {
                 noteFromTheCouple(note)
@@ -196,44 +215,6 @@ public struct LiveGuestInvitationView: View {
         #endif
     }
 
-    private var rsvpPromptView: some View {
-        ZStack(alignment: .bottom) {
-            Color.black.opacity(0.45)
-                .ignoresSafeArea()
-                .onTapGesture { if !submitting { rsvpPrompt = false } }
-            VStack(spacing: 14) {
-                Text("Will you be joining us?")
-                    .font(.system(size: 20, design: .serif))
-                    .foregroundStyle(WeddingIdentityPalette.ink)
-                if !presentation.guestName.isEmpty {
-                    Text(presentation.guestName)
-                        .font(.system(size: 13))
-                        .foregroundStyle(WeddingIdentityPalette.muted)
-                }
-                if submitting {
-                    Text("Recording your answer…")
-                        .font(.system(size: 13))
-                        .foregroundStyle(WeddingIdentityPalette.muted)
-                } else {
-                    Button("Joyfully accept") { answer(attending: true) }
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(WewedColors.emerald)
-                        .padding(.vertical, 8)
-                        .accessibilityIdentifier("invitation-rsvp-accept")
-                    Button("Regretfully decline") { answer(attending: false) }
-                        .font(.system(size: 14))
-                        .foregroundStyle(WeddingIdentityPalette.muted)
-                        .padding(.vertical, 8)
-                        .accessibilityIdentifier("invitation-rsvp-decline")
-                }
-            }
-            .padding(24)
-            .frame(maxWidth: .infinity)
-            .background(WeddingIdentityPalette.ivory)
-        }
-        .accessibilityIdentifier("invitation-rsvp-prompt")
-    }
-
     /// Shown when the server refused the write because the session moved on.
     ///
     /// It says the answer was not saved. A silent failure here is worse than an error, because the
@@ -257,6 +238,247 @@ public struct LiveGuestInvitationView: View {
             .padding(28)
         }
         .accessibilityIdentifier("invitation-reopen-required")
+    }
+}
+
+/// The 5 meal options the PWA's own premium RSVP dialog offers (`mealChoice` is otherwise free
+/// text).
+private let liveRsvpMealOptions: [(value: String, label: String)] = [
+    ("beef", "Beef"), ("chicken", "Chicken"), ("vegetarian", "Vegetarian"),
+    ("vegan", "Vegan"), ("traditional", "Traditional")
+]
+
+/// Master plan Phase 9 — the full converged RSVP form: attendance, meal, plus-one (+ name/meal),
+/// children (+ count, respecting adults-only), dietary notes and a message to the couple. Mirrors
+/// the PWA's own `premium-invitation-rsvp-dialog.tsx` field set and submission shape exactly, so the
+/// two clients converge on the same server contract rather than inventing a mobile-only one.
+private struct LiveRsvpFormView: View {
+    let guestName: String
+    let childrenPolicy: String?
+    let initial: LiveInvitationPresentation
+    let isSubmitting: Bool
+    let childrenNotAllowed: Bool
+    let onDismissChildrenNotice: () -> Void
+    let onSubmit: (GuestRsvpUpdate) -> Void
+    let onDismiss: () -> Void
+
+    @State private var accepting: Bool
+    @State private var mealChoice: String
+    @State private var plusOne: Bool
+    @State private var plusOneName: String
+    @State private var plusOneMeal: String
+    @State private var kidsAttending: Bool
+    @State private var kidsCount: Int
+    @State private var dietaryNotes: String
+    @State private var message: String
+
+    private var adultsOnly: Bool { childrenPolicy == "adults_only" }
+
+    init(
+        guestName: String,
+        childrenPolicy: String?,
+        initial: LiveInvitationPresentation,
+        isSubmitting: Bool,
+        childrenNotAllowed: Bool,
+        onDismissChildrenNotice: @escaping () -> Void,
+        onSubmit: @escaping (GuestRsvpUpdate) -> Void,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.guestName = guestName
+        self.childrenPolicy = childrenPolicy
+        self.initial = initial
+        self.isSubmitting = isSubmitting
+        self.childrenNotAllowed = childrenNotAllowed
+        self.onDismissChildrenNotice = onDismissChildrenNotice
+        self.onSubmit = onSubmit
+        self.onDismiss = onDismiss
+        // Never let a stale client pre-select children attendance on an adults-only wedding — the
+        // server remains final enforcement authority regardless, but the form must not encourage it.
+        let adultsOnlyPolicy = childrenPolicy == "adults_only"
+        _accepting = State(initialValue: initial.attending != false)
+        _mealChoice = State(initialValue: initial.mealChoice ?? "")
+        _plusOne = State(initialValue: initial.plusOne)
+        _plusOneName = State(initialValue: initial.plusOneName ?? "")
+        _plusOneMeal = State(initialValue: initial.plusOneMeal ?? "")
+        _kidsAttending = State(initialValue: adultsOnlyPolicy ? false : initial.kidsAttending)
+        _kidsCount = State(initialValue: initial.kidsCount ?? 0)
+        _dietaryNotes = State(initialValue: initial.dietaryNotes ?? "")
+        _message = State(initialValue: initial.message ?? "")
+    }
+
+    private func buildUpdate() -> GuestRsvpUpdate {
+        GuestRsvpUpdate(
+            attending: accepting,
+            // Sent (never omitted) only while accepting — an empty string here intentionally
+            // clears a previously-saved choice, matching the server's own trim-to-nil semantics;
+            // omitted entirely while declining, so a decline never disturbs a meal choice saved
+            // from a prior acceptance.
+            mealChoice: accepting ? mealChoice.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
+            plusOne: accepting ? plusOne : false,
+            plusOneName: (accepting && plusOne)
+                ? plusOneName.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
+            plusOneMeal: (accepting && plusOne)
+                ? plusOneMeal.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
+            kidsAttending: (accepting && !adultsOnly) ? kidsAttending : false,
+            kidsCount: (accepting && !adultsOnly && kidsAttending) ? kidsCount : nil,
+            dietaryNotes: accepting ? dietaryNotes.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
+            // Always sent: a message to the couple is meaningful whether or not the guest is
+            // attending.
+            message: message.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            Color.black.opacity(0.45)
+                .ignoresSafeArea()
+                .onTapGesture { if !isSubmitting { onDismiss() } }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Will you be joining us?")
+                        .font(.system(size: 20, design: .serif))
+                        .foregroundStyle(WeddingIdentityPalette.ink)
+                    if !guestName.isEmpty {
+                        Text(guestName)
+                            .font(.system(size: 13))
+                            .foregroundStyle(WeddingIdentityPalette.muted)
+                    }
+
+                    HStack(spacing: 12) {
+                        choiceChip("Joyfully accept", selected: accepting,
+                                   identifier: "invitation-rsvp-accept") { accepting = true }
+                        choiceChip("Regretfully decline", selected: !accepting,
+                                   identifier: "invitation-rsvp-decline") { accepting = false }
+                    }
+
+                    if accepting {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Meal preference")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(WeddingIdentityPalette.muted)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 8) {
+                                    ForEach(liveRsvpMealOptions, id: \.value) { option in
+                                        choiceChip(option.label, selected: mealChoice == option.value,
+                                                   identifier: "invitation-rsvp-meal-\(option.value)") {
+                                            mealChoice = option.value
+                                        }
+                                    }
+                                }
+                            }
+
+                            Divider().padding(.vertical, 4)
+
+                            toggleRow("Bringing a plus one", isOn: $plusOne,
+                                      identifier: "invitation-rsvp-plus-one-toggle")
+                            if plusOne {
+                                VStack(spacing: 8) {
+                                    TextField("Plus one's name", text: $plusOneName)
+                                        .textFieldStyle(.roundedBorder)
+                                        .accessibilityIdentifier("invitation-rsvp-plus-one-name")
+                                    TextField("Their meal preference", text: $plusOneMeal)
+                                        .textFieldStyle(.roundedBorder)
+                                        .accessibilityIdentifier("invitation-rsvp-plus-one-meal")
+                                }
+                                .accessibilityIdentifier("invitation-rsvp-plus-one-details")
+                            }
+
+                            Divider().padding(.vertical, 4)
+
+                            if adultsOnly {
+                                Text("With love, we kindly ask that this be an adults-only celebration.")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(WeddingIdentityPalette.muted)
+                                    .accessibilityIdentifier("invitation-rsvp-adults-only-note")
+                            } else {
+                                toggleRow("Children are attending", isOn: $kidsAttending,
+                                          identifier: "invitation-rsvp-kids-toggle")
+                                if kidsAttending {
+                                    HStack(spacing: 16) {
+                                        Text("−")
+                                            .font(.system(size: 20, weight: .bold))
+                                            .foregroundStyle(WeddingIdentityPalette.ink)
+                                            .padding(8)
+                                            .onTapGesture {
+                                                if kidsCount > 0 { kidsCount -= 1 }
+                                            }
+                                        Text("\(kidsCount)")
+                                            .font(.system(size: 15))
+                                            .foregroundStyle(WeddingIdentityPalette.ink)
+                                        Text("+")
+                                            .font(.system(size: 20, weight: .bold))
+                                            .foregroundStyle(WeddingIdentityPalette.ink)
+                                            .padding(8)
+                                            .onTapGesture {
+                                                kidsCount = min(kidsCount + 1, 20)
+                                            }
+                                    }
+                                    .accessibilityIdentifier("invitation-rsvp-kids-stepper")
+                                }
+                            }
+
+                            TextField("Dietary notes", text: $dietaryNotes, axis: .vertical)
+                                .textFieldStyle(.roundedBorder)
+                                .accessibilityIdentifier("invitation-rsvp-dietary-notes")
+                        }
+                        .accessibilityIdentifier("invitation-rsvp-attending-fields")
+                    }
+
+                    TextField("Message to the couple", text: $message, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityIdentifier("invitation-rsvp-message")
+
+                    if childrenNotAllowed {
+                        Text("This celebration is adults only, so children can't be added to your RSVP.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(WewedColors.error)
+                            .onTapGesture(perform: onDismissChildrenNotice)
+                            .accessibilityIdentifier("invitation-rsvp-children-not-allowed")
+                    }
+
+                    if isSubmitting {
+                        Text("Recording your answer…")
+                            .font(.system(size: 13))
+                            .foregroundStyle(WeddingIdentityPalette.muted)
+                    } else {
+                        Button("Save RSVP") { onSubmit(buildUpdate()) }
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(WewedColors.emerald)
+                            .padding(.vertical, 8)
+                            .accessibilityIdentifier("invitation-rsvp-save")
+                    }
+                }
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(WeddingIdentityPalette.ivory)
+        }
+        .accessibilityIdentifier("invitation-rsvp-prompt")
+    }
+
+    private func choiceChip(
+        _ label: String, selected: Bool, identifier: String, action: @escaping () -> Void
+    ) -> some View {
+        Text(label)
+            .font(.system(size: 13, weight: selected ? .semibold : .regular))
+            .foregroundStyle(selected ? WewedColors.emerald : WeddingIdentityPalette.muted)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 14)
+            .onTapGesture(perform: action)
+            .accessibilityIdentifier(identifier)
+    }
+
+    private func toggleRow(_ label: String, isOn: Binding<Bool>, identifier: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 14))
+                .foregroundStyle(WeddingIdentityPalette.ink)
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .tint(WewedColors.emerald)
+        }
+        .accessibilityIdentifier(identifier)
     }
 }
 

@@ -129,7 +129,8 @@ final class GuestSessionClientTests: XCTestCase {
         _ = try await client.loadInvitation()
         XCTAssertEqual(storage.get(key: "wewed.guest.session"), "v2-session")
         Stub.routes["PUT /api/weddings/synthetic/guest-session"] = Reply(status: 200, body: #"{"success":true,"rsvp":{"attending":true}}"#, session: "v2-refreshed")
-        _ = try await client.saveRsvp(weddingSlug: "synthetic", originGuestId: "a", attending: true)
+        _ = try await client.saveRsvp(weddingSlug: "synthetic", originGuestId: "a",
+                                      update: GuestRsvpUpdate(attending: true))
         XCTAssertEqual(storage.get(key: "wewed.guest.session"), "v2-refreshed")
         Stub.routes[get] = Reply(status: 401)
         do { _ = try await client.loadInvitation(); XCTFail("revoked session accepted") } catch { }
@@ -348,17 +349,87 @@ final class GuestSessionClientTests: XCTestCase {
         Stub.routes["PUT /api/weddings/charity-and-kudzie/guest-session"] =
             Reply(status: 200, body: #"{"success":true,"rsvp":{"attending":true}}"#)
         let accepted = try await client.saveRsvp(weddingSlug: "charity-and-kudzie",
-                                                 originGuestId: "guest_a", attending: true)
-        XCTAssertEqual(accepted, .saved(attending: true))
+                                                 originGuestId: "guest_a",
+                                                 update: GuestRsvpUpdate(attending: true))
+        guard case let .saved(acceptedRsvp) = accepted else {
+            return XCTFail("expected saved, got \(accepted)")
+        }
+        XCTAssertEqual(acceptedRsvp.attending, true)
         XCTAssertTrue(Stub.seenBodies.last?.contains("\"attending\":true") == true)
         XCTAssertTrue(Stub.seenBodies.last?.contains("\"originGuestId\":\"guest_a\"") == true)
 
         Stub.routes["PUT /api/weddings/charity-and-kudzie/guest-session"] =
             Reply(status: 200, body: #"{"success":true,"rsvp":{"attending":false}}"#)
         let declined = try await client.saveRsvp(weddingSlug: "charity-and-kudzie",
-                                                 originGuestId: "guest_a", attending: false)
-        XCTAssertEqual(declined, .saved(attending: false))
+                                                 originGuestId: "guest_a",
+                                                 update: GuestRsvpUpdate(attending: false))
+        guard case let .saved(declinedRsvp) = declined else {
+            return XCTFail("expected saved, got \(declined)")
+        }
+        XCTAssertEqual(declinedRsvp.attending, false)
         XCTAssertTrue(Stub.seenBodies.last?.contains("\"attending\":false") == true)
+    }
+
+    /// Master plan Phase 9 — the full converged field set reaches the server in one request.
+    func testTheFullRsvpFieldSetIsSentAndParsedBack() async throws {
+        exchangeSucceeds(slug: "charity-and-kudzie", guestId: "guest_a",
+                         name: "Guest A", session: guestASession)
+        _ = try await client.exchangePrivateInvitation(weddingSlug: "charity-and-kudzie",
+                                                       rsvpToken: rawToken)
+
+        Stub.routes["PUT /api/weddings/charity-and-kudzie/guest-session"] = Reply(
+            status: 200,
+            body: #"{"success":true,"rsvp":{"attending":true,"mealChoice":"vegetarian","plusOne":true,"plusOneName":"Plus One","plusOneMeal":"chicken","kidsAttending":true,"kidsCount":2,"dietaryNotes":"No nuts","message":"So excited"}}"#
+        )
+        let result = try await client.saveRsvp(
+            weddingSlug: "charity-and-kudzie",
+            originGuestId: "guest_a",
+            update: GuestRsvpUpdate(
+                attending: true,
+                mealChoice: "vegetarian",
+                plusOne: true,
+                plusOneName: "Plus One",
+                plusOneMeal: "chicken",
+                kidsAttending: true,
+                kidsCount: 2,
+                dietaryNotes: "No nuts",
+                message: "So excited"
+            )
+        )
+        XCTAssertEqual(result, .saved(rsvp: GuestRsvpRecord(
+            attending: true, mealChoice: "vegetarian", plusOne: true, plusOneName: "Plus One",
+            plusOneMeal: "chicken", kidsAttending: true, kidsCount: 2, dietaryNotes: "No nuts",
+            message: "So excited"
+        )))
+        let body = Stub.seenBodies.last ?? ""
+        XCTAssertTrue(body.contains("\"mealChoice\":\"vegetarian\""))
+        XCTAssertTrue(body.contains("\"plusOne\":true"))
+        XCTAssertTrue(body.contains("\"plusOneName\":\"Plus One\""))
+        XCTAssertTrue(body.contains("\"plusOneMeal\":\"chicken\""))
+        XCTAssertTrue(body.contains("\"kidsAttending\":true"))
+        XCTAssertTrue(body.contains("\"kidsCount\":2"))
+        XCTAssertTrue(body.contains("\"dietaryNotes\":\"No nuts\""))
+        XCTAssertTrue(body.contains("\"message\":\"So excited\""))
+    }
+
+    /// A field the caller never set must never appear in the request body at all.
+    func testAFieldLeftNullIsNeverSentSoItCanNeverOverwriteAnUnrelatedAnswer() async throws {
+        exchangeSucceeds(slug: "charity-and-kudzie", guestId: "guest_a",
+                         name: "Guest A", session: guestASession)
+        _ = try await client.exchangePrivateInvitation(weddingSlug: "charity-and-kudzie",
+                                                       rsvpToken: rawToken)
+
+        Stub.routes["PUT /api/weddings/charity-and-kudzie/guest-session"] =
+            Reply(status: 200, body: #"{"success":true,"rsvp":{"mealChoice":"vegan"}}"#)
+        _ = try await client.saveRsvp(weddingSlug: "charity-and-kudzie", originGuestId: "guest_a",
+                                      update: GuestRsvpUpdate(mealChoice: "vegan"))
+        let body = Stub.seenBodies.last ?? ""
+        XCTAssertTrue(body.contains("\"mealChoice\":\"vegan\""))
+        XCTAssertFalse(body.contains("\"attending\""))
+        XCTAssertFalse(body.contains("\"plusOne\""))
+        XCTAssertFalse(body.contains("\"kidsAttending\""))
+        XCTAssertFalse(body.contains("\"dietaryNotes\""))
+        XCTAssertFalse(body.contains("\"message\""))
     }
 
     /// A stale binding is surfaced, not swallowed: the answer belonged to a different card.
@@ -370,7 +441,8 @@ final class GuestSessionClientTests: XCTestCase {
         Stub.routes["PUT /api/weddings/charity-and-kudzie/guest-session"] =
             Reply(status: 409, body: #"{"success":false,"code":"STALE_GUEST_CONTEXT"}"#)
         let result = try await client.saveRsvp(weddingSlug: "charity-and-kudzie",
-                                               originGuestId: "guest_a", attending: true)
+                                               originGuestId: "guest_a",
+                                               update: GuestRsvpUpdate(attending: true))
         XCTAssertEqual(result, .staleGuestContext)
     }
 
@@ -381,8 +453,9 @@ final class GuestSessionClientTests: XCTestCase {
                                                        rsvpToken: rawToken)
         Stub.routes["PUT /api/weddings/charity-and-kudzie/guest-session"] =
             Reply(status: 400, body: #"{"success":false,"code":"CHILDREN_NOT_ALLOWED"}"#)
-        let result = try await client.saveRsvp(weddingSlug: "charity-and-kudzie",
-                                               originGuestId: "guest_a", attending: true)
+        let result = try await client.saveRsvp(
+            weddingSlug: "charity-and-kudzie", originGuestId: "guest_a",
+            update: GuestRsvpUpdate(attending: true, kidsAttending: true))
         XCTAssertEqual(result, .childrenNotAllowed)
     }
 

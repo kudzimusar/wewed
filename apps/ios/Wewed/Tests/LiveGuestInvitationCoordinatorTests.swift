@@ -168,7 +168,7 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
     /// Nothing may act as Guest A while a replacement is refused or unreachable (master plan §6.5).
     private func assertGuestAIsNotActionable() async {
         Stub.seenPaths = []
-        let outcome = await coordinator.answer(attending: false)
+        let outcome = await coordinator.answer(GuestRsvpUpdate(attending: false))
         XCTAssertEqual(outcome, .reopenRequired, "answering must not target the previously presented Guest")
         XCTAssertFalse(Stub.seenPaths.contains { $0.hasPrefix("PUT ") }, "no RSVP write for Guest A")
 
@@ -246,9 +246,12 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
         Stub.routes["PUT /api/weddings/charity-and-kudzie/guest-session"] =
             Reply(status: 200, body: #"{"success":true,"rsvp":{"attending":true}}"#)
         Stub.seenBodies = []
-        let outcome = await coordinator.answer(attending: true)
+        let outcome = await coordinator.answer(GuestRsvpUpdate(attending: true))
 
-        XCTAssertEqual(outcome, .saved(attending: true))
+        guard case let .saved(rsvp) = outcome else {
+            return XCTFail("expected saved, got \(outcome)")
+        }
+        XCTAssertEqual(rsvp.attending, true)
         XCTAssertTrue(Stub.seenBodies.last?.contains("\"originGuestId\":\"guest_live\"") == true)
     }
 
@@ -263,8 +266,11 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
         Stub.routes["PUT /api/weddings/charity-and-kudzie/guest-session"] =
             Reply(status: 200, body: #"{"success":true,"rsvp":{"attending":false}}"#)
         Stub.seenBodies = []
-        let declined = await coordinator.answer(attending: false)
-        XCTAssertEqual(declined, .saved(attending: false))
+        let declined = await coordinator.answer(GuestRsvpUpdate(attending: false))
+        guard case let .saved(rsvp) = declined else {
+            return XCTFail("expected saved, got \(declined)")
+        }
+        XCTAssertEqual(rsvp.attending, false)
         XCTAssertTrue(Stub.seenBodies.last?.contains("\"attending\":false") == true)
     }
 
@@ -278,13 +284,13 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
 
         Stub.routes["PUT /api/weddings/charity-and-kudzie/guest-session"] =
             Reply(status: 409, body: #"{"success":false,"code":"STALE_GUEST_CONTEXT"}"#)
-        let stale = await coordinator.answer(attending: true)
+        let stale = await coordinator.answer(GuestRsvpUpdate(attending: true))
         XCTAssertEqual(stale, .reopenRequired)
     }
 
     /// Answering before a card exists cannot guess a guest.
     func testAnsweringWithoutAPresentedCardIsRefused() async {
-        let outcome = await coordinator.answer(attending: true)
+        let outcome = await coordinator.answer(GuestRsvpUpdate(attending: true))
         XCTAssertEqual(outcome, .reopenRequired)
         XCTAssertFalse(Stub.seenPaths.contains { $0.hasPrefix("PUT") })
     }

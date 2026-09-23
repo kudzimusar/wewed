@@ -23,7 +23,8 @@ public enum LiveInvitationState: Equatable, Sendable {
 
 /// What came back from answering.
 public enum RsvpOutcome: Equatable, Sendable {
-    case saved(attending: Bool?)
+    /// Master plan Phase 9 — carries the full record the server actually stored.
+    case saved(rsvp: GuestRsvpRecord)
     /// The card on screen belongs to a guest who is no longer the active one.
     ///
     /// Surfaced, never swallowed. The server refused to write Guest A's answer onto Guest B, and
@@ -146,11 +147,11 @@ public actor LiveGuestInvitationCoordinator {
     /// session happens to name now. That is the whole point: if the session moved on while the card
     /// was open, the server returns `STALE_GUEST_CONTEXT` and the answer is not written to the
     /// wrong person.
-    public func answer(
-        attending: Bool,
-        dietaryNotes: String? = nil,
-        message: String? = nil
-    ) async -> RsvpOutcome {
+    ///
+    /// Master plan Phase 9 — `update` carries the full converged RSVP field set (attendance, meal,
+    /// plus-one, children, dietary notes, message), not just attendance. `presentedGuestId` is
+    /// untouched by this change: it remains captured only at presentation time, never at save time.
+    public func answer(_ update: GuestRsvpUpdate) async -> RsvpOutcome {
         guard let slug = activeWeddingSlug,
               let guestId = presentedGuestId, !guestId.isEmpty
         else { return .reopenRequired }
@@ -158,11 +159,9 @@ public actor LiveGuestInvitationCoordinator {
         do {
             let result = try await client.saveRsvp(weddingSlug: slug,
                                                    originGuestId: guestId,
-                                                   attending: attending,
-                                                   dietaryNotes: dietaryNotes,
-                                                   message: message)
+                                                   update: update)
             switch result {
-            case let .saved(attending): return .saved(attending: attending)
+            case let .saved(rsvp): return .saved(rsvp: rsvp)
             case .staleGuestContext, .notAuthorized: return .reopenRequired
             case .childrenNotAllowed: return .childrenNotAllowed
             case let .failed(status): return .unavailable(status: status)

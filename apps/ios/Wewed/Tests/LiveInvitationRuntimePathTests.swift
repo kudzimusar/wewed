@@ -141,8 +141,11 @@ final class LiveInvitationRuntimePathTests: XCTestCase {
             Reply(status: 200, body: #"{"success":true,"rsvp":{"attending":true}}"#)
         Stub.seenBodies = []
 
-        let outcome = await coordinator.answer(attending: true)
-        XCTAssertEqual(outcome, .saved(attending: true))
+        let outcome = await coordinator.answer(GuestRsvpUpdate(attending: true))
+        guard case let .saved(rsvp) = outcome else {
+            return XCTFail("expected saved, got \(outcome)")
+        }
+        XCTAssertEqual(rsvp.attending, true)
         XCTAssertTrue(Stub.seenBodies.last?.contains("\"originGuestId\":\"guest_real\"") == true)
         XCTAssertTrue(ForbiddenLegacyRepository.touched.isEmpty)
     }
@@ -155,8 +158,11 @@ final class LiveInvitationRuntimePathTests: XCTestCase {
 
         Stub.routes["PUT /api/weddings/charity-and-kudzie/guest-session"] =
             Reply(status: 200, body: #"{"success":true,"rsvp":{"attending":false}}"#)
-        let outcome = await coordinator.answer(attending: false)
-        XCTAssertEqual(outcome, .saved(attending: false))
+        let outcome = await coordinator.answer(GuestRsvpUpdate(attending: false))
+        guard case let .saved(rsvp) = outcome else {
+            return XCTFail("expected saved, got \(outcome)")
+        }
+        XCTAssertEqual(rsvp.attending, false)
         XCTAssertTrue(ForbiddenLegacyRepository.touched.isEmpty)
     }
 
