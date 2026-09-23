@@ -137,6 +137,38 @@ describeDb('Phase 11A Wedding Day HTTP route handlers', () => {
     expect(checkInRes.status).toBe(503)
   })
 
+  test('enabled feature remains unavailable until both signing roles pass preflight', async () => {
+    process.env.WEWED_WEDDING_DAY_WW2_ENABLED = 'true'
+    const rootPrivateKey = process.env.WEDDING_DAY_ROOT_PRIVATE_KEY_PEM
+    const rootKeyId = process.env.WEDDING_DAY_ROOT_KEY_ID
+    delete process.env.WEDDING_DAY_ROOT_PRIVATE_KEY_PEM
+    delete process.env.WEDDING_DAY_ROOT_KEY_ID
+
+    const passRes = await getPassRoute(new NextRequest('http://localhost/api/wedding-day/pass'))
+    expect(passRes.status).toBe(503)
+    expect((await passRes.json()).code).toBe('WEDDING_DAY_KEY_CONFIGURATION_INVALID')
+
+    const manifestReq = new NextRequest(
+      `http://localhost/api/native/gate/wedding-day/manifest?grantId=${GRANT_ID}`,
+    )
+    manifestReq.headers.set('Authorization', `Bearer ${bearerToken}`)
+    const manifestRes = await getManifestRoute(manifestReq)
+    expect(manifestRes.status).toBe(503)
+    expect((await manifestRes.json()).code).toBe('WEDDING_DAY_KEY_CONFIGURATION_INVALID')
+
+    const checkInReq = new NextRequest(
+      `http://localhost/api/native/gate/wedding-day/check-in?grantId=${GRANT_ID}`,
+      { method: 'POST', body: JSON.stringify({ passSerial: 'irrelevant', attendeeKeys: ['primary'] }) },
+    )
+    checkInReq.headers.set('Authorization', `Bearer ${bearerToken}`)
+    const checkInRes = await postCheckInRoute(checkInReq)
+    expect(checkInRes.status).toBe(503)
+    expect((await checkInRes.json()).code).toBe('WEDDING_DAY_KEY_CONFIGURATION_INVALID')
+
+    process.env.WEDDING_DAY_ROOT_PRIVATE_KEY_PEM = rootPrivateKey
+    process.env.WEDDING_DAY_ROOT_KEY_ID = rootKeyId
+  })
+
   test('enabled feature gate enforces authentication and grant authorization', async () => {
     process.env.WEWED_WEDDING_DAY_WW2_ENABLED = 'true'
 
