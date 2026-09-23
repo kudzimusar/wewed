@@ -24,6 +24,7 @@ class ProductionActorAssignmentSource(
     private val authority: ProductionAuthority,
     private val selectedGrantIds: Set<String> = emptySet(),
     private val selectedEngagementId: String? = null,
+    private val selectedGateGrantId: String? = null,
 ) : ActorAssignmentSource {
 
     override suspend fun assignments(actorId: String): List<ActorAssignment> {
@@ -36,7 +37,7 @@ class ProductionActorAssignmentSource(
             .filterValues { it.size > 1 }
             .keys
 
-        return authority.grants
+        val workspaceAssignments = authority.grants
             .filter { grant ->
                 grant.workspaceKindWire !in ambiguousKinds &&
                     (grant.grantId in selectedGrantIds || !requiresExplicitSelection(grant))
@@ -48,6 +49,22 @@ class ProductionActorAssignmentSource(
                     is ProductionGrantMapper.Outcome.Denied -> null
                 }
             }
+
+        // AppRole.USHER is presentation only. The actual authority remains the selected
+        // GateOperationalContext derived from the operational-grant axis.
+        val gateAssignment = selectedGateGrantId?.let { grantId ->
+            (ProductionGateGrantMapper.map(authority, grantId)
+                as? ProductionGateGrantMapper.Outcome.Selected)?.context
+        }?.let { context ->
+            ActorAssignment(
+                actorId = context.operatorUserId,
+                role = pro.wewed.app.models.AppRole.USHER,
+                weddingId = context.weddingId,
+                gateId = context.gateId
+            )
+        }
+
+        return if (gateAssignment == null) workspaceAssignments else workspaceAssignments + gateAssignment
     }
 
     /** True when more than one grant shares this grant's workspace kind, so none is picked implicitly. */
