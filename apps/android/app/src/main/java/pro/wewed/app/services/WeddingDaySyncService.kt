@@ -191,7 +191,9 @@ class WeddingDaySyncService(
         if (payload.weddingId != expectedWeddingId) {
             throw WeddingDaySyncException.ManifestWeddingMismatch
         }
-        if (isExpired(payload.expiresAt)) {
+        val manifestExpiresAt = parseIsoDate(payload.expiresAt)
+            ?: throw WeddingDaySyncException.InvalidResponse
+        if (manifestExpiresAt.time <= System.currentTimeMillis()) {
             throw WeddingDaySyncException.ManifestExpired
         }
 
@@ -249,7 +251,11 @@ class WeddingDaySyncService(
 
         val item = offlineStore.lookupBySerial(weddingId, parsed.passSerial)
             ?: throw WeddingDaySyncException.PassNotInManifest
-        if (!item.eligible || item.revokedAt != null || isExpired(item.expiresAt)) {
+        val credentialExpiryInvalidOrExpired = item.expiresAt?.let { expiresAt ->
+            val parsedExpiry = parseIsoDate(expiresAt)
+            parsedExpiry == null || parsedExpiry.time <= System.currentTimeMillis()
+        } ?: false
+        if (!item.eligible || item.revokedAt != null || credentialExpiryInvalidOrExpired) {
             throw WeddingDaySyncException.PassIneligible
         }
         if ((item.nonce != null && item.nonce != parsed.nonce) ||
@@ -261,7 +267,18 @@ class WeddingDaySyncService(
 
         val key = trustStore.signingKey(weddingId, item.signingKeyId)
             ?: throw WeddingDaySyncException.SigningKeyUnavailable
-        if (!key.status.equals("active", ignoreCase = true) || key.revokedAt != null || isExpired(key.expiresAt)) {
+        val keyActiveFrom = parseIsoDate(key.activeFrom)
+        val keyExpiryInvalidOrExpired = key.expiresAt?.let { expiresAt ->
+            val parsedExpiry = parseIsoDate(expiresAt)
+            parsedExpiry == null || parsedExpiry.time <= System.currentTimeMillis()
+        } ?: false
+        if (key.algorithm != "ECDSA_P256_SHA256" ||
+            !key.status.equals("active", ignoreCase = true) ||
+            key.revokedAt != null ||
+            keyActiveFrom == null ||
+            keyActiveFrom.time > System.currentTimeMillis() ||
+            keyExpiryInvalidOrExpired
+        ) {
             throw WeddingDaySyncException.SigningKeyInactive
         }
 
@@ -274,7 +291,6 @@ class WeddingDaySyncService(
     suspend fun syncPendingCheckIns(
         bearerToken: String,
         weddingId: String,
-        gateId: String? = null,
         grantId: String? = null,
         offlineStore: OfflineManifestStoreProtocol,
         trustStore: WeddingDayManifestTrustStore
@@ -306,15 +322,14 @@ class WeddingDaySyncService(
                 legacy += record.id
                 continue
             }
+            // Wedding, Gate, operator, source and canonical event are all server-derived
+            // from the freshly revalidated operational grant. Offline storage contributes only
+            // operation identity/data.
             val body = linkedMapOf<String, Any>(
-                "guestId" to record.guestId,
                 "passSerial" to record.passSerial,
                 "attendeeKeys" to record.attendeeKeys,
-                "source" to "offline-sync",
-                "clientEventId" to record.id,
-                "eventKey" to trust.eventKey
+                "clientEventId" to record.id
             )
-            if (gateId != null) body["gateId"] = gateId
             if (record.deviceId != null) body["deviceId"] = record.deviceId
 
             try {
@@ -335,11 +350,6 @@ class WeddingDaySyncService(
         }
 
         return WeddingDaySyncResult(synced, failed, legacy)
-    }
-
-    private fun isExpired(value: String?): Boolean {
-        if (value.isNullOrBlank()) return false
-        return parseIsoDate(value)?.let { it.time <= System.currentTimeMillis() } ?: false
     }
 
     private fun parseIsoDate(value: String): Date? {
