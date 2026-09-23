@@ -42,6 +42,7 @@ final class WeddingDayOfflineTests: XCTestCase {
         XCTAssertEqual(pending.count, 1)
         XCTAssertEqual(pending[0].attendeeKeys, ["plus-one"])
         XCTAssertEqual(pending[0].deviceId, "ios-gate-a")
+        XCTAssertEqual(pending[0].usherId, "")
 
         store = OfflineManifestStore(storageDirectory: dir, deviceId: "ios-gate-a")
         let restored = await store.lookupBySerial(weddingId: weddingId, serial: "WWABC1234")
