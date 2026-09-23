@@ -5,7 +5,7 @@ import {
   assertWeddingDayWW2RuntimeReady,
   isWeddingDayWW2Enabled,
 } from '@/lib/wedding-day-feature'
-import { revokeWeddingPassCredential } from '@/lib/wedding-day'
+import { MAX_REVOCATION_REASON_LENGTH, revokeWeddingPassCredential } from '@/lib/wedding-day'
 import { db } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   }
 
   const resolved = await resolveNativeGateOperationalContext(request, {
-    requiredCapability: 'gate.checkin.write',
+    requiredCapability: 'gate.pass.revoke',
   })
   if (!resolved.ok) return resolved.response
 
@@ -61,13 +61,27 @@ export async function POST(request: NextRequest) {
       400,
     )
   }
+  if (reason.length > MAX_REVOCATION_REASON_LENGTH) {
+    return noStoreJson(
+      {
+        success: false,
+        code: 'REVOCATION_REASON_TOO_LONG',
+        error: `Revocation reason must be ${MAX_REVOCATION_REASON_LENGTH} characters or fewer.`,
+      },
+      400,
+    )
+  }
 
   let credentialId = (body.credentialId ?? '').trim()
   const passSerial = (body.passSerial ?? '').trim()
 
-  if (!credentialId && !passSerial) {
+  if ((!credentialId && !passSerial) || (credentialId && passSerial)) {
     return noStoreJson(
-      { success: false, code: 'CREDENTIAL_ID_OR_SERIAL_REQUIRED', error: 'credentialId or passSerial is required.' },
+      {
+        success: false,
+        code: 'CREDENTIAL_SELECTOR_INVALID',
+        error: 'Provide exactly one of credentialId or passSerial.',
+      },
       400,
     )
   }
@@ -96,26 +110,36 @@ export async function POST(request: NextRequest) {
       weddingId: grant.weddingId,
       credentialId,
       reason,
+      actorUserId: grant.operatorUserId,
+      gateId: grant.gateId,
     })
 
     return noStoreJson({
       success: true,
       data: {
         credentialId: revoked.id,
-        weddingId: revoked.weddingId,
-        guestId: revoked.guestId,
         passSerial: revoked.passSerial,
         revokedAt: revoked.revokedAt,
         revocationReason: revoked.revocationReason,
       },
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    const isClientError = message === 'PASS_NOT_FOUND' || message === 'REVOCATION_REASON_REQUIRED'
-    const status = message === 'PASS_NOT_FOUND' ? 404 : isClientError ? 400 : 500
+    const code = error instanceof Error ? error.message : ''
+    if (code === 'PASS_NOT_FOUND') {
+      return noStoreJson(
+        { success: false, code, error: 'Wedding pass not found.' },
+        404,
+      )
+    }
+    if (code === 'REVOCATION_REASON_REQUIRED' || code === 'REVOCATION_REASON_TOO_LONG') {
+      return noStoreJson(
+        { success: false, code, error: 'The revocation reason is invalid.' },
+        400,
+      )
+    }
     return noStoreJson(
-      { success: false, code: message, error: message },
-      status,
+      { success: false, code: 'REVOCATION_FAILED', error: 'Unable to revoke the wedding pass.' },
+      500,
     )
   }
 }
