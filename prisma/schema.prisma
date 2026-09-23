@@ -1113,7 +1113,7 @@ model WeddingGateAssignment {
 model WeddingPassKey {
   id                 String    @id @default(cuid())
   weddingId          String
-  wedding            Wedding   @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  wedding            Wedding   @relation(fields: [weddingId], references: [id], onDelete: Restrict)
   keyId              String
   algorithm          String    @default("ECDSA_P256_SHA256")
   publicKeyPem       String    @db.Text
@@ -1135,7 +1135,7 @@ model WeddingPassKey {
 model WeddingPassCredential {
   id               String         @id @default(cuid())
   weddingId        String
-  wedding          Wedding        @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  wedding          Wedding        @relation(fields: [weddingId], references: [id], onDelete: Restrict)
   guestId          String
   guest            Guest          @relation(fields: [guestId, weddingId], references: [id, weddingId], onDelete: Restrict)
   passKeyId        String
@@ -1169,7 +1169,7 @@ model WeddingPassCredential {
 model WeddingCheckIn {
   id               String                @id @default(cuid())
   weddingId        String
-  wedding          Wedding               @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  wedding          Wedding               @relation(fields: [weddingId], references: [id], onDelete: Restrict)
   guestId          String
   guest            Guest                 @relation(fields: [guestId, weddingId], references: [id, weddingId], onDelete: Restrict)
   credentialId     String
@@ -1190,7 +1190,9 @@ model WeddingCheckIn {
   updatedAt        DateTime              @updatedAt
 
   @@unique([weddingId, eventKey, guestId, attendeeKey])
-  @@unique([weddingId, clientEventId])
+  // One offline queue event may admit several household attendees. Idempotency is per
+  // event+attendee; a single clientEventId is therefore expected on multiple check-in rows.
+  @@unique([weddingId, clientEventId, attendeeKey])
   @@index([weddingId, eventKey, admittedAt])
   @@index([guestId, weddingId])
   @@index([gateId, weddingId])
