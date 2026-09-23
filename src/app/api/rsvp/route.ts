@@ -2,6 +2,7 @@ import { previewWriteError } from '@/lib/preview-write-response'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireWeddingPermission } from '@/lib/wedding-access'
+import { applyGuestRsvpUpdate, type GuestRsvpField } from '@/lib/guest-rsvp-mutation'
 import {
   resolveWeddingAccessForRequest,
   weddingAccessErrorPayload,
@@ -20,8 +21,6 @@ interface RSVPPayload {
   childrenAttending?: unknown
   kidsCount?: unknown
   numberOfChildren?: unknown
-  songRequests?: unknown
-  songRequest?: unknown
   dietaryNotes?: unknown
   dietaryRequirements?: unknown
   message?: unknown
@@ -29,8 +28,45 @@ interface RSVPPayload {
   slug?: unknown
 }
 
-function value(value: unknown): string | null {
-  return typeof value === 'string' && value.trim() ? value.trim() : null
+/**
+ * Master plan Phase 9 — this transport's own legacy request-body aliases, normalized to the
+ * canonical `GuestRsvpField` names the shared `applyGuestRsvpUpdate` operation understands. A field
+ * is only added when the caller actually supplied one of its own aliases for it, preserving this
+ * endpoint's partial-update contract (an omitted field must never be coerced to `null`/cleared —
+ * this used to unconditionally do exactly that for `plusOneName`/`plusOneMeal`/`dietaryNotes`/
+ * `message`, silently erasing previously-saved answers on every partial edit; that bug is fixed by
+ * routing through the same shared operation `/api/weddings/[slug]/guest-session` PUT uses).
+ *
+ * `songRequests` (a real, separate `RSVP` column this endpoint used to also write) is intentionally
+ * dropped here: it is not part of Phase 9's converged guest RSVP field set, and this endpoint has no
+ * current caller that depends on it (see the Phase-9 field classification doc).
+ */
+function normalizeLegacyRsvpFields(body: RSVPPayload): Partial<Record<GuestRsvpField, unknown>> {
+  const fields: Partial<Record<GuestRsvpField, unknown>> = {}
+  if (body.attending !== undefined) fields.attending = body.attending
+  else if (body.attendance === 'accept') fields.attending = true
+  else if (body.attendance === 'decline') fields.attending = false
+
+  if (body.mealChoice !== undefined) fields.mealChoice = body.mealChoice
+  else if (body.mealPreference !== undefined) fields.mealChoice = body.mealPreference
+
+  if (body.plusOne !== undefined) fields.plusOne = body.plusOne
+  if (body.plusOneName !== undefined) fields.plusOneName = body.plusOneName
+  if (body.plusOneMeal !== undefined) fields.plusOneMeal = body.plusOneMeal
+
+  if (body.kidsAttending !== undefined) fields.kidsAttending = body.kidsAttending
+  else if (body.childrenAttending !== undefined) fields.kidsAttending = body.childrenAttending
+
+  if (body.kidsCount !== undefined) fields.kidsCount = body.kidsCount
+  else if (body.numberOfChildren !== undefined) fields.kidsCount = body.numberOfChildren
+
+  if (body.dietaryNotes !== undefined) fields.dietaryNotes = body.dietaryNotes
+  else if (body.dietaryRequirements !== undefined) fields.dietaryNotes = body.dietaryRequirements
+
+  if (body.message !== undefined) fields.message = body.message
+  else if (body.messageToCouple !== undefined) fields.message = body.messageToCouple
+
+  return fields
 }
 
 export async function POST(request: NextRequest) {
@@ -74,54 +110,21 @@ export async function POST(request: NextRequest) {
     const blocked = previewWriteError(access.wedding.id)
     if (blocked) return blocked
 
-    const attending =
-      typeof body.attending === 'boolean'
-        ? body.attending
-        : body.attendance === 'accept'
-          ? true
-          : body.attendance === 'decline'
-            ? false
-            : access.guest.attending
-    const rawKids = body.kidsCount ?? body.numberOfChildren
-    const kidsCount =
-      rawKids === undefined
-        ? access.guest.kidsCount
-        : Math.max(0, Math.min(20, Number(rawKids) || 0))
-
-    const rsvp = await db.rSVP.update({
-      where: { token: access.guest.rsvpToken },
-      data: {
-        attending,
-        mealChoice:
-          value(body.mealChoice ?? body.mealPreference) ?? access.guest.mealChoice,
-        plusOne:
-          typeof body.plusOne === 'boolean' ? body.plusOne : access.guest.plusOne,
-        plusOneName: value(body.plusOneName),
-        plusOneMeal: value(body.plusOneMeal),
-        kidsAttending:
-          typeof body.kidsAttending === 'boolean'
-            ? body.kidsAttending
-            : typeof body.childrenAttending === 'boolean'
-              ? body.childrenAttending
-              : access.guest.kidsAttending,
-        kidsCount,
-        songRequests: value(body.songRequests ?? body.songRequest),
-        dietaryNotes: value(body.dietaryNotes ?? body.dietaryRequirements),
-        message: value(body.message ?? body.messageToCouple),
-      },
-      select: {
-        attending: true,
-        mealChoice: true,
-        plusOne: true,
-        plusOneName: true,
-        plusOneMeal: true,
-        kidsAttending: true,
-        kidsCount: true,
-        songRequests: true,
-        dietaryNotes: true,
-        message: true,
-      },
+    // Master plan Phase 9 — shares the SAME mutation semantics (adults-only enforcement,
+    // partial-update-only-supplied-fields) as `/api/weddings/[slug]/guest-session` PUT, via
+    // `applyGuestRsvpUpdate` (`@/lib/guest-rsvp-mutation.ts`). This is a genuine behavior fix: this
+    // endpoint previously had no adults-only check at all.
+    const result = await applyGuestRsvpUpdate({
+      weddingId: access.wedding.id,
+      rsvpToken: access.guest.rsvpToken,
+      requestedFields: normalizeLegacyRsvpFields(body),
     })
+    if (!result.ok) {
+      return NextResponse.json(
+        { success: false, error: result.error, code: result.code },
+        { status: result.status },
+      )
+    }
 
     return NextResponse.json({
       success: true,
@@ -131,7 +134,7 @@ export async function POST(request: NextRequest) {
         name: access.guest.name,
         email: access.guest.email,
       },
-      rsvp,
+      rsvp: result.rsvp,
     })
   } catch (error) {
     console.error('[rsvp POST] Error:', error)

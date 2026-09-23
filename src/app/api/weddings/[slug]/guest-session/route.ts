@@ -5,6 +5,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import {
+  applyGuestRsvpUpdate,
+  GUEST_RSVP_FIELDS,
+  loadWeddingChildrenPolicy,
+  type GuestRsvpField,
+} from '@/lib/guest-rsvp-mutation'
+import {
   clearWeddingGuestSessionCookie,
   readWeddingGuestSession,
   setWeddingGuestSessionCookie,
@@ -24,8 +30,6 @@ interface Params {
   params: Promise<{ slug: string }>
 }
 
-type ChildrenPolicy = 'welcome' | 'adults_only'
-
 function noStore(response: NextResponse): NextResponse {
   response.headers.set('Cache-Control', 'no-store, max-age=0')
   response.headers.set('Vary', 'Cookie')
@@ -38,20 +42,6 @@ async function currentGuest(request: NextRequest, slug: string) {
   const session = readWeddingGuestSession(request)
   const guest = await resolveGuestSessionForWedding(wedding, session)
   return { wedding, guest, session }
-}
-
-async function loadChildrenPolicy(weddingId: string): Promise<ChildrenPolicy> {
-  const row = await db.weddingContent.findUnique({
-    where: {
-      weddingId_section_field: {
-        weddingId,
-        section: 'rsvp',
-        field: 'childrenPolicy',
-      },
-    },
-    select: { value: true },
-  })
-  return row?.value.trim().toLowerCase() === 'adults_only' ? 'adults_only' : 'welcome'
 }
 
 export async function GET(request: NextRequest, { params }: Params) {
@@ -77,7 +67,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     return noStore(response)
   }
 
-  const childrenPolicy = await loadChildrenPolicy(wedding.id)
+  const childrenPolicy = await loadWeddingChildrenPolicy(wedding.id)
 
   const response = NextResponse.json({
       success: true,
@@ -242,50 +232,30 @@ export async function PUT(request: NextRequest, { params }: Params) {
     )
   }
 
-  const childrenPolicy = await loadChildrenPolicy(wedding.id)
-  if (childrenPolicy === 'adults_only' && body.kidsAttending === true) {
+  // Master plan Phase 9 — the actual field/policy semantics now live in the shared
+  // `applyGuestRsvpUpdate` operation (`@/lib/guest-rsvp-mutation.ts`), reused by `/api/rsvp` POST
+  // too, so the two guest self-service RSVP write transports cannot drift into two separate
+  // implementations of these rules again. `originGuestId` stays here: it is this transport's own
+  // authorization concern, not a mutation-semantics one.
+  const requestedFields: Partial<Record<GuestRsvpField, unknown>> = {}
+  for (const field of GUEST_RSVP_FIELDS) {
+    if (field in body) requestedFields[field] = body[field]
+  }
+  const result = await applyGuestRsvpUpdate({
+    weddingId: wedding.id,
+    rsvpToken: guest.rsvpToken,
+    requestedFields,
+  })
+  if (!result.ok) {
     return noStore(
       NextResponse.json(
-        {
-          success: false,
-          error: 'This celebration is configured as adults only.',
-          code: 'CHILDREN_NOT_ALLOWED',
-        },
+        { success: false, error: result.error, code: 'CHILDREN_NOT_ALLOWED' },
         { status: 400 },
       ),
     )
   }
 
-  const data: Record<string, unknown> = {}
-  for (const field of ['attending', 'mealChoice', 'plusOne', 'plusOneName', 'plusOneMeal', 'kidsAttending', 'kidsCount', 'dietaryNotes', 'message'] as const) {
-    if (body[field] !== undefined) data[field] = body[field]
-  }
-  if (childrenPolicy === 'adults_only') {
-    // Cached/older clients may still submit the guest's historical child count.
-    // Adults-only makes current attendance false, but never destroys that history.
-    data.kidsAttending = false
-    delete data.kidsCount
-  }
-
-  const updated = await db.rSVP.update({
-    where: { token: guest.rsvpToken },
-    data,
-    select: {
-      attending: true,
-      mealChoice: true,
-      plusOne: true,
-      plusOneName: true,
-      plusOneMeal: true,
-      kidsAttending: true,
-      kidsCount: true,
-      dietaryNotes: true,
-      message: true,
-      checkedIn: true,
-      checkedInAt: true,
-    },
-  })
-
-  const response = noStore(NextResponse.json({ success: true, rsvp: updated }))
+  const response = noStore(NextResponse.json({ success: true, rsvp: result.rsvp }))
   if (readWeddingGuestSession(request)?.version === 1) setWeddingGuestSessionCookie(response, {
     weddingId: wedding.id, guestId: guest.id, rsvpToken: guest.rsvpToken, weddingDate: wedding.date,
   })
