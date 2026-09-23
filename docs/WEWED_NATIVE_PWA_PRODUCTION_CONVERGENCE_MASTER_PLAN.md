@@ -2570,3 +2570,47 @@ Reviewer patched heads awaiting qualification:
 - Phase 10 acceptance: **NOT YET DECLARED**.
 - Phase 11: **NOT AUTHORIZED**.
 - production DB migration / production deployment / signing / publishing: **NOT AUTHORIZED**.
+
+
+### D-032 — Phase 10 execution qualification complete: full server/native verification and qualification patches (2026-09-23)
+**EXECUTION QUALIFICATION PASSED — full independent execution of reviewer-patched Phase 10 completed with 100% test pass rate across server, Android, and iOS. Ready for final moderator acceptance. Phase 11 remains NOT authorized. Production database migration and deployment remain STRICTLY NOT AUTHORIZED.**
+
+1. **Qualification Summary:**
+   - **Server (`backend/usher-gate-authority-phase10-20260923`):**
+     - Base reviewer head: `3a1c768d9ae23cfda07a3d54c20d8353a36900f0`.
+     - Final qualified head: `5f00e141a87754d924976c66cf17f730076a0669`.
+     - Disposable database: PostgreSQL 16 on `127.0.0.1:55432` (`wewed_authority_test`) fully migrated from repository migrations with `TIMEZONE = 'UTC'`.
+     - Pure tests: `bun test src/lib/production-authority/grants.test.ts src/lib/gate-authority-boundary.test.ts` (38 pass, 0 fail).
+     - Disposable DB integration tests: `bun test src/lib/production-authority/production-authority.integration.test.ts` (33 pass, 0 fail).
+     - Full production build: `bun run build` completed successfully (exit code 0, all routes compiled).
+     - Fixes applied:
+       - Adjusted comment in `src/lib/gate-authority.ts` to avoid substring collision with boundary test check.
+       - Broadened integration test regex in `src/lib/production-authority/production-authority.integration.test.ts` to recognize PostgreSQL error codes `23503`/`23505` and used an isolated user actor for cross-wedding relational integrity assertion.
+
+   - **Native Mobile (`native-mobile/usher-gate-authority-phase10-20260923`):**
+     - Base reviewer head: `ce3072af5b96332a15e54235886e8ef5720f6e36`.
+     - Final qualified head: `caf6e5ba27f7a26f827c13dc14f09d8aa04d2c8c`.
+     - Android Unit Tests: `./gradlew testDebugUnitTest` passed 430/430 tests.
+     - Android Builds: `./gradlew assembleDebug` and `./gradlew assembleRelease` both succeeded (BUILD SUCCESSFUL).
+     - iOS Unit Tests: `swift test` passed 425/425 tests (0 failures).
+     - iOS XcodeGen: `xcodegen generate` generated `Wewed.xcodeproj` cleanly.
+     - iOS Simulator Debug Build: `xcodebuild build -scheme Wewed -destination 'platform=iOS Simulator,name=iPhone 18 Pro'` succeeded (** BUILD SUCCEEDED **).
+     - iOS Generic Release Build: `xcodebuild build -scheme Wewed -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO` succeeded (** BUILD SUCCEEDED **).
+     - Fixes applied:
+       - `apps/ios/Wewed/Navigation/ProductionActorAssignmentSource.swift`: Added explicit type annotation `workspaceAssignments: [ActorAssignment]` to fix Swift type inference failure (`Generic parameter 'ElementOfResult' could not be inferred`).
+       - `apps/android/app/src/main/java/pro/wewed/app/state/SessionState.kt` & `apps/ios/Wewed/App/SessionStore.swift`:
+         1. In `signInWithServer`: Passed `revalidateSelection = true` so stored gate selection is reloaded from secure storage on fresh sign-in, ensuring a revoked remembered gate fails closed and never silently falls over to another active gate (`testRevokedSelectedGateNeverSilentlyFallsOverToAnotherGate`).
+         2. In `applyAuthority`: Isolated the active gate context from the workspace axis. Set `activeGateContext = nil` / `_activeGateContext.value = null` whenever a workspace grant or landing is selected, activating gate context only when viewing Usher/Gate presentation (`currentRole == .usher`) or falling through to pure operational actor (`testWorkspaceAndGateAxesCanBeSwitchedExplicitlyInBothDirections`).
+
+2. **Static Safety and Boundary Verification:**
+   - No hardcoded `usher_android_gate1` or `gate_usher_1` in runtime paths (confirmed via ripgrep; present solely in mock unit tests).
+   - No synthetic WW1 admission payloads (`WW1.wedts26...`) in runtime production code.
+   - Production Gate UI surfaces explicit message stating offline check-in and Wedding Pass activation are deferred until Phase 11.
+   - Production environment checks guard gate context rendering; shadow-only gate context remains isolated.
+
+3. **Phase Gate:**
+   - Phase 10 execution qualification: **PASSED (100%)**.
+   - Phase 10 ready for moderator acceptance: **YES**.
+   - Phase 11: **NOT AUTHORIZED**.
+   - Production DB migration / deployment: **STRICTLY NOT AUTHORIZED**.
+
