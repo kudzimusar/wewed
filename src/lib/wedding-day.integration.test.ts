@@ -209,7 +209,7 @@ describeDb('Phase 11A Wedding Day / WW2 converged authority & schema', () => {
 
     await expect(
       wd.ensureWeddingPassCredential({ weddingId: WEDDING_A, guestId: nonAttendingGuest }),
-    ).rejects.toThrow('Wedding Pass is available only after an accepted RSVP.')
+    ).rejects.toThrow('ATTENDANCE_REQUIRED')
 
     const pendingGuest = id('guest-pending')
     await db.$executeRawUnsafe(
@@ -223,7 +223,7 @@ describeDb('Phase 11A Wedding Day / WW2 converged authority & schema', () => {
 
     await expect(
       wd.ensureWeddingPassCredential({ weddingId: WEDDING_A, guestId: pendingGuest }),
-    ).rejects.toThrow('Wedding Pass is available only after an accepted RSVP.')
+    ).rejects.toThrow('ATTENDANCE_REQUIRED')
   })
 
   // ---------------------------------------------------------------------------
@@ -250,10 +250,14 @@ describeDb('Phase 11A Wedding Day / WW2 converged authority & schema', () => {
     expect(verified.id).toBe(first.id)
 
     // 4. Revocation preserves old row and reissues fresh credential
-    await db.$executeRawUnsafe(
-      `UPDATE public."WeddingPassCredential" SET "revokedAt" = now(), "revocationReason" = 'Lost phone' WHERE id = $1`,
-      first.id,
-    )
+    const revokedFirst = await wd.revokeWeddingPassCredential({
+      weddingId: WEDDING_A,
+      credentialId: first.id,
+      reason: 'Lost phone',
+    })
+    expect(revokedFirst.revokedAt).not.toBeNull()
+    expect(revokedFirst.revocationReason).toBe('Lost phone')
+    expect(revokedFirst.supersededAt).not.toBeNull()
 
     // Old token now fails verification
     await expect(
@@ -306,6 +310,110 @@ describeDb('Phase 11A Wedding Day / WW2 converged authority & schema', () => {
     )
     const uniqueIds = new Set(concurrent.map((c) => c.id))
     expect(uniqueIds.size).toBe(1)
+  })
+
+  test('first issuance and post-revocation reissue serialize on the Guest row', async () => {
+    process.env.WEWED_WEDDING_DAY_WW2_ENABLED = 'true'
+    const guestId = id('guest-concurrency')
+    await db.$executeRawUnsafe(
+      `INSERT INTO public."Guest" (id, "weddingId", name, "updatedAt")
+       VALUES ($1, $2, 'Concurrent Guest', now())`,
+      guestId, WEDDING_A,
+    )
+    await db.$executeRawUnsafe(
+      `INSERT INTO public."RSVP" (id, "guestId", token, attending, "updatedAt")
+       VALUES ($1, $2, $3, TRUE, now())`,
+      id('rsvp-concurrency'), guestId, id('token-concurrency'),
+    )
+
+    const firstWave = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        wd.ensureWeddingPassCredential({ weddingId: WEDDING_A, guestId }),
+      ),
+    )
+    expect(new Set(firstWave.map((row) => row.id)).size).toBe(1)
+    expect(firstWave[0].issueSeq).toBe(1)
+
+    await wd.revokeWeddingPassCredential({
+      weddingId: WEDDING_A,
+      credentialId: firstWave[0].id,
+      reason: 'Concurrent reissue test',
+    })
+
+    const secondWave = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        wd.ensureWeddingPassCredential({ weddingId: WEDDING_A, guestId }),
+      ),
+    )
+    expect(new Set(secondWave.map((row) => row.id)).size).toBe(1)
+    expect(secondWave[0].id).not.toBe(firstWave[0].id)
+    expect(secondWave[0].issueSeq).toBe(2)
+
+    const history = await db.$queryRawUnsafe<any[]>(
+      `SELECT id, "issueSeq", "revokedAt", "supersededAt"
+         FROM public."WeddingPassCredential"
+        WHERE "weddingId" = $1 AND "guestId" = $2
+        ORDER BY "issueSeq"`,
+      WEDDING_A, guestId,
+    )
+    expect(history).toHaveLength(2)
+    expect(history[0].revokedAt).not.toBeNull()
+    expect(history[0].supersededAt).not.toBeNull()
+    expect(history[1].revokedAt).toBeNull()
+  })
+
+  test('signing-key lifecycle and key-id material binding fail closed', async () => {
+    process.env.WEWED_WEDDING_DAY_WW2_ENABLED = 'true'
+    const credential = await wd.ensureWeddingPassCredential({ weddingId: WEDDING_B, guestId: GUEST_B })
+
+    await db.$executeRawUnsafe(
+      `UPDATE public."WeddingPassKey"
+          SET "activeFrom" = now() + interval '1 day'
+        WHERE id = $1`,
+      credential.passKeyId,
+    )
+    await expect(
+      wd.verifyWeddingPassToken({ weddingId: WEDDING_B, token: credential.token }),
+    ).rejects.toThrow('PASS_SIGNING_KEY_INACTIVE')
+
+    await db.$executeRawUnsafe(
+      `UPDATE public."WeddingPassKey"
+          SET "activeFrom" = now() - interval '1 day',
+              "expiresAt" = now() - interval '1 second'
+        WHERE id = $1`,
+      credential.passKeyId,
+    )
+    await expect(
+      wd.verifyWeddingPassToken({ weddingId: WEDDING_B, token: credential.token }),
+    ).rejects.toThrow('PASS_SIGNING_KEY_INACTIVE')
+    await expect(
+      wd.checkInWeddingGuest({
+        weddingId: WEDDING_B,
+        gateId: GATE_B,
+        operatorUserId: OPERATOR_USER,
+        passSerial: credential.passSerial,
+        attendeeKeys: ['primary'],
+        source: 'offline-sync',
+      }),
+    ).rejects.toThrow('PASS_SIGNING_KEY_INACTIVE')
+
+    await db.$executeRawUnsafe(
+      `UPDATE public."WeddingPassKey"
+          SET "expiresAt" = NULL,
+              "activeFrom" = now() - interval '1 day'
+        WHERE id = $1`,
+      credential.passKeyId,
+    )
+
+    const replacementKey = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+      .privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
+    process.env.WEDDING_DAY_WW2_PRIVATE_KEY_PEM = replacementKey
+    await expect(wd.ensurePassKey(WEDDING_B))
+      .rejects.toThrow('WEDDING_DAY_WW2_KEY_ID_MATERIAL_MISMATCH')
+    process.env.WEDDING_DAY_WW2_PRIVATE_KEY_PEM = ww2PrivateKeyPem
+
+    const restored = await wd.verifyWeddingPassToken({ weddingId: WEDDING_B, token: credential.token })
+    expect(restored.id).toBe(credential.id)
   })
 
   // ---------------------------------------------------------------------------
@@ -454,6 +562,12 @@ describeDb('Phase 11A Wedding Day / WW2 converged authority & schema', () => {
     expect(checkInResult.admittedCount).toBe(2)
     expect(checkInResult.attendeeKeys).toEqual(['primary', 'plus-one'])
 
+    const partialRsvp = await db.$queryRawUnsafe<Array<{ checkedIn: boolean }>>(
+      `SELECT "checkedIn" FROM public."RSVP" WHERE "guestId" = $1`,
+      GUEST_A,
+    )
+    expect(partialRsvp[0].checkedIn).toBe(false)
+
     // 2. Idempotent repeat check-in succeeds without duplicate rows
     const repeatResult = await wd.checkInWeddingGuest({
       weddingId: WEDDING_A,
@@ -478,11 +592,19 @@ describeDb('Phase 11A Wedding Day / WW2 converged authority & schema', () => {
     expect(offlineSyncResult.success).toBe(true)
     expect(offlineSyncResult.admittedCount).toBe(1)
 
-    // 4. Offline sync fails if pass was revoked between scan and sync
-    await db.$executeRawUnsafe(
-      `UPDATE public."WeddingPassCredential" SET "revokedAt" = now() WHERE id = $1`,
-      cred.id,
+    const completeRsvp = await db.$queryRawUnsafe<Array<{ checkedIn: boolean; checkedInAt: Date | null }>>(
+      `SELECT "checkedIn", "checkedInAt" FROM public."RSVP" WHERE "guestId" = $1`,
+      GUEST_A,
     )
+    expect(completeRsvp[0].checkedIn).toBe(true)
+    expect(completeRsvp[0].checkedInAt).not.toBeNull()
+
+    // 4. Offline sync fails if pass was revoked between scan and sync
+    await wd.revokeWeddingPassCredential({
+      weddingId: WEDDING_A,
+      credentialId: cred.id,
+      reason: 'Revoked before offline queue sync',
+    })
     await expect(
       wd.checkInWeddingGuest({
         weddingId: WEDDING_A,
@@ -505,7 +627,34 @@ describeDb('Phase 11A Wedding Day / WW2 converged authority & schema', () => {
       }),
     ).rejects.toThrow('ATTENDEE_KEYS_REQUIRED')
 
-    // 6. Signed Native Wedding Day Manifest v2
+    // 6. One offline client event may carry multiple newly-admitted household members.
+    await db.$executeRawUnsafe(
+      `UPDATE public."RSVP"
+          SET "plusOne" = TRUE, "plusOneName" = 'Guest Beta +1'
+        WHERE "guestId" = $1`,
+      GUEST_B,
+    )
+    const betaCredential = await wd.ensureWeddingPassCredential({ weddingId: WEDDING_B, guestId: GUEST_B })
+    const betaSync = await wd.checkInWeddingGuest({
+      weddingId: WEDDING_B,
+      gateId: GATE_B,
+      operatorUserId: OPERATOR_USER,
+      passSerial: betaCredential.passSerial,
+      attendeeKeys: ['primary', 'plus-one'],
+      source: 'offline-sync',
+      clientEventId: 'client-multi-attendee-event',
+    })
+    expect(betaSync.admittedCount).toBe(2)
+    const betaRows = await db.$queryRawUnsafe<Array<{ attendeeKey: string }>>(
+      `SELECT "attendeeKey"
+         FROM public."WeddingCheckIn"
+        WHERE "weddingId" = $1 AND "clientEventId" = $2
+        ORDER BY "attendeeKey"`,
+      WEDDING_B, 'client-multi-attendee-event',
+    )
+    expect(betaRows.map((row) => row.attendeeKey)).toEqual(['plus-one', 'primary'])
+
+    // 7. Signed Native Wedding Day Manifest v2
     const manifest = await wdm.signedNativeWeddingDayManifest(WEDDING_A)
     expect(manifest.rootKeyId).toBe('root-key-test-v1')
     expect(manifest.algorithm).toBe('ECDSA_P256_SHA256')
