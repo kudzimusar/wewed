@@ -510,8 +510,17 @@ function deriveGateOperationalGrants(
       continue
     }
 
-    const recognizedCapabilities = a.capabilities.filter((cap): cap is GateCapability =>
-      (GATE_CAPABILITY_VOCABULARY as readonly string[]).includes(cap),
+    const allowedCapabilities = GATE_CAPABILITY_VOCABULARY as readonly string[]
+    const unrecognizedCapabilities = a.capabilities.filter(
+      (cap) => !allowedCapabilities.includes(cap),
+    )
+    if (unrecognizedCapabilities.length > 0) {
+      nonGranting.push({ source, reason: 'unsupported_gate_capability' })
+      continue
+    }
+
+    const recognizedCapabilities = a.capabilities.filter(
+      (cap): cap is GateCapability => allowedCapabilities.includes(cap),
     )
 
     if (recognizedCapabilities.length === 0) {
