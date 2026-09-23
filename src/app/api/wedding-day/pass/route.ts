@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { isWeddingDayWW2Enabled } from '@/lib/wedding-day-feature'
+import {
+  assertWeddingDayWW2RuntimeReady,
+  isWeddingDayWW2Enabled,
+} from '@/lib/wedding-day-feature'
 import { guestPassForRequest } from '@/lib/wedding-day'
 
 export const dynamic = 'force-dynamic'
@@ -8,6 +11,19 @@ export async function GET(request: NextRequest) {
   if (!isWeddingDayWW2Enabled()) {
     return NextResponse.json(
       { success: false, code: 'WEDDING_DAY_DISABLED', error: 'Wedding Day is currently disabled.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } },
+    )
+  }
+
+  try {
+    assertWeddingDayWW2RuntimeReady()
+  } catch {
+    return NextResponse.json(
+      {
+        success: false,
+        code: 'WEDDING_DAY_KEY_CONFIGURATION_INVALID',
+        error: 'Wedding Day signing configuration is unavailable.',
+      },
       { status: 503, headers: { 'Cache-Control': 'no-store' } },
     )
   }
