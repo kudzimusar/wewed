@@ -45,6 +45,10 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
     /// Nil in every Shadow/Fixture path and whenever no successful authority fetch has completed.
     @Published public private(set) var productionAuthority: ProductionAuthority? = nil
 
+    /// Operational Gate authority is separate from ordinary workspace grants (Phase 10).
+    @Published public private(set) var selectedGateGrantId: String? = nil
+    @Published public private(set) var activeGateContext: GateOperationalContext? = nil
+
     /// Grant ids the person has explicitly chosen, for workspace kinds where more than one grant
     /// exists. Persisted only as a preference (master plan §9): it is revalidated against every
     /// fresh `productionAuthority` fetch, and a grant id that no longer exists there has no effect.
@@ -68,6 +72,8 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
     private let accountSessionKey = "wewed.account.session"
     private let selectedGrantsKey = "wewed.account.selected-grants"
     private let selectedGrantsOwnerKey = "wewed.account.selected-grants.owner"
+    private let selectedGateGrantKey = "wewed.account.selected-gate-grant"
+    private let selectedGateGrantOwnerKey = "wewed.account.selected-gate-grant.owner"
 
     /// Whether this session may apply Shadow qualification personas.
     public var allowsDevelopmentPersonas: Bool { environment.allowsDevelopmentPersonaSwitching }
@@ -199,6 +205,10 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             selectedGrantIds = []
             storage.delete(key: selectedGrantsKey)
             storage.delete(key: selectedGrantsOwnerKey)
+            selectedGateGrantId = nil
+            activeGateContext = nil
+            storage.delete(key: selectedGateGrantKey)
+            storage.delete(key: selectedGateGrantOwnerKey)
             activeGrantId = nil
             currentRole = nil
             currentUserRole = nil
@@ -221,8 +231,12 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             activeGrantId = nil
             selectedGrantIds = []
             selectedEngagementId = nil
+            selectedGateGrantId = nil
+            activeGateContext = nil
             storage.delete(key: selectedGrantsKey)
             storage.delete(key: selectedGrantsOwnerKey)
+            storage.delete(key: selectedGateGrantKey)
+            storage.delete(key: selectedGateGrantOwnerKey)
             return
         }
 
@@ -244,9 +258,48 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             return nil
         }
 
+        let rememberedGateId = revalidateSelection
+            ? readSelectedGateGrantId(for: authority.accessUserId!)
+            : selectedGateGrantId
+        let rememberedGateStillExists = rememberedGateId.map { id in
+            authority.operationalGrants.contains(where: { $0.grantId == id })
+        } ?? false
+        let gateOutcome: ProductionGateGrantMapper.Outcome
+        if rememberedGateStillExists, let rememberedGateId {
+            gateOutcome = ProductionGateGrantMapper.map(authority, selectedGrantId: rememberedGateId)
+        } else if rememberedGateId != nil {
+            // Revocation/staleness never silently falls through to another Gate.
+            gateOutcome = .denied("The selected gate grant is no longer authorized.")
+        } else {
+            gateOutcome = ProductionGateGrantMapper.map(authority)
+        }
+
+        let gateContext: GateOperationalContext?
+        if case let .selected(context) = gateOutcome {
+            gateContext = context
+        } else {
+            gateContext = nil
+        }
+        activeGateContext = gateContext
+        selectedGateGrantId = gateContext?.grantId
+        persistSelectedGateGrantId(gateContext?.grantId)
+
         var seenRoles: [AppRole] = []
         for pair in assignmentPairs where !seenRoles.contains(pair.1.role) { seenRoles.append(pair.1.role) }
+        if !authority.operationalGrants.isEmpty && !seenRoles.contains(.usher) {
+            seenRoles.append(.usher)
+        }
         authorizedRoles = seenRoles
+
+        if currentRole == .usher, let gateContext {
+            activeGrantId = nil
+            productionWorkspace = nil
+            currentRole = .usher
+            currentUserRole = AppRole.usher.roleId
+            weddingId = gateContext.weddingId
+            weddingTitle = gateContext.weddingTitle
+            return
+        }
 
         let next = assignmentPairs.first { $0.0.grantId == activeGrantId }
             ?? assignmentPairs.first { $0.1.role == currentRole }
@@ -277,11 +330,30 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             : nil
         let landing = explicitlySelectedLanding ?? soleUnambiguousLanding
 
-        activeGrantId = landing?.grantId
+        if let landing {
+            activeGrantId = landing.grantId
+            currentRole = nil
+            currentUserRole = nil
+            weddingId = nil
+            weddingTitle = landing.weddingTitle
+            return
+        }
+
+        if let gateContext {
+            activeGrantId = nil
+            productionWorkspace = nil
+            currentRole = .usher
+            currentUserRole = AppRole.usher.roleId
+            weddingId = gateContext.weddingId
+            weddingTitle = gateContext.weddingTitle
+            return
+        }
+
+        activeGrantId = nil
         currentRole = nil
         currentUserRole = nil
         weddingId = nil
-        weddingTitle = landing?.weddingTitle
+        weddingTitle = nil
     }
 
     @MainActor
@@ -360,6 +432,45 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         }
     }
 
+    /// Selects one real operational Gate grant; it never creates a workspace membership.
+    @MainActor
+    public func selectGateGrant(_ grantId: String) {
+        guard let authority = productionAuthority else { return }
+        guard case let .selected(context) = ProductionGateGrantMapper.map(authority, selectedGrantId: grantId) else {
+            return
+        }
+        selectedGateGrantId = context.grantId
+        persistSelectedGateGrantId(context.grantId)
+        activeGateContext = context
+        activeGrantId = nil
+        productionWorkspace = nil
+        selectedEngagementId = nil
+        currentRole = .usher
+        currentUserRole = AppRole.usher.roleId
+        weddingId = context.weddingId
+        weddingTitle = context.weddingTitle
+    }
+
+    private func readSelectedGateGrantId(for accessUserId: String) -> String? {
+        guard storage.get(key: selectedGateGrantOwnerKey) == accessUserId else {
+            storage.delete(key: selectedGateGrantKey)
+            storage.delete(key: selectedGateGrantOwnerKey)
+            return nil
+        }
+        guard let value = storage.get(key: selectedGateGrantKey), !value.isEmpty else { return nil }
+        return value
+    }
+
+    private func persistSelectedGateGrantId(_ grantId: String?) {
+        guard let grantId, !grantId.isEmpty, let owner = productionAuthority?.accessUserId else {
+            storage.delete(key: selectedGateGrantKey)
+            storage.delete(key: selectedGateGrantOwnerKey)
+            return
+        }
+        storage.save(key: selectedGateGrantOwnerKey, value: owner)
+        storage.save(key: selectedGateGrantKey, value: grantId)
+    }
+
     private func readSelectedGrantIds(for accessUserId: String) -> Set<String> {
         guard storage.get(key: selectedGrantsOwnerKey) == accessUserId else {
             // Ownerless selections are legacy Phase-5 preferences. They cannot safely be
@@ -414,6 +525,8 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         storage.delete(key: accountSessionKey)
         storage.delete(key: selectedGrantsKey)
         storage.delete(key: selectedGrantsOwnerKey)
+        storage.delete(key: selectedGateGrantKey)
+        storage.delete(key: selectedGateGrantOwnerKey)
         isAuthenticated = false
         productionAuthority = nil
         productionWorkspace = nil
@@ -426,6 +539,8 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         weddingTitle = nil
         selectedGrantIds = []
         selectedEngagementId = nil
+        selectedGateGrantId = nil
+        activeGateContext = nil
     }
 
     /// Enters the current Shadow/UAT environment as its default qualification actor.
@@ -475,6 +590,8 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         storage.delete(key: accountSessionKey)
         storage.delete(key: selectedGrantsKey)
         storage.delete(key: selectedGrantsOwnerKey)
+        storage.delete(key: selectedGateGrantKey)
+        storage.delete(key: selectedGateGrantOwnerKey)
         self.isAuthenticated = false
         self.currentUserRole = nil
         self.currentRole = nil
@@ -488,6 +605,8 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         self.activeGrantId = nil
         self.selectedGrantIds = []
         self.selectedEngagementId = nil
+        self.selectedGateGrantId = nil
+        self.activeGateContext = nil
         self.authenticationError = nil
         self.sessionRestored = true
     }
