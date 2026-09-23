@@ -268,7 +268,7 @@ public actor WeddingDaySyncService {
         offlineStore: OfflineManifestStoreProtocol,
         trustStore: WeddingDayManifestTrustStore
     ) async -> WeddingDaySyncResult {
-        guard let trust = await trustStore.manifest(weddingId: weddingId) else {
+        guard await trustStore.manifest(weddingId: weddingId) != nil else {
             return WeddingDaySyncResult(syncedIds: [], failedIds: [], blockedLegacyIds: [])
         }
         let pending = await offlineStore.getPendingCheckIns(weddingId: weddingId)
