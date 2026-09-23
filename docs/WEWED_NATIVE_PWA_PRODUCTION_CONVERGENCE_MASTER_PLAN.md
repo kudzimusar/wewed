@@ -1277,6 +1277,84 @@ Phase gate:
 - Phase 4: **ACCEPTED**;
 - Phase 5: **READY TO BEGIN**.
 
+### D-021 — Phase 8 closure round 5 execution evidence, submitted for moderator review (2026-09-23)
+**IMPLEMENTATION-AGENT SUBMISSION, NOT A MODERATOR VERDICT.** Phase 8 acceptance remains the
+moderator's decision alone. This entry does not rewrite D-020: round 4's repository-free-factory
+work (`NativeRepositoryOutcome.ProductionBootstrap`, `ProductionRepositoryUnbound`) was correct as
+recorded there. Independent moderator inspection of the actual round-4 remote code separately found
+that the production root's `ActorAssignmentSources` call site still required a repository argument
+neither PRODUCTION branch actually needed, and that requirement — not the factory itself — is what
+caused a real defect:
+
+- **Android:** the authenticated root's `remember(...) { ActorAssignmentSources.forEnvironment(env,
+  appViewModel.repository, appViewModel.plannerRepository, ...) }` evaluated
+  `appViewModel.repository` as a call argument BEFORE the function ran, and before the
+  `LaunchedEffect` that binds a real production repository had any chance to execute. Round 4's own
+  fix — `appViewModel.repository` now throws `ProductionRepositoryUnbound` while unbound in
+  PRODUCTION, instead of returning a same-typed placeholder — turned this pre-existing coupling into
+  an actual unbound-production-repository-read-before-bind crash during root composition, not a
+  theoretical one.
+- **iOS:** the equivalent read was masked by an invalid production fallback,
+  `(try? appState.repository) ?? FixtureWeddingRepository()`, present only because
+  `ActorAssignmentSources.forEnvironment` still demanded a repository parameter. The production
+  branch of `ActorAssignmentSources` never actually consumed it, so this was not a demonstrated data
+  leak, but it was still an incorrect production code path that should not exist.
+
+**Correction applied:** `ActorAssignmentSources` is split into three narrowly-typed constructors on
+both platforms — `forShadow(repository, plannerRepository, environment)` (the only one that takes a
+repository, for Shadow/Fixture/dev-persona environments only), `forProduction(productionAuthority,
+selectedGrantIds, selectedEngagementId)`, and `empty()` — the latter two have NO repository parameter
+at all, so production resolution cannot read one even by accident; this is a structural (compile-
+time) guarantee, not merely a runtime one. `RootScreen.kt`/`RootView.swift` now branch on
+`dataEnvironment`/authority themselves BEFORE ever touching a repository, delegating to a new pure,
+directly unit-tested `resolveActorAssignmentSource` helper on each platform, replacing the old
+single `forEnvironment(...)` function (deleted on both platforms) and iOS's Fixture fallback
+(deleted outright).
+
+**New regression tests** (`RootAssignmentBootstrapTest.kt` / `RootAssignmentBootstrapTests.swift`,
+6 tests each platform) prove directly: PRODUCTION unbound + valid authority builds a real
+`ProductionActorAssignmentSource` with no `ProductionRepositoryUnbound` thrown and no Fixture/Shadow
+repository constructed or required; PRODUCTION unbound + no authority yields `EmptyActorAssignmentSource`,
+also without touching a repository; Shadow environments are unchanged and still require a real
+repository; `clearProductionBinding()` leaves assignment resolution safe while the mature repository
+domains remain correctly unreachable until a fresh bind; Account A → Account B never mixes
+assignments or consults a stale repository; and the Vendor same-grant `selectedEngagementId` (D-020)
+still flows through the new three-constructor API unchanged.
+
+Qualification (temporary reviewer CI, removed after a successful run): native-only run
+`35819038509` (`_tmp-phase8-round5-native-qualification.yml`) — PASS at
+`df1d4829e45eb406d8cc85b685d1e1e9dd4192a5` (Android `testDebugUnitTest`/`assembleDebug`/`assembleRelease`;
+iOS `swift test`/`swift build`, XcodeGen, real Simulator Debug build, unsigned Release device build,
+including the new bootstrap tests). No server product code changed this round; D-020's server
+qualification evidence (run `35813862536`, product SHA `36e02adc9420b96f9dd18f8063fc7b55ed74f110`) is
+retained, not rerun.
+
+Round-5 heads:
+- server (docs-only, no product code changed): `ba38cf3c66105f5a7326bef27aecf428e47f3f5e`.
+- native starting: `0e1180d10bef185fd69bbeed1b0f79e53bc2bd6e`; qualified: `df1d4829e45eb406d8cc85b685d1e1e9dd4192a5`; final (workflow removed): `1e7ec407f04de2366fa64b3bbc735b22bc58f63e`.
+
+Production safety (verified via the GitHub Deployments API): every deployment recorded for every SHA
+produced this round is `environment: "Preview"` — never `"Production"`. No production database read
+or written, no production migration applied, `WEWED_SESSION_SECRET` never read or changed, no F-3
+relationship fabricated, F-4 unchanged, Guest invitation/RSVP behavior unchanged, no Android/iOS
+build published, no signing credential touched, Phase 9 not started.
+
+P1-N4 clarification: D-020's completion report stated the 20 dead `PlannerDestinationRoute`
+composables remained. That statement was stale — independent inspection of the current native files
+found only explanatory comments documenting an already-completed deletion, not a reachable
+fabricated surface. No P1-N4 work was reopened or reattempted this round.
+
+Remaining Phase-8 blockers, honestly, unchanged in scope by this round: Contracts/Vault write
+actions, Budget line edits, Seating/Timeline/Vendor-planning writes, Admin domains beyond
+overview/accounts/support/incidents, F-3, F-4, F-6, and the `WEWED_SESSION_SECRET`
+Preview/Production configuration gate — exactly as carried forward through D-020.
+
+Phase gate:
+- Phase 8: **implementation agent reports this round's single defect (the production-root
+  repository dependency) closed and independently re-verified, on top of D-020's unchanged closures;
+  acceptance is NOT self-declared and awaits moderator review of the actual remote code above**;
+- Phase 9: **NOT STARTED / NOT AUTHORIZED**.
+
 ### D-020 — Phase 8 closure round 4 execution evidence, submitted for moderator review (2026-09-23)
 **IMPLEMENTATION-AGENT SUBMISSION, NOT A MODERATOR VERDICT.** Phase 8 acceptance remains the
 moderator's decision alone; this entry records what round 4 changed and independently verified, in
