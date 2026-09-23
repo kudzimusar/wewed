@@ -170,7 +170,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             storage.save(key: accountSessionKey, value: sessionToken)
             switch await client.fetchAuthority(sessionToken: sessionToken) {
             case let .success(authority):
-                applyAuthority(authority, revalidateSelection: false)
+                applyAuthority(authority, revalidateSelection: true)
                 await refreshActiveWorkspace(client: client, sessionToken: sessionToken)
             case .sessionInvalid:
                 clearAccountSession()
@@ -280,7 +280,6 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         } else {
             gateContext = nil
         }
-        activeGateContext = gateContext
         if let rememberedGateId, !rememberedGateStillExists {
             // Persist the stale id only as a re-selection marker. It cannot produce an assignment.
             selectedGateGrantId = rememberedGateId
@@ -304,6 +303,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             currentUserRole = AppRole.usher.roleId
             weddingId = gateContext.weddingId
             weddingTitle = gateContext.weddingTitle
+            activeGateContext = gateContext
             return
         }
 
@@ -318,6 +318,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             weddingId = next.1.weddingId
             weddingTitle = next.1.weddingId
                 .flatMap { id in authority.workspaceGrants.first { $0.weddingId == id }?.weddingTitle }
+            activeGateContext = nil
             return
         }
 
@@ -342,6 +343,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             currentUserRole = nil
             weddingId = nil
             weddingTitle = landing.weddingTitle
+            activeGateContext = nil
             return
         }
 
@@ -352,6 +354,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             currentUserRole = AppRole.usher.roleId
             weddingId = gateContext.weddingId
             weddingTitle = gateContext.weddingTitle
+            activeGateContext = gateContext
             return
         }
 
@@ -360,6 +363,7 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
         currentUserRole = nil
         weddingId = nil
         weddingTitle = nil
+        activeGateContext = nil
     }
 
     @MainActor

@@ -229,7 +229,7 @@ class SessionViewModel(
                 storage.save(accountSessionKey, outcome.sessionToken)
                 when (val fetch = client.fetchAuthority(outcome.sessionToken)) {
                     is ProductionAuthorityFetch.Success -> {
-                        applyAuthority(fetch.authority, revalidateSelection = false)
+                        applyAuthority(fetch.authority, revalidateSelection = true)
                         refreshActiveWorkspace(client, outcome.sessionToken)
                     }
                     is ProductionAuthorityFetch.SessionInvalid -> clearAccountSession()
@@ -351,7 +351,6 @@ class SessionViewModel(
                 ProductionGateGrantMapper.map(authority)
         }
         val gateContext = (gateOutcome as? ProductionGateGrantMapper.Outcome.Selected)?.context
-        _activeGateContext.value = gateContext
         if (rememberedGateId != null && !rememberedGateStillExists) {
             // Keep the stale id only as a re-selection marker. It is never mapped to authority,
             // but prevents a later refresh from silently auto-selecting a different remaining gate.
@@ -381,6 +380,7 @@ class SessionViewModel(
             _currentUserRole.value = AppRole.USHER.roleId
             _weddingId.value = gateContext.weddingId
             _weddingTitle.value = gateContext.weddingTitle
+            _activeGateContext.value = gateContext
             return
         }
 
@@ -395,6 +395,7 @@ class SessionViewModel(
             _weddingId.value = next.second.weddingId
             _weddingTitle.value = next.second.weddingId
                 ?.let { id -> authority.grants.firstOrNull { it.weddingId == id }?.weddingTitle }
+            _activeGateContext.value = null
             return
         }
 
@@ -417,6 +418,7 @@ class SessionViewModel(
             _currentUserRole.value = null
             _weddingId.value = null
             _weddingTitle.value = landing.weddingTitle
+            _activeGateContext.value = null
             return
         }
 
@@ -429,6 +431,7 @@ class SessionViewModel(
             _currentUserRole.value = AppRole.USHER.roleId
             _weddingId.value = gateContext.weddingId
             _weddingTitle.value = gateContext.weddingTitle
+            _activeGateContext.value = gateContext
             return
         }
 
@@ -437,6 +440,7 @@ class SessionViewModel(
         _currentUserRole.value = null
         _weddingId.value = null
         _weddingTitle.value = null
+        _activeGateContext.value = null
     }
 
     private suspend fun refreshActiveWorkspace(client: ProductionAuthorityClient, sessionToken: String) {

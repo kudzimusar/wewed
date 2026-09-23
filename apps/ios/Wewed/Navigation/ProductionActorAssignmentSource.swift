@@ -50,7 +50,7 @@ public struct ProductionActorAssignmentSource: ActorAssignmentSource {
             .map(\.key)
         )
 
-        let workspaceAssignments = authority.workspaceGrants.compactMap { grant in
+        let workspaceAssignments: [ActorAssignment] = authority.workspaceGrants.compactMap { grant in
             if ambiguousKinds.contains(grant.workspaceKindWire) {
                 return nil
             }
