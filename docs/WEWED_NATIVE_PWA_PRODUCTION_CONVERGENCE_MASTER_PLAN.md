@@ -3104,3 +3104,46 @@ without a separate owner/moderator authorization.
 Carry-forward gates remain F-3 Vendor authority linkage, F-4 BusinessAccount production migration
 application, F-6 legacy PWA global-admin containment, production `WEWED_SESSION_SECRET`, signed
 App/Universal Links, ecosystem UAT and staged rollout.
+
+### D-039 — Phase 11B activation & readiness rehearsal complete (2026-09-24)
+**IMPLEMENTATION-AGENT SUBMISSION, NOT A MODERATOR VERDICT.** Phase 11B readiness review is the moderator's decision alone.
+
+**Phase 11B Deliverables & Qualification Summary:**
+1. **Production Read-Only Preflight & Postflight Procedures Rehearsed:**
+   - Preflight SQL (`20260924000000_wedding_day_ww2_preflight.sql`) executed against disposable local PostgreSQL 16 (`127.0.0.1:55432`): verified 0 duplicate guests in `Guest(id, weddingId)`, 0 conflicting tables, clean migration history.
+   - Postflight SQL (`20260924000000_wedding_day_ww2_postflight.sql`) executed: verified RLS active on `WeddingPassKey`, `WeddingPassCredential`, and `WeddingCheckIn`; exactly 9 foreign key constraints validated with `ON DELETE RESTRICT`; 4 composite unique indexes active; 0 cross-wedding data leaks across all integrity queries.
+2. **Safe Zero-Secret Key Configuration & Preflight CLI:**
+   - Implemented `scripts/wedding-day-key-preflight.ts` backed by `src/lib/wedding-day-key-preflight.ts`.
+   - Validates ECDSA P-256 (`prime256v1`) curve, self-signature in IEEE P1363 (64 bytes / 128 hex), derives public keys, emits SHA-256 public key fingerprints for cross-verification, and exits 1 on incomplete or unparseable keys.
+   - Emits zero private key bytes or secret material in logs or output.
+3. **Operational Credential Revocation Workflow:**
+   - Server: Implemented `POST /api/native/gate/wedding-day/pass/revoke` requiring active runtime and `gate.checkin.write` capability via `resolveNativeGateOperationalContext`. Sets `revokedAt`, `revocationReason`, and `supersededAt`.
+   - Android: Implemented `WeddingDaySyncService.revokePass` and exposed via `WeddingDayGateOperations.revokePass`. Verified with unit test (`WeddingDayOfflineTest.kt`).
+   - iOS: Implemented `WeddingDaySyncService.revokePass` and exposed via `WeddingDayGateOperations.revokePass`. Verified with unit test (`WeddingDayOfflineTests.swift`).
+4. **Full Synthetic End-to-End Activation Rehearsal Test:**
+   - Implemented `src/lib/wedding-day-activation-rehearsal.integration.test.ts` covering all 11 stages:
+     - Stage 1: Safe key preflight (0 secret leakage, fingerprint derivation).
+     - Stage 2: Database schema preflight (0 baseline passes).
+     - Stage 3: Feature flag OFF gate (503 fail-closed across all routes).
+     - Stage 4 & 5: Controlled activation and pass issuance (canonical dot-wire format `WW2.<shortId>.<serial>.<maskHex>.<nonce>.<sigHex>`).
+     - Stage 6: Gate manifest generation and root signature verification (IEEE P1363 DER verification).
+     - Stage 7: Offline gate admission simulation (manifest key token signature check).
+     - Stage 8: Reconnect sync and idempotency (operator derived from gate grant, duplicate deduplication).
+     - Stage 9: Complete household RSVP check-in (`RSVP.checkedIn` convergence).
+     - Stage 10: Credential revocation and reissue isolation (rejection of revoked pass, clean reissue with `issueSeq=2`).
+     - Stage 11: Feature flag OFF rollback (instantaneous fail-closed, DB data preserved).
+   - Result: 10 tests, 90 assertions, 100% pass.
+5. **Activation Runbook & GO/NO-GO Checklist:**
+   - Documented `docs/native-mobile/PHASE_11B_ACTIVATION_RUNBOOK.md` in both server and native repositories.
+   - Includes 7-stage controlled enable sequence, exact rollback criteria, threshold triggers, and comprehensive GO/NO-GO operational checklist.
+6. **Cross-Platform Test & Build Verification:**
+   - Server: `bun test src/lib/wedding-day*` — 31 tests passed, 0 failures. `bun run build` — Next.js production build succeeded with standalone output.
+   - Android: `./gradlew testDebugUnitTest` — 25 tasks executed, BUILD SUCCESSFUL. `./gradlew assembleDebug` — BUILD SUCCESSFUL.
+   - iOS: `swift test` — 428 tests passed, 0 failures. `swift build` — Build complete. `xcodegen generate` — Project generated.
+7. **Strict Production Boundaries Preserved:**
+   - Zero access or mutation to production databases.
+   - Zero production keys generated or read.
+   - `WEWED_WEDDING_DAY_WW2_ENABLED` remains OFF by default in code.
+   - Zero production gate check-ins or admissions.
+   - No merge to `main`, no deployment, no mobile app signing/publishing.
+   - Phase 12 NOT started.
