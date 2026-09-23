@@ -1277,6 +1277,90 @@ Phase gate:
 - Phase 4: **ACCEPTED**;
 - Phase 5: **READY TO BEGIN**.
 
+### D-020 — Phase 8 closure round 4 execution evidence, submitted for moderator review (2026-09-23)
+**IMPLEMENTATION-AGENT SUBMISSION, NOT A MODERATOR VERDICT.** Phase 8 acceptance remains the
+moderator's decision alone; this entry records what round 4 changed and independently verified, in
+direct response to defects the moderator found by inspecting round 3's actual shipped code (not its
+completion report). It does not itself accept or reject Phase 8, and Phase 9 has not been started.
+
+Round-4 starting heads (round-3 final, reviewer-clean):
+- server `backend/native-workspace-parity-phase8-20260922` @ `259d1074ff7f5c9be57441cc38df91e56e76d13d`;
+- native `native-mobile/workspace-parity-phase8-20260922` @ `1a0fb05371e323c3b7d1b2ebcb7317ff6a379dcc`.
+
+Defects the moderator found in round 3's shipped code, and what round 4 changed:
+1. `NativeRepositoryFactory.PRODUCTION` still constructed a same-typed
+   `ProductionBoundaryWeddingRepository`/`ProductionBoundaryPlannerRepository` placeholder for the
+   unbound state (round 3 had only fixed a same-account render race, not this). Replaced with a
+   sealed `NativeRepositoryOutcome`/`.productionBootstrap` that carries no wedding/planner value at
+   all; every production repository getter now throws a new `ProductionRepositoryUnbound` while
+   unbound instead of returning anything repository-shaped. The five dead `ProductionBoundary*`
+   classes are deleted on both platforms.
+2. The Vendor production binding was keyed only on `(accessUserId, grantId)`, but one
+   `vendor:wedding:<business>:<vendor>` grant can carry multiple `serviceEngagementIds`; round 3's own
+   "engagement A to B" test only proved grant-to-grant switching, not same-grant engagement selection.
+   The binding gained an `engagementId` field; the bind effect and render gate on both platforms now
+   key on it; the server's `/api/native/vendor/engagement` route now fails closed with
+   `422 ENGAGEMENT_SELECTION_REQUIRED` for a multi-engagement grant with no `engagementId` supplied,
+   instead of auto-selecting `serviceEngagementIds[0]`.
+3. Contracts' round-3 "LIVE (server + native client)" classification for the Deal Room was premature —
+   the native client only ever called the engagement-list endpoint. Added
+   `NativeDomainApiClient.dealRoom(...)` + `ContractsRepository.getDealRoom(...)` (DTOs mirroring the
+   PWA's own `DealRoomRecord` shape) on both platforms, and a tap-to-expand Deal Room detail view
+   within the existing Vendors/"Contracts & Engagements" surface — no new IA navigation entry.
+
+Full detail, file-level and code-level, is recorded in
+`docs/native-mobile/WEWED_NATIVE_PHASE8_FIELD_CLASSIFICATION.md` §13 (server repo).
+
+Independent verification performed by the implementation agent (re-run personally, not merely
+claimed by a sub-task): Android `testDebugUnitTest` (401/401 pass), `assembleDebug`/`assembleRelease`;
+iOS `swift build`/`swift test` (397/397 pass), `xcodegen generate` + `xcodebuild` Debug Simulator
+build + unsigned Release generic-device build — all four iOS/Android build artifacts rebuilt and
+re-verified directly by the implementation agent after a background port, not accepted on the
+sub-task's self-report alone; server disposable-DB suite (26/26, including four new same-grant
+multi-engagement Vendor tests), Phase 2/7 disposable-DB regressions (36/36), full `bun test src`
+byte-identical to the documented local baseline (850 pass / 36 fail / 8 errors / 68 skip), production
+`next build` succeeded.
+
+Qualification (temporary reviewer CI, removed after a successful run, matching rounds 2/3):
+- server: run `35813862536` (`_tmp-phase8-round4-server-qualification.yml`) — PASS at
+  `36e02adc9420b96f9dd18f8063fc7b55ed74f110` (fresh Postgres, full migration chain, Phase 2/7/8
+  disposable-DB suites, Guest Session v2/projection regressions, production build);
+- native: run `35816354919` (`_tmp-phase8-round4-native-qualification.yml`) — PASS at
+  `951859ee5c70817df3af2290e1fed1e81cfe2f05` (Android unit/debug/release; iOS swift test/build,
+  XcodeGen, real Simulator build, unsigned Release device build).
+
+Round-4 final heads (temporary workflows removed, field classification updated, working trees clean):
+- server: `11d492e92a0cb0cc58083a4a9b554604c3a8e196`;
+- native: `0e1180d10bef185fd69bbeed1b0f79e53bc2bd6e`.
+
+Production safety (verified via the GitHub Deployments API, not inferred): every deployment recorded
+for every SHA produced this round, on both branches, is `environment: "Preview"` — never
+`"Production"`. No production database read or written, no production migration applied,
+`WEWED_SESSION_SECRET` never read or changed, no F-3 relationship fabricated, F-4 unchanged, Guest
+invitation/RSVP behavior unchanged, no Android/iOS build published, no signing credential touched,
+Phase 9 not started.
+
+Remaining Phase-8 blockers, honestly, unchanged in scope by this round (none of this was in scope for
+round 4 and none of it was attempted):
+- Contracts/Vault write actions (draft/versioning/acceptance, upload) remain UNSUPPORTED — this round
+  closed the Deal Room READ path only, as scoped;
+- Budget line edits, Seating/Timeline/Vendor-planning writes remain UNSUPPORTED;
+- Admin domains beyond overview/accounts/support/incidents (command center, bookings, service
+  engagements, contract intelligence, contributions analytics, account identity, productivity,
+  cross-wedding vault browsing) remain UNSUPPORTED;
+- the 20 dead `PlannerDestinationRoute` composables noted as remaining P1-N4 cleanup in the field
+  classification document are still not removed (unchanged from round 3 — out of scope for round 4's
+  three-item mandate);
+- F-3 still blocks real production Vendor wedding grants; F-4 remains unapplied to production; F-6 and
+  the `WEWED_SESSION_SECRET` Preview/Production configuration gate remain later/operational gates,
+  exactly as carried forward through every prior checkpoint.
+
+Phase gate:
+- Phase 8: **implementation agent reports the three round-3-identified defects closed and
+  independently re-verified; acceptance is NOT self-declared and awaits moderator review of the actual
+  remote code above**;
+- Phase 9: **NOT STARTED / NOT AUTHORIZED**.
+
 ### D-019 — Phase 8 review checkpoint (2026-09-23)
 **NOT ACCEPTED — substantial mature-domain parity exists, but the locked Phase-8 exit gate is not yet satisfied. Continue Phase 8; Phase 9 remains closed.**
 
