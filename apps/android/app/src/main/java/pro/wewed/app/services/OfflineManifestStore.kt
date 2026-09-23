@@ -60,7 +60,9 @@ interface OfflineManifestStoreProtocol {
     suspend fun recordOfflineCheckIn(weddingId: String, serial: String, count: Int, usherId: String): CheckInVerificationResult
     suspend fun getPendingCheckIns(weddingId: String): List<QueuedCheckIn>
     suspend fun markCheckInSynced(id: String)
-    suspend fun markPassRevoked(weddingId: String, serial: String)
+    suspend fun markPassRevoked(weddingId: String, serial: String) {
+        throw UnsupportedOperationException("Offline store does not support local pass revocation")
+    }
     suspend fun clearManifest(weddingId: String)
 }
 
