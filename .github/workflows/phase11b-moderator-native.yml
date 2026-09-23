@@ -22,12 +22,11 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - uses: actions/setup-java@ae2b61dbc685e60e4427b2e8ed4f6d95c0b1c31d
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@07976c6290703d34c16d382cb36445f98bb43b1f
 
       - name: Android unit tests
         working-directory: apps/android
