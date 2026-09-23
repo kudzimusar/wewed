@@ -136,6 +136,52 @@ async function engagement(name: string, vendorId: string, weddingId: string) {
   return id(name)
 }
 
+async function gate(name: string, weddingId: string, status = 'active') {
+  await exec(
+    `INSERT INTO public."WeddingGate" (id, "weddingId", name, status, "updatedAt")
+     VALUES ($1, $2, $3, $4, now())`,
+    id(name), weddingId, name, status,
+  )
+  return id(name)
+}
+
+async function gateAssignment(
+  name: string,
+  weddingId: string,
+  gateId: string,
+  userId: string,
+  opts: {
+    operatorRole?: string
+    capabilities?: string[]
+    activeFrom?: string
+    expiresAt?: string | null
+    revokedAt?: string | null
+    revokedByUserId?: string | null
+    createdByUserId?: string | null
+  } = {},
+) {
+  await exec(
+    `INSERT INTO public."WeddingGateAssignment" (
+       id, "weddingId", "gateId", "userId", "operatorRole", capabilities,
+       "activeFrom", "expiresAt", "revokedAt", "revokedByUserId", "createdByUserId", "updatedAt"
+     ) VALUES (
+       $1, $2, $3, $4, $5, $6,
+       CASE WHEN $7::text IS NOT NULL THEN $7::timestamptz ELSE now() - interval '1 hour' END,
+       CASE WHEN $8::text IS NOT NULL THEN $8::timestamptz ELSE NULL END,
+       CASE WHEN $9::text IS NOT NULL THEN $9::timestamptz ELSE NULL END,
+       $10, $11, now()
+     )`,
+    id(name), weddingId, gateId, userId, opts.operatorRole ?? 'usher',
+    JSON.stringify(opts.capabilities ?? ['gate.manifest.read', 'gate.checkin.write', 'gate.guest_search.read', 'gate.audit.read']),
+    opts.activeFrom ?? null,
+    opts.expiresAt ?? null,
+    opts.revokedAt ?? null,
+    opts.revokedByUserId ?? null,
+    opts.createdByUserId ?? null,
+  )
+  return id(name)
+}
+
 async function platformRegistry(userId: string, role: string, status: string) {
   await exec(
     // A trigger already syncs the registry from Wewed-internal memberships; override it explicitly.
@@ -292,6 +338,26 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
 
     actors.inactive = await user('inactive', 'couple', { isActive: false })
     await membership('inactive-owner-B', actors.inactive, ids.B, 'owner')
+
+    // Phase 10: Operational Gate Authority
+    ids.gateA1 = await gate('gate-A1', ids.A, 'active')
+    ids.gateA2 = await gate('gate-A2', ids.A, 'active')
+    ids.gateADisabled = await gate('gate-A-disabled', ids.A, 'disabled')
+
+    actors.usher = await user('usher-single', 'guest')
+    ids.assignUsherSingle = await gateAssignment('usher-single-assign', ids.A, ids.gateA1, actors.usher)
+
+    actors.multiGateUsher = await user('usher-multi', 'guest')
+    ids.assignMulti1 = await gateAssignment('usher-multi-assign-1', ids.A, ids.gateA1, actors.multiGateUsher)
+    ids.assignMulti2 = await gateAssignment('usher-multi-assign-2', ids.A, ids.gateA2, actors.multiGateUsher)
+
+    actors.revokedUsher = await user('usher-revoked', 'guest')
+    ids.assignRevoked = await gateAssignment('usher-revoked-assign', ids.A, ids.gateA1, actors.revokedUsher, {
+      revokedAt: new Date(Date.now() - 3600000).toISOString(),
+    })
+
+    actors.disabledGateUsher = await user('usher-disabled-gate', 'guest')
+    ids.assignDisabledGate = await gateAssignment('usher-disabled-gate-assign', ids.A, ids.gateADisabled, actors.disabledGateUsher)
   })
 
   afterAll(async () => {
@@ -403,13 +469,13 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
     expect(unknown.workspaceGrants).toEqual([])
   })
 
-  test('Guest and Usher/Gate never appear as account grants, and are declared unsupported', async () => {
+  test('Guest never appears as account grants, and is declared unsupported; workspace grants stay strictly workspace kinds', async () => {
     for (const actor of Object.keys(actors)) {
       const authority = await resolve(actors[actor])
       for (const grant of authority.workspaceGrants) {
         expect(['couple', 'planner', 'coordinator', 'vendor', 'admin']).toContain(grant.workspaceKind)
       }
-      expect(authority.unsupported.map((u) => u.authority)).toEqual(['guest', 'usher_gate'])
+      expect(authority.unsupported.map((u) => u.authority)).toEqual(['guest'])
     }
   })
 
@@ -612,4 +678,76 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
     // Platform admin: both agree on the platform workspace.
     expect((await authMe('platformAdmin', 'admin')).workspace).toBe('wewed_platform')
   })
+
+  // ---------------------------------------------------------------------------------------------
+  // Part I — Operational gate authority (Phase 10)
+  // ---------------------------------------------------------------------------------------------
+
+  test('Usher: active gate assignment produces operational grant and single context selection without workspace grants', async () => {
+    const authority = await resolve(actors.usher)
+    expect(authority.workspaceGrants).toEqual([])
+    expect(authority.operationalGrants).toHaveLength(1)
+    const [grant] = authority.operationalGrants
+    expect(grant).toMatchObject({
+      grantId: `gate_operator:${ids.A}:${ids.gateA1}`,
+      kind: 'gate_operator',
+      weddingId: ids.A,
+      weddingTitle: 'Wedding A',
+      gateId: ids.gateA1,
+      gateName: 'gate-A1',
+      operatorUserId: actors.usher,
+      assignmentId: ids.assignUsherSingle,
+      capabilities: ['gate.manifest.read', 'gate.checkin.write', 'gate.guest_search.read', 'gate.audit.read'],
+      sources: [{ kind: 'gate_assignment', id: ids.assignUsherSingle }],
+    })
+    expect(authority.gateContextSelection).toEqual({
+      kind: 'gate_operator',
+      grantIds: [`gate_operator:${ids.A}:${ids.gateA1}`],
+      selectionRequired: false,
+    })
+  })
+
+  test('Multi-gate operator: multiple active gates require explicit gateContextSelection, sorted deterministically', async () => {
+    const authority = await resolve(actors.multiGateUsher)
+    expect(authority.workspaceGrants).toEqual([])
+    expect(authority.operationalGrants).toHaveLength(2)
+    expect(authority.operationalGrants.map((g) => g.gateId)).toEqual([ids.gateA1, ids.gateA2])
+    expect(authority.gateContextSelection).toEqual({
+      kind: 'gate_operator',
+      grantIds: [`gate_operator:${ids.A}:${ids.gateA1}`, `gate_operator:${ids.A}:${ids.gateA2}`],
+      selectionRequired: true,
+    })
+  })
+
+  test('Revoked or disabled gate assignment: no operational grant, reason recorded in nonGrantingRelationships', async () => {
+    const revokedAuth = await resolve(actors.revokedUsher)
+    expect(revokedAuth.operationalGrants).toEqual([])
+    expect(revokedAuth.gateContextSelection).toBeNull()
+    expect(revokedAuth.nonGrantingRelationships).toContainEqual({
+      source: { kind: 'gate_assignment', id: ids.assignRevoked },
+      reason: 'assignment_revoked',
+    })
+
+    const disabledAuth = await resolve(actors.disabledGateUsher)
+    expect(disabledAuth.operationalGrants).toEqual([])
+    expect(disabledAuth.gateContextSelection).toBeNull()
+    expect(disabledAuth.nonGrantingRelationships).toContainEqual({
+      source: { kind: 'gate_assignment', id: ids.assignDisabledGate },
+      reason: 'gate_disabled',
+    })
+  })
+
+  test('Relational integrity: WeddingGateAssignment is bound strictly to the same wedding as WeddingGate', async () => {
+    // Attempt to create an assignment referencing Gate A1 (wedding A) but claiming wedding B.
+    // The composite foreign key [gateId, weddingId] -> WeddingGate(id, weddingId) must reject this!
+    let caughtError: unknown = null
+    try {
+      await gateAssignment('invalid-cross-wedding', ids.B, ids.gateA1, actors.usher)
+    } catch (err) {
+      caughtError = err
+    }
+    expect(caughtError).not.toBeNull()
+    expect(String(caughtError)).toMatch(/WeddingGateAssignment_gate_wedding_fkey|foreign key constraint/i)
+  })
 })
+

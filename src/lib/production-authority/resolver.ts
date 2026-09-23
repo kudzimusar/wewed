@@ -10,6 +10,7 @@ import {
 import type {
   BusinessLinkEvidence,
   BusinessMembershipEvidence,
+  GateAssignmentEvidence,
   IdentityEvidence,
   PlatformRegistryEvidence,
   ProductionAuthorityEvidence,
@@ -59,7 +60,7 @@ export async function loadProductionAuthorityEvidence(
 ): Promise<ProductionAuthorityEvidence> {
   const authUserId = options.authUserId?.trim() || null
 
-  const [identityRows, profileRows, businessRows, weddingRows, registry] = await Promise.all([
+  const [identityRows, profileRows, businessRows, weddingRows, registry, gateAssignments] = await Promise.all([
     db.$queryRawUnsafe<Array<Omit<IdentityEvidence, 'accessUserId' | 'authUserId' | 'userRole'> & { id: string; role: string }>>(
       `SELECT id, email, name, role, "coupleId", "isActive" FROM public."User" WHERE id = $1`,
       accessUserId,
@@ -95,6 +96,7 @@ export async function loadProductionAuthorityEvidence(
       accessUserId,
     ),
     loadPlatformRegistry(accessUserId),
+    loadGateAssignments(accessUserId),
   ])
 
   const activeBusinessIds = businessRows.filter((row) => row.status === 'active').map((row) => row.businessAccountId)
@@ -187,6 +189,63 @@ export async function loadProductionAuthorityEvidence(
         : [],
     })),
     platformRegistry: registry,
+    gateAssignments,
+  }
+}
+
+/** Reads gate assignments and linked gates for an access user. */
+async function loadGateAssignments(userId: string): Promise<GateAssignmentEvidence[]> {
+  try {
+    const rows = await db.$queryRawUnsafe<Array<{
+      assignmentId: string
+      weddingId: string
+      weddingTitle: string
+      gateId: string
+      gateName: string
+      gateStatus: string
+      userId: string
+      operatorRole: string
+      capabilities: unknown
+      activeFrom: Date
+      expiresAt: Date | null
+      revokedAt: Date | null
+      revokedByUserId: string | null
+      createdByUserId: string | null
+    }>>(
+      `SELECT a.id AS "assignmentId", a."weddingId", w.title AS "weddingTitle",
+              a."gateId", g.name AS "gateName", g.status AS "gateStatus",
+              a."userId", a."operatorRole", a.capabilities,
+              a."activeFrom", a."expiresAt", a."revokedAt",
+              a."revokedByUserId", a."createdByUserId"
+         FROM public."WeddingGateAssignment" a
+         JOIN public."WeddingGate" g ON g.id = a."gateId" AND g."weddingId" = a."weddingId"
+         JOIN public."Wedding" w ON w.id = a."weddingId"
+        WHERE a."userId" = $1
+        ORDER BY w.date ASC, g.name ASC, a."createdAt" ASC`,
+      userId,
+    )
+    return rows.map((row) => ({
+      assignmentId: row.assignmentId,
+      weddingId: row.weddingId,
+      weddingTitle: row.weddingTitle,
+      gateId: row.gateId,
+      gateName: row.gateName,
+      gateStatus: row.gateStatus,
+      userId: row.userId,
+      operatorRole: row.operatorRole,
+      capabilities: stringArray(row.capabilities),
+      activeFrom: new Date(row.activeFrom).toISOString(),
+      expiresAt: row.expiresAt ? new Date(row.expiresAt).toISOString() : null,
+      revokedAt: row.revokedAt ? new Date(row.revokedAt).toISOString() : null,
+      revokedByUserId: row.revokedByUserId,
+      createdByUserId: row.createdByUserId,
+    }))
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes('WeddingGateAssignment') || message.includes('does not exist')) {
+      return []
+    }
+    throw error
   }
 }
 

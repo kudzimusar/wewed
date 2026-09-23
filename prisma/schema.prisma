@@ -83,6 +83,8 @@ model Wedding {
   currentForUsers         User[] @relation("CurrentWedding")
   notifications           Notification[]
   reminders               Reminder[]
+  gates                   WeddingGate[]
+  gateAssignments         WeddingGateAssignment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -660,6 +662,9 @@ model User {
   remindersReceived       Reminder[] @relation("ReminderRecipient")
   notificationPreferences NotificationPreference[]
   pushSubscriptions       PushSubscription[]
+  gateAssignments         WeddingGateAssignment[] @relation("GateOperatorUser")
+  gateAssignmentsCreated  WeddingGateAssignment[] @relation("GateAssignmentCreator")
+  gateAssignmentsRevoked  WeddingGateAssignment[] @relation("GateAssignmentRevoker")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1052,4 +1057,45 @@ model AiRateLimitBucket {
 
   @@id([keyHash, windowStart])
   @@index([expiresAt])
+}
+
+model WeddingGate {
+  id        String   @id @default(cuid())
+  weddingId String
+  wedding   Wedding  @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  name      String
+  status    String   @default("active") // "active" | "disabled"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignments WeddingGateAssignment[]
+
+  @@unique([id, weddingId])
+  @@unique([weddingId, name])
+  @@index([weddingId, status])
+}
+
+model WeddingGateAssignment {
+  id              String      @id @default(cuid())
+  weddingId       String
+  wedding         Wedding     @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  gateId          String
+  gate            WeddingGate @relation(fields: [gateId, weddingId], references: [id, weddingId], onDelete: Cascade)
+  userId          String
+  user            User        @relation("GateOperatorUser", fields: [userId], references: [id], onDelete: Cascade)
+  operatorRole    String      @default("usher")
+  capabilities    String?
+  activeFrom      DateTime    @default(now())
+  expiresAt       DateTime?
+  revokedAt       DateTime?
+  revokedByUserId String?
+  revokedByUser   User?       @relation("GateAssignmentRevoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+  createdByUserId String?
+  createdByUser   User?       @relation("GateAssignmentCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([userId, weddingId])
+  @@index([gateId, weddingId])
+  @@index([weddingId, revokedAt])
 }

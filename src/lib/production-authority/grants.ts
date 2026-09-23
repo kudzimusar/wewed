@@ -11,12 +11,17 @@
  */
 
 import {
+  GATE_CAPABILITY_VOCABULARY,
+  OPERATIONAL_GRANT_KINDS,
   PRODUCTION_AUTHORITY_CONTRACT,
   PRODUCTION_AUTHORITY_VERSION,
   WORKSPACE_KINDS,
   type BusinessMembershipEvidence,
   type ContextSelection,
+  type GateCapability,
+  type GateContextSelection,
   type NonGrantingRelationship,
+  type OperationalGrant,
   type ProductionAuthorityEvidence,
   type UnsupportedAuthority,
   type WewedProductionAuthorityV1,
@@ -62,11 +67,6 @@ const UNSUPPORTED: UnsupportedAuthority[] = [
     authority: 'guest',
     reason:
       'Guest identity is invitation-bound and carried by Guest Session v2; it is never an account workspace grant.',
-  },
-  {
-    authority: 'usher_gate',
-    reason:
-      'No production Usher/Gate authority exists (master plan Phase 10). Nothing is inferred from coordinator, planner or admin relationships.',
   },
 ]
 
@@ -143,12 +143,14 @@ export function buildProductionAuthority(
     }))
 
   const grants: WorkspaceGrant[] = []
+  const operationalGrants: OperationalGrant[] = []
   const nonGranting: NonGrantingRelationship[] = []
 
   if (accountStatus === 'authorized' && identity) {
     deriveWeddingGrants(evidence, grants, nonGranting)
     deriveBusinessGrants(evidence, grants, nonGranting)
     deriveVendorWeddingGrants(evidence, grants, nonGranting)
+    deriveGateOperationalGrants(evidence, operationalGrants, nonGranting)
 
     // System Admin. `User.role = admin` is required (requireWewedAdmin) but never sufficient: the
     // platform entry gate and an effective internal membership must both hold, and the effective
@@ -197,11 +199,20 @@ export function buildProductionAuthority(
   }
 
   grants.sort(compareGrants)
+  operationalGrants.sort((a, b) => a.grantId.localeCompare(b.grantId))
 
   const contextSelection: ContextSelection[] = WORKSPACE_KINDS.map((workspaceKind) => {
     const grantIds = grants.filter((g) => g.workspaceKind === workspaceKind).map((g) => g.grantId)
     return { workspaceKind, grantIds, selectionRequired: grantIds.length > 1 }
   }).filter((selection) => selection.grantIds.length > 0)
+
+  const gateContextSelection: GateContextSelection | null = operationalGrants.length > 0
+    ? {
+        kind: 'gate_operator',
+        grantIds: operationalGrants.map((g) => g.grantId),
+        selectionRequired: operationalGrants.length > 1,
+      }
+    : null
 
   // A denied/unverified account must not receive its relationship graph merely because no
   // workspace grant was issued. Phase 5 will put this contract behind verified auth transport,
@@ -266,6 +277,8 @@ export function buildProductionAuthority(
         },
     workspaceGrants: grants,
     contextSelection,
+    operationalGrants,
+    gateContextSelection,
     nonGrantingRelationships: nonGranting,
     unsupported: UNSUPPORTED,
   }
@@ -448,3 +461,76 @@ function compareGrants(a: WorkspaceGrant, b: WorkspaceGrant): number {
     a.grantId.localeCompare(b.grantId)
   )
 }
+
+/**
+ * Operational gate grants from WeddingGateAssignment.
+ *
+ * Requirements (master plan Phase 10):
+ * - User identity must be active/authorized (verified before this function is reached).
+ * - Real assignment row matching userId.
+ * - assignment.revokedAt == null (revoked operator cannot operate).
+ * - assignment.activeFrom <= now.
+ * - assignment.expiresAt == null || assignment.expiresAt > now.
+ * - gate.status == 'active' (disabled gate grants nothing).
+ * - operatorRole == 'usher'.
+ * - Capabilities filtered against GATE_CAPABILITY_VOCABULARY; unknown capabilities fail closed.
+ * - If capabilities are empty after filtering, no grant is issued.
+ */
+function deriveGateOperationalGrants(
+  evidence: ProductionAuthorityEvidence,
+  operationalGrants: OperationalGrant[],
+  nonGranting: NonGrantingRelationship[],
+  now: Date = new Date(),
+) {
+  for (const a of evidence.gateAssignments ?? []) {
+    const source = { kind: 'gate_assignment' as const, id: a.assignmentId }
+
+    if (a.revokedAt !== null) {
+      nonGranting.push({ source, reason: 'assignment_revoked' })
+      continue
+    }
+
+    if (new Date(a.activeFrom).getTime() > now.getTime()) {
+      nonGranting.push({ source, reason: 'assignment_not_yet_active' })
+      continue
+    }
+
+    if (a.expiresAt !== null && new Date(a.expiresAt).getTime() <= now.getTime()) {
+      nonGranting.push({ source, reason: 'assignment_expired' })
+      continue
+    }
+
+    if (a.gateStatus !== 'active') {
+      nonGranting.push({ source, reason: 'gate_disabled' })
+      continue
+    }
+
+    if (a.operatorRole !== 'usher') {
+      nonGranting.push({ source, reason: 'operator_role_not_supported' })
+      continue
+    }
+
+    const recognizedCapabilities = a.capabilities.filter((cap): cap is GateCapability =>
+      (GATE_CAPABILITY_VOCABULARY as readonly string[]).includes(cap),
+    )
+
+    if (recognizedCapabilities.length === 0) {
+      nonGranting.push({ source, reason: 'no_recognized_capabilities' })
+      continue
+    }
+
+    operationalGrants.push({
+      grantId: `gate_operator:${a.weddingId}:${a.gateId}`,
+      kind: 'gate_operator',
+      assignmentId: a.assignmentId,
+      weddingId: a.weddingId,
+      weddingTitle: a.weddingTitle,
+      gateId: a.gateId,
+      gateName: a.gateName,
+      operatorUserId: a.userId,
+      capabilities: recognizedCapabilities,
+      sources: [source],
+    })
+  }
+}
+

@@ -9,7 +9,12 @@
 import { describe, expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import type { BusinessMembershipEvidence, ProductionAuthorityEvidence, WeddingMembershipEvidence } from './contract'
+import type {
+  BusinessMembershipEvidence,
+  GateAssignmentEvidence,
+  ProductionAuthorityEvidence,
+  WeddingMembershipEvidence,
+} from './contract'
 import { INTERNAL_ADMIN_ROLES, RECOGNISED_VENDOR_LINK_RELATIONSHIPS, buildProductionAuthority } from './grants'
 
 const FIXTURE = 'mobile/fixtures/production-authority-v1/multi-axis-actor.json'
@@ -30,6 +35,26 @@ function business(id: string, type: string, role: string, extra: Partial<Busines
   }
 }
 
+function gateAssignment(id: string, weddingId: string, gateId: string, role = 'usher', extra: Partial<GateAssignmentEvidence> = {}): GateAssignmentEvidence {
+  return {
+    assignmentId: `ga-${id}`,
+    weddingId,
+    weddingTitle: `Wedding ${weddingId}`,
+    gateId,
+    gateName: `Gate ${gateId}`,
+    gateStatus: 'active',
+    userId: 'user-1',
+    operatorRole: role,
+    capabilities: ['gate.manifest.read', 'gate.checkin.write', 'gate.guest_search.read', 'gate.audit.read'],
+    activeFrom: '2026-01-01T00:00:00.000Z',
+    expiresAt: null,
+    revokedAt: null,
+    revokedByUserId: null,
+    createdByUserId: 'admin-user',
+    ...extra,
+  }
+}
+
 function evidence(overrides: Partial<ProductionAuthorityEvidence> = {}): ProductionAuthorityEvidence {
   return {
     identity: {
@@ -43,6 +68,7 @@ function evidence(overrides: Partial<ProductionAuthorityEvidence> = {}): Product
     weddingMemberships: [],
     vendorEngagements: [],
     platformRegistry: { state: 'missing', role: null, status: null, scopes: [] },
+    gateAssignments: [],
     ...overrides,
   }
 }
@@ -74,6 +100,9 @@ const multiAxis = evidence({
     serviceEngagements: [{ serviceEngagementId: 'se-1', lifecycleStatus: 'active', origin: 'booking', recordMode: 'live' }],
   }],
   platformRegistry: { state: 'active', role: 'wewed_operations_admin', status: 'active', scopes: [{ scopeType: 'global', scopeValue: '*' }] },
+  gateAssignments: [
+    gateAssignment('1', 'B', 'gate-1'),
+  ],
 })
 
 describe('WewedProductionAuthorityV1 — pure rules', () => {
@@ -88,6 +117,12 @@ describe('WewedProductionAuthorityV1 — pure rules', () => {
       'vendor:wedding:vendor-1:vendor-row-F',
       'admin:system',
     ])
+    expect(authority.operationalGrants.map((g) => g.grantId)).toEqual(['gate_operator:B:gate-1'])
+    expect(authority.gateContextSelection).toEqual({
+      kind: 'gate_operator',
+      grantIds: ['gate_operator:B:gate-1'],
+      selectionRequired: false,
+    })
     expect(authority.workspaceGrants.find((g) => g.grantId === 'admin:system')?.platformRoles).toEqual(['wewed_operations_admin'])
   })
 
@@ -191,9 +226,9 @@ describe('WewedProductionAuthorityV1 — pure rules', () => {
     expect(selection.find((s) => s.workspaceKind === 'couple')?.selectionRequired).toBe(false)
   })
 
-  test('Guest and Usher/Gate are declared unsupported and never granted', () => {
+  test('Guest is declared unsupported; usher_gate is supported via operationalGrants', () => {
     const authority = buildProductionAuthority(multiAxis)
-    expect(authority.unsupported.map((u) => u.authority)).toEqual(['guest', 'usher_gate'])
+    expect(authority.unsupported.map((u) => u.authority)).toEqual(['guest'])
     expect(authority.workspaceGrants.some((g) => (g.workspaceKind as string) === 'guest' || (g.workspaceKind as string) === 'usher')).toBe(false)
   })
 
@@ -315,6 +350,184 @@ describe('WewedProductionAuthorityV1 — pure rules', () => {
       expect(authority.workspaceGrants).toEqual([])
       expect(authority.platform.effectiveRole).toBe(role)
     }
+  })
+
+  // ------------------------------------------------------------------------------------------
+  // Phase 10 — Usher / Gate operational authority
+  // ------------------------------------------------------------------------------------------
+
+  test('gate operator: an active, unexpired, unrevoked assignment on an active gate produces an operational grant', () => {
+    const e = evidence({
+      gateAssignments: [
+        gateAssignment('1', 'wed-1', 'gate-1', 'usher', {
+          capabilities: ['gate.manifest.read', 'gate.checkin.write'],
+        }),
+      ],
+    })
+    const auth = buildProductionAuthority(e)
+    expect(auth.operationalGrants).toEqual([
+      {
+        grantId: 'gate_operator:wed-1:gate-1',
+        kind: 'gate_operator',
+        assignmentId: 'ga-1',
+        weddingId: 'wed-1',
+        weddingTitle: 'Wedding wed-1',
+        gateId: 'gate-1',
+        gateName: 'Gate gate-1',
+        operatorUserId: 'user-1',
+        capabilities: ['gate.manifest.read', 'gate.checkin.write'],
+        sources: [{ kind: 'gate_assignment', id: 'ga-1' }],
+      },
+    ])
+    expect(auth.gateContextSelection).toEqual({
+      kind: 'gate_operator',
+      grantIds: ['gate_operator:wed-1:gate-1'],
+      selectionRequired: false,
+    })
+  })
+
+  test('gate operator: revoked assignment produces assignment_revoked and no grant', () => {
+    const e = evidence({
+      gateAssignments: [
+        gateAssignment('1', 'wed-1', 'gate-1', 'usher', {
+          revokedAt: '2026-05-01T00:00:00.000Z',
+          revokedByUserId: 'revoker-1',
+        }),
+      ],
+    })
+    const auth = buildProductionAuthority(e)
+    expect(auth.operationalGrants).toEqual([])
+    expect(auth.gateContextSelection).toBeNull()
+    expect(auth.nonGrantingRelationships).toContainEqual({
+      source: { kind: 'gate_assignment', id: 'ga-1' },
+      reason: 'assignment_revoked',
+    })
+  })
+
+  test('gate operator: future activeFrom produces assignment_not_yet_active and no grant', () => {
+    const e = evidence({
+      gateAssignments: [
+        gateAssignment('1', 'wed-1', 'gate-1', 'usher', {
+          activeFrom: '2099-01-01T00:00:00.000Z',
+        }),
+      ],
+    })
+    const auth = buildProductionAuthority(e)
+    expect(auth.operationalGrants).toEqual([])
+    expect(auth.gateContextSelection).toBeNull()
+    expect(auth.nonGrantingRelationships).toContainEqual({
+      source: { kind: 'gate_assignment', id: 'ga-1' },
+      reason: 'assignment_not_yet_active',
+    })
+  })
+
+  test('gate operator: past expiresAt produces assignment_expired and no grant', () => {
+    const e = evidence({
+      gateAssignments: [
+        gateAssignment('1', 'wed-1', 'gate-1', 'usher', {
+          expiresAt: '2020-01-01T00:00:00.000Z',
+        }),
+      ],
+    })
+    const auth = buildProductionAuthority(e)
+    expect(auth.operationalGrants).toEqual([])
+    expect(auth.gateContextSelection).toBeNull()
+    expect(auth.nonGrantingRelationships).toContainEqual({
+      source: { kind: 'gate_assignment', id: 'ga-1' },
+      reason: 'assignment_expired',
+    })
+  })
+
+  test('gate operator: disabled gate produces gate_disabled and no grant', () => {
+    const e = evidence({
+      gateAssignments: [
+        gateAssignment('1', 'wed-1', 'gate-1', 'usher', {
+          gateStatus: 'disabled',
+        }),
+      ],
+    })
+    const auth = buildProductionAuthority(e)
+    expect(auth.operationalGrants).toEqual([])
+    expect(auth.gateContextSelection).toBeNull()
+    expect(auth.nonGrantingRelationships).toContainEqual({
+      source: { kind: 'gate_assignment', id: 'ga-1' },
+      reason: 'gate_disabled',
+    })
+  })
+
+  test('gate operator: unsupported role produces operator_role_not_supported', () => {
+    const e = evidence({
+      gateAssignments: [
+        gateAssignment('1', 'wed-1', 'gate-1', 'coordinator_operator'),
+      ],
+    })
+    const auth = buildProductionAuthority(e)
+    expect(auth.operationalGrants).toEqual([])
+    expect(auth.nonGrantingRelationships).toContainEqual({
+      source: { kind: 'gate_assignment', id: 'ga-1' },
+      reason: 'operator_role_not_supported',
+    })
+  })
+
+  test('gate operator: unrecognized capabilities are stripped; empty valid capabilities fails closed', () => {
+    const e = evidence({
+      gateAssignments: [
+        gateAssignment('1', 'wed-1', 'gate-1', 'usher', {
+          capabilities: ['gate.manifest.read', 'gate.invented_cap', 'admin.all'],
+        }),
+        gateAssignment('2', 'wed-1', 'gate-2', 'usher', {
+          capabilities: ['gate.fake_cap'],
+        }),
+      ],
+    })
+    const auth = buildProductionAuthority(e)
+    expect(auth.operationalGrants).toHaveLength(1)
+    expect(auth.operationalGrants[0].gateId).toBe('gate-1')
+    expect(auth.operationalGrants[0].capabilities).toEqual(['gate.manifest.read'])
+    expect(auth.nonGrantingRelationships).toContainEqual({
+      source: { kind: 'gate_assignment', id: 'ga-2' },
+      reason: 'no_recognized_capabilities',
+    })
+  })
+
+  test('gate operator: multiple active assignments require explicit gate context selection', () => {
+    const e = evidence({
+      gateAssignments: [
+        gateAssignment('1', 'wed-1', 'gate-1'),
+        gateAssignment('2', 'wed-1', 'gate-2'),
+      ],
+    })
+    const auth = buildProductionAuthority(e)
+    expect(auth.operationalGrants).toHaveLength(2)
+    expect(auth.gateContextSelection).toEqual({
+      kind: 'gate_operator',
+      grantIds: ['gate_operator:wed-1:gate-1', 'gate_operator:wed-1:gate-2'],
+      selectionRequired: true,
+    })
+  })
+
+  test('gate operator: usher A at Gate A cannot operate Gate B', () => {
+    const e = evidence({
+      gateAssignments: [
+        gateAssignment('1', 'wed-1', 'gate-A'),
+      ],
+    })
+    const auth = buildProductionAuthority(e)
+    expect(auth.operationalGrants.map((g) => g.gateId)).toEqual(['gate-A'])
+    expect(auth.operationalGrants.some((g) => g.gateId === 'gate-B')).toBe(false)
+  })
+
+  test('operational grants are strictly separate from workspace grants', () => {
+    const e = evidence({
+      gateAssignments: [
+        gateAssignment('1', 'wed-1', 'gate-1'),
+      ],
+    })
+    const auth = buildProductionAuthority(e)
+    expect(auth.workspaceGrants).toEqual([])
+    expect(auth.operationalGrants).toHaveLength(1)
+    expect(auth.contextSelection).toEqual([])
+    expect(auth.gateContextSelection).not.toBeNull()
   })
 
   test('shared fixture: the Android/iOS contract fixture is exactly what the builder produces', () => {

@@ -10,7 +10,7 @@
  *
  * Deliberately excluded:
  *  - Guest identity: invitation-bound, carried by Guest Session v2, not an account (D-002).
- *  - Usher/Gate: no production authority exists until Phase 10; nothing is inferred.
+ *  - Operational gate authority is an explicit additive operational axis (Phase 10), separate from workspaces.
  *
  * This file is pure (no database, no server-only imports) so the same types and builder can be
  * exercised by tests and serialised identically for Android and iOS.
@@ -29,6 +29,19 @@ export type WorkspaceKind = (typeof WORKSPACE_KINDS)[number]
  */
 export const GRANT_SCOPE_KINDS = ['wedding', 'portfolio', 'business', 'system'] as const
 export type GrantScopeKind = (typeof GRANT_SCOPE_KINDS)[number]
+
+/** Operational grant kinds for operational authority. Distinct from workspace grants. */
+export const OPERATIONAL_GRANT_KINDS = ['gate_operator'] as const
+export type OperationalGrantKind = (typeof OPERATIONAL_GRANT_KINDS)[number]
+
+/** Gate capability vocabulary. Fail-closed on anything outside this set. */
+export const GATE_CAPABILITY_VOCABULARY = [
+  'gate.manifest.read',
+  'gate.checkin.write',
+  'gate.guest_search.read',
+  'gate.audit.read',
+] as const
+export type GateCapability = (typeof GATE_CAPABILITY_VOCABULARY)[number]
 
 // ---------------------------------------------------------------------------------------------
 // Evidence — what the database says, per axis. Loaded read-only by the resolver.
@@ -124,6 +137,23 @@ export interface PlatformRegistryEvidence {
   scopes: Array<{ scopeType: string; scopeValue: string }>
 }
 
+export interface GateAssignmentEvidence {
+  assignmentId: string
+  weddingId: string
+  weddingTitle: string
+  gateId: string
+  gateName: string
+  gateStatus: string
+  userId: string
+  operatorRole: string
+  capabilities: string[]
+  activeFrom: string
+  expiresAt: string | null
+  revokedAt: string | null
+  revokedByUserId: string | null
+  createdByUserId: string | null
+}
+
 export interface ProductionAuthorityEvidence {
   identity: IdentityEvidence | null
   profile: ProfileEvidence | null
@@ -133,6 +163,7 @@ export interface ProductionAuthorityEvidence {
   weddingMemberships: WeddingMembershipEvidence[]
   vendorEngagements: VendorEngagementEvidence[]
   platformRegistry: PlatformRegistryEvidence
+  gateAssignments: GateAssignmentEvidence[]
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -142,7 +173,7 @@ export interface ProductionAuthorityEvidence {
 
 export interface GrantSource {
   /** Which axis produced the evidence. */
-  kind: 'account_class' | 'wedding_membership' | 'business_membership' | 'business_link' | 'service_engagement' | 'platform_registry'
+  kind: 'account_class' | 'wedding_membership' | 'business_membership' | 'business_link' | 'service_engagement' | 'platform_registry' | 'gate_assignment'
   id: string
 }
 
@@ -164,6 +195,20 @@ export interface WorkspaceGrant {
   sources: GrantSource[]
 }
 
+/** Operational grant — explicit authority for operational activities like gate operations. */
+export interface OperationalGrant {
+  grantId: string
+  kind: 'gate_operator'
+  assignmentId: string
+  weddingId: string
+  weddingTitle: string
+  gateId: string
+  gateName: string
+  operatorUserId: string
+  capabilities: string[]
+  sources: GrantSource[]
+}
+
 /** A relationship that exists but deliberately produces no workspace grant, and why. */
 export interface NonGrantingRelationship {
   source: GrantSource
@@ -178,6 +223,12 @@ export interface NonGrantingRelationship {
     | 'vendor_link_relationship_not_recognised'
     | 'platform_membership_not_effective'
     | 'legacy_global_admin_wedding_access'
+    | 'gate_disabled'
+    | 'assignment_revoked'
+    | 'assignment_expired'
+    | 'assignment_not_yet_active'
+    | 'operator_role_not_supported'
+    | 'no_recognized_capabilities'
 }
 
 /** Authority the account contract refuses to express, by design. */
@@ -190,6 +241,13 @@ export interface ContextSelection {
   workspaceKind: WorkspaceKind
   grantIds: string[]
   /** True when more than one grant of this kind exists: the person must choose; none is picked. */
+  selectionRequired: boolean
+}
+
+export interface GateContextSelection {
+  kind: 'gate_operator'
+  grantIds: string[]
+  /** True when more than one gate grant exists: the person must choose; none is picked. */
   selectionRequired: boolean
 }
 
@@ -241,6 +299,8 @@ export interface WewedProductionAuthorityV1 {
   }
   workspaceGrants: WorkspaceGrant[]
   contextSelection: ContextSelection[]
+  operationalGrants: OperationalGrant[]
+  gateContextSelection: GateContextSelection | null
   nonGrantingRelationships: NonGrantingRelationship[]
   unsupported: UnsupportedAuthority[]
 }
