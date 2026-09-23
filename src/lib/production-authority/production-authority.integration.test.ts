@@ -25,6 +25,11 @@ let db: Db
 let resolveProductionAuthority: typeof import('./resolver')['resolveProductionAuthority']
 let listAccessibleWeddings: typeof import('@/lib/wedding-access')['listAccessibleWeddings']
 let isWewedPlatformAdministrator: typeof import('@/lib/business-access')['isWewedPlatformAdministrator']
+let resolveGateManagementContext: typeof import('@/lib/gate-authority')['resolveGateManagementContext']
+let createWeddingGate: typeof import('@/lib/gate-authority')['createWeddingGate']
+let disableWeddingGate: typeof import('@/lib/gate-authority')['disableWeddingGate']
+let assignGateOperator: typeof import('@/lib/gate-authority')['assignGateOperator']
+let revokeGateOperator: typeof import('@/lib/gate-authority')['revokeGateOperator']
 
 const run = randomUUID().slice(0, 8)
 const id = (name: string) => `p2-${run}-${name}`
@@ -217,6 +222,13 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
     ;({ resolveProductionAuthority } = await import('./resolver'))
     ;({ listAccessibleWeddings } = await import('@/lib/wedding-access'))
     ;({ isWewedPlatformAdministrator } = await import('@/lib/business-access'))
+    ;({
+      resolveGateManagementContext,
+      createWeddingGate,
+      disableWeddingGate,
+      assignGateOperator,
+      revokeGateOperator,
+    } = await import('@/lib/gate-authority'))
 
     // Weddings
     const c = await couple('couple-a')
@@ -358,6 +370,9 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
 
     actors.disabledGateUsher = await user('usher-disabled-gate', 'guest')
     ids.assignDisabledGate = await gateAssignment('usher-disabled-gate-assign', ids.A, ids.gateADisabled, actors.disabledGateUsher)
+
+    // No WeddingMembership at all: used to prove gate management can assign a pure operational actor.
+    actors.managedUsher = await user('usher-managed', 'viewer')
   })
 
   afterAll(async () => {
@@ -773,6 +788,93 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
     }
     expect(caughtError).not.toBeNull()
     expect(String(caughtError)).toMatch(/WeddingGateAssignment_time_window_check|check constraint/i)
+  })
+
+  test('Gate management lifecycle creates real authority and revocation removes it', async () => {
+    const created = await createWeddingGate({
+      weddingId: ids.A,
+      name: `Managed Gate ${run}`,
+      actorUserId: actors.couple,
+    })
+    expect(created.weddingId).toBe(ids.A)
+    expect(created.status).toBe('active')
+
+    const assignment = await assignGateOperator({
+      weddingId: ids.A,
+      gateId: created.id,
+      userId: actors.managedUsher,
+      capabilities: ['gate.checkin.write', 'gate.audit.read'],
+      actorUserId: actors.couple,
+    })
+    expect(assignment.gateId).toBe(created.id)
+    expect(assignment.userId).toBe(actors.managedUsher)
+
+    let authority = await resolve(actors.managedUsher)
+    expect(authority.workspaceGrants).toEqual([])
+    expect(authority.operationalGrants).toHaveLength(1)
+    expect(authority.operationalGrants[0]).toMatchObject({
+      assignmentId: assignment.id,
+      gateId: created.id,
+      operatorUserId: actors.managedUsher,
+      capabilities: ['gate.checkin.write', 'gate.audit.read'],
+    })
+
+    await revokeGateOperator({
+      weddingId: ids.A,
+      assignmentId: assignment.id,
+      actorUserId: actors.couple,
+    })
+    authority = await resolve(actors.managedUsher)
+    expect(authority.operationalGrants).toEqual([])
+
+    await disableWeddingGate({
+      weddingId: ids.A,
+      gateId: created.id,
+      actorUserId: actors.couple,
+    })
+    const gateRows = await db.$queryRawUnsafe<Array<{ status: string }>>(
+      `SELECT status FROM public."WeddingGate" WHERE id = $1`,
+      created.id,
+    )
+    expect(gateRows[0]?.status).toBe('disabled')
+  })
+
+  test('Gate management requires a real wedding grant and never inherits platform Admin scope', async () => {
+    const { APP_SESSION_COOKIE, createAppSessionToken } = await import('@/lib/app-session')
+    const { NextRequest } = await import('next/server')
+
+    const requestFor = (actorId: string, role: 'admin' | 'couple' | 'planner' | 'vendor', weddingId: string) => {
+      const token = createAppSessionToken({
+        userId: actorId,
+        authUserId: `auth-${actorId}`,
+        email: `${actorId}@example.test`,
+        role,
+        coupleId: null,
+        activeWeddingId: weddingId,
+      })
+      return new NextRequest('http://localhost/api/weddings/gates', {
+        method: 'GET',
+        headers: { cookie: `${APP_SESSION_COOKIE}=${token}` },
+      })
+    }
+
+    const owner = await resolveGateManagementContext(requestFor(actors.couple, 'couple', ids.A))
+    expect(owner.ok).toBe(true)
+
+    const planner = await resolveGateManagementContext(requestFor(actors.planner1, 'planner', ids.A))
+    expect(planner.ok).toBe(true)
+
+    const platformOnly = await resolveGateManagementContext(
+      requestFor(actors.platformAdmin, 'admin', ids.A),
+    )
+    expect(platformOnly.ok).toBe(false)
+    if (!platformOnly.ok) expect(platformOnly.code).toBe('GATE_MANAGEMENT_FORBIDDEN')
+
+    const legacyAdminClassOnly = await resolveGateManagementContext(
+      requestFor(actors.adminClassOnly, 'admin', ids.A),
+    )
+    expect(legacyAdminClassOnly.ok).toBe(false)
+    if (!legacyAdminClassOnly.ok) expect(legacyAdminClassOnly.code).toBe('GATE_MANAGEMENT_FORBIDDEN')
   })
 
 })
