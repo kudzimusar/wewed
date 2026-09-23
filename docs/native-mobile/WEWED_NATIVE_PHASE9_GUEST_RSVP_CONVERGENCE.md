@@ -233,3 +233,19 @@ tap
 See the completion report for this phase for exact qualified/final SHAs, temporary reviewer-CI run
 ids, and the explicit Preview-vs-Production deployment confirmation. This document records
 classification and reasoning; it does not itself declare the phase accepted.
+
+
+## Moderator acceptance (2026-09-23)
+
+Phase 9 is **ACCEPTED** under master-plan Rule 10 after independent remote-code review and reviewer-owned closure patches.
+
+Accepted evidence:
+- server final head: `465feb3bbd3d4e2a6c57f95e689a94761513773f`;
+- native reviewer final head: `dc33d7b483286d325dfb2b1c4e249710639e3a5f`;
+- qualified Round-5 native product: `96792039b4548a7cce653c3cda4be85b93635e1e`;
+- native qualification run: `35853500269` at temporary workflow commit `a94a8a30dc2f9d9213412e9d61ad0e8cd084fbc3`;
+- retained server qualification: `35826332669` at `72f34663535d5fbbfbbb6bb79319ae69327a2994`.
+
+Final reviewer closure also restored the permanent Digital Invitation workflow's repository checkout before the contract regression/`--check` steps. The reviewer-only CI patch did not alter product code.
+
+Phase 10 (Usher/Gate authority) is authorized. Phase 11, production migration, production deployment, signing and distribution remain unauthorized.
