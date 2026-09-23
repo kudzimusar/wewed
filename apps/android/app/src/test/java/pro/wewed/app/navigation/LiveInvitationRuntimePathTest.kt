@@ -217,7 +217,9 @@ class LiveInvitationRuntimePathTest {
             Reply(200, """{"success":true,"rsvp":{"attending":true}}""")
         seenBodies.clear()
 
-        assertEquals(RsvpOutcome.Saved(true), coordinator.answer(attending = true))
+        val accepted = coordinator.answer(GuestRsvpUpdate(attending = true))
+        assertTrue(accepted is RsvpOutcome.Saved)
+        assertEquals(true, (accepted as RsvpOutcome.Saved).rsvp.attending)
         assertTrue(seenBodies.last().contains("\"originGuestId\":\"guest_real\""))
         assertTrue(
             "no legacy repository method may be called: ${legacy.touched}",
@@ -235,7 +237,9 @@ class LiveInvitationRuntimePathTest {
 
         routes["PUT /api/weddings/charity-and-kudzie/guest-session"] =
             Reply(200, """{"success":true,"rsvp":{"attending":false}}""")
-        assertEquals(RsvpOutcome.Saved(false), coordinator.answer(attending = false))
+        val declined = coordinator.answer(GuestRsvpUpdate(attending = false))
+        assertTrue(declined is RsvpOutcome.Saved)
+        assertEquals(false, (declined as RsvpOutcome.Saved).rsvp.attending)
         assertTrue(legacy.touched.isEmpty())
     }
 

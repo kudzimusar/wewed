@@ -34,7 +34,8 @@ sealed interface LiveInvitationState {
 
 /** What came back from answering. */
 sealed interface RsvpOutcome {
-    data class Saved(val attending: Boolean?) : RsvpOutcome
+    /** Master plan Phase 9 — carries the full record the server actually stored. */
+    data class Saved(val rsvp: GuestRsvpRecord) : RsvpOutcome
 
     /**
      * The card on screen belongs to a guest who is no longer the active one.
@@ -158,19 +159,19 @@ class LiveGuestInvitationCoordinator(
      * happens to name now. That is the whole point: if the session moved on while the card was
      * open, the server returns `STALE_GUEST_CONTEXT` and the answer is not written to the wrong
      * person.
+     *
+     * Master plan Phase 9 — [update] carries the full converged RSVP field set (attendance, meal,
+     * plus-one, children, dietary notes, message), not just attendance. [presentedGuestId] is
+     * untouched by this change: it remains captured only at presentation time, never at save time.
      */
-    suspend fun answer(
-        attending: Boolean,
-        dietaryNotes: String? = null,
-        message: String? = null
-    ): RsvpOutcome {
+    suspend fun answer(update: GuestRsvpUpdate): RsvpOutcome {
         val slug = activeWeddingSlug ?: return RsvpOutcome.ReopenRequired
         val guestId = presentedGuestId?.takeIf { it.isNotBlank() }
             ?: return RsvpOutcome.ReopenRequired
 
         return try {
-            when (val result = client.saveRsvp(slug, guestId, attending, dietaryNotes, message)) {
-                is RsvpSaveResult.Saved -> RsvpOutcome.Saved(result.attending)
+            when (val result = client.saveRsvp(slug, guestId, update)) {
+                is RsvpSaveResult.Saved -> RsvpOutcome.Saved(result.rsvp)
                 is RsvpSaveResult.StaleGuestContext -> RsvpOutcome.ReopenRequired
                 is RsvpSaveResult.NotAuthorized -> RsvpOutcome.ReopenRequired
                 is RsvpSaveResult.ChildrenNotAllowed -> RsvpOutcome.ChildrenNotAllowed

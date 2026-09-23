@@ -184,7 +184,7 @@ class LiveGuestInvitationCoordinatorTest {
         assertEquals(
             "answering must not target the previously presented Guest",
             RsvpOutcome.ReopenRequired,
-            coordinator.answer(attending = false)
+            coordinator.answer(GuestRsvpUpdate(attending = false))
         )
         assertFalse("no RSVP write for Guest A", seenPaths.any { it.startsWith("PUT ") })
 
@@ -276,9 +276,10 @@ class LiveGuestInvitationCoordinatorTest {
         routes["PUT /api/weddings/charity-and-kudzie/guest-session"] =
             Reply(200, """{"success":true,"rsvp":{"attending":true}}""")
         seenBodies.clear()
-        val outcome = coordinator.answer(attending = true)
+        val outcome = coordinator.answer(GuestRsvpUpdate(attending = true))
 
-        assertEquals(RsvpOutcome.Saved(true), outcome)
+        assertTrue(outcome is RsvpOutcome.Saved)
+        assertEquals(true, (outcome as RsvpOutcome.Saved).rsvp.attending)
         assertTrue(seenBodies.last().contains("\"originGuestId\":\"guest_live\""))
         assertTrue(seenBodies.last().contains("\"attending\":true"))
     }
@@ -293,7 +294,9 @@ class LiveGuestInvitationCoordinatorTest {
         routes["PUT /api/weddings/charity-and-kudzie/guest-session"] =
             Reply(200, """{"success":true,"rsvp":{"attending":false}}""")
         seenBodies.clear()
-        assertEquals(RsvpOutcome.Saved(false), coordinator.answer(attending = false))
+        val outcome = coordinator.answer(GuestRsvpUpdate(attending = false))
+        assertTrue(outcome is RsvpOutcome.Saved)
+        assertEquals(false, (outcome as RsvpOutcome.Saved).rsvp.attending)
         assertTrue(seenBodies.last().contains("\"attending\":false"))
     }
 
@@ -309,13 +312,13 @@ class LiveGuestInvitationCoordinatorTest {
 
         routes["PUT /api/weddings/charity-and-kudzie/guest-session"] =
             Reply(409, """{"success":false,"code":"STALE_GUEST_CONTEXT"}""")
-        assertEquals(RsvpOutcome.ReopenRequired, coordinator.answer(attending = true))
+        assertEquals(RsvpOutcome.ReopenRequired, coordinator.answer(GuestRsvpUpdate(attending = true)))
     }
 
     /** Answering before a card exists cannot guess a guest. */
     @Test
     fun answeringWithoutAPresentedCardIsRefused() = runBlocking {
-        assertEquals(RsvpOutcome.ReopenRequired, coordinator.answer(attending = true))
+        assertEquals(RsvpOutcome.ReopenRequired, coordinator.answer(GuestRsvpUpdate(attending = true)))
         assertFalse(seenPaths.any { it.startsWith("PUT") })
     }
 

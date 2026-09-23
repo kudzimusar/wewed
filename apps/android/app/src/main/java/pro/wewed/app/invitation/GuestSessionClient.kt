@@ -49,9 +49,52 @@ data class GuestInvitationSnapshot(
     val checkedInAt: String?
 )
 
+/**
+ * Master plan WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01, Phase 9 — Digital Invitation + RSVP
+ * convergence.
+ *
+ * The full guest-editable RSVP field set, matching the server's shared `applyGuestRsvpUpdate`
+ * operation exactly (`GUEST_RSVP_FIELDS` in the server's `guest-rsvp-mutation.ts`) — the SAME
+ * fields the PWA's premium invitation RSVP dialog can already edit.
+ *
+ * A `null` property means "leave this field exactly as it is currently stored" — [GuestSessionClient.saveRsvp]
+ * never sends a key for a `null` property at all, so a partial edit (e.g. changing only the meal
+ * choice) can never erase an already-saved answer for every other field. This is deliberately NOT
+ * the same as "clear this field": to intentionally clear a free-text field (`mealChoice`/
+ * `plusOneName`/`plusOneMeal`/`dietaryNotes`/`message`), send an empty string — the server already
+ * trims an empty string to a stored `null` for exactly this purpose. Booleans/`kidsCount` have no
+ * "cleared" state on the wire; omitting them (leaving the property `null` here) is the only way to
+ * leave them untouched.
+ */
+data class GuestRsvpUpdate(
+    val attending: Boolean? = null,
+    val mealChoice: String? = null,
+    val plusOne: Boolean? = null,
+    val plusOneName: String? = null,
+    val plusOneMeal: String? = null,
+    val kidsAttending: Boolean? = null,
+    val kidsCount: Int? = null,
+    val dietaryNotes: String? = null,
+    val message: String? = null,
+)
+
+/** The RSVP exactly as the server now stores it, returned from a successful [GuestSessionClient.saveRsvp]. */
+data class GuestRsvpRecord(
+    val attending: Boolean?,
+    val mealChoice: String?,
+    val plusOne: Boolean,
+    val plusOneName: String?,
+    val plusOneMeal: String?,
+    val kidsAttending: Boolean,
+    val kidsCount: Int?,
+    val dietaryNotes: String?,
+    val message: String?,
+)
+
 /** What happened when a guest answered. */
 sealed interface RsvpSaveResult {
-    data class Saved(val attending: Boolean?) : RsvpSaveResult
+    /** Master plan Phase 9 — carries the full record the server actually stored, not just [attending]. */
+    data class Saved(val rsvp: GuestRsvpRecord) : RsvpSaveResult
 
     /**
      * The session moved on while the form was open — Guest B became authoritative, or the session
@@ -296,20 +339,29 @@ class GuestSessionClient(
      * [originGuestId] is the binding the server checks. It is what turns "save this answer" into
      * "save this answer *for the guest whose card is open*", so an answer typed as Guest A can
      * never land on Guest B after a switch.
+     *
+     * Master plan Phase 9 — [update] carries the full converged RSVP field set; only the properties
+     * a caller actually set are sent, so a partial edit (e.g. changing only [GuestRsvpUpdate.mealChoice])
+     * can never overwrite an unrelated already-saved answer. The exact PATCH/PUT semantics follow the
+     * server's own shared `applyGuestRsvpUpdate` operation — this method never re-implements them.
      */
     suspend fun saveRsvp(
         weddingSlug: String,
         originGuestId: String,
-        attending: Boolean,
-        dietaryNotes: String? = null,
-        message: String? = null
+        update: GuestRsvpUpdate
     ): RsvpSaveResult = withContext(Dispatchers.IO) {
         val body = JSONObject()
             .put("originGuestId", originGuestId)
-            .put("attending", attending)
             .apply {
-                dietaryNotes?.let { put("dietaryNotes", it) }
-                message?.let { put("message", it) }
+                update.attending?.let { put("attending", it) }
+                update.mealChoice?.let { put("mealChoice", it) }
+                update.plusOne?.let { put("plusOne", it) }
+                update.plusOneName?.let { put("plusOneName", it) }
+                update.plusOneMeal?.let { put("plusOneMeal", it) }
+                update.kidsAttending?.let { put("kidsAttending", it) }
+                update.kidsCount?.let { put("kidsCount", it) }
+                update.dietaryNotes?.let { put("dietaryNotes", it) }
+                update.message?.let { put("message", it) }
             }
             .toString()
         val (status, payload, _) = request(
@@ -320,10 +372,8 @@ class GuestSessionClient(
         )
         when {
             status == 200 -> {
-                val rsvp = payload?.let { JSONObject(it).optJSONObject("rsvp") }
-                RsvpSaveResult.Saved(
-                    if (rsvp == null || rsvp.isNull("attending")) null else rsvp.optBoolean("attending")
-                )
+                val rsvp = payload?.let { JSONObject(it).optJSONObject("rsvp") } ?: JSONObject()
+                RsvpSaveResult.Saved(rsvp.toGuestRsvpRecord())
             }
             status == 401 -> RsvpSaveResult.NotAuthorized
             status == 409 -> RsvpSaveResult.StaleGuestContext
@@ -482,3 +532,16 @@ private fun JSONObject.optStringOrNull(key: String): String? {
     if (isNull(key)) return null
     return optString(key).takeIf { it.isNotEmpty() && it != "null" }
 }
+
+/** Maps a `{ "rsvp": {...} }` response payload's `rsvp` object into [GuestRsvpRecord]. */
+private fun JSONObject.toGuestRsvpRecord(): GuestRsvpRecord = GuestRsvpRecord(
+    attending = if (isNull("attending")) null else optBoolean("attending"),
+    mealChoice = optStringOrNull("mealChoice"),
+    plusOne = optBoolean("plusOne"),
+    plusOneName = optStringOrNull("plusOneName"),
+    plusOneMeal = optStringOrNull("plusOneMeal"),
+    kidsAttending = optBoolean("kidsAttending"),
+    kidsCount = if (isNull("kidsCount")) null else optInt("kidsCount"),
+    dietaryNotes = optStringOrNull("dietaryNotes"),
+    message = optStringOrNull("message"),
+)

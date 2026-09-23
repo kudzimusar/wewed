@@ -5,6 +5,8 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import pro.wewed.app.invitation.GuestRsvpRecord
+import pro.wewed.app.invitation.GuestRsvpUpdate
 import pro.wewed.app.invitation.GuestSessionClient
 import pro.wewed.app.invitation.GuestSessionException
 import pro.wewed.app.invitation.RsvpSaveResult
@@ -151,7 +153,7 @@ class GuestSessionClientTest {
         client.loadInvitation()
         assertEquals("v2-session", storage.get("wewed.guest.session"))
         routes["PUT /api/weddings/synthetic/guest-session"] = Reply(200, """{"success":true,"rsvp":{"attending":true}}""", session = "v2-refreshed")
-        client.saveRsvp("synthetic", "a", true)
+        client.saveRsvp("synthetic", "a", GuestRsvpUpdate(attending = true))
         assertEquals("v2-refreshed", storage.get("wewed.guest.session"))
         routes[get] = Reply(401)
         try { client.loadInvitation(); fail("revoked session accepted") } catch (_: GuestSessionException) { }
@@ -372,19 +374,79 @@ class GuestSessionClientTest {
         client.exchangePrivateInvitation("charity-and-kudzie", rawToken)
 
         routes["PUT /api/weddings/charity-and-kudzie/guest-session"] = Reply(200, """{"success":true,"rsvp":{"attending":true}}""")
-        assertEquals(
-            RsvpSaveResult.Saved(true),
-            client.saveRsvp("charity-and-kudzie", "guest_a", attending = true)
-        )
+        val accepted = client.saveRsvp("charity-and-kudzie", "guest_a", GuestRsvpUpdate(attending = true))
+        assertTrue(accepted is RsvpSaveResult.Saved)
+        assertEquals(true, (accepted as RsvpSaveResult.Saved).rsvp.attending)
         assertTrue(seenBodies.last().contains("\"attending\":true"))
         assertTrue(seenBodies.last().contains("\"originGuestId\":\"guest_a\""))
 
         routes["PUT /api/weddings/charity-and-kudzie/guest-session"] = Reply(200, """{"success":true,"rsvp":{"attending":false}}""")
-        assertEquals(
-            RsvpSaveResult.Saved(false),
-            client.saveRsvp("charity-and-kudzie", "guest_a", attending = false)
-        )
+        val declined = client.saveRsvp("charity-and-kudzie", "guest_a", GuestRsvpUpdate(attending = false))
+        assertTrue(declined is RsvpSaveResult.Saved)
+        assertEquals(false, (declined as RsvpSaveResult.Saved).rsvp.attending)
         assertTrue(seenBodies.last().contains("\"attending\":false"))
+    }
+
+    /** Master plan Phase 9 — the full converged field set reaches the server in one request. */
+    @Test
+    fun theFullRsvpFieldSetIsSentAndParsedBack() = runBlocking {
+        exchangeSucceeds("charity-and-kudzie", "guest_a", "Guest A", guestASession)
+        client.exchangePrivateInvitation("charity-and-kudzie", rawToken)
+
+        routes["PUT /api/weddings/charity-and-kudzie/guest-session"] = Reply(
+            200,
+            """{"success":true,"rsvp":{"attending":true,"mealChoice":"vegetarian","plusOne":true,"plusOneName":"Plus One","plusOneMeal":"chicken","kidsAttending":true,"kidsCount":2,"dietaryNotes":"No nuts","message":"So excited"}}""",
+        )
+        val result = client.saveRsvp(
+            "charity-and-kudzie",
+            "guest_a",
+            GuestRsvpUpdate(
+                attending = true,
+                mealChoice = "vegetarian",
+                plusOne = true,
+                plusOneName = "Plus One",
+                plusOneMeal = "chicken",
+                kidsAttending = true,
+                kidsCount = 2,
+                dietaryNotes = "No nuts",
+                message = "So excited",
+            ),
+        )
+        assertEquals(
+            RsvpSaveResult.Saved(
+                GuestRsvpRecord(
+                    attending = true, mealChoice = "vegetarian", plusOne = true, plusOneName = "Plus One",
+                    plusOneMeal = "chicken", kidsAttending = true, kidsCount = 2, dietaryNotes = "No nuts", message = "So excited",
+                )
+            ),
+            result,
+        )
+        val body = seenBodies.last()
+        assertTrue(body.contains("\"mealChoice\":\"vegetarian\""))
+        assertTrue(body.contains("\"plusOne\":true"))
+        assertTrue(body.contains("\"plusOneName\":\"Plus One\""))
+        assertTrue(body.contains("\"plusOneMeal\":\"chicken\""))
+        assertTrue(body.contains("\"kidsAttending\":true"))
+        assertTrue(body.contains("\"kidsCount\":2"))
+        assertTrue(body.contains("\"dietaryNotes\":\"No nuts\""))
+        assertTrue(body.contains("\"message\":\"So excited\""))
+    }
+
+    /** A field the caller never set must never appear in the request body at all. */
+    @Test
+    fun aFieldLeftNullIsNeverSentSoItCanNeverOverwriteAnUnrelatedAnswer() = runBlocking {
+        exchangeSucceeds("charity-and-kudzie", "guest_a", "Guest A", guestASession)
+        client.exchangePrivateInvitation("charity-and-kudzie", rawToken)
+
+        routes["PUT /api/weddings/charity-and-kudzie/guest-session"] = Reply(200, """{"success":true,"rsvp":{"mealChoice":"vegan"}}""")
+        client.saveRsvp("charity-and-kudzie", "guest_a", GuestRsvpUpdate(mealChoice = "vegan"))
+        val body = seenBodies.last()
+        assertTrue(body.contains("\"mealChoice\":\"vegan\""))
+        assertFalse(body.contains("\"attending\""))
+        assertFalse(body.contains("\"plusOne\""))
+        assertFalse(body.contains("\"kidsAttending\""))
+        assertFalse(body.contains("\"dietaryNotes\""))
+        assertFalse(body.contains("\"message\""))
     }
 
     /** A stale binding is surfaced, not swallowed: the answer belonged to a different card. */
@@ -397,7 +459,7 @@ class GuestSessionClientTest {
             Reply(409, """{"success":false,"code":"STALE_GUEST_CONTEXT","error":"changed"}""")
         assertEquals(
             RsvpSaveResult.StaleGuestContext,
-            client.saveRsvp("charity-and-kudzie", "guest_a", attending = true)
+            client.saveRsvp("charity-and-kudzie", "guest_a", GuestRsvpUpdate(attending = true))
         )
     }
 
@@ -408,7 +470,7 @@ class GuestSessionClientTest {
         routes["PUT /api/weddings/charity-and-kudzie/guest-session"] = Reply(400, """{"success":false,"code":"CHILDREN_NOT_ALLOWED"}""")
         assertEquals(
             RsvpSaveResult.ChildrenNotAllowed,
-            client.saveRsvp("charity-and-kudzie", "guest_a", attending = true)
+            client.saveRsvp("charity-and-kudzie", "guest_a", GuestRsvpUpdate(attending = true, kidsAttending = true))
         )
     }
 
