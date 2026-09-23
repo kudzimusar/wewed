@@ -30,6 +30,7 @@ on:
   push:
     branches:
       - main
+      - native-mobile/digital-invitation-rsvp-phase9-20260923
     paths:
       - 'src/app/w/**'
       - 'src/components/wedding/digital-invitation-card.tsx'
@@ -70,6 +71,9 @@ jobs:
       WEWED_SESSION_SECRET: ci-session-secret-not-for-production
       NEXT_TELEMETRY_DISABLED: 1
     steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
       - name: Run invitation style contract regression tests
         run: python3 mobile/contracts/test_invitation_style_contract.py
 
