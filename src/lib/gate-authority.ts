@@ -333,6 +333,14 @@ export async function assignGateOperator(input: {
   expiresAt?: Date | null
   actorUserId: string
 }): Promise<WeddingGateAssignmentRecord> {
+  if (!Array.isArray(input.capabilities) ||
+      input.capabilities.some(
+        (item) =>
+          typeof item !== 'string' ||
+          !(GATE_CAPABILITY_VOCABULARY as readonly string[]).includes(item),
+      )) {
+    throw new Error('UNKNOWN_GATE_CAPABILITY')
+  }
   const capabilities = normalizeGateCapabilities(input.capabilities)
   if (capabilities.length === 0) throw new Error('GATE_CAPABILITIES_REQUIRED')
 
