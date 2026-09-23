@@ -30,7 +30,6 @@ SELECT schemaname, tablename, policyname, roles, cmd
 SELECT conname, contype, convalidated
   FROM pg_constraint
  WHERE conname IN (
-   'Guest_id_weddingId_key',
    'WeddingPassKey_weddingId_fkey',
    'WeddingPassCredential_weddingId_fkey',
    'WeddingPassCredential_guestId_weddingId_fkey',
@@ -47,6 +46,7 @@ SELECT indexname, indexdef
   FROM pg_indexes
  WHERE schemaname = 'public'
    AND indexname IN (
+     'Guest_id_weddingId_key',
      'WeddingPassCredential_weddingId_guestId_live_key',
      'WeddingCheckIn_weddingId_eventKey_guestId_attendeeKey_key',
      'WeddingCheckIn_weddingId_clientEventId_attendeeKey_key'
