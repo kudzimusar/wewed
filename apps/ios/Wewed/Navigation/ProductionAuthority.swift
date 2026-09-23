@@ -95,6 +95,24 @@ public struct ProductionContextSelection: Decodable, Equatable, Sendable {
     public let selectionRequired: Bool
 }
 
+public struct ProductionOperationalGrant: Decodable, Equatable, Sendable {
+    public let grantId: String
+    public let kind: String
+    public let assignmentId: String
+    public let weddingId: String
+    public let weddingTitle: String
+    public let gateId: String
+    public let gateName: String
+    public let operatorUserId: String
+    public let capabilities: [String]
+}
+
+public struct ProductionGateContextSelection: Decodable, Equatable, Sendable {
+    public let kind: String
+    public let grantIds: [String]
+    public let selectionRequired: Bool
+}
+
 public struct ProductionAuthority: Decodable, Equatable, Sendable {
     public static let contractName = "WewedProductionAuthorityV1"
     public static let contractVersion = 1
@@ -129,6 +147,8 @@ public struct ProductionAuthority: Decodable, Equatable, Sendable {
     public let identity: Identity?
     public let workspaceGrants: [ProductionWorkspaceGrant]
     public let contextSelection: [ProductionContextSelection]
+    public let operationalGrants: [ProductionOperationalGrant]
+    public let gateContextSelection: ProductionGateContextSelection?
     public let unsupported: [Unsupported]
     public let platform: Platform?
     /// Presentation-only evidence already carried by the server contract; never authority.
@@ -145,7 +165,9 @@ public struct ProductionAuthority: Decodable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case contract, version, accountStatus, identity, workspaceGrants, contextSelection, unsupported, platform
+        case contract, version, accountStatus, identity, workspaceGrants, contextSelection
+        case operationalGrants, gateContextSelection
+        case unsupported, platform
         case businessMemberships, vendorEngagements
     }
 
@@ -157,6 +179,8 @@ public struct ProductionAuthority: Decodable, Equatable, Sendable {
         identity = try c.decodeIfPresent(Identity.self, forKey: .identity)
         workspaceGrants = try c.decode([ProductionWorkspaceGrant].self, forKey: .workspaceGrants)
         contextSelection = try c.decode([ProductionContextSelection].self, forKey: .contextSelection)
+        operationalGrants = try c.decodeIfPresent([ProductionOperationalGrant].self, forKey: .operationalGrants) ?? []
+        gateContextSelection = try c.decodeIfPresent(ProductionGateContextSelection.self, forKey: .gateContextSelection)
         unsupported = try c.decode([Unsupported].self, forKey: .unsupported)
         platform = try c.decodeIfPresent(Platform.self, forKey: .platform)
         businessMemberships = try c.decodeIfPresent(

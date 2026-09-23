@@ -61,7 +61,26 @@ class ProductionAuthorityContractTest {
             ),
             authority.grants.map { it.grantId }
         )
-        assertEquals(listOf("guest", "usher_gate"), authority.unsupportedAuthorities)
+        assertEquals(listOf("guest"), authority.unsupportedAuthorities)
+        assertEquals(
+            listOf("gate_operator:B:gate-1"),
+            authority.operationalGrants.map { it.grantId }
+        )
+        val opGrant = authority.operationalGrants.first()
+        assertEquals("gate_operator", opGrant.kind)
+        assertEquals("ga-1", opGrant.assignmentId)
+        assertEquals("B", opGrant.weddingId)
+        assertEquals("gate-1", opGrant.gateId)
+        assertEquals("Gate gate-1", opGrant.gateName)
+        assertEquals("user-1", opGrant.operatorUserId)
+        assertEquals(
+            listOf("gate.manifest.read", "gate.checkin.write", "gate.guest_search.read", "gate.audit.read"),
+            opGrant.capabilities
+        )
+        assertNotNull(authority.gateContextSelection)
+        assertEquals("gate_operator", authority.gateContextSelection?.kind)
+        assertEquals(listOf("gate_operator:B:gate-1"), authority.gateContextSelection?.grantIds)
+        assertEquals(false, authority.gateContextSelection?.selectionRequired)
         assertEquals("Business planning-1", authority.businessNamesById["planning-1"])
         assertEquals("Business vendor-1", authority.businessNamesById["vendor-1"])
         assertEquals("Vendor F", authority.vendorNamesById["vendor-row-F"])

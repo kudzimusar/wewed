@@ -67,7 +67,20 @@ final class ProductionAuthorityContractTests: XCTestCase {
             "vendor:wedding:vendor-1:vendor-row-F",
             "admin:system",
         ])
-        XCTAssertEqual(authority.unsupportedAuthorities, ["guest", "usher_gate"])
+        XCTAssertEqual(authority.unsupportedAuthorities, ["guest"])
+        XCTAssertEqual(authority.operationalGrants.map(\.grantId), ["gate_operator:B:gate-1"])
+        let opGrant = authority.operationalGrants.first
+        XCTAssertNotNil(opGrant)
+        XCTAssertEqual(opGrant?.kind, "gate_operator")
+        XCTAssertEqual(opGrant?.assignmentId, "ga-1")
+        XCTAssertEqual(opGrant?.weddingId, "B")
+        XCTAssertEqual(opGrant?.gateId, "gate-1")
+        XCTAssertEqual(opGrant?.gateName, "Gate gate-1")
+        XCTAssertEqual(opGrant?.operatorUserId, "user-1")
+        XCTAssertEqual(opGrant?.capabilities, ["gate.manifest.read", "gate.checkin.write", "gate.guest_search.read", "gate.audit.read"])
+        XCTAssertEqual(authority.gateContextSelection?.kind, "gate_operator")
+        XCTAssertEqual(authority.gateContextSelection?.grantIds, ["gate_operator:B:gate-1"])
+        XCTAssertEqual(authority.gateContextSelection?.selectionRequired, false)
         XCTAssertEqual(authority.businessNamesById["planning-1"], "Business planning-1")
         XCTAssertEqual(authority.businessNamesById["vendor-1"], "Business vendor-1")
         XCTAssertEqual(authority.vendorNamesById["vendor-row-F"], "Vendor F")

@@ -75,6 +75,24 @@ data class ProductionContextSelection(
     val selectionRequired: Boolean
 )
 
+data class ProductionOperationalGrant(
+    val grantId: String,
+    val kind: String,
+    val assignmentId: String,
+    val weddingId: String,
+    val weddingTitle: String,
+    val gateId: String,
+    val gateName: String,
+    val operatorUserId: String,
+    val capabilities: List<String>
+)
+
+data class ProductionGateContextSelection(
+    val kind: String,
+    val grantIds: List<String>,
+    val selectionRequired: Boolean
+)
+
 data class ProductionAuthority(
     val contract: String,
     val version: Int,
@@ -84,7 +102,9 @@ data class ProductionAuthority(
     val dashboardClass: String?,
     val grants: List<ProductionWorkspaceGrant>,
     val contextSelection: List<ProductionContextSelection>,
-    /** Authority the account contract refuses by design, e.g. "guest", "usher_gate". */
+    val operationalGrants: List<ProductionOperationalGrant> = emptyList(),
+    val gateContextSelection: ProductionGateContextSelection? = null,
+    /** Authority the account contract refuses by design, e.g. "guest". */
     val unsupportedAuthorities: List<String>,
     val platformEffectiveRole: String?,
     /** Presentation-only names already carried by the server authority evidence. Never authority. */
@@ -102,6 +122,7 @@ object ProductionAuthorityDecoder {
     fun decode(json: String): ProductionAuthority? = runCatching {
         val root = JSONObject(json)
         val identity = root.optJSONObject("identity")
+        val gateSelectionObj = root.optJSONObject("gateContextSelection")
         ProductionAuthority(
             contract = root.getString("contract"),
             version = root.getInt("version"),
@@ -112,6 +133,14 @@ object ProductionAuthorityDecoder {
             contextSelection = root.getJSONArray("contextSelection").objects().map {
                 ProductionContextSelection(
                     workspaceKindWire = it.getString("workspaceKind"),
+                    grantIds = it.getJSONArray("grantIds").strings(),
+                    selectionRequired = it.getBoolean("selectionRequired")
+                )
+            },
+            operationalGrants = root.optJSONArray("operationalGrants")?.objects()?.map(::operationalGrant) ?: emptyList(),
+            gateContextSelection = gateSelectionObj?.let {
+                ProductionGateContextSelection(
+                    kind = it.getString("kind"),
                     grantIds = it.getJSONArray("grantIds").strings(),
                     selectionRequired = it.getBoolean("selectionRequired")
                 )
@@ -128,6 +157,20 @@ object ProductionAuthorityDecoder {
                 ?: emptyMap(),
         )
     }.getOrNull()
+
+    private fun operationalGrant(o: JSONObject): ProductionOperationalGrant {
+        return ProductionOperationalGrant(
+            grantId = o.getString("grantId"),
+            kind = o.getString("kind"),
+            assignmentId = o.getString("assignmentId"),
+            weddingId = o.getString("weddingId"),
+            weddingTitle = o.getString("weddingTitle"),
+            gateId = o.getString("gateId"),
+            gateName = o.getString("gateName"),
+            operatorUserId = o.getString("operatorUserId"),
+            capabilities = o.getJSONArray("capabilities").strings()
+        )
+    }
 
     private fun grant(o: JSONObject): ProductionWorkspaceGrant {
         val kind = o.getString("workspaceKind")

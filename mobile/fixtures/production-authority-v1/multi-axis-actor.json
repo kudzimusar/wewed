@@ -436,6 +436,37 @@
       "selectionRequired": false
     }
   ],
+  "operationalGrants": [
+    {
+      "grantId": "gate_operator:B:gate-1",
+      "kind": "gate_operator",
+      "assignmentId": "ga-1",
+      "weddingId": "B",
+      "weddingTitle": "Wedding B",
+      "gateId": "gate-1",
+      "gateName": "Gate gate-1",
+      "operatorUserId": "user-1",
+      "capabilities": [
+        "gate.manifest.read",
+        "gate.checkin.write",
+        "gate.guest_search.read",
+        "gate.audit.read"
+      ],
+      "sources": [
+        {
+          "kind": "gate_assignment",
+          "id": "ga-1"
+        }
+      ]
+    }
+  ],
+  "gateContextSelection": {
+    "kind": "gate_operator",
+    "grantIds": [
+      "gate_operator:B:gate-1"
+    ],
+    "selectionRequired": false
+  },
   "nonGrantingRelationships": [
     {
       "source": {
@@ -463,10 +494,6 @@
     {
       "authority": "guest",
       "reason": "Guest identity is invitation-bound and carried by Guest Session v2; it is never an account workspace grant."
-    },
-    {
-      "authority": "usher_gate",
-      "reason": "No production Usher/Gate authority exists (master plan Phase 10). Nothing is inferred from coordinator, planner or admin relationships."
     }
   ]
 }
