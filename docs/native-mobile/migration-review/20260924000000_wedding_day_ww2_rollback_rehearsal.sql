@@ -18,8 +18,7 @@ DROP TABLE IF EXISTS public."WeddingCheckIn";
 DROP TABLE IF EXISTS public."WeddingPassCredential";
 DROP TABLE IF EXISTS public."WeddingPassKey";
 
-ALTER TABLE public."Guest"
-  DROP CONSTRAINT IF EXISTS "Guest_id_weddingId_key";
+DROP INDEX IF EXISTS public."Guest_id_weddingId_key";
 
 DELETE FROM public."_prisma_migrations"
  WHERE migration_name = '20260924000000_wedding_day_ww2_authority';
