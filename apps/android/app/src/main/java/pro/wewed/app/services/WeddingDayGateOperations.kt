@@ -8,7 +8,7 @@ interface WeddingDayGateOperations {
     suspend fun refreshManifest()
     suspend fun checkIn(qrPayload: String, count: Int): CheckInVerificationResult
     suspend fun reconcilePending(): WeddingDaySyncResult
-    suspend fun revokePass(passSerial: String, reason: String): Boolean
+    suspend fun revokePass(passSerial: String, reason: String): WeddingDayRevokeResult
 }
 
 /**
@@ -70,10 +70,32 @@ class ManifestBackedWeddingDayGate(
         trustStore = trustStore
     )
 
-    override suspend fun revokePass(passSerial: String, reason: String): Boolean = syncService.revokePass(
-        bearerToken = bearerToken,
-        passSerial = passSerial,
-        reason = reason,
-        grantId = gateContext.grantId
-    )
+    override suspend fun revokePass(passSerial: String, reason: String): WeddingDayRevokeResult {
+        if ("gate.pass.revoke" !in gateContext.capabilities) {
+            return WeddingDayRevokeResult(
+                success = false,
+                code = "GATE_PASS_REVOKE_FORBIDDEN",
+                error = "This gate assignment does not authorize pass revocation."
+            )
+        }
+
+        val result = syncService.revokePass(
+            bearerToken = bearerToken,
+            passSerial = passSerial,
+            reason = reason,
+            grantId = gateContext.grantId
+        )
+        if (!result.success) return result
+
+        return try {
+            offlineStore.markPassRevoked(gateContext.weddingId, passSerial)
+            result
+        } catch (_: Exception) {
+            WeddingDayRevokeResult(
+                success = false,
+                code = "REVOCATION_APPLIED_CACHE_UPDATE_FAILED",
+                error = "The pass was revoked on the server, but this device could not update its offline cache. Refresh the manifest before scanning again."
+            )
+        }
+    }
 }
