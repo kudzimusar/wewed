@@ -1,6 +1,7 @@
 # WeWed — Phase 11B Wedding Day / WW2 Non-Production Activation Runbook & Checklist
 
-> **Authorization boundary:** Every production-shaped command below is a future execution template only. Phase 11B rehearsal or acceptance does **not** authorize Production database access, migration, key creation/configuration, feature enablement, live Gate admission, deployment, signing, or release. A separate owner-approved production change is required before substituting Production URLs, secrets, hosts, or workloads into these commands.
+> **Authorization boundary:** Every production-shaped command in this document is a future execution template only. Phase 11B rehearsal and moderator acceptance do **not** authorize Production database access, migration, key creation/configuration, feature enablement, live Gate admission, deployment, signing or release. The rehearsal evidence for this phase comes only from disposable/non-production environments. A separately approved owner change is required before substituting a Production URL, secret store, host or workload into any command below.
+
 
 **Document Version:** 1.0.0  
 **Phase:** 11B (Non-Production Activation & Readiness Rehearsal)  
@@ -111,8 +112,8 @@ Wedding Day requires two distinct ECDSA P-256 (`prime256v1`) keypairs:
 1. **WW2 Pass Signing Key:** Signs guest pass tokens.
 2. **Root Manifest Signing Key:** Signs the gate manifest envelope.
 
-### Key Generation Protocol (Offline Secure Vault)
-Keys must be generated in an approved secure key-generation environment and stored through the deployment secret manager. The current application consumes PKCS#8 PEM environment secrets; a non-exportable HSM key is **not** compatible without a separate signing-adapter design. Private keys are never logged, committed, pasted into shell history, or transmitted over unencrypted channels.
+### Key Generation and Storage Protocol
+Keys must be generated in an approved secure key-generation environment and stored as PKCS#8 PEM secrets in the deployment platform's secret manager. The current Wedding Day signer reads PEM environment secrets; a non-exportable HSM key is **not** directly compatible without a separately designed signing adapter. Private keys are never logged, checked into version control, pasted into terminal commands/history, tickets, chat, or transmitted over unencrypted channels.
 
 ### Required Environment Variables
 ```env
@@ -178,8 +179,8 @@ flowchart TD
 1. **Stage 1 — Preflight Audit:** Run `20260924000000_wedding_day_ww2_preflight.sql`. Verify 0 table collisions and 0 duplicate guests.
 2. **Stage 2 — Schema Migration:** Execute `npx prisma migrate deploy` while `WEWED_WEDDING_DAY_WW2_ENABLED=false`.
 3. **Stage 3 — Postflight Audit:** Run `20260924000000_wedding_day_ww2_postflight.sql`. Confirm 9 foreign keys, 4 indexes, and RLS enabled.
-4. **Stage 4 — Key Material Injection (future approved change only):** Populate `WEDDING_DAY_*` through the deployment platform's secret-management interface. Do not paste PEM values into shell commands, CI logs, tickets, or chat.
-5. **Stage 5 — Key Preflight Execution:** Run `bun scripts/wedding-day-key-preflight.ts` inside the already-secret-injected workload. Confirm `RESULT: all checks passed.` and record only complete public SHA-256 fingerprints and non-secret key IDs.
+4. **Stage 4 — Key Material Injection (future approved change only):** Populate `WEDDING_DAY_*` through the deployment platform's secret-management interface. Do not paste private PEM values into shell commands, terminal history, CI logs, tickets, or chat.
+5. **Stage 5 — Key Preflight Execution:** Run `bun scripts/wedding-day-key-preflight.ts` inside the already-secret-injected workload/environment. Confirm `RESULT: all checks passed.` and record only the complete public SHA-256 fingerprints and non-secret key IDs.
 6. **Stage 6 — Canary Activation:** Set `WEWED_WEDDING_DAY_WW2_ENABLED=true` on the canary application container.
 7. **Stage 7 — Operational Qualification:** Conduct one synthetic canary test (Issue pass -> Fetch manifest -> Admittance check-in -> Verify RSVP completion).
 
@@ -217,7 +218,7 @@ When a guest reports a lost or compromised device at the gate, or when an operat
    - `WeddingPassCredential.revokedAt = now()`
    - `WeddingPassCredential.revocationReason = <reason>`
    - `WeddingPassCredential.supersededAt = now()`
-5. **Revocation Propagation:** Any subsequent **online** presentation of the old token or serial fails closed with `PASS_REVOKED_OR_EXPIRED`. A disconnected Gate device cannot learn a newly-created revocation until its signed manifest is refreshed, so operations must refresh manifests after revocation before relying on offline rejection.
+5. **Revocation propagation:** Any subsequent online server presentation of the old token or serial fails closed with `PASS_REVOKED_OR_EXPIRED`. The revoking device must mark its cached credential revoked immediately after server success. Other disconnected Gate devices cannot learn a new revocation until they refresh a signed manifest, so operational procedure must require a manifest refresh after revocation before relying on that revocation at another offline Gate.
 6. **Isolated Re-issuance:** Re-issuing for the guest (`ensureWeddingPassCredential`) creates a new record with `issueSeq = 2` and a new random nonce and serial (`WW...-002`). The revoked record remains permanently in the database for audit integrity.
 
 ---
@@ -291,10 +292,10 @@ To be completed by the Release Commander and Database Administrator prior to pro
 - [ ] Row Level Security confirmed active on all 3 Wedding Day tables.
 
 ### Key Configuration & Preflight
-- [ ] ECDSA P-256 keys generated in an approved secure environment and stored as PKCS#8 PEM through the deployment secret manager. A non-exportable HSM key requires a separate signing adapter.
+- [ ] ECDSA P-256 keys generated in an approved secure key-generation environment and stored as PKCS#8 PEM in the deployment secret manager. A non-exportable HSM key requires a separate signing-adapter implementation.
 - [ ] Keys injected into environment secrets with strict access controls.
 - [ ] `bun scripts/wedding-day-key-preflight.ts` executed on server host.
-- [ ] Key preflight report outputs `RESULT: all checks passed.` with every check passing.
+- [ ] Key preflight report outputs `RESULT: all checks passed.`; complete public SHA-256 fingerprints and non-secret key IDs are cross-checked without exposing PEM.
 - [ ] Public key fingerprints cross-checked against native build configuration.
 - [ ] Confirmed zero private key bytes present in logs or CI output.
 
