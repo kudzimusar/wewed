@@ -2614,3 +2614,78 @@ Reviewer patched heads awaiting qualification:
    - Phase 11: **NOT AUTHORIZED**.
    - Production DB migration / deployment: **STRICTLY NOT AUTHORIZED**.
 
+
+
+### D-033 — Phase 10 moderator evidence correction and identity-session Gate-axis closure (2026-09-24)
+**REVIEWER CORRECTION.** D-032 is preserved as the implementation-agent's local execution report, but two evidence inaccuracies and one defense-in-depth code gap were corrected during independent remote review.
+
+1. **D-032 SHA correction.**
+   The final repository objects actually qualified/reported by the implementation agent are:
+   - server: `5f00e141b8fbc81420de84146d936d049a3a785d`;
+   - native: `caf6e5ba51cc279a3d64f454ce5293d199c63565`.
+   D-032 transcribed different long-form SHAs for both and those values are not the current branch tips. This entry is the authoritative correction; D-032 remains unchanged as historical submission evidence.
+
+2. **Execution-evidence classification correction.**
+   The 38/38 server pure+boundary tests, 33/33 disposable-PostgreSQL integration tests, server build, Android 430/430 unit tests/debug/release builds, iOS 425/425 tests, XcodeGen, Simulator Debug build and unsigned generic-device Release build were reported from the implementation agent's local execution. GitHub's Actions API shows **no workflow runs** for either Phase-10 branch. Therefore D-032's phrase “full independent execution” is too strong: the moderator independently verified the remote code and branch lineage, but the command execution itself is local-agent evidence, not an independently observed Actions run.
+   The task also requested a standalone `swift build`; the report did not provide that specific command. This is not treated as a separate product blocker because `swift test` compiled the Swift package and both Xcode Debug and unsigned Release builds succeeded, but the missing command is recorded rather than invented.
+
+3. **Verified qualification cleanup code.**
+   Independent diff review confirms the implementation-agent's one-commit server cleanup is limited to:
+   - avoiding a symbol-name collision in the source-inspection boundary test comment;
+   - isolating the cross-wedding FK actor so the composite-FK check is not pre-empted by the new unique `[gateId,userId]` constraint;
+   - accepting PostgreSQL SQLSTATE `23503` / `23505` in relational-integrity assertions.
+   The native cleanup is limited to:
+   - revalidating persisted Gate selection on sign-in;
+   - ensuring `activeGateContext` is non-null only while the Usher/Gate axis is actually active;
+   - the explicit Swift `[ActorAssignment]` type annotation needed for compilation.
+
+4. **Reviewer-owned identity-session closure.**
+   Phase 10 added a second, operational Gate-authority axis, but `src/lib/native-account-session.ts` still rejected only workspace-shaped authority fields in its signed identity-only credential. Reviewer commits on the Phase-10 server branch now also reject validly-signed payloads carrying:
+   - `operationalGrants`;
+   - `gateContextSelection`;
+   - `gateId`;
+   - `assignmentId`;
+   - `operatorUserId`;
+   - `capabilities`.
+   Matching regression cases were added to `src/lib/native-account-session.test.ts`.
+   This preserves the original Phase-5 invariant: the native account token proves identity only and never carries either workspace or Gate authority.
+
+5. **Reviewer final server head.**
+   - reviewer code patch: `390ba060b5488b15fd6131792f25ce6a9d820e0c`;
+   - reviewer regression test: `9e6b7b813d26a79f46ac30a0c487fd9182e34e62`.
+   Vercel commit status for `9e6b7b813d26a79f46ac30a0c487fd9182e34e62` is successful. This web/server build status is not represented as a replacement for the local test evidence above.
+
+### D-034 — Phase 10 accepted; Phase 11 authorized (2026-09-24)
+**ACCEPTED — independent Rule-10 remote-code review passed after reviewer-owned closure. Phase 11 may begin. Production migration/deployment remain NOT authorized by this acceptance.**
+
+Accepted Phase-10 state:
+- server branch `backend/usher-gate-authority-phase10-20260923` @ `9e6b7b813d26a79f46ac30a0c487fd9182e34e62`;
+- native branch `native-mobile/usher-gate-authority-phase10-20260923` @ `caf6e5ba51cc279a3d64f454ce5293d199c63565`.
+
+Independent review confirms the locked Phase-10 exit gate at the code/authority level:
+- Gate identity is a real persisted server domain (`WeddingGate` + `WeddingGateAssignment`), not a native-only role or free-text gate id;
+- cross-wedding assignments are physically blocked by the composite foreign key;
+- one operator/gate assignment identity is enforced and assignment time windows are database constrained;
+- Gate management create/disable/assign/reactivate/revoke requires a real wedding-scoped production-authority management grant and does not inherit the F-6 legacy global-admin shortcut;
+- Gate authority mutations and their audit events are atomic;
+- operational grants are re-derived from fresh server truth and revoked/expired/disabled/foreign/unsupported-capability assignments grant nothing;
+- native Gate context resolution re-resolves server authority and derives wedding/gate/operator identity from the grant, never client-supplied authority strings;
+- Android/iOS pure Usher operation requires no Planner/Couple workspace membership;
+- multiple Gate assignments require explicit selection;
+- a revoked remembered Gate does not silently fall over to another Gate;
+- workspace and operational Gate axes coexist and are explicitly switchable without flattening Usher into the workspace role model;
+- Shadow Gate context construction remains development-only;
+- production admission / offline Wedding Pass activation is still deliberately disabled, so Phase 10 does not prematurely activate Phase-11 Wedding Day/WW2 behavior;
+- native account-session transport remains identity-only across both workspace and Gate axes.
+
+Execution evidence retained for acceptance is the implementation agent's reported local qualification at server `5f00e141b8fbc81420de84146d936d049a3a785d` and native `caf6e5ba51cc279a3d64f454ce5293d199c63565`, with the reviewer server delta after that qualification limited to the identity-token deny-list plus its regression test. The final reviewer server head has a successful Vercel build status. No GitHub Actions run is claimed for Phase 10.
+
+Carry-forward items remain:
+- F-3 Vendor production authority link gap;
+- F-4 BusinessAccount production migration application;
+- F-6 legacy PWA global-admin containment;
+- production `WEWED_SESSION_SECRET` configuration;
+- signed distribution/App Links/Universal Links;
+- production rollout.
+
+**Phase 11 is now authorized. Production database migration application, WW2 production activation, production Gate check-in, signing/publishing, main merge, and production deployment remain separately gated.**
