@@ -167,6 +167,13 @@ The design contract is derived directly from `src/lib/digital-invitation-card.ts
 
 Extracting authoritative palettes (`stage`, `paper`, `ink`, `primary`, `accent`, `muted`), motion presets, and atmosphere presets from web source prevents divergent color or motion definitions.
 
+#### Contract governance & fail-closed bidirectional validation
+The contract generation and validation system enforces strict bidirectional set equality (`webStyleIds == NATIVE_RENDERERS`):
+- **Fail-closed on new web styles:** If the PWA defines a style not explicitly approved in `NATIVE_RENDERERS`, the generator exits non-zero (`ContractValidationError: Web invitation styles missing native renderer approval: ...`), failing both generation and `--check` modes.
+- **Fail-closed on removed web styles:** If a style is removed from the PWA but retained in `NATIVE_RENDERERS`, validation fails (`ContractValidationError: NATIVE_RENDERERS names styles the web does not define: ...`).
+- **Strict rendererKind contract truth:** Invariant `nativeRenderer == true <-> rendererKind in {IVORY_CUSTOM, GENERIC_MOTION}` is enforced. Unsupported styles are never assigned `GENERIC_MOTION` (assigned `None`/null). Both Kotlin and Swift generators reject generating code for unsupported styles lacking a valid `rendererKind`.
+- **Executable future-style regression suite:** `mobile/contracts/test_invitation_style_contract.py` runs in permanent CI (`.github/workflows/digital-invitation-experience-ci.yml`) and temporary qualification, asserting that synthetic 13th styles without native declarations fail closed.
+
 ### 12-style native renderer matrix
 
 | Style ID | Name | Motion | Atmosphere | Native Android | Native iOS | RSVP Reachable | Initial State |

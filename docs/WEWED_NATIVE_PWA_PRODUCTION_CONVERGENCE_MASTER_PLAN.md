@@ -1277,6 +1277,61 @@ Phase gate:
 - Phase 4: **ACCEPTED**;
 - Phase 5: **READY TO BEGIN**.
 
+### D-027 — Phase 9 closure round 5: fail-closed contract governance and future-style CI proof (2026-09-23)
+**MODERATOR CORRECTION ROUND, NOT AN ACCEPTANCE.** This entry records moderator findings against
+the Round-4 remote code and the implementation-agent's corrections in response. Phase 9 acceptance
+remains the moderator's decision alone and is NOT claimed here.
+
+**Moderator findings against Round 4 (contract governance defect):**
+Round 4 correctly closed RSVP identity safety (capture before I/O, compare-before-rebind, preserved
+`originGuestId`) and current 12-style native parity (dedicated Ivory and generic motion engine).
+However, final moderator inspection identified one remaining contract-governance defect:
+`mobile/contracts/generate_invitation_style_contract.py` checked native→web membership
+(`NATIVE_RENDERERS - webStyleIds`) but not web→native membership (`webStyleIds - NATIVE_RENDERERS`),
+and unconditionally assigned `GENERIC_MOTION` to all non-Ivory web styles regardless of
+`NATIVE_RENDERERS`. Consequently, a new PWA style could be regenerated into the contract and pass
+`--check` without compiled native support.
+
+**Round-5 corrections:**
+1. **Bidirectional set equality & fail-closed support:** `validate_style_support(web_style_ids, native_renderer_ids)`
+   now validates both directions (`webStyleIds == NATIVE_RENDERERS`). If the web registry defines a style
+   lacking native approval (`webStyleIds - NATIVE_RENDERERS`), it exits non-zero with an explicit error:
+   `Web invitation styles missing native renderer approval: ...`. If `NATIVE_RENDERERS - webStyleIds` is
+   non-empty, it retains the existing failure (`NATIVE_RENDERERS names styles the web does not define: ...`).
+   This runs in both code generation and `--check` modes.
+2. **Strict rendererKind contract truth:** Invariant `nativeRenderer == true <-> rendererKind in {IVORY_CUSTOM, GENERIC_MOTION}`
+   is enforced. `classify_renderer(sid, is_native)` returns `None` for any unsupported style. An unsupported
+   style is never assigned `GENERIC_MOTION`. Both Kotlin and Swift generators raise `ContractValidationError`
+   if invoked with an unsupported style missing a valid `rendererKind`.
+3. **Executable future-style regression suite:** Added `mobile/contracts/test_invitation_style_contract.py`
+   executing 6 regression test cases:
+   - Current 12-style registry matches `NATIVE_RENDERERS` bidirectionally with correct renderer classifications.
+   - Synthetic 13th style (`hand-lettered-vellum`) without native declaration fails closed.
+   - Synthetic 13th style with explicit native declaration succeeds only when renderer support is declared.
+   - Native renderer absent from web fails closed.
+   - Unsupported style is never assigned `rendererKind` (never `GENERIC_MOTION`).
+   - CLI `--check` returns 0 on clean repository.
+4. **Permanent CI enforcement:** Updated `.github/workflows/digital-invitation-experience-ci.yml` to run
+   `python3 mobile/contracts/test_invitation_style_contract.py` before `generate_invitation_style_contract.py --check`
+   and web tests. Any new PWA style without native support, removed style, or contract drift immediately fails CI.
+5. **Runtime semantics preserved:** All 12 known styles remain 12/12 native-renderable with dedicated Ivory
+   and generic motion engines. Unknown style received at runtime (`InvitationStyle.UNKNOWN_STYLE`) resolves to
+   `UNSUPPORTED` and presents the fail-closed notice.
+
+**Round-5 SHA/run evidence (four distinct values, never conflated):**
+- Product SHA: `96792039eebe6e81403ebf61a1e5088eb4e7b8f9`.
+- Temporary workflow commit SHA: `a94a8a30646c24388e6378e99b0c7974da7b0be4`.
+- Qualification run: `35853500269` — PASS.
+  - Invitation style contract regression and drift check (`test_invitation_style_contract.py` + `generate_invitation_style_contract.py --check`): PASS in 5s.
+  - iOS: `swift test` (419 tests, 0 failures), `swift build`, `xcodegen generate`, Simulator Debug build, unsigned generic-device Release build — PASS in 3m25s.
+  - Android: `testDebugUnitTest` (422 tests, 0 failures), `assembleDebug`, `assembleRelease` — PASS in 7m44s.
+- Cleaned branch tip (temporary workflow removed): `9ffb260fb59c371718c055ed2f43e18c27f06c84`.
+- Server qualification retained: run `35826332669` at product SHA `72f34663535d5fbbfbbb6bb79319ae69327a2994`. Server product code was completely untouched.
+
+**Phase Gate:**
+- Phase 9: **Implementation agent reports all moderator findings closed and qualified; acceptance is NOT self-declared and awaits moderator review of the remote code**.
+- Phase 10: **NOT STARTED / NOT AUTHORIZED**.
+
 ### D-026 — Phase 9 closure round 4: RSVP identity-safety and generated-contract authority corrections (2026-09-23)
 **MODERATOR CORRECTION ROUND, NOT AN ACCEPTANCE.** This entry records moderator findings against
 the actual Round-3 remote implementation and the implementation-agent's corrections in response.
