@@ -122,31 +122,46 @@ export function canonicalWw2Payload(input: {
   nonce: string
 }): string {
   const mask = input.eventBitmask.toString(16).padStart(2, '0').toLowerCase()
-  return [
-    WW2_VERSION,
-    input.weddingShortId,
-    input.passSerial,
-    mask,
-    input.nonce,
-  ].join(':')
+  // Keep the established cross-platform WW2 wire contract. Android/iOS TokenVerifier parse
+  // exactly six dot-delimited fields: version, wedding, serial, mask, nonce, signature.
+  return `${WW2_VERSION}.${input.weddingShortId}.${input.passSerial}.${mask}.${input.nonce}`
 }
 
 export function parseWw2Token(token: string): ParsedWw2Token | null {
-  const [payload, signatureHex, extra] = token.split('.')
-  if (!payload || !signatureHex || extra) return null
-  const parts = payload.split(':')
-  if (parts.length !== 5) return null
-  const [version, weddingShortId, passSerial, maskHex, nonce] = parts
-  if (version !== WW2_VERSION) return null
-  const eventBitmask = Number.parseInt(maskHex, 16)
-  if (!Number.isFinite(eventBitmask)) return null
+  const parts = token.trim().split('.')
+  if (parts.length !== 6 || parts[0] !== WW2_VERSION) return null
+
+  const eventBitmask = Number.parseInt(parts[3], 16)
+  if (
+    !/^[0-9a-f]{2}$/i.test(parts[3]) ||
+    !Number.isInteger(eventBitmask) ||
+    eventBitmask < 0 ||
+    eventBitmask > 0xff
+  ) {
+    return null
+  }
+  if (
+    !parts[1] ||
+    !parts[2] ||
+    !parts[4] ||
+    !/^[0-9a-f]{128}$/i.test(parts[5])
+  ) {
+    return null
+  }
+
+  const payload = canonicalWw2Payload({
+    weddingShortId: parts[1],
+    passSerial: parts[2],
+    eventBitmask,
+    nonce: parts[4],
+  })
   return {
     version: WW2_VERSION,
-    weddingShortId,
-    passSerial,
+    weddingShortId: parts[1],
+    passSerial: parts[2],
     eventBitmask,
-    nonce,
-    signatureHex,
+    nonce: parts[4],
+    signatureHex: parts[5].toLowerCase(),
     payload,
   }
 }
