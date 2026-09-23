@@ -237,7 +237,9 @@ public actor OfflineManifestStore: OfflineManifestStoreProtocol {
             passSerial: serial,
             guestId: item.id,
             count: admittedKeys.count,
-            usherId: usherId,
+            // usherId remains Codable for legacy snapshots only. New queue events never
+            // persist operator authority; online sync resolves the current Gate operator.
+            usherId: "",
             attendeeKeys: admittedKeys,
             deviceId: deviceId
         )
