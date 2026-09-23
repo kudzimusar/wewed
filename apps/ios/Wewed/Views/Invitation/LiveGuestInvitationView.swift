@@ -21,6 +21,9 @@ public struct LiveGuestInvitationView: View {
     private let onViewPass: (() -> Void)?
 
     @State private var rsvpPrompt = false
+    @State private var rsvpEditorPresentation: LiveInvitationPresentation? = nil
+    @State private var refreshingRsvp = false
+    @State private var refreshUnavailable = false
     @State private var formSessionId = UUID()
     @State private var submitting = false
     @State private var reopenRequired = false
@@ -43,6 +46,35 @@ public struct LiveGuestInvitationView: View {
         self.onViewPass = onViewPass
     }
 
+    private func requestRsvpEdit() {
+        guard !refreshingRsvp, !submitting else { return }
+        refreshingRsvp = true
+        refreshUnavailable = false
+        Task {
+            let prep = await coordinator.prepareRsvpEdit(currentGuestId: presentation.guestId)
+            switch prep {
+            case let .ready(refreshedPresentation, state):
+                rsvpEditorPresentation = refreshedPresentation
+                formSessionId = UUID()
+                onRefreshed(state)
+                rsvpPrompt = true
+            case .staleOrReplacedGuest:
+                rsvpEditorPresentation = nil
+                rsvpPrompt = false
+                reopenRequired = true
+            case .revokedOrUnauthorized:
+                rsvpEditorPresentation = nil
+                rsvpPrompt = false
+                onRefreshed(.unavailable(status: nil))
+            case .unavailable:
+                rsvpEditorPresentation = nil
+                rsvpPrompt = false
+                refreshUnavailable = true
+            }
+            refreshingRsvp = false
+        }
+    }
+
     // Master plan Phase 9 — the full converged RSVP field set, not just attendance. Respects
     // server-provided policy (adults-only) rather than inventing wedding rules client-side; the
     // server remains the final enforcement authority regardless of what this form allows.
@@ -54,6 +86,7 @@ public struct LiveGuestInvitationView: View {
             switch outcome {
             case .saved:
                 rsvpPrompt = false
+                rsvpEditorPresentation = nil
                 // Re-read rather than trusting the local edit: what the card shows afterwards is
                 // what the server stored.
                 onRefreshed(await coordinator.refresh())
@@ -61,6 +94,7 @@ public struct LiveGuestInvitationView: View {
             // would let the guest believe their answer was recorded.
             case .reopenRequired, .unavailable:
                 rsvpPrompt = false
+                rsvpEditorPresentation = nil
                 reopenRequired = true
             // Distinct from reopenRequired: this is a policy refusal (adults-only), not a stale
             // session — a "reopen your invitation" message would be actively misleading here.
@@ -80,8 +114,7 @@ public struct LiveGuestInvitationView: View {
                 actions: resolveLiveInvitationActions(
                     presentation: presentation,
                     onRsvpPrompt: {
-                        formSessionId = UUID()
-                        rsvpPrompt = true
+                        requestRsvpEdit()
                     },
                     onAddToCalendar: { addWeddingToCalendar() },
                     onOpenVenue: { open(venueDestination) },
@@ -104,20 +137,26 @@ public struct LiveGuestInvitationView: View {
                     Spacer()
                 }
             }
-            if rsvpPrompt {
+            if rsvpPrompt, let editorPresentation = rsvpEditorPresentation {
                 LiveRsvpFormView(
-                    guestName: presentation.guestName,
-                    childrenPolicy: presentation.childrenPolicy,
-                    initial: presentation,
+                    guestName: editorPresentation.guestName,
+                    childrenPolicy: editorPresentation.childrenPolicy,
+                    initial: editorPresentation,
                     isSubmitting: submitting,
                     childrenNotAllowed: childrenNotAllowed,
                     onDismissChildrenNotice: { childrenNotAllowed = false },
                     onSubmit: { answer($0) },
-                    onDismiss: { if !submitting { rsvpPrompt = false } }
+                    onDismiss: {
+                        if !submitting {
+                            rsvpPrompt = false
+                            rsvpEditorPresentation = nil
+                        }
+                    }
                 )
                 .id(formSessionId)
             }
             if reopenRequired { reopenRequiredView }
+            if refreshUnavailable { refreshUnavailableView }
             if showNote, let note = presentation.invitationCardMessage, !note.isEmpty {
                 noteFromTheCouple(note)
             }
@@ -235,6 +274,27 @@ public struct LiveGuestInvitationView: View {
             .padding(28)
         }
         .accessibilityIdentifier("invitation-reopen-required")
+    }
+
+    private var refreshUnavailableView: some View {
+        ZStack {
+            Color.black.opacity(0.55)
+                .ignoresSafeArea()
+                .onTapGesture { refreshUnavailable = false }
+            VStack(spacing: 10) {
+                Text("Couldn't load latest RSVP")
+                    .font(.system(size: 18, design: .serif))
+                    .foregroundStyle(WeddingIdentityPalette.ink)
+                Text("Please check your internet connection and try again.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(24)
+            .background(WeddingIdentityPalette.ivory)
+            .padding(28)
+        }
+        .accessibilityIdentifier("invitation-refresh-unavailable")
     }
 }
 

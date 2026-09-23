@@ -50,6 +50,19 @@ sealed interface RsvpOutcome {
 }
 
 /**
+ * Outcome of pre-open RSVP refresh.
+ *
+ * Ensures that tapping RSVP / Update RSVP loads fresh server truth before the editor opens,
+ * eliminating stale client overwrites.
+ */
+sealed interface RsvpEditPreparation {
+    data class Ready(val presentation: LiveInvitationPresentation, val state: LiveInvitationState.Presenting) : RsvpEditPreparation
+    data object StaleOrReplacedGuest : RsvpEditPreparation
+    data object RevokedOrUnauthorized : RsvpEditPreparation
+    data class Unavailable(val status: Int?) : RsvpEditPreparation
+}
+
+/**
  * The one place the live invitation journey happens.
  *
  * ```
@@ -185,4 +198,32 @@ class LiveGuestInvitationCoordinator(
     /** Re-reads the card after an answer, so what is shown is what the server stored. */
     suspend fun refresh(): LiveInvitationState =
         activeWeddingSlug?.let { load(it) } ?: LiveInvitationState.Idle
+
+    /**
+     * Pre-open refresh before opening the RSVP editor.
+     *
+     * In accordance with Master Plan Phase 9:
+     * Tapping RSVP / Update RSVP must first refresh the Guest Session snapshot to ensure
+     * that any changes made on the PWA or another device are reflected in the editor.
+     * Validates that the refreshed snapshot belongs to [currentGuestId].
+     * If the session moved on, was revoked, or network failed, the editor does NOT open.
+     */
+    suspend fun prepareRsvpEdit(currentGuestId: String): RsvpEditPreparation {
+        return when (val state = refresh()) {
+            is LiveInvitationState.Presenting -> {
+                if (state.snapshot.guestId != currentGuestId) {
+                    RsvpEditPreparation.StaleOrReplacedGuest
+                } else {
+                    RsvpEditPreparation.Ready(
+                        LiveInvitationPresentation.from(state.snapshot),
+                        state
+                    )
+                }
+            }
+            is LiveInvitationState.Refused -> RsvpEditPreparation.RevokedOrUnauthorized
+            is LiveInvitationState.Unavailable -> RsvpEditPreparation.Unavailable(state.status)
+            is LiveInvitationState.Idle -> RsvpEditPreparation.RevokedOrUnauthorized
+            is LiveInvitationState.Exchanging -> RsvpEditPreparation.RevokedOrUnauthorized
+        }
+    }
 }

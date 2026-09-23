@@ -76,22 +76,60 @@ final class InvitationStyleContractTests: XCTestCase {
         }
     }
 
-    /// A renderer claim is a claim of exact reproduction. Exactly one design carries it today.
+    /// A renderer claim is a claim of exact reproduction. All 12 supported styles carry native renderers,
+    /// while unknownStyle fails closed.
     func testRendererClaimsMatchTheContract() {
         for style in contract.styles {
             XCTAssertEqual(InvitationStyle.fromWire(style.id).hasNativeRenderer,
                            style.nativeRenderer,
                            "Renderer claim for '\(style.id)'")
         }
-        XCTAssertEqual(InvitationStyle.allCases.filter(\.hasNativeRenderer), [.ivoryFloralGold])
+        let rendering = InvitationStyle.allCases.filter(\.hasNativeRenderer)
+        XCTAssertEqual(rendering.count, 12)
+        XCTAssertTrue(InvitationStyle.allCases.filter { $0 != .unknownStyle }.allSatisfy(\.hasNativeRenderer))
+        XCTAssertFalse(InvitationStyle.unknownStyle.hasNativeRenderer)
     }
 
-    /// The regression itself: Garden Romance is not Ivory Floral Gold.
+    /// The regression itself: Garden Romance is not Ivory Floral Gold, but both render natively.
     func testBotanicalIsNotAliasedToIvoryFloralGold() {
         let botanical = InvitationStyle.fromWire("botanical")
         XCTAssertEqual(botanical, .botanical)
         XCTAssertNotEqual(botanical, .ivoryFloralGold)
-        XCTAssertFalse(botanical.hasNativeRenderer)
+        XCTAssertTrue(botanical.hasNativeRenderer)
+    }
+
+    /// Source contract parity: ensures that any style added to the authoritative web registry
+    /// (`src/lib/digital-invitation-card.ts`) is present in native with a native renderer.
+    func testWebSourceStyleRegistryMatchesNativeRenderers() throws {
+        var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        var sourceUrl: URL?
+        while dir.path != "/" {
+            let candidate = dir.appendingPathComponent("src/lib/digital-invitation-card.ts")
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                sourceUrl = candidate
+                break
+            }
+            dir = dir.deletingLastPathComponent()
+        }
+        guard let url = sourceUrl else {
+            XCTFail("src/lib/digital-invitation-card.ts not found")
+            return
+        }
+        let content = try String(contentsOf: url, encoding: .utf8)
+        let regex = try NSRegularExpression(pattern: #"id:\s*['"]([a-z0-9-]+)['"]"#)
+        let matches = regex.matches(in: content, range: NSRange(content.startIndex..., in: content))
+        var foundIds = Set<String>()
+        for match in matches {
+            if let range = Range(match.range(at: 1), in: content) {
+                foundIds.insert(String(content[range]))
+            }
+        }
+        XCTAssertFalse(foundIds.isEmpty, "Web source must declare styles")
+        for styleId in foundIds {
+            let style = InvitationStyle.fromWire(styleId)
+            XCTAssertNotEqual(style, .unknownStyle, "Style \(styleId) from web source must not be unknownStyle")
+            XCTAssertTrue(style.hasNativeRenderer, "Style \(styleId) from web source must have a native renderer")
+        }
     }
 
     /// An absent value resolves the way the server resolves it, not to whatever native can draw.

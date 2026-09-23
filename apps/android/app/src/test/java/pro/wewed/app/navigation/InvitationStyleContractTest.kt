@@ -73,8 +73,8 @@ class InvitationStyleContractTest {
     }
 
     /**
-     * A renderer claim is a claim of exact reproduction. Exactly one design carries it today, and
-     * the contract — not the app — is where that is recorded.
+     * A renderer claim is a claim of exact reproduction. All 12 supported styles carry native renderers,
+     * while UNKNOWN_STYLE fails closed.
      */
     @Test
     fun rendererClaimsMatchTheContract() {
@@ -87,18 +87,48 @@ class InvitationStyleContractTest {
             )
         }
         assertEquals(
-            listOf(InvitationStyle.IVORY_FLORAL_GOLD),
-            InvitationStyle.entries.filter { it.hasNativeRenderer }
+            12,
+            InvitationStyle.entries.filter { it.hasNativeRenderer }.size
         )
+        assertTrue(InvitationStyle.entries.filter { it != InvitationStyle.UNKNOWN_STYLE }.all { it.hasNativeRenderer })
+        assertFalse(InvitationStyle.UNKNOWN_STYLE.hasNativeRenderer)
     }
 
-    /** The regression itself: Garden Romance is not Ivory Floral Gold. */
+    /** The regression itself: Garden Romance is not Ivory Floral Gold, but both render natively. */
     @Test
     fun botanicalIsNotAliasedToIvoryFloralGold() {
         val botanical = InvitationStyle.fromWire("botanical")
         assertEquals(InvitationStyle.BOTANICAL, botanical)
         assertNotEquals(InvitationStyle.IVORY_FLORAL_GOLD, botanical)
-        assertFalse(botanical.hasNativeRenderer)
+        assertTrue(botanical.hasNativeRenderer)
+    }
+
+    /**
+     * Source contract parity: ensures that any style added to the authoritative web registry
+     * (`src/lib/digital-invitation-card.ts`) is present in native with a native renderer.
+     */
+    @Test
+    fun webSourceStyleRegistryMatchesNativeRenderers() {
+        var dir: File? = File(System.getProperty("user.dir") ?: ".").absoluteFile
+        var sourceFile: File? = null
+        while (dir != null) {
+            val candidate = File(dir, "src/lib/digital-invitation-card.ts")
+            if (candidate.isFile) {
+                sourceFile = candidate
+                break
+            }
+            dir = dir.parentFile
+        }
+        assertNotNull("src/lib/digital-invitation-card.ts must exist", sourceFile)
+        val content = sourceFile!!.readText()
+        val styleRegex = Regex("""id:\s*['"]([a-z0-9-]+)['"]""")
+        val foundIds = styleRegex.findAll(content).map { it.groupValues[1] }.distinct().toList()
+        assertTrue("Web source must declare styles", foundIds.isNotEmpty())
+        foundIds.forEach { styleId ->
+            val style = InvitationStyle.fromWire(styleId)
+            assertNotEquals("Style $styleId from web source must not be UNKNOWN_STYLE", InvitationStyle.UNKNOWN_STYLE, style)
+            assertTrue("Style $styleId from web source must have a native renderer", style.hasNativeRenderer)
+        }
     }
 
     /** An absent value resolves the way the server resolves it, not to whatever native can draw. */

@@ -55,12 +55,46 @@ fun LiveGuestInvitationScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var rsvpPrompt by remember { mutableStateOf(false) }
+    var rsvpEditorPresentation by remember { mutableStateOf<LiveInvitationPresentation?>(null) }
+    var refreshingRsvp by remember { mutableStateOf(false) }
+    var refreshUnavailable by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
     var reopenRequired by remember { mutableStateOf(false) }
     var childrenNotAllowed by remember { mutableStateOf(false) }
     var showNote by remember { mutableStateOf(false) }
 
     val status = presentation.rsvpStatus
+
+    fun requestRsvpEdit() {
+        if (refreshingRsvp || submitting) return
+        refreshingRsvp = true
+        refreshUnavailable = false
+        scope.launch {
+            when (val prep = coordinator.prepareRsvpEdit(presentation.guestId)) {
+                is RsvpEditPreparation.Ready -> {
+                    rsvpEditorPresentation = prep.presentation
+                    onRefreshed(prep.state)
+                    rsvpPrompt = true
+                }
+                is RsvpEditPreparation.StaleOrReplacedGuest -> {
+                    rsvpEditorPresentation = null
+                    rsvpPrompt = false
+                    reopenRequired = true
+                }
+                is RsvpEditPreparation.RevokedOrUnauthorized -> {
+                    rsvpEditorPresentation = null
+                    rsvpPrompt = false
+                    onRefreshed(LiveInvitationState.Unavailable(null))
+                }
+                is RsvpEditPreparation.Unavailable -> {
+                    rsvpEditorPresentation = null
+                    rsvpPrompt = false
+                    refreshUnavailable = true
+                }
+            }
+            refreshingRsvp = false
+        }
+    }
 
     // Master plan Phase 9 — the full converged RSVP field set, not just attendance. Respects
     // server-provided policy (adults-only) rather than inventing wedding rules client-side; the
@@ -72,17 +106,26 @@ fun LiveGuestInvitationScreen(
             when (coordinator.answer(update)) {
                 is RsvpOutcome.Saved -> {
                     rsvpPrompt = false
+                    rsvpEditorPresentation = null
                     // Re-read rather than trusting the local edit: what the card shows afterwards
                     // is what the server stored.
                     onRefreshed(coordinator.refresh())
                 }
                 // The card belongs to a guest who is no longer the active one. Saying nothing here
                 // would let the guest believe their answer was recorded.
-                is RsvpOutcome.ReopenRequired -> { rsvpPrompt = false; reopenRequired = true }
+                is RsvpOutcome.ReopenRequired -> {
+                    rsvpPrompt = false
+                    rsvpEditorPresentation = null
+                    reopenRequired = true
+                }
                 // Distinct from ReopenRequired: this is a policy refusal (adults-only), not a stale
                 // session — a "reopen your invitation" message would be actively misleading here.
                 is RsvpOutcome.ChildrenNotAllowed -> childrenNotAllowed = true
-                is RsvpOutcome.Unavailable -> { rsvpPrompt = false; reopenRequired = true }
+                is RsvpOutcome.Unavailable -> {
+                    rsvpPrompt = false
+                    rsvpEditorPresentation = null
+                    reopenRequired = true
+                }
             }
             submitting = false
         }
@@ -95,7 +138,7 @@ fun LiveGuestInvitationScreen(
             rsvp = ivoryRsvpStateFrom(status),
             actions = resolveLiveInvitationActions(
                 presentation = presentation,
-                onRsvpPrompt = { rsvpPrompt = true },
+                onRsvpPrompt = { requestRsvpEdit() },
                 onAddToCalendar = { addWeddingToCalendar(context, presentation) },
                 onOpenVenue = {
                     val target = presentation.venueMapUrl?.takeIf { it.isNotBlank() }
@@ -122,23 +165,33 @@ fun LiveGuestInvitationScreen(
             ) { Text("Back to My Wedding") }
         }
 
-        if (rsvpPrompt) {
-            key(presentation) {
+        if (rsvpPrompt && rsvpEditorPresentation != null) {
+            val editorPresentation = rsvpEditorPresentation!!
+            key(editorPresentation) {
                 LiveRsvpForm(
-                    guestName = presentation.guestName,
-                    childrenPolicy = presentation.childrenPolicy,
-                    initial = presentation,
+                    guestName = editorPresentation.guestName,
+                    childrenPolicy = editorPresentation.childrenPolicy,
+                    initial = editorPresentation,
                     isSubmitting = submitting,
                     childrenNotAllowed = childrenNotAllowed,
                     onDismissChildrenNotice = { childrenNotAllowed = false },
                     onSubmit = { answer(it) },
-                    onDismiss = { if (!submitting) rsvpPrompt = false }
+                    onDismiss = {
+                        if (!submitting) {
+                            rsvpPrompt = false
+                            rsvpEditorPresentation = null
+                        }
+                    }
                 )
             }
         }
 
         if (reopenRequired) {
             ReopenRequiredNotice(onDismiss = { reopenRequired = false })
+        }
+
+        if (refreshUnavailable) {
+            RefreshUnavailableNotice(onDismiss = { refreshUnavailable = false })
         }
 
         presentation.invitationCardMessage?.takeIf { showNote && it.isNotBlank() }?.let { note ->
@@ -569,6 +622,41 @@ private fun ReopenRequiredNotice(onDismiss: () -> Unit) {
             )
             Text(
                 "Open your invitation link again, then reply.",
+                fontSize = 13.sp,
+                color = WeddingIdentityPalette.Muted,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun RefreshUnavailableNotice(onDismiss: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.55f))
+            .clickable(onClick = onDismiss)
+            .testTag("invitation-refresh-unavailable"),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(28.dp)
+                .background(WeddingIdentityPalette.Ivory)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                "Couldn't load latest RSVP",
+                fontSize = 18.sp,
+                fontFamily = FontFamily.Serif,
+                color = WeddingIdentityPalette.Ink,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                "Please check your internet connection and try again.",
                 fontSize = 13.sp,
                 color = WeddingIdentityPalette.Muted,
                 textAlign = TextAlign.Center

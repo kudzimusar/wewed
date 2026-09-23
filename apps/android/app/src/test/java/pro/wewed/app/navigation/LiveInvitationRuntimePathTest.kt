@@ -211,14 +211,15 @@ class LiveInvitationRuntimePathTest {
         val entry = InvitationEntryParser.fromUrl(
             "https://wewed.pro/invite/charity-and-kudzie?rsvp=PRIVATE-CREDENTIAL"
         )!!
-        coordinator.enter(entry)
+        val state = coordinator.enter(entry)
+        assertTrue("coordinator.enter must be Presenting, got $state", state is LiveInvitationState.Presenting)
 
         routes["PUT /api/weddings/charity-and-kudzie/guest-session"] =
             Reply(200, """{"success":true,"rsvp":{"attending":true}}""")
         seenBodies.clear()
 
         val accepted = coordinator.answer(GuestRsvpUpdate(attending = true))
-        assertTrue(accepted is RsvpOutcome.Saved)
+        assertTrue("accepted must be Saved, got $accepted", accepted is RsvpOutcome.Saved)
         assertEquals(true, (accepted as RsvpOutcome.Saved).rsvp.attending)
         assertTrue(seenBodies.last().contains("\"originGuestId\":\"guest_real\""))
         assertTrue(

@@ -42,12 +42,22 @@ public struct NativeInvitationExperience: View {
     }
 
     public var body: some View {
-        if style.hasNativeRenderer {
-            // Exactly one design has an exact native renderer today, and the enum — not this view —
-            // is what says so.
+        if style == .ivoryFloralGold {
+            // Ivory Floral Gold retains its dedicated flagship renderer.
             IvoryFloralGoldNative(
                 data: data, rsvp: rsvp, actions: actions,
                 reducedMotion: reducedMotion, initialState: initialState,
+                onStateChanged: onStateChanged
+            )
+        } else if style.hasNativeRenderer {
+            // All other 11 known styles render via the native generic premium motion engine.
+            GenericMotionInvitationNative(
+                style: style,
+                data: data,
+                rsvp: rsvp,
+                actions: actions,
+                reducedMotion: reducedMotion,
+                initialState: initialState,
                 onStateChanged: onStateChanged
             )
         } else {

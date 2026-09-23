@@ -31,6 +31,8 @@ import pro.wewed.app.ui.invitation.ivory.*
  * A style this build cannot render is stated plainly. Falling back to Ivory would show one couple
  * another couple's stationery, which is worse than saying the design is not available yet.
  */
+import pro.wewed.app.ui.invitation.generic.GenericMotionInvitationNative
+
 @Composable
 fun NativeInvitationExperience(
     style: InvitationStyle,
@@ -41,10 +43,21 @@ fun NativeInvitationExperience(
     initialState: InvitationPresentationState = InvitationPresentationState.CLOSED,
     onStateChanged: (InvitationPresentationState) -> Unit = {}
 ) {
-    if (style.hasNativeRenderer) {
-        // Exactly one design has an exact native renderer today, and the enum — not this screen —
-        // is what says so.
+    if (style == InvitationStyle.IVORY_FLORAL_GOLD) {
+        // Ivory Floral Gold retains its dedicated flagship renderer.
         IvoryFloralGoldNative(
+            data = data,
+            rsvp = rsvp,
+            actions = actions,
+            reducedMotion = reducedMotion,
+            initialState = initialState,
+            onStateChanged = onStateChanged
+        )
+        return
+    } else if (style.hasNativeRenderer) {
+        // All other 11 known styles render via the native generic premium motion engine.
+        GenericMotionInvitationNative(
+            style = style,
             data = data,
             rsvp = rsvp,
             actions = actions,

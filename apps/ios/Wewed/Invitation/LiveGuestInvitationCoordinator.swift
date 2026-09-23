@@ -34,6 +34,16 @@ public enum RsvpOutcome: Equatable, Sendable {
     case unavailable(status: Int?)
 }
 
+/// What came back from preparing to edit the RSVP.
+///
+/// Ensures the RSVP form is populated with fresh server truth and bound to the active guest.
+public enum RsvpEditPreparation: Equatable, Sendable {
+    case ready(presentation: LiveInvitationPresentation, state: LiveInvitationState)
+    case staleOrReplacedGuest
+    case revokedOrUnauthorized
+    case unavailable(status: Int?)
+}
+
 /// The one place the live invitation journey happens.
 ///
 /// ```
@@ -188,5 +198,33 @@ public actor LiveGuestInvitationCoordinator {
     public func refresh() async -> LiveInvitationState {
         guard let slug = activeWeddingSlug else { return .idle }
         return await load(slug)
+    }
+
+    /// Pre-open refresh before opening the RSVP editor.
+    ///
+    /// In accordance with Master Plan Phase 9:
+    /// Tapping RSVP / Update RSVP must first refresh the Guest Session snapshot to ensure
+    /// that any changes made on the PWA or another device are reflected in the editor.
+    /// Validates that the refreshed snapshot belongs to `currentGuestId`.
+    /// If the session moved on, was revoked, or network failed, the editor does NOT open.
+    public func prepareRsvpEdit(currentGuestId: String) async -> RsvpEditPreparation {
+        let state = await refresh()
+        switch state {
+        case let .presenting(snapshot):
+            if snapshot.guestId != currentGuestId {
+                return .staleOrReplacedGuest
+            } else {
+                return .ready(
+                    presentation: LiveInvitationPresentation.from(snapshot),
+                    state: state
+                )
+            }
+        case .refused:
+            return .revokedOrUnauthorized
+        case let .unavailable(status):
+            return .unavailable(status: status)
+        case .idle, .exchanging:
+            return .revokedOrUnauthorized
+        }
     }
 }

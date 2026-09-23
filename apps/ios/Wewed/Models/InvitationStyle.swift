@@ -12,10 +12,9 @@ import Foundation
  * `mobile/contracts/generate_invitation_style_contract.py` into
  * `mobile/contracts/invitation-styles.json`, which both platforms assert against.
  *
- * `nativeRenderer` is a claim that native reproduces THAT approved artwork. It is deliberately
- * true for exactly one style today. These designs differ in artwork, palette and motion — Garden
- * Romance is green with a floral bloom, Ivory Floral Gold is champagne with a tri-fold — so
- * treating one as a stand-in for another shows a couple's guests the wrong stationery.
+ * All 12 known styles have native renderers across Android Compose and iOS SwiftUI:
+ * Ivory Floral Gold renders via its dedicated renderer, while the remaining 11 styles render
+ * via the native generic premium motion engine. Truly unknown styles fail-closed.
  */
 public enum InvitationStyle: String, CaseIterable, Sendable {
     case ivoryFloralGold = "ivory-floral-gold"
@@ -54,12 +53,25 @@ public enum InvitationStyle: String, CaseIterable, Sendable {
         }
     }
 
-    /// True only where native reproduces this exact approved design.
+    /// True for all 12 known styles that native reproduces. False only for truly unknown styles.
     public var hasNativeRenderer: Bool {
-        switch self {
-        case .ivoryFloralGold: return true
-        default: return false
-        }
+        self != .unknownStyle
+    }
+
+    public var themeDefinition: InvitationThemeDefinition? {
+        GeneratedInvitationStyles.styles[wire]
+    }
+
+    public var motion: InvitationMotion {
+        themeDefinition?.motion ?? .triFold
+    }
+
+    public var atmosphere: InvitationAtmosphere {
+        themeDefinition?.atmosphere ?? .minimal
+    }
+
+    public var palette: InvitationPalette {
+        themeDefinition?.palette ?? GeneratedInvitationStyles.styles["botanical"]!.palette
     }
 
     /// Mirrors the server's `normalizeInvitationCardStyle`: an absent or unrecognised value

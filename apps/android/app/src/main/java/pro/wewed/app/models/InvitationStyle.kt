@@ -12,32 +12,43 @@ package pro.wewed.app.models
  * `mobile/contracts/generate_invitation_style_contract.py` into
  * `mobile/contracts/invitation-styles.json`, which both platforms assert against.
  *
- * `nativeRenderer` is a claim that native reproduces THAT approved artwork. It is deliberately
- * true for exactly one style today. These designs differ in artwork, palette and motion — Garden
- * Romance is green with a floral bloom, Ivory Floral Gold is champagne with a tri-fold — so
- * treating one as a stand-in for another shows a couple's guests the wrong stationery.
+ * All 12 known styles have native renderers across Android Compose and iOS SwiftUI:
+ * Ivory Floral Gold renders via its dedicated renderer, while the remaining 11 styles render
+ * via the native generic premium motion engine. Truly unknown styles fail-closed.
  */
 enum class InvitationStyle(
     val wire: String,
     val displayName: String,
-    /** True only where native reproduces this exact approved design. */
-    val hasNativeRenderer: Boolean
+    /** True only where native reproduces this exact approved design. All 12 known styles are supported. */
+    val hasNativeRenderer: Boolean = true
 ) {
     IVORY_FLORAL_GOLD("ivory-floral-gold", "Ivory Floral Gold", true),
-    MIDNIGHT("midnight", "Midnight Gold", false),
-    BOTANICAL("botanical", "Garden Romance", false),
-    ROYAL_EMERALD("royal-emerald", "Royal Emerald", false),
-    CLASSIC_WHITE("classic-white", "Classic White", false),
-    BLUSH_ROMANCE("blush-romance", "Blush Romance", false),
-    AFRICAN_LUXE("african-luxe", "African Luxe", false),
-    EDITORIAL("editorial", "Modern Editorial", false),
-    BLACK_TIE("black-tie", "Black Tie", false),
-    WATERCOLOUR_GARDEN("watercolour-garden", "Watercolour Garden", false),
-    SUNSET_TERRACOTTA("sunset-terracotta", "Sunset Terracotta", false),
-    CELESTIAL("celestial", "Celestial", false),
+    MIDNIGHT("midnight", "Midnight Gold", true),
+    BOTANICAL("botanical", "Garden Romance", true),
+    ROYAL_EMERALD("royal-emerald", "Royal Emerald", true),
+    CLASSIC_WHITE("classic-white", "Classic White", true),
+    BLUSH_ROMANCE("blush-romance", "Blush Romance", true),
+    AFRICAN_LUXE("african-luxe", "African Luxe", true),
+    EDITORIAL("editorial", "Modern Editorial", true),
+    BLACK_TIE("black-tie", "Black Tie", true),
+    WATERCOLOUR_GARDEN("watercolour-garden", "Watercolour Garden", true),
+    SUNSET_TERRACOTTA("sunset-terracotta", "Sunset Terracotta", true),
+    CELESTIAL("celestial", "Celestial", true),
 
     /** A style id the server sent that is not in the registry this build was compiled against. */
     UNKNOWN_STYLE("unknown", "This invitation design", false);
+
+    val themeDefinition: InvitationThemeDefinition?
+        get() = GeneratedInvitationStyles.STYLES[wire]
+
+    val motion: InvitationMotion
+        get() = themeDefinition?.motion ?: InvitationMotion.TRI_FOLD
+
+    val atmosphere: InvitationAtmosphere
+        get() = themeDefinition?.atmosphere ?: InvitationAtmosphere.MINIMAL
+
+    val palette: InvitationPalette
+        get() = themeDefinition?.palette ?: GeneratedInvitationStyles.STYLES.getValue("botanical").palette
 
     companion object {
         /**

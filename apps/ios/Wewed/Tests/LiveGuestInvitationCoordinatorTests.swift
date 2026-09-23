@@ -587,5 +587,68 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
         XCTAssertEqual(pres4.plusOneMeal, "vegan")
         XCTAssertNotNil(resolveLiveInvitationActions(presentation: pres4, onRsvpPrompt: {}).onRsvp)
     }
+
+    /// Blocker 1 Regression Test:
+    /// Tapping RSVP/Update RSVP must refresh server truth BEFORE opening the editor.
+    /// When guest details are updated on the PWA out-of-band, the native editor receives the fresh
+    /// server snapshot.
+    func testRsvpReopenRefreshesServerTruthBeforeOpeningEditor() async {
+        // Initial state: accepted with meal choice "beef"
+        exchangeSucceeds(slug: "charity-and-kudzie", guestId: "guest_live", session: "SESSION-1")
+        invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_live", name: "Live Guest", attending: "true", mealChoice: "beef", message: "See you there")
+        let state = await coordinator.enter(.privateInvitation(weddingSlug: "charity-and-kudzie", rsvpToken: "TOKEN"))
+        guard case let .presenting(snap) = state else {
+            return XCTFail("expected presenting state")
+        }
+        let pres = LiveInvitationPresentation.from(snap)
+        XCTAssertEqual(pres.mealChoice, "beef")
+
+        // PWA updates meal choice out-of-band to "vegan"
+        invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_live", name: "Live Guest", attending: "true", mealChoice: "vegan", message: "Switched to vegan")
+
+        // Guest taps Update RSVP on native -> prepareRsvpEdit is called
+        let prep = await coordinator.prepareRsvpEdit(currentGuestId: "guest_live")
+        guard case let .ready(refreshedPres, _) = prep else {
+            return XCTFail("prepareRsvpEdit must be ready, got \(prep)")
+        }
+        XCTAssertEqual(refreshedPres.mealChoice, "vegan")
+        XCTAssertEqual(refreshedPres.message, "Switched to vegan")
+
+        // Guest edits message and saves -> save keeps vegan mealChoice
+        answerSucceeds(slug: "charity-and-kudzie", attending: true, mealChoice: "vegan", message: "Updated from native")
+        let saveOutcome = await coordinator.answer(GuestRsvpUpdate(attending: true, mealChoice: "vegan", message: "Updated from native"))
+        guard case let .saved(savedRsvp) = saveOutcome else {
+            return XCTFail("expected saved outcome, got \(saveOutcome)")
+        }
+        XCTAssertEqual(savedRsvp.mealChoice, "vegan")
+        XCTAssertEqual(savedRsvp.message, "Updated from native")
+    }
+
+    /// Blocker 1 Failure Modes:
+    /// 1. Network unavailable: returns .unavailable; does NOT open stale editor.
+    /// 2. Revoked/Unauthorized: returns .revokedOrUnauthorized; does NOT open editor.
+    /// 3. Switched/Stale Guest context: returns .staleOrReplacedGuest; does NOT open editor.
+    func testRsvpReopenDistinguishesFailureModesWithoutOpeningStaleEditor() async {
+        exchangeSucceeds(slug: "charity-and-kudzie", guestId: "guest_live", session: "SESSION-1")
+        invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_live", name: "Live Guest", attending: "true", mealChoice: "beef")
+        _ = await coordinator.enter(.privateInvitation(weddingSlug: "charity-and-kudzie", rsvpToken: "TOKEN"))
+
+        // 1. Network failure during refresh
+        Stub.routes["GET /api/weddings/charity-and-kudzie/guest-session"] = Reply(status: 503)
+        let prepUnavailable = await coordinator.prepareRsvpEdit(currentGuestId: "guest_live")
+        guard case .unavailable = prepUnavailable else {
+            return XCTFail("network error must result in .unavailable, got \(prepUnavailable)")
+        }
+
+        // 2. Revoked/Unauthorized session
+        Stub.routes["GET /api/weddings/charity-and-kudzie/guest-session"] = Reply(status: 401, body: "{\"success\":false}")
+        let prepRevoked = await coordinator.prepareRsvpEdit(currentGuestId: "guest_live")
+        XCTAssertEqual(prepRevoked, .revokedOrUnauthorized)
+
+        // 3. Stale guest context (e.g. server now returns a different guest session)
+        invitationReadsFull(slug: "charity-and-kudzie", guestId: "guest_other", name: "Other Guest", attending: "true")
+        let prepStale = await coordinator.prepareRsvpEdit(currentGuestId: "guest_live")
+        XCTAssertEqual(prepStale, .staleOrReplacedGuest)
+    }
 }
 
