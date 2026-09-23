@@ -2462,3 +2462,26 @@ Independent review confirms the Phase-9 exit gate:
 Carry-forward items are unchanged and are not Phase-9 blockers: F-3 Vendor production link gap, F-4 production migration application, F-6 legacy PWA global-admin hazard, `WEWED_SESSION_SECRET` production configuration, unsupported mature writes/admin extensions, signed distribution and production deployment.
 
 **Phase 10 is now authorized. Phase 11 and production deployment are not authorized.**
+
+### D-030 — Phase 10 implementation evidence: Server-authoritative Usher / Gate domain and native decoding (2026-09-23)
+**IMPLEMENTED — pending independent moderator / reviewer acceptance. Phase 11 remains NOT authorized. Production migration application remains strictly NOT authorized.**
+
+Implementation summary:
+1. **Server Schema & Migration:**
+   - Added persistent, server-authoritative models `WeddingGate` and `WeddingGateAssignment` in `prisma/schema.prisma` with composite unique constraint `@@unique([id, weddingId])` on `WeddingGate` and composite foreign key `[gateId, weddingId] -> WeddingGate(id, weddingId)` with `ON DELETE CASCADE`.
+   - Migration qualified on a disposable PostgreSQL 16 database (`prisma/migrations/20260923210000_wedding_gate_authority/migration.sql`); relational integrity test confirmed that cross-wedding gate assignment is physically rejected by PostgreSQL constraint.
+   - Migration strictly NOT deployed to production database (prohibited by Rule-10 / safety constraints).
+2. **Authority Resolution & Pure Grant Derivation:**
+   - Added `operationalGrants` and `gateContextSelection` to `WewedProductionAuthorityV1` contract (`src/lib/production-authority/contract.ts`), strictly segregated from `workspaceGrants`.
+   - Gate capability vocabulary enforced fail-closed: only `'gate.manifest.read'`, `'gate.checkin.write'`, `'gate.guest_search.read'`, and `'gate.audit.read'` are recognized. Unrecognized capabilities are stripped; assignments with 0 valid capabilities yield `no_recognized_capabilities` non-granting reasons.
+   - Deterministic sorting by `grantId`; explicit `gateContextSelection` with `selectionRequired: true` whenever multiple active gate operational grants exist.
+   - Removed `usher_gate` from `unsupported` in `WewedProductionAuthorityV1` (only `guest` remains unsupported as guest identity is invitation-bound via Guest Session v2).
+   - All 35 pure grant rules tests pass in `grants.test.ts`.
+   - All 28 PostgreSQL integration tests pass in `production-authority.integration.test.ts`.
+3. **Native Mobile Contract Decoding:**
+   - Android: `apps/android/app/src/main/java/pro/wewed/app/navigation/ProductionAuthority.kt` updated to decode `ProductionOperationalGrant` and `ProductionGateContextSelection`. Contract test updated; `./gradlew testDebugUnitTest` passed cleanly.
+   - iOS: `apps/ios/Wewed/Navigation/ProductionAuthority.swift` updated to decode `ProductionOperationalGrant` and `ProductionGateContextSelection`. Contract test updated; 419 Swift tests passed cleanly (`Executed 419 tests, with 0 failures`).
+   - Shared fixture `mobile/fixtures/production-authority-v1/multi-axis-actor.json` updated with operational grants and `unsupported: ["guest"]`.
+
+Carry-forward items: F-3 Vendor production link gap, F-4 production migration application, F-6 legacy PWA global-admin hazard, `WEWED_SESSION_SECRET` production configuration.
+
