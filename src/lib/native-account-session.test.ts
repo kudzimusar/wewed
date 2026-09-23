@@ -35,7 +35,7 @@ describe('native account session (identity only, master plan Phase 5)', () => {
     expect(session).toEqual({ ...identity, version: 1, expiresAt: payload.expiresAt })
   })
 
-  test('rejects a payload that also carries any workspace-authority-shaped field', () => {
+  test('rejects a payload that also carries any workspace- or gate-authority-shaped field', () => {
     const futureExpiry = Date.now() + 60_000
     for (const poisoned of [
       { ...identity, version: 1, expiresAt: futureExpiry, role: 'admin' },
@@ -43,6 +43,12 @@ describe('native account session (identity only, master plan Phase 5)', () => {
       { ...identity, version: 1, expiresAt: futureExpiry, grantId: 'couple:wedding:wed-1' },
       { ...identity, version: 1, expiresAt: futureExpiry, workspaceKind: 'couple' },
       { ...identity, version: 1, expiresAt: futureExpiry, workspaceGrants: [] },
+      { ...identity, version: 1, expiresAt: futureExpiry, operationalGrants: [] },
+      { ...identity, version: 1, expiresAt: futureExpiry, gateContextSelection: {} },
+      { ...identity, version: 1, expiresAt: futureExpiry, gateId: 'gate-1' },
+      { ...identity, version: 1, expiresAt: futureExpiry, assignmentId: 'assignment-1' },
+      { ...identity, version: 1, expiresAt: futureExpiry, operatorUserId: 'user-1' },
+      { ...identity, version: 1, expiresAt: futureExpiry, capabilities: ['gate.checkin.write'] },
     ]) {
       expect(verifyNativeAccountSessionToken(signed(poisoned))).toBeNull()
     }
