@@ -2485,3 +2485,88 @@ Implementation summary:
 
 Carry-forward items: F-3 Vendor production link gap, F-4 production migration application, F-6 legacy PWA global-admin hazard, `WEWED_SESSION_SECRET` production configuration.
 
+
+
+### D-031 — Phase 10 reviewer-owned closure: complete Gate lifecycle, enforcement, and native operational entry (2026-09-23)
+**REVIEWER-OWNED CLOSURE PATCH — implementation gaps were patched directly rather than returned as defects. Phase 10 is now READY FOR EXECUTION QUALIFICATION, but is NOT accepted until the patched heads pass qualification. Phase 11 remains NOT authorized. Production migration/deployment remain NOT authorized.**
+
+Starting implementation-agent heads reviewed:
+- server: `fe3cfd56b1e0d24687a23853437b76535ac45bf7`;
+- native: `8cab65ee185dd1e667eeedcd27f8610c0b66221b`;
+- plan: `fb8b527ef265e959159ff9065393372cacf6f455`.
+
+Independent review found the initial Phase-10 submission correctly added the Gate schema, authority evidence/grant derivation, disposable-database integrity proof, and Android/iOS contract decoding, but it stopped before the locked Phase-10 exit gate: there was no server management lifecycle, no fresh grant-enforcement surface, no production-reachable pure-Usher native context, and the existing scanner still carried hardcoded/synthetic authority assumptions.
+
+Reviewer closure implemented directly:
+
+1. **Authoritative Gate management lifecycle**
+   - Added `src/lib/gate-authority.ts` and `src/app/api/weddings/gates/route.ts`.
+   - Real wedding-scoped authority can list gates/assignments, create a gate, disable a gate, assign/reactivate an operator, and revoke an assignment.
+   - Management requires a fresh `WewedProductionAuthorityV1` wedding grant for the selected wedding with `*` or `members.manage`; supported management workspaces are Couple / Planner / Coordinator.
+   - The path deliberately does not import or call legacy `getWeddingContext` / `requireWeddingPermission`, so the F-6 synthetic global-admin wedding shortcut cannot become Gate-management authority.
+   - Platform Admin/support scope alone does not grant Gate management.
+
+2. **Fresh operational enforcement**
+   - Added `src/lib/native-gate-context.ts` and `GET /api/native/gate/context`.
+   - Every request re-validates the bearer identity, re-runs `resolveProductionAuthority`, then requires the exact current `gate_operator` grant.
+   - Client-supplied weddingId, gateId, and operatorUserId are never treated as authority.
+   - Revoked/expired/disabled/foreign grants fail closed; future write endpoints can additionally require an exact Gate capability through `requiredCapability`.
+
+3. **Database integrity strengthened**
+   - `WeddingGateAssignment` is now unique on `[gateId, userId]`, giving one stable assignment identity per operator/gate and allowing explicit revoke/reactivate semantics instead of parallel duplicate authority rows.
+   - Added database CHECK: `expiresAt IS NULL OR expiresAt > activeFrom`.
+   - Existing composite `[gateId, weddingId] -> WeddingGate(id, weddingId)` protection remains.
+   - Production migration remains unapplied.
+
+4. **Capability handling is fully fail-closed**
+   - Management rejects any requested unknown capability.
+   - Resolver corruption/drift is also fail-closed: an assignment containing *any* unsupported capability produces no operational grant (`unsupported_gate_capability`) rather than silently stripping the unknown value and retaining a partial grant.
+   - Empty capability sets still produce no grant.
+
+5. **Audit integrity made transactional**
+   - Gate create/disable/assign/reactivate/revoke mutations and their `AuditEvent` rows now commit atomically in the same Prisma transaction.
+   - A failed audit write therefore cannot leave an unaudited successful Gate-authority mutation.
+   - Disposable-DB regression now checks management audit actions and actor/wedding scope.
+
+6. **Pure Usher native production entry**
+   - Added fail-closed Android/iOS `ProductionGateGrantMapper` and immutable `GateOperationalContext`.
+   - `AppRole.USHER` remains a presentation shell only; authority comes solely from the operational-grant axis, never `User.role`, `WeddingMembership.role`, or a Shadow persona.
+   - A pure Usher with one current Gate grant opens the Usher/Gate authority surface with no planning membership or workspace grant.
+   - Multiple Gate grants require explicit Gate selection.
+   - A remembered Gate that is revoked is retained only as a non-authoritative reselection marker; the client never silently falls over to another remaining Gate.
+   - Android production context resolution was corrected to use the verified `ProductionAuthority.accessUserId`, not the Shadow `activePersonaId`.
+
+7. **Multi-axis workspace ↔ Gate switching**
+   - Production context switchers on Android and iOS now list both `workspaceGrants` and `operationalGrants`.
+   - A Planner/Couple/etc. who is also an Usher can explicitly enter a Gate context.
+   - Selecting a workspace while Usher is active clears only the active Gate presentation and opens the chosen workspace; the remembered Gate selection remains available for a later explicit switch back.
+   - State regressions cover workspace → Gate → workspace on both platforms.
+
+8. **Scanner / Wedding Day authority seam hardened without premature Phase-11 activation**
+   - Removed hardcoded production-adjacent usher IDs from Android/iOS scanner calls.
+   - Removed synthetic WW1/manual-search pass-token fabrication; manual lookup no longer manufactures admission authority.
+   - `WeddingDayGateOperations` / Gate-aware repository wrappers now take one immutable server-derived `GateOperationalContext`; legacy caller-supplied usherId is ignored at that boundary.
+   - Shadow keeps an explicitly constructed Shadow-only Gate context for qualification.
+   - Production Gate UI currently proves the real assignment/capabilities but deliberately states that admission/offline Wedding Pass activation remains disabled until Phase 11. No native-only Gate authority was introduced.
+
+9. **New executable regression coverage added**
+   - server: Gate-management/enforcement boundary test; unknown-capability fail-closed test; assignment uniqueness/time-window constraints; create→grant→revoke lifecycle; audit rows; management denial for platform/legacy global Admin; fresh native Gate context live-vs-revoked enforcement.
+   - Android/iOS: operational mapper fail-closed rules; pure Usher with no workspace membership; explicit multi-Gate selection; revoked selected Gate does not auto-switch; workspace/Gate bidirectional switching.
+   - These reviewer-added tests have been committed but have **not yet been executed by this moderator environment**. Their execution is the only ordinary closure task remaining before Phase-10 acceptance review.
+
+Reviewer patched heads awaiting qualification:
+- server: `3a1c768d9ae23cfda07a3d54c20d8353a36900f0`;
+- native: `ce3072af5b96332a15e54235886e8ef5720f6e36`.
+
+**Qualification required before acceptance:**
+- server: fresh disposable PostgreSQL 16 migrated from repository migrations; Phase-10 pure + integration/boundary suites; full server regression comparison/build;
+- Android: `testDebugUnitTest`, `assembleDebug`, `assembleRelease`;
+- iOS: `swift test`, `swift build`, XcodeGen, Simulator Debug build, unsigned generic-device Release build;
+- prove the qualified product SHAs exactly match the patched heads above (or report any qualification-only cleanup commit separately).
+
+**Phase Gate:**
+- Phase 10 implementation gaps: **PATCHED BY REVIEWER**.
+- Phase 10 execution qualification: **PENDING**.
+- Phase 10 acceptance: **NOT YET DECLARED**.
+- Phase 11: **NOT AUTHORIZED**.
+- production DB migration / production deployment / signing / publishing: **NOT AUTHORIZED**.
