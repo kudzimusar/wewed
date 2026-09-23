@@ -23,15 +23,18 @@ public struct ProductionActorAssignmentSource: ActorAssignmentSource {
     private let authority: ProductionAuthority
     private let selectedGrantIds: Set<String>
     private let selectedEngagementId: String?
+    private let selectedGateGrantId: String?
 
     public init(
         authority: ProductionAuthority,
         selectedGrantIds: Set<String> = [],
-        selectedEngagementId: String? = nil
+        selectedEngagementId: String? = nil,
+        selectedGateGrantId: String? = nil
     ) {
         self.authority = authority
         self.selectedGrantIds = selectedGrantIds
         self.selectedEngagementId = selectedEngagementId
+        self.selectedGateGrantId = selectedGateGrantId
     }
 
     public func assignments(actorId: String) async -> [ActorAssignment] {
@@ -47,7 +50,7 @@ public struct ProductionActorAssignmentSource: ActorAssignmentSource {
             .map(\.key)
         )
 
-        return authority.workspaceGrants.compactMap { grant in
+        let workspaceAssignments = authority.workspaceGrants.compactMap { grant in
             if ambiguousKinds.contains(grant.workspaceKindWire) {
                 return nil
             }
@@ -59,6 +62,19 @@ public struct ProductionActorAssignmentSource: ActorAssignmentSource {
             case .requiresWeddingSelection, .denied: return nil
             }
         }
+
+        let gateAssignment: ActorAssignment? = selectedGateGrantId.flatMap { grantId in
+            guard case let .selected(context) = ProductionGateGrantMapper.map(authority, selectedGrantId: grantId) else {
+                return nil
+            }
+            return ActorAssignment(
+                actorId: context.operatorUserId,
+                role: .usher,
+                weddingId: context.weddingId,
+                gateId: context.gateId
+            )
+        }
+        return gateAssignment.map { workspaceAssignments + [$0] } ?? workspaceAssignments
     }
 
     /// True when more than one grant shares this grant's workspace kind, so none is picked implicitly.
