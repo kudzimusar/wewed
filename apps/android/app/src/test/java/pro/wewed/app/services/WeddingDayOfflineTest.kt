@@ -219,4 +219,67 @@ class WeddingDayOfflineTest {
         assertTrue(failure is WeddingDaySyncException.SigningKeyInactive)
     }
 
+
+    @Test
+    fun offlineSyncBodyCarriesOperationDataButNoAuthorityClaims() = runBlocking {
+        val store = OfflineManifestStore(deviceId = "android-device-1")
+        store.saveManifest(
+            "wedding-1",
+            listOf(
+                GuestManifestItem(
+                    id = "guest-1",
+                    serial = "WWABC1234",
+                    guestName = "Guest",
+                    partySize = 1,
+                    attendeeKeys = listOf("primary"),
+                    eligible = true
+                )
+            )
+        )
+        store.recordOfflineCheckIn("wedding-1", "WWABC1234", 1, "must-not-persist")
+
+        val trustStore = WeddingDayManifestTrustStore()
+        trustStore.save(
+            VerifiedWeddingDayManifestTrust(
+                weddingId = "wedding-1",
+                weddingShortId = "abc12345",
+                eventKey = "wedding-day",
+                generatedAt = "2026-09-24T00:00:00.000Z",
+                expiresAt = "2099-09-24T00:00:00.000Z",
+                rootKeyId = "root-v1",
+                keys = emptyList()
+            )
+        )
+
+        var postedPath = ""
+        var postedBody = ""
+        val transport = object : WeddingDayHttpTransport {
+            override suspend fun get(path: String, headers: Map<String, String>) =
+                error("GET not used")
+            override suspend fun post(path: String, headers: Map<String, String>, body: String): WeddingDayHttpResponse {
+                postedPath = path
+                postedBody = body
+                return WeddingDayHttpResponse(200, """{"success":true}""")
+            }
+        }
+        val service = WeddingDaySyncService(transport, trustedRootPublicKeyDerBase64 = "unused")
+        val result = service.syncPendingCheckIns(
+            bearerToken = "native-session",
+            weddingId = "wedding-1",
+            grantId = "gate_operator:wedding-1:gate-1",
+            offlineStore = store,
+            trustStore = trustStore
+        )
+
+        assertEquals(1, result.syncedIds.size)
+        assertTrue(postedPath.contains("grantId=gate_operator:wedding-1:gate-1"))
+        assertTrue(postedBody.contains(""passSerial""))
+        assertTrue(postedBody.contains(""attendeeKeys""))
+        assertTrue(postedBody.contains(""clientEventId""))
+        assertTrue(postedBody.contains(""deviceId""))
+        for (forbidden in listOf("guestId", "weddingId", "gateId", "usherId", "operatorUserId", "source", "eventKey")) {
+            assertFalse("offline sync must not submit $forbidden", postedBody.contains(""$forbidden""))
+        }
+    }
+
 }
