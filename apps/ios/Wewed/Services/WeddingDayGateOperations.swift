@@ -97,7 +97,6 @@ public actor ManifestBackedWeddingDayGate: WeddingDayGateOperations {
             baseURL: baseURL,
             bearerToken: bearerToken,
             weddingId: gateContext.weddingId,
-            gateId: gateContext.gateId,
             grantId: gateContext.grantId,
             offlineStore: offlineStore,
             trustStore: trustStore
