@@ -102,15 +102,33 @@ public struct ShadowPlannerBudgetView: View {
 
 public struct ShadowPlannerContributionsView: View {
     @EnvironmentObject private var appState: AppState
-    @State private var records: [PlannerContributionRecord] = []
 
     public init() {}
+
+    public var body: some View {
+        // Master plan Phase 8 closure round 3 §2 — a live failure (transport/permission/revocation)
+        // must render distinctly from an authoritative empty ledger, never fall back to one silently.
+        ProductionLoadView(
+            id: 0,
+            section: "Contributions",
+            environment: appState.dataEnvironment,
+            load: { try await appState.plannerRepository.getContributions() }
+        ) { records in
+            ContributionsListContent(records: records)
+        }
+        .navigationTitle("Contributions")
+        .accessibilityIdentifier("planner-contributions-root")
+    }
+}
+
+private struct ContributionsListContent: View {
+    let records: [PlannerContributionRecord]
 
     private var totalValue: Double { records.reduce(0) { $0 + $1.value } }
     private var unverified: Int { records.filter { !$0.verified }.count }
     private var hasMonetaryValues: Bool { records.contains { $0.value > 0 } }
 
-    public var body: some View {
+    var body: some View {
         ScrollView {
             VStack(spacing: WewedSpacing.lg) {
                 VStack(alignment: .leading, spacing: 8) {
@@ -178,11 +196,6 @@ public struct ShadowPlannerContributionsView: View {
             .padding()
         }
         .background(WewedColors.ivory)
-        .navigationTitle("Contributions")
-        .accessibilityIdentifier("planner-contributions-root")
-        .task {
-            records = (try? await appState.plannerRepository.getContributions()) ?? []
-        }
     }
 }
 
@@ -223,6 +236,47 @@ public struct ShadowPlannerVendorsView: View {
                     .padding()
                     .background(Color.white)
                     .cornerRadius(WewedRadius.lg)
+                }
+
+                // Master plan Phase 8 closure round 3 §3 — Contracts/Deal-Room, folded into this
+                // EXISTING, already-authorized "Vendors" navigation entry rather than added as a new
+                // Level-2 section: the locked cross-platform IA V2 navigation contract
+                // (mobile/contracts/ia-v2-navigation.json, status AUTHORITATIVE) enumerates every
+                // Level-2 section for Planner/Couple by name, and both platforms assert equality
+                // against it in unit tests — adding a new entry there is a product/IA decision, not
+                // the "wire existing UI to real data" mandate this closure item is scoped to.
+                // `Vendor.id` and `ServiceEngagement.vendorId` are the same id space, so this is a
+                // genuinely adjacent, not arbitrary, home for it. `PlannerVendorEngagement` above (the
+                // `Vendor.contractStatus`/`paymentStatus` planning fields) and `ServiceEngagementSummary`
+                // below (the managed-contract lifecycle) are rendered as two clearly separate,
+                // distinctly-labelled lists from two distinct DTOs/repositories — never merged into
+                // one model. Non-production shows nothing extra here: there is no Shadow/Fixture
+                // contract data for this brand-new-this-phase domain, and inventing some would be
+                // fabrication.
+                if appState.dataEnvironment == .production {
+                    Text("Contracts & Engagements")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, WewedSpacing.md)
+                        .accessibilityIdentifier("planner-contracts-header")
+
+                    ProductionLoadView(
+                        id: 0,
+                        section: "Contracts",
+                        environment: appState.dataEnvironment,
+                        load: { try await appState.contractsRepository.getServiceEngagements() }
+                    ) { engagements in
+                        if engagements.isEmpty {
+                            Text("No managed service engagements recorded for this wedding.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            ForEach(engagements) { engagement in
+                                ServiceEngagementCard(engagement: engagement)
+                            }
+                        }
+                    }
                 }
             }
             .padding()
@@ -367,14 +421,36 @@ public struct ShadowPlannerTimelineView: View {
 
 public struct ShadowPlannerDocumentsView: View {
     @EnvironmentObject private var appState: AppState
-    @State private var records: [PlannerDocumentRecord] = []
-    @State private var loaded = false
 
     public init() {}
 
     public var body: some View {
+        // Master plan Phase 8 closure §3/round 3 §2 — ProductionPlannerDashboardRepository.getDocuments()
+        // reads the real Vault catalog (`/api/native/wedding/vault`, the same `listWeddingVaultObjects`
+        // engine the PWA uses). A genuinely fetched empty list is an honest "no documents recorded",
+        // exactly like Budget/Seating/Timeline; a live failure (transport/permission/revocation) must
+        // render as unavailable instead, never fall back to that same empty state. The managed-contract
+        // lifecycle (Deal Room, versions, review/acceptance) is a separate, still-unwired domain — not
+        // shown here at all, so it is never confused with this Vault listing.
+        ProductionLoadView(
+            id: 0,
+            section: "Documents",
+            environment: appState.dataEnvironment,
+            load: { try await appState.plannerRepository.getDocuments() }
+        ) { records in
+            DocumentsListContent(records: records)
+        }
+        .navigationTitle("Documents")
+        .accessibilityIdentifier("planner-documents-root")
+    }
+}
+
+private struct DocumentsListContent: View {
+    let records: [PlannerDocumentRecord]
+
+    var body: some View {
         Group {
-            if loaded && records.isEmpty {
+            if records.isEmpty {
                 VStack(spacing: WewedSpacing.sm) {
                     Image(systemName: "doc.text")
                         .font(.title2)
@@ -419,11 +495,49 @@ public struct ShadowPlannerDocumentsView: View {
                 .background(WewedColors.ivory)
             }
         }
-        .navigationTitle("Documents")
-        .accessibilityIdentifier("planner-documents-root")
-        .task {
-            records = (try? await appState.plannerRepository.getDocuments()) ?? []
-            loaded = true
+    }
+}
+
+/// Master plan Phase 8 closure round 3 §3 — mirrors Android's `ServiceEngagementCard`.
+private struct ServiceEngagementCard: View {
+    let engagement: ServiceEngagementSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(engagement.vendorName)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Text(engagement.serviceCategory)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Text(engagement.lifecycleStatus)
+                    .font(.caption2)
+                    .fontWeight(.bold)
+                    .foregroundColor(WewedColors.emerald)
+            }
+            if let agreedAmount = engagement.agreedAmount {
+                Text("Agreed: \(agreedAmount) \(engagement.currency)")
+                    .font(.caption)
+                    .foregroundColor(WewedColors.goldDark)
+            }
+            if engagement.contracts.isEmpty {
+                Text("No contract drafted yet")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            } else {
+                ForEach(engagement.contracts) { contract in
+                    Text("\(contract.contractNumber) · \(contract.status) · v\(contract.currentVersionNumber)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
         }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(WewedRadius.lg)
     }
 }

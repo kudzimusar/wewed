@@ -50,7 +50,7 @@ final class AppStateProductionAdminTests: XCTestCase {
         XCTAssertTrue(appState.adminRepository is ShadowAdminSystemRepository)
     }
 
-    func testBindingARealAdminRepositoryInProductionReplacesTheBoundaryDefault() async {
+    func testBindingARealAdminRepositoryInProductionReplacesTheBoundaryDefault() async throws {
         let appState = productionAppState()
         Stub.status = 200
         Stub.body = #"{"success":true,"scopeKind":"system","platformRoles":["wewed_super_admin"],"counts":{"pendingOnboarding":2}}"#
@@ -58,17 +58,55 @@ final class AppStateProductionAdminTests: XCTestCase {
         configuration.protocolClasses = [Stub.self]
         let client = NativeDomainApiClient(baseURL: URL(string: "https://example.test")!, session: URLSession(configuration: configuration))
 
-        appState.bindProductionAdminRepository(grantId: "admin:system", ProductionAdminSystemRepository(client: client, sessionToken: "token", grantId: "admin:system"))
+        appState.bindProductionAdminRepository(accessUserId: "user-a", grantId: "admin:system", ProductionAdminSystemRepository(client: client, sessionToken: "token", grantId: "admin:system"))
 
         XCTAssertTrue(appState.adminRepository is ProductionAdminSystemRepository)
-        XCTAssertEqual(appState.boundAdminGrantId, "admin:system")
-        let snapshot = await appState.adminRepository.snapshot()
+        guard case let .bound(accessUserId, grantId, _) = appState.productionAdminBinding else {
+            return XCTFail("Expected .bound after bindProductionAdminRepository")
+        }
+        XCTAssertEqual(accessUserId, "user-a")
+        XCTAssertEqual(grantId, "admin:system")
+        let snapshot = try await appState.adminRepository.snapshot()
         XCTAssertEqual(snapshot.pendingOnboardingCount, 2)
     }
 
-    func testAnUnboundProductionBoundaryAdminRepositoryIsHonestlyNilNeverAFabricatedZero() async {
+    /// `ProductionBoundaryAdminSystemRepository` (the unbound default) never throws — "not yet
+    /// bound" is a different, intentional fact from "a bound repository's live call just failed",
+    /// which is what `ProductionAdminSystemRepository` now throws on instead
+    /// (`ProductionDomainRepositoriesTests`).
+    func testAnUnboundProductionBoundaryAdminRepositoryIsHonestlyNilNeverAFabricatedZero() async throws {
         let appState = productionAppState()
-        let snapshot = await appState.adminRepository.snapshot()
+        let snapshot = try await appState.adminRepository.snapshot()
         XCTAssertNil(snapshot.pendingOnboardingCount)
+    }
+
+    /// Master plan Phase 8 closure §1/round 3 §4 (NativeRepositoryFactory.PRODUCTION closure).
+    /// `RootView`'s render gate for `.admin` now waits for the confirmed `(accessUserId, grantId)`
+    /// binding before composing `AdminShellView`, specifically so a shell that "appears functional"
+    /// can never be backed by the always-throwing boundary repository during the async window between
+    /// a workspace snapshot resolving and this bind actually executing. This test proves the binding
+    /// itself is an honest, order-correct signal: `.unbound` before any bind, and only ever the exact
+    /// account+grant of a completed bind afterward.
+    func testProductionAdminBindingIsUnboundUntilBoundAndThenReflectsTheBoundAccountAndGrantExactly() {
+        let appState = productionAppState()
+        guard case .unbound = appState.productionAdminBinding else {
+            return XCTFail("Expected .unbound before any bind")
+        }
+
+        Stub.status = 200
+        Stub.body = #"{"success":true,"scopeKind":"system","platformRoles":["wewed_super_admin"],"counts":{"pendingOnboarding":0}}"#
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [Stub.self]
+        let client = NativeDomainApiClient(baseURL: URL(string: "https://example.test")!, session: URLSession(configuration: configuration))
+        appState.bindProductionAdminRepository(
+            accessUserId: "user-9", grantId: "admin:system:acct-9",
+            ProductionAdminSystemRepository(client: client, sessionToken: "token", grantId: "admin:system:acct-9")
+        )
+
+        guard case let .bound(accessUserId, grantId, _) = appState.productionAdminBinding else {
+            return XCTFail("Expected .bound after bindProductionAdminRepository")
+        }
+        XCTAssertEqual(accessUserId, "user-9")
+        XCTAssertEqual(grantId, "admin:system:acct-9")
     }
 }

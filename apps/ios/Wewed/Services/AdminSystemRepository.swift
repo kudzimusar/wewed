@@ -110,7 +110,7 @@ public struct AdminSystemSnapshot: Equatable, Sendable {
 }
 
 public protocol AdminSystemRepositoryProtocol: Sendable {
-    func snapshot() async -> AdminSystemSnapshot
+    func snapshot() async throws -> AdminSystemSnapshot
 }
 
 /// The only administrative source available natively today.
@@ -190,13 +190,18 @@ public struct ProductionAdminSystemRepository: AdminSystemRepositoryProtocol {
         self.grantId = grantId
     }
 
-    public func snapshot() async -> AdminSystemSnapshot {
-        var overview: NativeJSONObject?
-        if case let .success(json) = await client.adminOverview(sessionToken: sessionToken, grantId: grantId) {
-            overview = json
+    public func snapshot() async throws -> AdminSystemSnapshot {
+        // Master plan Phase 8 closure round 3 §2/§7 — a live Admin overview failure now throws,
+        // exactly like every other production repository in this codebase, instead of silently
+        // degrading to a nulled-out/empty snapshot that a caller could mistake for an honest
+        // "nothing to report" result. `ProductionBoundaryAdminSystemRepository` is the one
+        // intentional non-throwing exception (see its own doc comment): "not yet bound" and "a
+        // bound repository's live call just failed" are two different facts.
+        guard case let .success(overview) = await client.adminOverview(sessionToken: sessionToken, grantId: grantId) else {
+            throw ProductionReadOnlyDomainError.unavailable
         }
-        let summary = overview?.wwObject("summary")
-        let accounts = (overview?.wwArray("accounts") ?? []).map { item in
+        let summary = overview.wwObject("summary")
+        let accounts = (overview.wwArray("accounts") ?? []).map { item in
             AdminAccountSummary(
                 id: item.wwRequiredString("id"),
                 name: item.wwString("name") ?? "",
@@ -206,7 +211,7 @@ public struct ProductionAdminSystemRepository: AdminSystemRepositoryProtocol {
                 riskFlags: (item["riskFlags"] as? [String]) ?? []
             )
         }
-        let supportCases = (overview?.wwArray("supportCases") ?? []).map { item in
+        let supportCases = (overview.wwArray("supportCases") ?? []).map { item in
             AdminSupportCaseSummary(
                 id: item.wwRequiredString("id"),
                 title: item.wwString("title") ?? "",
@@ -215,7 +220,7 @@ public struct ProductionAdminSystemRepository: AdminSystemRepositoryProtocol {
                 businessAccountName: item.wwString("businessAccountName")?.wwNilIfBlank
             )
         }
-        let incidents = (overview?.wwArray("incidents") ?? []).map { item in
+        let incidents = (overview.wwArray("incidents") ?? []).map { item in
             AdminIncidentSummary(
                 id: item.wwRequiredString("id"),
                 title: item.wwString("title") ?? "",
@@ -236,7 +241,7 @@ public struct ProductionAdminSystemRepository: AdminSystemRepositoryProtocol {
                 "Productivity",
                 "Vault (cross-wedding admin browsing)",
             ],
-            pendingOnboardingCount: overview?.wwObject("counts")?.wwInt("pendingOnboarding"),
+            pendingOnboardingCount: overview.wwObject("counts")?.wwInt("pendingOnboarding"),
             businessAccountsTotal: wwHonestInt(summary, "businessAccounts"),
             activeAccountsTotal: wwHonestInt(summary, "activeAccounts"),
             pendingReviewAccountsTotal: wwHonestInt(summary, "pendingReviewAccounts"),

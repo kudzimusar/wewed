@@ -153,6 +153,7 @@ public struct RootView: View {
         guard appState.dataEnvironment == .production else { return }
         guard let grantId = session.productionWorkspace?.grantId,
               let weddingId = session.productionWorkspace?.weddingId,
+              let accessUserId = session.productionAuthority?.accessUserId,
               let token = session.currentSessionToken(),
               let baseURL = appState.dataBaseURL
         else { return }
@@ -170,9 +171,17 @@ public struct RootView: View {
             }
         )
         appState.bindProductionRepositories(
+            accessUserId: accessUserId,
             grantId: grantId,
             wedding: ProductionWeddingRepository(client: client, sessionToken: token, grantId: grantId, weddingId: weddingId),
             planner: ProductionPlannerDashboardRepository(client: client, sessionToken: token, grantId: grantId)
+        )
+        // Master plan Phase 8 closure round 3 §3 — Contracts/Deal-Room is bound alongside the
+        // wedding/planner pair: it becomes reachable exactly when a real wedding-scoped grant does.
+        appState.bindProductionContractsRepository(
+            accessUserId: accessUserId,
+            grantId: grantId,
+            ProductionContractsRepository(client: client, sessionToken: token, grantId: grantId)
         )
     }
 
@@ -204,6 +213,7 @@ public struct RootView: View {
     private func bindProductionAdminRepositoryIfNeeded() async {
         guard appState.dataEnvironment == .production else { return }
         guard let workspace = session.productionWorkspace, workspace.workspaceKind == "admin" else { return }
+        guard let accessUserId = session.productionAuthority?.accessUserId else { return }
         guard let token = session.currentSessionToken(), let baseURL = appState.dataBaseURL else { return }
         let client = NativeDomainApiClient(
             baseURL: baseURL,
@@ -219,8 +229,41 @@ public struct RootView: View {
             }
         )
         appState.bindProductionAdminRepository(
+            accessUserId: accessUserId,
             grantId: workspace.grantId,
             ProductionAdminSystemRepository(client: client, sessionToken: token, grantId: workspace.grantId)
+        )
+    }
+
+    /// Master plan Phase 8 closure round 3 §6 — reactively binds the real Vendor-wedding-engagement
+    /// adapter as soon as a `vendor:wedding` snapshot is available. Deliberately keyed on
+    /// `workspaceKind == "vendor" && scopeKind == "wedding"`, which is a DIFFERENT authority axis from
+    /// the Vendor business-portfolio grant (`scopeKind == "business"`, handled entirely by the earlier
+    /// no-ActorAssignment branch in `body` and never reaching this point at all).
+    private func bindProductionVendorEngagementRepositoryIfNeeded() async {
+        guard appState.dataEnvironment == .production else { return }
+        guard let workspace = session.productionWorkspace,
+              workspace.workspaceKind == "vendor", workspace.scopeKind == "wedding"
+        else { return }
+        guard let accessUserId = session.productionAuthority?.accessUserId else { return }
+        guard let token = session.currentSessionToken(), let baseURL = appState.dataBaseURL else { return }
+        let client = NativeDomainApiClient(
+            baseURL: baseURL,
+            onSessionInvalid: {
+                Task { @MainActor in
+                    session.handleNativeDomainSessionInvalid()
+                }
+            },
+            onGrantRevoked: { revokedGrantId in
+                Task { @MainActor in
+                    session.handleNativeDomainGrantRevoked(revokedGrantId)
+                }
+            }
+        )
+        appState.bindProductionVendorEngagementRepository(
+            accessUserId: accessUserId,
+            grantId: workspace.grantId,
+            ProductionVendorEngagementRepository(client: client, sessionToken: token, grantId: workspace.grantId)
         )
     }
 
@@ -412,11 +455,33 @@ public struct RootView: View {
         .task(id: "\(session.currentRole?.roleId ?? "")|\(session.activePersona?.id ?? "")") {
             await restoreLiveGuestIfNeeded()
         }
-        .task(id: "\(session.productionWorkspace?.grantId ?? "")|\(session.productionWorkspace?.weddingId ?? "")") {
+        // Master plan Phase 8 closure round 3 §4 — accessUserId is part of this key too, not just an
+        // argument passed into the bind call: a same-account refresh that only changes grantId/
+        // weddingId already re-triggers this task, but an account replacement that happens to
+        // resolve the SAME grantId/weddingId strings (two accounts sharing a wedding, both as
+        // coordinator) would not otherwise re-run it at all.
+        .task(id: "\(session.productionWorkspace?.grantId ?? "")|\(session.productionWorkspace?.weddingId ?? "")|\(session.productionAuthority?.accessUserId ?? "")") {
             await bindProductionRepositoriesIfNeeded()
         }
-        .task(id: "\(session.productionWorkspace?.workspaceKind ?? "")|\(session.productionWorkspace?.grantId ?? "")") {
+        .task(id: "\(session.productionWorkspace?.workspaceKind ?? "")|\(session.productionWorkspace?.grantId ?? "")|\(session.productionAuthority?.accessUserId ?? "")") {
             await bindProductionAdminRepositoryIfNeeded()
+        }
+        // Master plan Phase 8 closure round 3 §6 — same treatment for the Vendor's own wedding
+        // engagement, a distinct axis from the Vendor business-portfolio grant above.
+        .task(id: "\(session.productionWorkspace?.workspaceKind ?? "")|\(session.productionWorkspace?.scopeKind ?? "")|\(session.productionWorkspace?.grantId ?? "")|\(session.productionAuthority?.accessUserId ?? "")") {
+            await bindProductionVendorEngagementRepositoryIfNeeded()
+        }
+        // Master plan Phase 8 closure round 3 §4 — sign-out and session-invalidation both drive
+        // `isAuthenticated` to false; clearing the production binding here means no role shell can
+        // ever render against a previous account's repository afterward, for either reason. Direct
+        // account replacement (never signed out) does not toggle `isAuthenticated`, but is already
+        // made safe by bindProductionRepositories/bindProductionAdminRepository/
+        // bindProductionContractsRepository/bindProductionVendorEngagementRepository keying each
+        // binding to the (accessUserId, grantId) that produced it, not grantId alone.
+        .task(id: session.isAuthenticated) {
+            if !session.isAuthenticated {
+                appState.clearProductionBinding()
+            }
         }
         // Attached at the outer level so it works from both authenticated production surfaces: the
         // role-shell workspace and the Planner-portfolio/Vendor-business read-only landing.
@@ -470,6 +535,34 @@ public struct RootView: View {
         .accessibilityIdentifier("production-workspace-unavailable")
     }
 
+    /// Master plan Phase 8 closure §1/round 3 §4/§5 (NativeRepositoryFactory.PRODUCTION closure) —
+    /// the snapshot looking right is necessary but not sufficient: it says the *context* is
+    /// authorized, not that `appState.repository`/`plannerRepository`/`adminRepository`/
+    /// `vendorEngagementRepository` have actually been swapped from the unbound
+    /// `ProductionBoundary*Repository` placeholder to the real grant-scoped adapter yet (that swap
+    /// runs from the `.task(id:)` effects above, which start asynchronously relative to this body
+    /// evaluation). Waiting for the confirmed binding — keyed on BOTH accessUserId and grantId, not
+    /// grantId alone — is what makes this deterministic even across an account replacement that
+    /// happens to resolve the same grantId string a previous account already bound: no role shell
+    /// that "appears functional" is ever rendered over the always-throwing boundary repository, and
+    /// no role shell is ever rendered over a DIFFERENT account's bound repository either.
+    ///
+    /// A plain (non-`@ViewBuilder`) helper on purpose: a bare `switch` embedded directly inside
+    /// `authorizedShell`'s `@ViewBuilder` body would be transformed as if it were meant to produce a
+    /// `View` per case, which fails to compile for a `switch` whose cases only assign a `Bool`.
+    private func isProductionBindingCurrent(for role: AppRole) -> Bool {
+        let currentAccessUserId = session.productionAuthority?.accessUserId
+        let activeGrantId = session.activeGrantId
+        switch role {
+        case .admin:
+            return appState.productionAdminBinding.isCurrent(accessUserId: currentAccessUserId, grantId: activeGrantId)
+        case .vendor:
+            return appState.productionVendorEngagementBinding.isCurrent(accessUserId: currentAccessUserId, grantId: activeGrantId)
+        default:
+            return appState.productionWeddingBinding.isCurrent(accessUserId: currentAccessUserId, grantId: activeGrantId)
+        }
+    }
+
     @ViewBuilder
     private func authorizedShell(_ context: NavigationContext) -> some View {
         // P0-16: production/verify builds must not expose an arbitrary role switcher.
@@ -482,14 +575,13 @@ public struct RootView: View {
         let handled: () -> Void = { appState.pendingRouteDeepLink = nil }
 
         if appState.dataEnvironment == .production {
-            // Master plan Phase 8 closure — Couple/Planner/Coordinator/Admin now render through the
-            // SAME real role shells every other environment uses, backed by the production
-            // repositories bound above (Admin's own admin:system binding is
-            // `bindProductionAdminRepositoryIfNeeded()`). Vendor/Usher/Guest reaching this point
-            // (e.g. a Vendor's wedding-engagement grant) still render the Phase 5/6 minimal
-            // read-only snapshot below — that mature-domain native UI is not wired yet, and falling
-            // back to it here is an honest "not yet" rather than a broken real shell.
-            let productionRoleWired: [AppRole] = [.couple, .planner, .coordinator, .admin]
+            // Master plan Phase 8 closure round 3 §6 — Couple/Planner/Coordinator/Admin/Vendor now
+            // render through the SAME real role shells every other environment uses, backed by the
+            // production repositories bound above/below. Usher/Guest reaching this point still render
+            // the Phase 5/6 minimal read-only snapshot below — that mature-domain native UI is not
+            // wired yet, and falling back to it here is an honest "not yet" rather than a broken real
+            // shell.
+            let productionRoleWired: [AppRole] = [.couple, .planner, .coordinator, .admin, .vendor]
             if productionRoleWired.contains(context.activeRole) {
                 // Admin has no wedding, so its snapshot's weddingId is always nil while
                 // context.activeWeddingId defaults to "" — the same escape hatch Couple/Planner/
@@ -499,20 +591,20 @@ public struct RootView: View {
                 if let snapshot = session.productionWorkspace,
                    snapshot.grantId == session.activeGrantId,
                    weddingScopeMatches {
-                    // Master plan Phase 8 closure §1 (NativeRepositoryFactory.PRODUCTION closure) —
-                    // the snapshot looking right is necessary but not sufficient: it says the
-                    // *context* is authorized, not that appState.repository/plannerRepository/
-                    // adminRepository have actually been swapped from the unbound
-                    // ProductionBoundary*Repository placeholder to the real grant-scoped adapter yet
-                    // (that swap runs from the `.task(id:)` effects above, which start asynchronously
-                    // relative to this body evaluation). Waiting for the confirmed, `@Published` bind
-                    // — rather than assuming `.task` effect-ordering — is what closes the race: no
-                    // role shell that "appears functional" is ever rendered over the always-throwing
-                    // boundary repository.
-                    let boundGrantId = context.activeRole == .admin
-                        ? appState.boundAdminGrantId
-                        : appState.boundProductionGrantId
-                    if boundGrantId == session.activeGrantId {
+                    // Master plan Phase 8 closure §1/round 3 §4/§5 (NativeRepositoryFactory.PRODUCTION
+                    // closure) — the snapshot looking right is necessary but not sufficient: it says
+                    // the *context* is authorized, not that appState.repository/plannerRepository/
+                    // adminRepository/vendorEngagementRepository have actually been swapped from the
+                    // unbound ProductionBoundary*Repository placeholder to the real grant-scoped
+                    // adapter yet (that swap runs from the `.task(id:)` effects above, which start
+                    // asynchronously relative to this body evaluation). Waiting for the confirmed
+                    // binding — keyed on BOTH accessUserId and grantId, not grantId alone — is what
+                    // makes this deterministic even across an account replacement that happens to
+                    // resolve the same grantId string a previous account already bound: no role shell
+                    // that "appears functional" is ever rendered over the always-throwing boundary
+                    // repository, and no role shell is ever rendered over a DIFFERENT account's bound
+                    // repository either.
+                    if isProductionBindingCurrent(for: context.activeRole) {
                         switch context.activeRole {
                         case .couple:
                             CoupleShellView(
@@ -537,6 +629,18 @@ public struct RootView: View {
                             )
                         case .admin:
                             AdminShellView(
+                                context: context,
+                                onSwitchPersona: switchPersona,
+                                pendingDeepLink: link,
+                                onDeepLinkHandled: handled
+                            )
+                        // Master plan Phase 8 closure round 3 §6 — a real vendor:wedding grant now
+                        // renders the SAME VendorShellView every other environment uses. A Vendor
+                        // business-portfolio grant never reaches this branch at all (it stays on the
+                        // earlier no-ActorAssignment path above), so this is exclusively the
+                        // wedding-engagement axis.
+                        case .vendor:
+                            VendorShellView(
                                 context: context,
                                 onSwitchPersona: switchPersona,
                                 pendingDeepLink: link,

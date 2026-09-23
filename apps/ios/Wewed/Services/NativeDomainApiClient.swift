@@ -302,4 +302,17 @@ public struct NativeDomainApiClient: Sendable {
     public func vault(sessionToken: String, grantId: String) async -> NativeDomainFetch<NativeJSONArray> {
         await runGetArray("api/native/wedding/vault", sessionToken: sessionToken, grantId: grantId, arrayField: "data")
     }
+
+    /// Master plan Phase 8 closure round 3 §3 — the same `listManagedServiceEngagements` engine the
+    /// PWA's `/api/planner/engagements/current` uses, never a second contract truth.
+    public func engagements(sessionToken: String, grantId: String) async -> NativeDomainFetch<NativeJSONArray> {
+        await runGetArray("api/native/wedding/engagements", sessionToken: sessionToken, grantId: grantId, arrayField: "data")
+    }
+
+    /// Master plan Phase 8 closure round 3 §6 — the Vendor's OWN `getServiceEngagementDealRoom`
+    /// projection, scoped to a `vendor:wedding:...` grant. Response shape is `{success, engagementIds,
+    /// data: {...}}`; `data` is a single object, not an array.
+    public func vendorEngagement(sessionToken: String, grantId: String) async -> NativeDomainFetch<NativeJSONObject> {
+        await runGetObject("api/native/vendor/engagement", sessionToken: sessionToken, grantId: grantId)
+    }
 }

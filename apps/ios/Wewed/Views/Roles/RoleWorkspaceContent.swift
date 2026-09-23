@@ -374,6 +374,117 @@ public struct IALoading: View {
     }
 }
 
+/// Master plan Phase 8 closure round 3 §2/§7 — a live domain that failed to load, distinct from
+/// `IAUnsupportedSection` (no adapter exists at all) and from a genuinely fetched empty result (which
+/// renders that section's own real empty state, never this one). Collapsing these three into one
+/// message is exactly the false-empty/false-unsupported class of defect this exists to prevent.
+public struct IASectionUnavailable: View {
+    let section: String
+    let environment: NativeDataEnvironment
+
+    public init(_ section: String, _ environment: NativeDataEnvironment) {
+        self.section = section
+        self.environment = environment
+    }
+
+    public var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 26))
+                .foregroundColor(WeddingIdentityPalette.muted)
+            Text(section)
+                .font(.system(size: 17, weight: .semibold, design: .serif))
+                .foregroundColor(WeddingIdentityPalette.ink)
+            Text("This could not be refreshed right now. No cached or fabricated data is shown.")
+                .font(.system(size: 12))
+                .foregroundColor(WeddingIdentityPalette.muted)
+                .multilineTextAlignment(.center)
+            Text("Environment: \(environment.title)")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(WeddingIdentityPalette.muted)
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(WeddingIdentityPalette.ivory)
+        .accessibilityIdentifier("section-unavailable")
+    }
+}
+
+/// Master plan Phase 8 closure round 3 §2/§7 — one repository call, three honest outcomes. `.loading`
+/// while the call is in flight, `.loaded` with the real value on success (an empty list/zero count IS
+/// a valid `.loaded` value — that is the authoritative EMPTY case, not a failure), and `.unavailable`
+/// only when the call itself threw. A section using this must never fall back to an empty collection
+/// on the `.unavailable` branch — that is precisely the false-empty defect this type exists to close.
+/// The Android sibling is `ProductionLoadState`/`rememberProductionLoad` (`RoleWorkspaceContent.kt`).
+public enum ProductionLoadState<T> {
+    case loading
+    case loaded(T)
+    case unavailable
+}
+
+/// SwiftUI has no direct equivalent of Compose's `remember`/`LaunchedEffect`-backed
+/// `rememberProductionLoad` hook returning a value mid-`body` — `@State` must be a stored property of
+/// a concrete View. This reusable View plays the same role: it owns the `ProductionLoadState`,
+/// (re)runs `load` via `.task(id:)` whenever `id` changes (the same idiom `RoleWorkspaceHost`/every
+/// other async load in this codebase already uses), and renders `IALoading()`/`IASectionUnavailable`
+/// itself so call sites only ever see the resolved `.loaded` value in `content`. Only
+/// `ProductionReadOnlyDomainError` — the one error type the production repositories in this codebase
+/// throw for a live transport/authority/permission/revocation failure — is treated as `.unavailable`;
+/// a genuine cancellation is left alone rather than rendered as a false failure.
+public struct ProductionLoadView<Value, ID: Equatable, Content: View>: View {
+    let id: ID
+    let section: String
+    let environment: NativeDataEnvironment
+    let load: @Sendable () async throws -> Value
+    @ViewBuilder let content: (Value) -> Content
+    @State private var state: ProductionLoadState<Value> = .loading
+
+    public init(
+        id: ID,
+        section: String,
+        environment: NativeDataEnvironment,
+        load: @escaping @Sendable () async throws -> Value,
+        @ViewBuilder content: @escaping (Value) -> Content
+    ) {
+        self.id = id
+        self.section = section
+        self.environment = environment
+        self.load = load
+        self.content = content
+    }
+
+    public var body: some View {
+        Group {
+            switch state {
+            case .loading:
+                IALoading()
+            case .unavailable:
+                IASectionUnavailable(section, environment)
+            case let .loaded(value):
+                content(value)
+            }
+        }
+        .task(id: id) {
+            state = .loading
+            do {
+                let value = try await load()
+                state = .loaded(value)
+            } catch is CancellationError {
+                // The view disappeared before the load finished — matches Android's
+                // rememberProductionLoad letting CancellationException propagate rather than
+                // rendering a false Unavailable state.
+            } catch is ProductionReadOnlyDomainError {
+                state = .unavailable
+            } catch {
+                // No production repository in this codebase throws anything else; failing safe to
+                // Unavailable (rather than leaving Loading spinning forever) is more honest than
+                // silently swallowing an unexpected error type.
+                state = .unavailable
+            }
+        }
+    }
+}
+
 // MARK: - Guests workspace (Couple) — IA V2 §4
 
 public struct CoupleGuestsSection: View {
@@ -877,8 +988,6 @@ public struct AdminAuditSection: View {
 public struct AdminDashboardContent: View {
     let adminRepository: AdminSystemRepositoryProtocol
     let context: NavigationContext
-    @State private var snapshot: AdminSystemSnapshot?
-    @State private var loading = true
 
     public init(adminRepository: AdminSystemRepositoryProtocol, context: NavigationContext) {
         self.adminRepository = adminRepository
@@ -886,68 +995,62 @@ public struct AdminDashboardContent: View {
     }
 
     public var body: some View {
-        Group {
-            if loading {
-                IALoading()
-            } else if let snapshot {
-                IASectionList("Dashboard", "Platform overview — not scoped to a single wedding") {
-                    IACard(
-                        "Data environment",
-                        "Native client is bound to this environment",
-                        trailing: snapshot.environment.title,
-                        testId: "admin-environment"
-                    )
-                    IACard(
-                        "Weddings in administrative scope",
-                        "Available to this administrator",
-                        trailing: "\(snapshot.weddingsInScope)",
-                        testId: "admin-weddings-in-scope"
-                    )
-                    IACard(
-                        context.activeWeddingId.isEmpty ? "No wedding selected" : context.activeWeddingTitle,
-                        context.activeWeddingId.isEmpty
-                            ? "Select a wedding to inspect its graph. The console does not require one."
-                            : "Currently drilled into this wedding",
-                        testId: "admin-active-wedding"
-                    )
-                    // Master plan Phase 8 closure §4 — real platform counts from loadAdminOverview,
-                    // when this admin's grant has resolved them. Nil (not shown as zero) means "not
-                    // fetched yet".
-                    if let total = snapshot.businessAccountsTotal {
-                        IACard(
-                            "Business accounts",
-                            "Platform-wide, excluding the Wewed internal account",
-                            trailing: "\(total)",
-                            testId: "admin-business-accounts"
-                        )
-                    }
-                    if let total = snapshot.activeAccountsTotal {
-                        IACard("Active accounts", "Currently active", trailing: "\(total)", testId: "admin-active-accounts")
-                    }
-                    if let total = snapshot.pendingReviewAccountsTotal {
-                        IACard("Pending review", "Accounts awaiting approval", trailing: "\(total)", testId: "admin-pending-review-accounts")
-                    }
-                    if let total = snapshot.openSupportCasesTotal {
-                        IACard("Open support cases", "Not resolved or closed", trailing: "\(total)", testId: "admin-open-support-cases")
-                    }
-                    if let total = snapshot.openIncidentsTotal {
-                        IACard("Open platform incidents", "Not resolved", trailing: "\(total)", testId: "admin-open-incidents")
-                    }
-                    ForEach(snapshot.unsupportedStreams, id: \.self) { stream in
-                        IACard(stream, "No native contract exists in this environment", trailing: "Unsupported")
-                    }
-                }
-            } else {
-                IAUnsupportedSection(
-                    "Dashboard",
-                    "The administrative projection is unavailable in this environment.",
-                    context.environment
+        // Master plan Phase 8 closure round 3 §2/§7 — a live Admin overview failure now renders
+        // IASectionUnavailable, distinct from an honestly empty/unbound snapshot, matching the same
+        // ProductionLoadView discipline Documents/Contributions/Contracts already use.
+        ProductionLoadView(
+            id: context.actorId,
+            section: "Dashboard",
+            environment: context.environment,
+            load: { try await adminRepository.snapshot() }
+        ) { snapshot in
+            IASectionList("Dashboard", "Platform overview — not scoped to a single wedding") {
+                IACard(
+                    "Data environment",
+                    "Native client is bound to this environment",
+                    trailing: snapshot.environment.title,
+                    testId: "admin-environment"
                 )
+                IACard(
+                    "Weddings in administrative scope",
+                    "Available to this administrator",
+                    trailing: "\(snapshot.weddingsInScope)",
+                    testId: "admin-weddings-in-scope"
+                )
+                IACard(
+                    context.activeWeddingId.isEmpty ? "No wedding selected" : context.activeWeddingTitle,
+                    context.activeWeddingId.isEmpty
+                        ? "Select a wedding to inspect its graph. The console does not require one."
+                        : "Currently drilled into this wedding",
+                    testId: "admin-active-wedding"
+                )
+                // Master plan Phase 8 closure §4 — real platform counts from loadAdminOverview,
+                // when this admin's grant has resolved them. Nil (not shown as zero) means "not
+                // fetched yet".
+                if let total = snapshot.businessAccountsTotal {
+                    IACard(
+                        "Business accounts",
+                        "Platform-wide, excluding the Wewed internal account",
+                        trailing: "\(total)",
+                        testId: "admin-business-accounts"
+                    )
+                }
+                if let total = snapshot.activeAccountsTotal {
+                    IACard("Active accounts", "Currently active", trailing: "\(total)", testId: "admin-active-accounts")
+                }
+                if let total = snapshot.pendingReviewAccountsTotal {
+                    IACard("Pending review", "Accounts awaiting approval", trailing: "\(total)", testId: "admin-pending-review-accounts")
+                }
+                if let total = snapshot.openSupportCasesTotal {
+                    IACard("Open support cases", "Not resolved or closed", trailing: "\(total)", testId: "admin-open-support-cases")
+                }
+                if let total = snapshot.openIncidentsTotal {
+                    IACard("Open platform incidents", "Not resolved", trailing: "\(total)", testId: "admin-open-incidents")
+                }
+                ForEach(snapshot.unsupportedStreams, id: \.self) { stream in
+                    IACard(stream, "No native contract exists in this environment", trailing: "Unsupported")
+                }
             }
-        }
-        .task(id: context.actorId) {
-            snapshot = await adminRepository.snapshot()
-            loading = false
         }
     }
 }
@@ -957,11 +1060,13 @@ public struct AdminDashboardContent: View {
 /// Vendor sees only its own engagement, resolved by `NavigationContext.activeEngagementId`.
 public struct VendorJobsSection: View {
     let section: String
+    let appState: AppState
     @ObservedObject var graph: WeddingGraphState
     let context: NavigationContext
 
-    public init(section: String, graph: WeddingGraphState, context: NavigationContext) {
+    public init(section: String, appState: AppState, graph: WeddingGraphState, context: NavigationContext) {
         self.section = section
+        self.appState = appState
         self.graph = graph
         self.context = context
     }
@@ -971,7 +1076,15 @@ public struct VendorJobsSection: View {
     private var engagement: VendorPresence? { context.authorizedVendor(graph) }
 
     public var body: some View {
-        if graph.loading {
+        // Master plan Phase 8 closure round 3 §6 — "Contract" reads the Vendor's own managed-contract
+        // lifecycle (ServiceEngagement/Contract), a COMPLETELY separate authority/data source from
+        // the Wedding-Day presence graph (`graph`) every other section here reads. It is handled
+        // BEFORE the `graph.loading`/`authorizedVendor(graph)` gate below on purpose: that gate is
+        // about Wedding-Day presence identity, which the contract lookup does not need and must not
+        // be blocked by.
+        if section == "Contract" {
+            VendorContractSection(appState: appState, context: context)
+        } else if graph.loading {
             IALoading()
         } else if let engagement {
             switch section {
@@ -1007,6 +1120,51 @@ public struct VendorJobsSection: View {
                 "No service engagement is assigned to this vendor for the active wedding.",
                 context.environment
             )
+        }
+    }
+}
+
+/// Master plan Phase 8 closure round 3 §6 — real managed-contract data for the Vendor's own
+/// engagement, via `AppState.vendorEngagementRepository` (`/api/native/vendor/engagement` →
+/// `getServiceEngagementDealRoom`, the same engine Contracts uses for Planner/Couple/Coordinator). No
+/// Shadow/Fixture data exists for this brand-new-this-phase capability (see
+/// `EmptyVendorEngagementRepository`), so non-production says so honestly.
+private struct VendorContractSection: View {
+    let appState: AppState
+    let context: NavigationContext
+
+    var body: some View {
+        if appState.dataEnvironment != .production {
+            IAUnsupportedSection(
+                "Contract",
+                "No Shadow or fixture contract data exists for this environment.",
+                context.environment
+            )
+        } else {
+            ProductionLoadView(
+                id: 0,
+                section: "Contract",
+                environment: context.environment,
+                load: { try await appState.vendorEngagementRepository.getMyEngagement() }
+            ) { engagement in
+                IASectionList(engagement.serviceCategory, engagement.lifecycleStatus) {
+                    if let agreedAmount = engagement.agreedAmount {
+                        IACard("Agreed amount", "Commercial total on file", trailing: "\(agreedAmount) \(engagement.currency)")
+                    }
+                    if engagement.contracts.isEmpty {
+                        IACard("No contract drafted yet", "This engagement has no managed contract on file")
+                    } else {
+                        ForEach(engagement.contracts) { contract in
+                            IACard(
+                                contract.contractNumber,
+                                "Version \(contract.currentVersionNumber)",
+                                trailing: contract.status,
+                                testId: "vendor-contract-\(contract.id)"
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -100,20 +100,16 @@ struct PlannerWorkspaceSection: View {
         case "Budget": ShadowPlannerBudgetView()
         case "Guests": PlannerGuestsBridgeView()
         case "Vendors": ShadowPlannerVendorsView()
-        case "Contributions":
-            if context.environment == .production {
-                IAUnsupportedSection("Contributions", "The mature contributions/funding-attribution domain is not connected to native production yet. No empty contribution ledger is inferred.", context.environment)
-            } else {
-                ShadowPlannerContributionsView()
-            }
+        // Master plan Phase 8 closure round 3 §1 — this dispatch-level PRODUCTION guard used to run
+        // BEFORE ShadowPlannerContributionsView/ShadowPlannerDocumentsView ever got a chance to call
+        // their now-real production repositories, silently overriding the fix already made inside
+        // those views. Removed: both destinations now decide their own state (loading/loaded/
+        // unavailable) directly, in every environment including production, matching how Budget/
+        // Seating/Timeline/Vendors already dispatch unconditionally on this same line above.
+        case "Contributions": ShadowPlannerContributionsView()
         case "Seating": ShadowPlannerSeatingView()
         case "Timeline": ShadowPlannerTimelineView()
-        case "Documents":
-            if context.environment == .production {
-                IAUnsupportedSection("Documents", "The mature contracts/vault document domain is not connected to native production yet. No empty document vault is inferred.", context.environment)
-            } else {
-                ShadowPlannerDocumentsView()
-            }
+        case "Documents": ShadowPlannerDocumentsView()
         default: IAUnsupportedSection(section, "This worksheet is not wired yet.", context.environment)
         }
     }
@@ -611,6 +607,7 @@ struct CoordinatorMoreSection: View {
 // MARK: - Vendor Shell — Home | Jobs | Schedule | Messages | More
 public struct VendorShellView: View {
     @EnvironmentObject private var session: SessionStore
+    @EnvironmentObject private var appState: AppState
     let context: NavigationContext
     var onSwitchPersona: (() -> Void)?
     var pendingDeepLink: NativeDeepLink?
@@ -643,7 +640,7 @@ public struct VendorShellView: View {
                     VendorHomeContent(graph: graph, context: ctx)
                 case "jobs":
                     WorkspaceSurface(destination: destination, testIdPrefix: "vendor", context: ctx, sectionMemory: sectionMemory) { section in
-                        VendorJobsSection(section: section, graph: graph, context: ctx)
+                        VendorJobsSection(section: section, appState: appState, graph: graph, context: ctx)
                     }
                 case "schedule":
                     WorkspaceSurface(destination: destination, testIdPrefix: "vendor", context: ctx, sectionMemory: sectionMemory) { section in
@@ -1156,11 +1153,17 @@ struct AdminAccountsSection: View {
     let section: String
     let adminRepository: AdminSystemRepositoryProtocol
     let context: NavigationContext
-    @State private var snapshot: AdminSystemSnapshot?
 
     var body: some View {
-        Group {
-            let accounts = snapshot?.accounts ?? []
+        // Master plan Phase 8 closure round 3 §2/§7 — a live snapshot failure now renders
+        // IASectionUnavailable, distinct from the honest "loaded, but no accounts" empty state below.
+        ProductionLoadView(
+            id: context.actorId,
+            section: section,
+            environment: context.environment,
+            load: { try await adminRepository.snapshot() }
+        ) { snapshot in
+            let accounts = snapshot.accounts
             if accounts.isEmpty {
                 IAUnsupportedSection(
                     section,
@@ -1181,9 +1184,6 @@ struct AdminAccountsSection: View {
                 }
             }
         }
-        .task(id: context.actorId) {
-            snapshot = await adminRepository.snapshot()
-        }
     }
 }
 
@@ -1192,12 +1192,19 @@ struct AdminAccountsSection: View {
 struct AdminCasesSection: View {
     let adminRepository: AdminSystemRepositoryProtocol
     let context: NavigationContext
-    @State private var snapshot: AdminSystemSnapshot?
 
     var body: some View {
-        Group {
-            let supportCases = snapshot?.supportCases ?? []
-            let incidents = snapshot?.incidents ?? []
+        // Master plan Phase 8 closure round 3 §2/§7 — same ProductionLoadView discipline as
+        // AdminAccountsSection: a live failure renders IASectionUnavailable, never a silently
+        // empty Cases list.
+        ProductionLoadView(
+            id: context.actorId,
+            section: "Cases",
+            environment: context.environment,
+            load: { try await adminRepository.snapshot() }
+        ) { snapshot in
+            let supportCases = snapshot.supportCases
+            let incidents = snapshot.incidents
             if supportCases.isEmpty && incidents.isEmpty {
                 IAUnsupportedSection(
                     "Cases",
@@ -1226,9 +1233,6 @@ struct AdminCasesSection: View {
                     }
                 }
             }
-        }
-        .task(id: context.actorId) {
-            snapshot = await adminRepository.snapshot()
         }
     }
 }
@@ -1352,21 +1356,14 @@ struct CouplePlanSection: View {
             }
         case "Tasks": PlannerTasksView()
         case "Budget": ShadowPlannerBudgetView()
-        case "Contributions":
-            if context.environment == .production {
-                IAUnsupportedSection("Contributions", "The mature contributions/funding-attribution domain is not connected to native production yet. No empty contribution ledger is inferred.", context.environment)
-            } else {
-                ShadowPlannerContributionsView()
-            }
+        // Master plan Phase 8 closure round 3 §1 — same fix as PlannerWorkspaceSection above: this
+        // dispatch-level PRODUCTION guard was silently overriding the real repository wiring already
+        // done inside the destinations. Removed.
+        case "Contributions": ShadowPlannerContributionsView()
         case "Vendors": ShadowPlannerVendorsView()
         case "Seating": ShadowPlannerSeatingView()
         case "Timeline": ShadowPlannerTimelineView()
-        case "Documents":
-            if context.environment == .production {
-                IAUnsupportedSection("Documents", "The mature contracts/vault document domain is not connected to native production yet. No empty document vault is inferred.", context.environment)
-            } else {
-                ShadowPlannerDocumentsView()
-            }
+        case "Documents": ShadowPlannerDocumentsView()
         default: IAUnsupportedSection(section, "This worksheet is not wired yet.", context.environment)
         }
     }

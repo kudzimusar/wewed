@@ -296,6 +296,44 @@ final class ProductionDomainRepositoriesTests: XCTestCase {
         }
     }
 
+    /// Master plan Phase 8 closure round 3 §2 — the exact 5-outcome matrix the moderator asked for,
+    /// for BOTH Documents and Contributions: successful data (covered by the mapping test above),
+    /// successful empty (an authoritative EMPTY, not a failure), transport failure, permission
+    /// denial, and grant revocation (both of the latter two are still live-domain failures at this
+    /// repository layer — the UI-level `ProductionLoadView`/`ProductionLoadState` in
+    /// `RoleWorkspaceContent.swift` is what turns "the repository threw" into a distinct Unavailable
+    /// render, so proving every one of these five HTTP outcomes maps to the correct success-vs-throw
+    /// contract here is what makes that UI-level distinction trustworthy).
+    func testDocuments_SuccessfulEmptyTransportFailurePermissionDenialAndGrantRevocationAreEachHandledCorrectly() async throws {
+        func documentsFor(_ reply: Reply) async throws -> [PlannerDocumentRecord] {
+            Stub.reset()
+            Stub.routes["api/native/wedding/vault"] = reply
+            return try await ProductionPlannerDashboardRepository(client: client(), sessionToken: token, grantId: grantId).getDocuments()
+        }
+
+        // Successful empty: a real 200 with a genuinely empty array is NOT a failure.
+        let empty = try await documentsFor(Reply(status: 200, body: #"{"success":true,"count":0,"data":[]}"#))
+        XCTAssertTrue(empty.isEmpty)
+
+        let failureCases: [(String, Reply)] = [
+            ("transport failure (5xx)", Reply(status: 503, body: #"{"success":false,"error":"Service unavailable"}"#)),
+            ("permission denial (403 PERMISSION_DENIED)", Reply(status: 403, body: #"{"success":false,"code":"PERMISSION_DENIED","error":"Forbidden"}"#)),
+            ("grant revocation (403 GRANT_REVOKED)", Reply(status: 403, body: #"{"success":false,"code":"GRANT_REVOKED","error":"revoked"}"#)),
+        ]
+        for (label, reply) in failureCases {
+            do {
+                _ = try await documentsFor(reply)
+                XCTFail("Expected \(label) to throw instead of returning data or an empty list")
+            } catch is ProductionReadOnlyDomainError {
+                // Expected for all three — the UI layer, not this repository, is what shows a uniform
+                // "unavailable" state for any of them; this repository must never let one masquerade
+                // as the successful-empty case proven above.
+            } catch {
+                XCTFail("Unexpected error type for \(label): \(error)")
+            }
+        }
+    }
+
     func testContributionsMapsRealRowsFromTheSameEngineThePWAUsesAndThrowsOnLiveFailure() async throws {
         Stub.routes["api/native/wedding/contributions"] = Reply(status: 200, body: """
             {"success":true,"count":1,"data":[{"id":"contrib-1","weddingId":"wed-1","type":"CASH_TO_COUPLE","amount":500.0,"commitmentState":"CONFIRMED","fulfillmentState":"RECEIVED","verificationState":"RECONCILED","allocatedAmount":250.0,"contributor":{"displayName":"Aunt Grace"}}],"summaryByCurrency":{},"counts":{}}
@@ -321,6 +359,34 @@ final class ProductionDomainRepositoriesTests: XCTestCase {
         }
     }
 
+    /// Master plan Phase 8 closure round 3 §2 — same 5-outcome matrix as Documents, for Contributions.
+    func testContributions_SuccessfulEmptyTransportFailurePermissionDenialAndGrantRevocationAreEachHandledCorrectly() async throws {
+        func contributionsFor(_ reply: Reply) async throws -> [PlannerContributionRecord] {
+            Stub.reset()
+            Stub.routes["api/native/wedding/contributions"] = reply
+            return try await ProductionPlannerDashboardRepository(client: client(), sessionToken: token, grantId: grantId).getContributions()
+        }
+
+        let empty = try await contributionsFor(Reply(status: 200, body: #"{"success":true,"count":0,"data":[],"summaryByCurrency":{},"counts":{}}"#))
+        XCTAssertTrue(empty.isEmpty)
+
+        let failureCases: [(String, Reply)] = [
+            ("transport failure (5xx)", Reply(status: 503, body: #"{"success":false,"error":"Service unavailable"}"#)),
+            ("permission denial (403 PERMISSION_DENIED)", Reply(status: 403, body: #"{"success":false,"code":"PERMISSION_DENIED","error":"Forbidden"}"#)),
+            ("grant revocation (403 GRANT_REVOKED)", Reply(status: 403, body: #"{"success":false,"code":"GRANT_REVOKED","error":"revoked"}"#)),
+        ]
+        for (label, reply) in failureCases {
+            do {
+                _ = try await contributionsFor(reply)
+                XCTFail("Expected \(label) to throw instead of returning data or an empty list")
+            } catch is ProductionReadOnlyDomainError {
+                // Expected.
+            } catch {
+                XCTFail("Unexpected error type for \(label): \(error)")
+            }
+        }
+    }
+
     func testGetDashboardNeverFabricatesAWeddingForAPortfolioGrant() async throws {
         Stub.routes["api/native/wedding/overview"] = Reply(status: 200, body: """
             {"success":true,"scopeKind":"portfolio","businessAccountId":"biz-1","businessName":"Eleven Eleven","wedding":null,"counts":null}
@@ -334,27 +400,78 @@ final class ProductionDomainRepositoriesTests: XCTestCase {
         XCTAssertFalse(dashboard.sourceLabel.lowercased().contains("fixture"))
     }
 
-    func testProductionAdminSystemRepositorySurfacesARealPendingOnboardingCount() async {
+    func testProductionAdminSystemRepositorySurfacesARealPendingOnboardingCount() async throws {
         Stub.routes["api/native/admin/overview"] = Reply(status: 200, body: """
             {"success":true,"scopeKind":"system","platformRoles":["wewed_super_admin"],"counts":{"pendingOnboarding":3}}
             """)
         let repo = ProductionAdminSystemRepository(client: client(), sessionToken: token, grantId: "admin:system")
 
-        let snapshot = await repo.snapshot()
+        let snapshot = try await repo.snapshot()
         XCTAssertEqual(snapshot.pendingOnboardingCount, 3)
         XCTAssertFalse(snapshot.unsupportedStreams.isEmpty)
     }
 
-    func testProductionAdminSystemRepositoryReportsNilNotZeroWhenTheCallFails() async {
+    /// Master plan Phase 8 closure round 3 §2/§7 — the moderator explicitly distinguished "a bound
+    /// repository's live call just failed" from "not yet bound" (`ProductionBoundaryAdminSystemRepository`
+    /// below). This replaces the old `testProductionAdminSystemRepositoryReportsNilNotZeroWhenTheCallFails`,
+    /// whose premise (a nulled-out/empty snapshot on failure) is no longer true for the PRODUCTION adapter.
+    func testProductionAdminSystemRepositoryThrowsOnALiveFailureNeverASilentlyNulledOutSnapshot() async {
         let repo = ProductionAdminSystemRepository(client: client(), sessionToken: token, grantId: "admin:system")
-        let snapshot = await repo.snapshot()
+        do {
+            _ = try await repo.snapshot()
+            XCTFail("Expected a live Admin overview failure to throw instead of returning a nulled-out snapshot")
+        } catch is ProductionReadOnlyDomainError {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+    }
+
+    /// `ProductionBoundaryAdminSystemRepository` is an intentional not-yet-bound placeholder, not a
+    /// failure — it must never throw, unlike `ProductionAdminSystemRepository` above.
+    func testProductionBoundaryAdminSystemRepositoryNeverThrows() async throws {
+        let snapshot = try await ProductionBoundaryAdminSystemRepository().snapshot()
         XCTAssertNil(snapshot.pendingOnboardingCount)
         XCTAssertTrue(snapshot.accounts.isEmpty)
         XCTAssertTrue(snapshot.supportCases.isEmpty)
         XCTAssertTrue(snapshot.incidents.isEmpty)
     }
 
-    func testProductionAdminSystemRepositoryMapsRealSummaryAccountsSupportCasesAndIncidentsFromTheSameLoadAdminOverviewThePWAUses() async {
+    /// Master plan Phase 8 closure round 3 §2 — the same 5-outcome matrix as Documents/Contributions,
+    /// for the Admin overview: successful data (covered by the mapping test below), successful empty,
+    /// transport failure, permission denial, and grant revocation.
+    func testAdminOverview_SuccessfulEmptyTransportFailurePermissionDenialAndGrantRevocationAreEachHandledCorrectly() async throws {
+        func snapshotFor(_ reply: Reply) async throws -> AdminSystemSnapshot {
+            Stub.reset()
+            Stub.routes["api/native/admin/overview"] = reply
+            return try await ProductionAdminSystemRepository(client: client(), sessionToken: token, grantId: "admin:system").snapshot()
+        }
+
+        let empty = try await snapshotFor(Reply(status: 200, body: """
+            {"success":true,"scopeKind":"system","platformRoles":["wewed_support_admin"],"counts":{"pendingOnboarding":0},"summary":{"businessAccounts":0},"accounts":[],"supportCases":[],"incidents":[]}
+            """))
+        XCTAssertEqual(empty.pendingOnboardingCount, 0)
+        XCTAssertEqual(empty.businessAccountsTotal, 0)
+        XCTAssertTrue(empty.accounts.isEmpty)
+
+        let failureCases: [(String, Reply)] = [
+            ("transport failure (5xx)", Reply(status: 503, body: #"{"success":false,"error":"Service unavailable"}"#)),
+            ("permission denial (403 PERMISSION_DENIED)", Reply(status: 403, body: #"{"success":false,"code":"PERMISSION_DENIED","error":"Forbidden"}"#)),
+            ("grant revocation (403 GRANT_REVOKED)", Reply(status: 403, body: #"{"success":false,"code":"GRANT_REVOKED","error":"revoked"}"#)),
+        ]
+        for (label, reply) in failureCases {
+            do {
+                _ = try await snapshotFor(reply)
+                XCTFail("Expected \(label) to throw instead of returning a nulled-out snapshot")
+            } catch is ProductionReadOnlyDomainError {
+                // Expected.
+            } catch {
+                XCTFail("Unexpected error type for \(label): \(error)")
+            }
+        }
+    }
+
+    func testProductionAdminSystemRepositoryMapsRealSummaryAccountsSupportCasesAndIncidentsFromTheSameLoadAdminOverviewThePWAUses() async throws {
         Stub.routes["api/native/admin/overview"] = Reply(status: 200, body: """
             {
               "success": true, "scopeKind": "system", "platformRoles": ["wewed_super_admin"],
@@ -366,7 +483,7 @@ final class ProductionDomainRepositoriesTests: XCTestCase {
             }
             """)
         let repo = ProductionAdminSystemRepository(client: client(), sessionToken: token, grantId: "admin:system")
-        let snapshot = await repo.snapshot()
+        let snapshot = try await repo.snapshot()
 
         XCTAssertEqual(snapshot.businessAccountsTotal, 42)
         XCTAssertEqual(snapshot.activeAccountsTotal, 30)
@@ -389,5 +506,64 @@ final class ProductionDomainRepositoriesTests: XCTestCase {
         XCTAssertFalse(snapshot.unsupportedStreams.contains { $0.localizedCaseInsensitiveContains("Full overview") })
         XCTAssertFalse(snapshot.unsupportedStreams.contains { $0.localizedCaseInsensitiveContains("Client operations") })
         XCTAssertTrue(snapshot.unsupportedStreams.contains { $0.localizedCaseInsensitiveContains("Bookings") })
+    }
+
+    /// Master plan Phase 8 closure round 3 §3 — Contracts, reusing the mature engagement-list engine.
+    func testProductionContractsRepositoryMapsRealEngagementAndContractRowsAndThrowsOnLiveFailure() async throws {
+        Stub.routes["api/native/wedding/engagements"] = Reply(status: 200, body: """
+            {"success":true,"count":1,"data":[{"id":"eng-1","serviceCategory":"photography","lifecycleStatus":"effective","agreedAmount":"2500.00","currency":"USD","vendor":{"name":"Shandy Events"},"contracts":[{"id":"con-1","contractNumber":"WW-0001","status":"ISSUED","currentVersionNumber":2}]}]}
+            """)
+        let repo = ProductionContractsRepository(client: client(), sessionToken: token, grantId: grantId)
+        let engagements = try await repo.getServiceEngagements()
+        XCTAssertEqual(engagements.count, 1)
+        XCTAssertEqual(engagements[0].vendorName, "Shandy Events")
+        XCTAssertEqual(engagements[0].agreedAmount, "2500.00")
+        XCTAssertEqual(engagements[0].contracts.count, 1)
+        XCTAssertEqual(engagements[0].contracts[0].contractNumber, "WW-0001")
+        XCTAssertEqual(engagements[0].contracts[0].currentVersionNumber, 2)
+
+        let failureCases: [(String, Reply)] = [
+            ("transport failure", Reply(status: 503, body: #"{"success":false}"#)),
+            ("permission denial", Reply(status: 403, body: #"{"success":false,"code":"PERMISSION_DENIED"}"#)),
+            ("grant revocation", Reply(status: 403, body: #"{"success":false,"code":"GRANT_REVOKED"}"#)),
+        ]
+        for (label, reply) in failureCases {
+            Stub.reset()
+            Stub.routes["api/native/wedding/engagements"] = reply
+            let failingRepo = ProductionContractsRepository(client: client(), sessionToken: token, grantId: grantId)
+            do {
+                _ = try await failingRepo.getServiceEngagements()
+                XCTFail("Expected \(label) to throw instead of returning data or an empty list")
+            } catch is ProductionReadOnlyDomainError {
+                // Expected.
+            } catch {
+                XCTFail("Unexpected error type for \(label): \(error)")
+            }
+        }
+    }
+
+    /// Master plan Phase 8 closure round 3 §6 — the Vendor's own engagement, reusing the same Deal Room engine.
+    func testProductionVendorEngagementRepositoryMapsTheVendorsOwnEngagementAndThrowsOnLiveFailure() async throws {
+        Stub.routes["api/native/vendor/engagement"] = Reply(status: 200, body: """
+            {"success":true,"engagementIds":["eng-1"],"data":{"id":"eng-1","weddingId":"wed-1","serviceCategory":"catering","lifecycleStatus":"effective","agreedAmount":"4200.00","currency":"USD","contracts":[{"id":"con-2","contractNumber":"WW-0002","status":"AWAITING_ACCEPTANCE","currentVersionNumber":1}]}}
+            """)
+        let repo = ProductionVendorEngagementRepository(client: client(), sessionToken: token, grantId: "vendor:wedding:biz-1:vendor-1")
+        let engagement = try await repo.getMyEngagement()
+        XCTAssertEqual(engagement.id, "eng-1")
+        XCTAssertEqual(engagement.weddingId, "wed-1")
+        XCTAssertEqual(engagement.serviceCategory, "catering")
+        XCTAssertEqual(engagement.contracts.count, 1)
+        XCTAssertEqual(engagement.contracts[0].status, "AWAITING_ACCEPTANCE")
+
+        Stub.reset()
+        let failingRepo = ProductionVendorEngagementRepository(client: client(), sessionToken: token, grantId: "vendor:wedding:biz-1:vendor-1")
+        do {
+            _ = try await failingRepo.getMyEngagement()
+            XCTFail("Expected a live Vendor-engagement failure to throw instead of returning fabricated data")
+        } catch is ProductionReadOnlyDomainError {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
     }
 }
