@@ -966,8 +966,10 @@ private fun pendingGateSelection(
 ): List<ProductionOperationalGrant> {
     if (authority == null || !ProductionGrantMapper.isUsable(authority)) return emptyList()
     val selection = authority.gateContextSelection ?: return emptyList()
-    if (!selection.selectionRequired || selection.grantIds.size <= 1) return emptyList()
-    if (selectedGateGrantId != null && selectedGateGrantId in selection.grantIds) return emptyList()
+    val selectedStillLive = selectedGateGrantId != null && selectedGateGrantId in selection.grantIds
+    if (selectedStillLive) return emptyList()
+    val staleSelectionNeedsReplacement = selectedGateGrantId != null && !selectedStillLive
+    if (!selection.selectionRequired && !staleSelectionNeedsReplacement) return emptyList()
     // Do not interrupt an already-open ordinary workspace just because the same person also has
     // operational authority. Pure Usher / explicitly-entered Usher is where the Gate picker belongs.
     if (currentRole != null && currentRole != AppRole.USHER) return emptyList()
