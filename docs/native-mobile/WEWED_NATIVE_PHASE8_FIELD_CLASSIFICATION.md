@@ -37,10 +37,10 @@ Coordinator write those roles don't have — see `DEFAULT_ROLE_PERMISSIONS` in `
 | Seating: table name/capacity/assigned guests | LIVE | `SeatingTable`, `Guest` | — (direct Prisma read) | `/api/native/wedding/seating` (new, read-only) | `PlannerSeatingTable` | Seating section | equivalent |
 | Timeline: time/title/description/location/order | LIVE | `ProgrammeItem` | — (direct Prisma read) | `/api/native/wedding/timeline` (new, read-only) | `PlannerTimelineEntry` | Timeline section | equivalent |
 | Vendors (planning-side): name/category/contractStatus/paymentStatus | LIVE | `Vendor` | — (direct Prisma read) | `/api/native/wedding/vendors` (new, read-only) | `PlannerVendorEngagement` (partial — `bookingStatus`/`nextAction` are not tracked by this model) | Vendors section | equivalent |
-| Contributions: type/amount/commitment/fulfillment/verification state, contributor, allocation | LIVE (read-only) | `wewed_contributions.*` (raw SQL) | `@/lib/contributions/store` (`loadContributionWorkspace` — the SAME engine `/api/planner/contributions` calls; no second funding truth computed anywhere) | `/api/native/wedding/contributions` (new, read-only) | `PlannerContributionRecord` | Contributions section (now reads real rows) | equivalent |
+| Contributions: type/amount/commitment/fulfillment/verification state, contributor, allocation | LIVE (read-only) | `wewed_contributions.*` (raw SQL) | `@/lib/contributions/store` (`loadContributionWorkspace` — the SAME engine `/api/planner/contributions` calls; no second funding truth computed anywhere) | `/api/native/wedding/contributions` (new, read-only) | `PlannerContributionRecord` | `ShadowContributionsDestination` — production-reachable as of closure round 3 (see §12; a dispatch-level guard in `RoleWorkspaces.kt`/`.swift` was silently routing production to a static UNSUPPORTED message before this destination's already-real repository call could ever run, so the round-2 "LIVE" classification below was premature — the full chain is genuinely complete now) | equivalent |
 | Contribution writes (allocate/mark-thanked/mark-verified/mark-received/create-task) | UNSUPPORTED | `wewed_contributions.*` | `@/lib/contributions/store` | `/api/planner/contributions/[id]/actions` (PWA only) | — | — | — |
-| Service engagement list + Deal Room (contract status/versions/parties/payments/linked vault docs) | LIVE (server, read-only) | `ServiceEngagement`, `Contract`, `ContractVersion` | `listManagedServiceEngagements`/`getServiceEngagementDealRoom` (`@/lib/contracts/phase2.ts` — the SAME functions `/api/planner/engagements/current` and `.../[id]/deal-room` call; zero reimplementation) | `/api/native/wedding/engagements`, `/api/native/wedding/engagements/[id]/deal-room` (new, closure round 2) | none yet | none yet — no existing native repository/UI surface represents the managed-contract lifecycle; the server adapter exists, is disposable-DB tested (valid/foreign-wedding/foreign-engagement-404/revoked-grant/permission-denied/coordinator-equivalence/Vendor-F-3-denied/PWA-native-equivalence), and is ready to be wired once a native screen is designed — see §11 | none yet |
-| Documents / vault | LIVE (read-only) | `VaultObject`/`VaultLink` | `listWeddingVaultObjects` (`@/lib/vault/catalog.ts` — the SAME function `/api/vault` GET calls) | `/api/native/wedding/vault` (new, closure round 2) | `PlannerDocumentRecord` | `ShadowDocumentsDestination` now calls the real repository unconditionally (production included), exactly like Budget/Contributions/Seating — a Vendor's own `vendor:wedding:...` grant is explicitly refused (`GRANT_SCOPE_INVALID`), matching the PWA's `requireVaultWeddingAccess` vendor exclusion | equivalent |
+| Service engagement list + Deal Room (contract status/versions/parties/payments/linked vault docs) | LIVE (server + native client, read-only) | `ServiceEngagement`, `Contract`, `ContractVersion` | `listManagedServiceEngagements`/`getServiceEngagementDealRoom` (`@/lib/contracts/phase2.ts` — the SAME functions `/api/planner/engagements/current` and `.../[id]/deal-room` call; zero reimplementation) | `/api/native/wedding/engagements`, `/api/native/wedding/engagements/[id]/deal-room` | `ServiceEngagementSummary`/`ContractSummary` (new, closure round 3 — deliberately NOT `PlannerVendorEngagement`, a different legitimate domain) | `ContractsRepository`/`ProductionContractsRepository`, folded into the EXISTING "Vendors" destination as a second, clearly-labelled list (not a new IA navigation section — see §12) | equivalent |
+| Documents / vault | LIVE (read-only) | `VaultObject`/`VaultLink` | `listWeddingVaultObjects` (`@/lib/vault/catalog.ts` — the SAME function `/api/vault` GET calls) | `/api/native/wedding/vault` | `PlannerDocumentRecord` | `ShadowDocumentsDestination` — production-reachable as of closure round 3 (see §12; same dispatch-level guard bug as Contributions above) — a Vendor's own `vendor:wedding:...` grant is explicitly refused (`GRANT_SCOPE_INVALID`), matching the PWA's `requireVaultWeddingAccess` vendor exclusion. A live failure now renders as a distinct "unavailable" state (`ProductionLoadState`/`IASectionUnavailable`), never a fabricated empty list | equivalent |
 | Seating auto-assign, guest bulk-move, timeline reorder, task delete | UNSUPPORTED (writes) | various | `@/lib/planner-*` | `/api/planner/seating/auto-assign` etc. (PWA only) | — | — | — |
 
 ## 4. Vendor
@@ -52,9 +52,10 @@ Coordinator write those roles don't have — see `DEFAULT_ROLE_PERMISSIONS` in `
 | Catalog item creation/editing | UNSUPPORTED | same | same | `/api/vendor/catalog` POST (PWA only) | — | — | — |
 | Bookings list | LIVE (read-only) | `wewed_booking.Booking`+lines | `@/lib/booking-commerce` (`bookingsForBusiness`, extracted from `/api/vendor/bookings`) | `/api/native/vendor/bookings` (new) | `VendorBooking` | `ProductionVendorBusinessContent` | equivalent |
 | Booking actions (approve/decline/quote/amendments) | UNSUPPORTED | `wewed_booking.Booking`/`BookingAmendment` | `@/lib/booking-governance`, `@/lib/booking-amendments` | `/api/vendor/bookings/[id]/*` (PWA only) | — | — | — |
-| Vendor wedding engagement (Phase 6 grant + selected engagement) | LIVE (identity only; already shipped Phase 5/6) | `ServiceEngagement` | `resolveNativeGrantContext`+`requireGrantEngagement` | `/api/native/account/workspace` (Phase 6) | existing | existing engagement picker | equivalent |
+| Vendor wedding engagement identity (Phase 6 grant + selected engagement) | LIVE (identity only; already shipped Phase 5/6) | `ServiceEngagement` | `resolveNativeGrantContext`+`requireGrantEngagement` | `/api/native/account/workspace` (Phase 6) | existing | existing engagement picker | equivalent |
+| Vendor's own engagement contract (category/lifecycle status/agreed amount/contract status+version) | LIVE (closure round 3, read-only) | `ServiceEngagement`, `Contract` | `getServiceEngagementDealRoom` (SAME function Contracts above and the Planner Deal Room route call) | `/api/native/vendor/engagement` (new — a distinct Vendor-only, wedding-scoped route; `workspaceKind=vendor && scopeKind=wedding` required, engagementId validated via `requireGrantEngagement` against the grant's own `serviceEngagementIds`) | `VendorEngagementDetail` (new, reuses `ContractSummary`) | `VendorEngagementRepository`/`ProductionVendorEngagementRepository`, wired into the EXISTING "Contract" section under Vendor → Jobs (already a defined IA section, previously unconditionally UNSUPPORTED) — `VendorShell` itself is now production-reachable (`AppRole.VENDOR` added to `productionRoleWired`) | equivalent |
 | Vendor documents (commercial) | UNSUPPORTED | `VaultLink`/`VaultObject` via `EngagementParty` | `@/lib/vault/vendor-commercial-access` | `/api/vendor/documents*` (PWA only) | — | — | — |
-| Vendor wedding-scoped work items beyond the existing engagement identity | UNSUPPORTED (F-3-adjacent) | — | — | — | — | — | — |
+| Vendor wedding-scoped work items beyond engagement identity and contract status (Wedding-Day presence/arrival, deliverables, payment records, files, notes, client/planner contacts) | UNSUPPORTED (F-3-adjacent) | — | — | — | — | — | — |
 
 ## 5. Admin
 
@@ -346,3 +347,103 @@ what round 1 already covered.
 **Phase-8 acceptance: still NOT YET, by the same standard as §10 — see the completion report's own
 explicit statement, not this document, for the current answer.** This document records
 classification and reasoning; it does not itself declare a phase accepted.
+
+## 12. Phase 8 closure round 3
+
+A third moderator review inspected the actual round-2 shipped code (not the completion report) and
+found that two of round 2's own claims did not hold up: Documents/Contributions were classified LIVE
+while a dispatch-level production guard elsewhere in the same files still routed production to a
+static UNSUPPORTED message before the (already-real) repository call could run, and the
+`NativeRepositoryFactory.PRODUCTION` closure only removed a same-account render race, not the
+account-scoped binding gap the locked plan actually required. This section is the honest account of
+what round 3 closed, keeping the §9 rule strictly this time: a domain is LIVE only once the complete
+chain — server truth → native adapter → production repository → production-reachable role shell —
+is verified end to end, not merely believed to be.
+
+**1/2. Stale production UI guards + explicit load-state model (Documents, Contributions).**
+`RoleWorkspaces.kt`'s/`.swift`'s Planner-workspace and Couple-plan section dispatchers each carried a
+`if (environment == PRODUCTION) IAUnsupportedSection(...) else ShadowXDestination(...)` guard on
+Contributions and Documents specifically — the ONLY two sections with this pattern; Budget/Seating/
+Timeline/Vendors dispatch unconditionally right next to them. This ran BEFORE
+`ShadowContributionsDestination`/`ShadowDocumentsDestination` (already correctly wired to real
+repositories in round 2) ever executed, silently overriding that work. Removed on both platforms.
+Once reachable, the destinations themselves needed real failure semantics: they held no explicit
+loading/error state, so a live transport/permission/revocation failure either escaped an uncaught
+coroutine (Android) or was silently swallowed by `try?` into an empty array (iOS) — both of which
+read identically to "authoritative empty" to a viewer. A new `ProductionLoadState`
+(`Loading`/`Loaded(T)`/`Unavailable`) plus `rememberProductionLoad`/`ProductionLoadView` helper and a
+new `IASectionUnavailable` view (distinct from `IAUnsupportedSection` — different copy, different
+icon, different test id) now make a live failure render as its own honest state. Five-outcome test
+matrices (successful data, successful empty, transport failure, permission denial, grant revocation)
+were added for both domains on both platforms.
+
+**3. Contracts native client — closed.** New `NativeDomainApiClient.engagements(...)`,
+`ContractsRepository`/`ServiceEngagementSummary`/`ContractSummary` (a DISTINCT model from
+`PlannerVendorEngagement` — deliberately not reused, since that model represents the separate,
+legitimate `Vendor.contractStatus`/`paymentStatus` planning-side domain), `ProductionContractsRepository`.
+Folded into the EXISTING "Vendors" destination as a second, clearly-labelled ("Contracts &
+Engagements") list, rather than added as a new Level-2 IA navigation section —
+`mobile/contracts/ia-v2-navigation.json` is a locked, cross-platform "AUTHORITATIVE" contract both
+platforms assert equality against in unit tests, and adding an entry there is a product/IA decision
+outside this closure's "wire existing surfaces to real data" mandate.
+
+**4/5. Cross-account binding hardening + `NativeRepositoryFactory.PRODUCTION` closure — the real
+fix this time.** Round 2 tracked each production bind as a bare `grantId` string. A grantId is not
+account-scoped: two different accounts can independently resolve an IDENTICAL grant id — `admin:
+system` for two different platform administrators, or `coordinator:wedding:<id>` for two people who
+each genuinely hold a separate membership on the same wedding. The concrete failing scenario:
+Account A binds `admin:system`; Account A is replaced by Account B; B independently resolves the
+SAME `admin:system` string before B's own bind completes; a grantId-only check treats A's stale
+binding — and the bearer session closed over inside its repository object — as already valid for B.
+Every production repository domain (wedding+planner, admin, contracts, vendor engagement) is now
+tracked as a `ProductionBinding<T>` (`Unbound | Bound(accessUserId, grantId, value)`) on both
+platforms; `repository`/`plannerRepository`/`adminRepository`/`contractsRepository`/
+`vendorEngagementRepository` are computed from it rather than stored mutable fields, so "unbound" is
+an explicit, type-checked case rather than a same-typed placeholder a caller could mistake for real.
+`clearProductionBinding()` drops every axis synchronously on sign-out/session-invalidation. New tests
+prove: Account A → B sharing an identical `admin:system` grant id, Account A → B sharing an identical
+wedding-scoped grant id, Wedding A → B, Planner → Admin → Planner (axis independence), and
+`clearProductionBinding` resetting everything.
+
+**6. Vendor wedding-engagement production shell — closed.** `AppRole.VENDOR`/`.vendor` added to the
+production-wired role set, backed by a new `VendorEngagementRepository` reading
+`/api/native/vendor/engagement` (new server route — a Vendor-only, wedding-scoped axis, completely
+separate from both the Vendor business-portfolio shell and the Planner-side Contracts list; a
+Planner/Couple/Coordinator grant is refused `GRANT_SCOPE_INVALID`, and a Vendor business-portfolio
+grant is refused the same way by this wedding-scoped route). Wired into the EXISTING "Contract"
+section under Vendor → Jobs — already a defined IA section on both platforms, previously
+unconditionally UNSUPPORTED — handled before the unrelated Wedding-Day `authorizedEngagement(graph)`
+gate, since engagement/contract identity and Wedding-Day presence are different authority axes read
+from different sources. Disposable-DB server tests cover: legitimate engagement succeeds (with and
+without an explicit `engagementId`), foreign engagement refused (422, not a leak), foreign business
+grant refused (403), zero engagements fails closed (422), a revoked business membership denied
+entirely, and both a Planner/Couple grant and a Vendor business-portfolio grant refused
+(`GRANT_SCOPE_INVALID`) by this route.
+
+**7. Admin failure/empty semantics — closed.** `ProductionAdminSystemRepository.snapshot()` now
+throws on any live failure instead of silently degrading to the same nulled-out shape
+`ProductionBoundaryAdminSystemRepository` uses for "intentionally not yet bound" — those are two
+different facts, and collapsing them made a failed fetch indistinguishable from a genuinely empty
+console. `AdminDashboardContent`/`AdminAccountsSection`/`AdminCasesSection` now route through the
+same load-state model as items 1/2, each independently (a failure in one section does not affect the
+others). `ProductionBoundaryAdminSystemRepository` itself is unchanged and still never throws.
+
+**8. Reviewed only the already-connected Admin surfaces (overview analytics, accounts, support
+cases, incidents) for honesty — no new Admin domain was added this round**, per the moderator's
+explicit instruction that the blocker was correctness of what already exists, not the count of
+connected domains.
+
+**9. This document.** Corrected: Documents/Contributions were not actually production-reachable in
+round 2 despite being marked LIVE (see items 1/2 above); Contracts gained a real native client;
+Vendor's own engagement/contract identity is now LIVE.
+
+**10/11. Qualification evidence and deployment reporting — see the completion report for this
+round**, including temporary reviewer CI (`.github/workflows/_tmp-phase8-round3-*-qualification.yml`
+on both branches — removed after a successful run, matching the pattern established in round 2) and
+the explicit Preview-vs-Production deployment distinction the moderator asked for.
+
+**Phase-8 acceptance: still NOT YET.** Remaining, honestly: Contracts/Vault write actions, Budget
+line edits, Seating/Timeline/Vendor-planning writes, and the Admin domains beyond overview/accounts/
+support/incidents (command center, bookings, service engagements, contract intelligence,
+contributions analytics, account identity, productivity, cross-wedding vault browsing) are all still
+UNSUPPORTED, by deliberate, documented scope decision, not oversight.
