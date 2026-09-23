@@ -1277,6 +1277,96 @@ Phase gate:
 - Phase 4: **ACCEPTED**;
 - Phase 5: **READY TO BEGIN**.
 
+### D-024 — Phase 9 independent moderator review finding resolution & native requalification (2026-09-23)
+**IMPLEMENTATION-AGENT SUBMISSION, NOT A MODERATOR VERDICT.** Phase 9 acceptance is the moderator's
+decision alone.
+
+**Independent Moderator Review Finding:**
+Independent inspection of the Phase 9 native code confirmed that server-side convergence is complete,
+genuine, and verified. However, native Android and iOS UI previously surfaced the RSVP editor only while
+an RSVP was in the `PENDING` state:
+- Android: `onRsvp = if (status == RSVPStatus.PENDING) { { rsvpPrompt = true } } else null`
+- iOS: `onRsvp: presentation.rsvpStatus == .pending ? { rsvpPrompt = true } : nil`
+Furthermore, `IvoryFloralGoldNative` on both platforms gated the RSVP hit region behind
+`rsvp.awaitsResponse ? actions.onRsvp : nil`.
+Consequently, once a guest submitted an RSVP as `ACCEPTED` or `DECLINED`, the action was suppressed or
+hidden, preventing the guest from reopening the editor to update choices (meal, plus-one, children, notes)
+or change attendance—diverging from the PWA, which allows reopening and re-saving against the same
+record.
+
+**Native UI Fix & Parity Semantics:**
+1. **Unconditional Action Reachability Across All Statuses:**
+   - Android (`apps/android/.../ui/invitation/LiveGuestInvitationScreen.kt`): Extracted
+     `resolveLiveInvitationActions(presentation, onRsvpPrompt, ...)` providing `onRsvp` unconditionally
+     across `PENDING`, `ACCEPTED`, and `DECLINED`.
+   - iOS (`apps/ios/.../Views/Invitation/LiveGuestInvitationView.swift`): Extracted
+     `resolveLiveInvitationActions(presentation:onRsvpPrompt:...)` providing `onRsvp` unconditionally
+     across all response statuses.
+   - Journey wrappers (`GuestInvitationJourneyScreen.kt` / `GuestInvitationJourneyView.swift`):
+     `onRsvp = { rsvpPrompt = true }` across all statuses.
+2. **Dynamic CTA Action Labeling & Visual Status Fidelity:**
+   - Android (`IvoryFloralGoldNative.kt`) & iOS (`IvoryFloralGoldNative.swift`): Added
+     `ivoryRsvpActionLabel(rsvp)` mapping to `"RSVP"` while awaiting response (`PENDING`), and
+     `"Update RSVP"` once answered (`ACCEPTED` or `DECLINED`). Passed `actions.onRsvp` directly to the hit target.
+   - Preserved card status visual fidelity: confirmed attendance renders the badge (`RSVP confirmed`),
+     while declining renders the status banner (`Response recorded — not attending`), with the action
+     target remaining fully reachable and responsive.
+3. **Session Freshness & Elimination of Dirty State on Reopen:**
+   - Android: Wrapped `LiveRsvpForm` in `key(presentation)` and keyed all form state to
+     `remember(initial)` so reopening immediately reflects the latest server snapshot without carrying
+     over abandoned local edits.
+   - iOS: Attached `.id(formSessionId)` to `LiveRsvpFormView` with a fresh UUID generated on each
+     prompt opening, ensuring fresh form initialization from the latest presentation snapshot.
+4. **Lifecycle Semantics Confirmed:**
+   - `PENDING -> RSVP editable` (action label: "RSVP")
+   - `ACCEPTED -> RSVP editable` (action label: "Update RSVP")
+   - `DECLINED -> RSVP editable` (action label: "Update RSVP")
+   - Each edit reloads and mutates the same Guest Session-backed RSVP truth
+     (`PUT /api/weddings/[slug]/guest-session`). Partial-update non-destructiveness and dormant field
+     preservation are maintained end-to-end across multiple update cycles (e.g. pending -> accepted ->
+     declined -> re-accepted).
+
+**Executable Test Evidence:**
+- **Android (`apps/android`):**
+  - `IvoryInvitationGeometryTest.kt`: Added `ivoryRsvpActionLabelTracksAwaitingState` verifying action
+    label mapping.
+  - `LiveGuestInvitationCoordinatorTest.kt`:
+    - `rsvpActionRemainsReachableAcrossAllStatuses`: asserts `resolveLiveInvitationActions` exposes
+      `onRsvp != null` across `PENDING`, `ACCEPTED`, and `DECLINED`.
+    - `exerciseMutationCyclesThroughExistingGuestSessionPath`: exercises a full 4-stage mutation cycle
+      (`pending -> attending -> declined -> attending`) via `coordinator.answer()` and
+      `coordinator.refresh()`, asserting that `presentedGuestId` is enforced, dormant fields are preserved
+      across status changes, and server truth is accurately reloaded.
+  - Test run: `./gradlew :app:testDebugUnitTest` (25 tasks executed, all passed).
+- **iOS (`apps/ios/Wewed`):**
+  - `IvoryInvitationGeometryTests.swift`: Added `testIvoryRsvpActionLabelTracksAwaitingState`.
+  - `LiveGuestInvitationCoordinatorTests.swift`:
+    - `testRsvpActionRemainsReachableAcrossAllStatuses`: asserts actions resolution keeps `onRsvp != null`
+      across all response statuses.
+    - `testExerciseMutationCyclesThroughExistingGuestSessionPath`: exercises the identical 4-stage mutation
+      cycle against coordinator and asserts dormant field persistence and presentation accuracy.
+  - Test run: `swift test` (408 tests executed, 0 failures).
+
+**Server Qualification Retention Evidence:**
+- Server product code was completely untouched; zero server product changes or regressions.
+- Retained server qualification evidence: run `35826332669` (`_tmp-phase9-server-qualification.yml`) —
+  PASS at product SHA `72f34663535d5fbbfbbb6bb79319ae69327a2994`.
+- Server branch documentation head: `e70ead6f634ecfa1a095ce81223fe9b7fef833df`.
+
+**Native Reviewer Qualification Evidence:**
+- Temporary native reviewer workflow: run `35830241807` (`_tmp-phase9-native-qualification.yml`) —
+  PASS (Android in 7m37s, iOS in 5m37s).
+  - Android: `testDebugUnitTest`, `assembleDebug`, `assembleRelease` — PASS.
+  - iOS: `swift test`, `swift build`, `xcodegen generate`, Xcode Simulator Debug build, unsigned generic-device Release build — PASS.
+- Exact native product SHA: `5fef6c0b905e40807d8300c516f24946d577f596`.
+- Temporary reviewer workflow removed after successful run.
+- Cleaned native branch tip SHA: `417b47b6be887503cb1e82aaeba3d6682609fec6`.
+
+**Phase Gate:**
+- Phase 9: **Implementation agent reports moderator finding fully resolved and requalified; acceptance
+  is NOT self-declared and awaits moderator review of the remote code**.
+- Phase 10: **NOT STARTED / NOT AUTHORIZED**.
+
 ### D-023 — Phase 9 execution evidence, submitted for moderator review (2026-09-23)
 **IMPLEMENTATION-AGENT SUBMISSION, NOT A MODERATOR VERDICT.** Phase 9 acceptance is the moderator's
 decision alone. New branches created directly from the D-022-accepted Phase-8 heads, never from
