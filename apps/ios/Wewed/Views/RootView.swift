@@ -131,14 +131,13 @@ public struct RootView: View {
     private var pendingGateSelection: [ProductionOperationalGrant] {
         guard let authority = session.productionAuthority,
               ProductionGrantMapper.isUsable(authority),
-              let selection = authority.gateContextSelection,
-              selection.selectionRequired,
-              selection.grantIds.count > 1
+              let selection = authority.gateContextSelection
         else { return [] }
 
-        if let selected = session.selectedGateGrantId, selection.grantIds.contains(selected) {
-            return []
-        }
+        let selectedStillLive = session.selectedGateGrantId.map(selection.grantIds.contains) ?? false
+        if selectedStillLive { return [] }
+        let staleSelectionNeedsReplacement = session.selectedGateGrantId != nil && !selectedStillLive
+        if !selection.selectionRequired && !staleSelectionNeedsReplacement { return [] }
         if let role = session.currentRole, role != .usher {
             return []
         }
