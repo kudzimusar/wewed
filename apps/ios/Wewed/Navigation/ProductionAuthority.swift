@@ -284,3 +284,85 @@ public enum ProductionGrantMapper {
         ))
     }
 }
+
+
+public struct GateOperationalContext: Equatable, Sendable {
+    public let grantId: String
+    public let assignmentId: String
+    public let weddingId: String
+    public let weddingTitle: String
+    public let gateId: String
+    public let gateName: String
+    public let operatorUserId: String
+    public let capabilities: Set<String>
+}
+
+public enum ProductionGateGrantMapper {
+    private static let knownCapabilities: Set<String> = [
+        "gate.manifest.read",
+        "gate.checkin.write",
+        "gate.guest_search.read",
+        "gate.audit.read",
+    ]
+
+    public enum Outcome: Equatable {
+        case selected(GateOperationalContext)
+        case requiresSelection([ProductionOperationalGrant])
+        case denied(String)
+    }
+
+    public static func map(_ authority: ProductionAuthority, selectedGrantId: String? = nil) -> Outcome {
+        guard ProductionGrantMapper.isUsable(authority), let actorId = authority.accessUserId else {
+            return .denied("The account authority is not usable.")
+        }
+
+        if let selection = authority.gateContextSelection, selection.kind != "gate_operator" {
+            return .denied("Unknown operational selection kind.")
+        }
+
+        let candidate: ProductionOperationalGrant
+        if let selectedGrantId {
+            guard let selected = authority.operationalGrants.first(where: { $0.grantId == selectedGrantId }) else {
+                return .denied("No such gate grant for this account.")
+            }
+            candidate = selected
+        } else {
+            if authority.gateContextSelection?.selectionRequired == true {
+                let ids = Set(authority.gateContextSelection?.grantIds ?? [])
+                return .requiresSelection(authority.operationalGrants.filter { ids.contains($0.grantId) })
+            }
+            guard authority.operationalGrants.count == 1, let single = authority.operationalGrants.first else {
+                return .denied("No single active gate grant is available.")
+            }
+            candidate = single
+        }
+
+        guard candidate.kind == "gate_operator" else {
+            return .denied("Unknown operational grant kind.")
+        }
+        guard candidate.operatorUserId == actorId else {
+            return .denied("Gate operator identity does not match the account.")
+        }
+        guard !candidate.grantId.isEmpty,
+              !candidate.assignmentId.isEmpty,
+              !candidate.weddingId.isEmpty,
+              !candidate.gateId.isEmpty else {
+            return .denied("Gate authority is missing required scope.")
+        }
+        let capabilities = Set(candidate.capabilities)
+        guard !capabilities.isEmpty, capabilities.isSubset(of: knownCapabilities) else {
+            return .denied("Gate authority contains unsupported capabilities.")
+        }
+
+        return .selected(GateOperationalContext(
+            grantId: candidate.grantId,
+            assignmentId: candidate.assignmentId,
+            weddingId: candidate.weddingId,
+            weddingTitle: candidate.weddingTitle,
+            gateId: candidate.gateId,
+            gateName: candidate.gateName,
+            operatorUserId: candidate.operatorUserId,
+            capabilities: capabilities
+        ))
+    }
+}
