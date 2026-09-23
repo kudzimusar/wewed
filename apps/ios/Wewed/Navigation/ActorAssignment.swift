@@ -99,12 +99,14 @@ public enum ActorAssignmentSources {
     public static func forProduction(
         productionAuthority: ProductionAuthority,
         selectedGrantIds: Set<String> = [],
-        selectedEngagementId: String? = nil
+        selectedEngagementId: String? = nil,
+        selectedGateGrantId: String? = nil
     ) -> ActorAssignmentSource {
         ProductionActorAssignmentSource(
             authority: productionAuthority,
             selectedGrantIds: selectedGrantIds,
-            selectedEngagementId: selectedEngagementId
+            selectedEngagementId: selectedEngagementId,
+            selectedGateGrantId: selectedGateGrantId
         )
     }
 
@@ -125,7 +127,8 @@ public func resolveActorAssignmentSource(
     appState: AppState,
     productionAuthority: ProductionAuthority?,
     selectedGrantIds: Set<String>,
-    selectedEngagementId: String?
+    selectedEngagementId: String?,
+    selectedGateGrantId: String? = nil
 ) -> ActorAssignmentSource {
     if appState.dataEnvironment.allowsDevelopmentPersonaSwitching {
         return ActorAssignmentSources.forShadow(
@@ -138,7 +141,8 @@ public func resolveActorAssignmentSource(
         return ActorAssignmentSources.forProduction(
             productionAuthority: productionAuthority,
             selectedGrantIds: selectedGrantIds,
-            selectedEngagementId: selectedEngagementId
+            selectedEngagementId: selectedEngagementId,
+            selectedGateGrantId: selectedGateGrantId
         )
     }
     return ActorAssignmentSources.empty()
