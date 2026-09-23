@@ -16,6 +16,18 @@ public enum WeddingDaySyncError: Error, Equatable, Sendable {
     case passSignatureInvalid
 }
 
+public struct WeddingDayRevokeResult: Equatable, Sendable {
+    public let success: Bool
+    public let code: String?
+    public let error: String?
+
+    public init(success: Bool, code: String? = nil, error: String? = nil) {
+        self.success = success
+        self.code = code
+        self.error = error
+    }
+}
+
 public struct WeddingDaySyncResult: Equatable, Sendable {
     public let syncedIds: [String]
     public let failedIds: [String]
@@ -31,6 +43,12 @@ public struct WeddingDaySyncResult: Equatable, Sendable {
 private struct ManifestAPIEnvelope: Decodable {
     let success: Bool
     let data: SignedManifestAPIData
+}
+
+private struct MutationAPIEnvelope: Decodable {
+    let success: Bool
+    let code: String?
+    let error: String?
 }
 
 private struct SignedManifestAPIData: Decodable {
@@ -335,7 +353,7 @@ public actor WeddingDaySyncService {
         passSerial: String,
         reason: String,
         grantId: String? = nil
-    ) async -> Bool {
+    ) async -> WeddingDayRevokeResult {
         let revokeBaseURL = baseURL.appendingPathComponent("api/native/gate/wedding-day/pass/revoke")
         var components = URLComponents(url: revokeBaseURL, resolvingAgainstBaseURL: false)
         if let grantId {
@@ -346,6 +364,7 @@ public actor WeddingDaySyncService {
         request.httpMethod = "POST"
         request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
         if let grantId {
             request.setValue(grantId, forHTTPHeaderField: "x-wewed-grant-id")
         }
@@ -355,11 +374,25 @@ public actor WeddingDaySyncService {
         }
         request.httpBody = try? encoder.encode(RevokeBody(passSerial: passSerial, reason: reason))
         do {
-            let (_, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else { return false }
-            return (200..<300).contains(http.statusCode)
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                return WeddingDayRevokeResult(success: false, code: "INVALID_RESPONSE", error: "Wedding pass revocation returned an invalid response.")
+            }
+            let envelope = try? decoder.decode(MutationAPIEnvelope.self, from: data)
+            if (200..<300).contains(http.statusCode), envelope?.success != false {
+                return WeddingDayRevokeResult(success: true, code: envelope?.code)
+            }
+            return WeddingDayRevokeResult(
+                success: false,
+                code: envelope?.code ?? "HTTP_\(http.statusCode)",
+                error: envelope?.error ?? "Wedding pass revocation was rejected by the server."
+            )
         } catch {
-            return false
+            return WeddingDayRevokeResult(
+                success: false,
+                code: "NETWORK_ERROR",
+                error: "Wedding pass revocation could not reach the server."
+            )
         }
     }
 
