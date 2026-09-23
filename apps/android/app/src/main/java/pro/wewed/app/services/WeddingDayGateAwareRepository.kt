@@ -43,6 +43,11 @@ class WeddingDayGateAwareRepository(
     ): CheckInVerificationResult {
         val available = base.availableWeddingIds()
         if (weddingId !in available) throw WeddingScopeMismatch(weddingId, available)
-        return gate.checkIn(qrPayload, count, usherId)
+        if (weddingId != gate.gateContext.weddingId) {
+            throw WeddingScopeMismatch(weddingId, listOf(gate.gateContext.weddingId))
+        }
+        // usherId is retained only by the legacy WeddingRepository protocol. It is deliberately
+        // ignored here: operator identity comes from the immutable GateOperationalContext.
+        return gate.checkIn(qrPayload, count)
     }
 }
