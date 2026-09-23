@@ -135,7 +135,7 @@ function serializeAssignment(row: AssignmentRow): WeddingGateAssignmentRecord {
 }
 
 /**
- * Gate management deliberately does NOT call the legacy getWeddingContext() admin shortcut.
+ * Gate management deliberately does NOT call the legacy wedding-context admin shortcut.
  * It requires a real, current wedding-scoped production-authority grant carrying members.manage
  * (or *), so a platform/support Admin does not implicitly become a wedding Gate manager.
  */

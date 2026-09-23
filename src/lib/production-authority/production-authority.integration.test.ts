@@ -755,14 +755,15 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
   test('Relational integrity: WeddingGateAssignment is bound strictly to the same wedding as WeddingGate', async () => {
     // Attempt to create an assignment referencing Gate A1 (wedding A) but claiming wedding B.
     // The composite foreign key [gateId, weddingId] -> WeddingGate(id, weddingId) must reject this!
+    const crossWeddingUser = await user('cross-wedding-usher', 'guest')
     let caughtError: unknown = null
     try {
-      await gateAssignment('invalid-cross-wedding', ids.B, ids.gateA1, actors.usher)
+      await gateAssignment('invalid-cross-wedding', ids.B, ids.gateA1, crossWeddingUser)
     } catch (err) {
       caughtError = err
     }
     expect(caughtError).not.toBeNull()
-    expect(String(caughtError)).toMatch(/WeddingGateAssignment_gate_wedding_fkey|foreign key constraint/i)
+    expect(String(caughtError)).toMatch(/WeddingGateAssignment_gate_wedding_fkey|foreign key constraint|23503/i)
   })
 
   test('Relational integrity: one assignment identity exists per user and gate', async () => {
@@ -773,7 +774,7 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
       caughtError = err
     }
     expect(caughtError).not.toBeNull()
-    expect(String(caughtError)).toMatch(/WeddingGateAssignment_gateId_userId_key|unique constraint/i)
+    expect(String(caughtError)).toMatch(/WeddingGateAssignment_gateId_userId_key|unique constraint|already exists|23505/i)
   })
 
   test('Relational integrity: assignment expiry must be later than activeFrom', async () => {
