@@ -21,6 +21,7 @@ import pro.wewed.app.models.CheckInAuditRecord
 import pro.wewed.app.models.CheckInStatus
 import pro.wewed.app.models.CheckInVerificationResult
 import pro.wewed.app.models.Guest
+import pro.wewed.app.navigation.GateOperationalContext
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.theme.WewedColors
 import pro.wewed.app.theme.WewedRadius
@@ -31,7 +32,11 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UsherScannerScreen(appViewModel: AppViewModel, onClose: () -> Unit) {
+fun UsherScannerScreen(
+    appViewModel: AppViewModel,
+    gateContext: GateOperationalContext? = null,
+    onClose: () -> Unit
+) {
     var scanResult by remember { mutableStateOf<CheckInVerificationResult?>(null) }
     var manualQuery by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf<List<Guest>>(emptyList()) }
@@ -91,8 +96,24 @@ fun UsherScannerScreen(appViewModel: AppViewModel, onClose: () -> Unit) {
                         modifier = Modifier.matchParentSize(),
                         onScanned = { token ->
                             scope.launch {
-                                scanResult = appViewModel.scopedRepository().checkInGuest(token, checkInCount, "usher_android_gate1")
-                                refreshAudit()
+                                val context = gateContext
+                                if (context == null || "gate.checkin.write" !in context.capabilities) {
+                                    scanResult = CheckInVerificationResult(
+                                        status = CheckInStatus.INVALID_PASS,
+                                        guestName = "Gate authority unavailable",
+                                        partySize = 0,
+                                        alreadyCheckedInCount = 0,
+                                        remainingCount = 0,
+                                        gateMessage = "Select an active Gate assignment before scanning."
+                                    )
+                                } else {
+                                    scanResult = appViewModel.scopedRepository().checkInGuest(
+                                        token,
+                                        checkInCount,
+                                        context.operatorUserId
+                                    )
+                                    refreshAudit()
+                                }
                             }
                         }
                     )
@@ -275,19 +296,17 @@ fun UsherScannerScreen(appViewModel: AppViewModel, onClose: () -> Unit) {
                                 Text(g.name, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                 Text("Party of ${g.partySize} • ${g.tableName ?: "No table"}", fontSize = 12.sp, color = Color.Gray)
                             }
-                            Button(
-                                onClick = {
-                                    scope.launch {
-                                        val dummy = "WW1.wedts26.${g.passSerial ?: "WW0000"}.0e.66f001ab.sig"
-                                        scanResult = appViewModel.scopedRepository().checkInGuest(dummy, checkInCount, "usher_android_gate1")
-                                        manualQuery = ""
-                                        searchResults = emptyList()
-                                        refreshAudit()
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = WewedColors.Gold)
+                            Surface(
+                                shape = RoundedCornerShape(WewedRadius.pill),
+                                color = Color.LightGray.copy(alpha = 0.35f)
                             ) {
-                                Text("Admit ($checkInCount)", fontSize = 11.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                                Text(
+                                    "QR required",
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    fontSize = 11.sp,
+                                    color = Color.Gray,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
                         }
                     }
