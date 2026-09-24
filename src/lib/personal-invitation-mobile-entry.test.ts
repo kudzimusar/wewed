@@ -1,0 +1,41 @@
+import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
+
+const source = (path: string) => readFileSync(path, 'utf8')
+
+describe('personal invitation mobile entry', () => {
+  test('a valid Android invitation falls through to the secure browser card when native handoff is disabled', () => {
+    const handoff = source('src/components/wedding/invitation-app-handoff.tsx')
+
+    expect(handoff).toContain('if (!deferredInstallEnabled) {')
+    expect(handoff).toContain('window.location.replace(continueInBrowser)')
+    expect(handoff).not.toContain(
+      'Secure Android invitation handoff is not available yet. Your private invitation remains locked until the production Wewed release is available.',
+    )
+  })
+
+  test('browser continuation revalidates the pending invitation and enters invitation mode without a raw RSVP credential', () => {
+    const continuation = source('src/app/invite/[slug]/continue/route.ts')
+
+    expect(continuation).toContain('resolvePersonalInvitation({')
+    expect(continuation).toContain('token: pending.rsvpToken')
+    expect(continuation).toContain("invitation: '1'")
+    expect(continuation).toContain('setWeddingGuestSessionCookie')
+    expect(continuation).toContain('clearPendingInvitationCookie')
+    expect(continuation).not.toContain("searchParams.get('rsvp')")
+  })
+
+  test('the wedding record, not the shared URL card parameter, remains authoritative for Ivory Floral Gold', () => {
+    const page = source('src/app/w/[slug]/page.tsx')
+    const renderer = source(
+      'src/components/wedding/invitation-experience/premium-invitation-experience.tsx',
+    )
+    const registry = source('src/lib/digital-invitation-card.ts')
+
+    expect(page).toContain('normalizeInvitationCardStyle(wedding.invitationCardStyle)')
+    expect(renderer).toContain('IvoryFloralGoldTriFold')
+    expect(renderer).toContain("style === 'ivory-floral-gold'")
+    expect(registry).toContain("id: 'ivory-floral-gold'")
+    expect(registry).toContain("motion: 'tri-fold'")
+  })
+})
