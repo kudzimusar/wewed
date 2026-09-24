@@ -31,7 +31,6 @@ public struct RootView: View {
     /// True once `resolveContext` has answered, so "no workspace" is shown rather than a spinner.
     @State private var contextResolutionFinished = false
     @State private var authMode: AuthenticationMode?
-    @State private var invitationEntryRequested = false
     @State private var resolvingDeepLinkedInvitation = false
     /// Master plan Phase 6 §1, §2, §11 — an explicit switcher reachable AFTER a workspace is open.
     @State private var showingContextSwitcher = false
@@ -459,43 +458,27 @@ public struct RootView: View {
                             )
                     }
             } else if authMode == nil {
-                // "I Have an Invitation" is a guest door, never an alias for account sign-in.
-                // If the OS did not deliver a Universal Link (for example the guest launched from
-                // the app icon), this recovery surface accepts the exact private invitation URL
-                // and sends it through the same parser/authority pipeline.
-                if invitationEntryRequested {
-                    WewedScreenContainer {
-                        InvitationLinkEntryView(
-                            onOpen: { url in
-                                invitationEntryRequested = false
-                                appState.handleIncomingURL(url)
-                            },
-                            onBack: { invitationEntryRequested = false }
-                        )
-                    }
-                } else {
-                    WewedScreenContainer { WewedWelcomeView(
-                        onOpenInvitation: { invitationEntryRequested = true },
-                        onSignIn: { authMode = .signIn },
-                        onCreateAccount: { authMode = .createAccount },
-                        shadowEntry: appState.dataEnvironment.allowsDevelopmentPersonaSwitching
-                            ? ShadowEntryOption(environmentName: appState.dataEnvironment.displayName) {
-                                session.enterShadowSession()
-                            }
-                            : nil
-                    ) }
-                }
+                // Entry surfaces sit outside the role shell, so nothing else publishes a bounded
+                // content width for them.
+                WewedScreenContainer { WewedWelcomeView(
+                    onOpenInvitation: { authMode = .signIn },
+                    onSignIn: { authMode = .signIn },
+                    onCreateAccount: { authMode = .createAccount },
+                    shadowEntry: appState.dataEnvironment.allowsDevelopmentPersonaSwitching
+                        ? ShadowEntryOption(environmentName: appState.dataEnvironment.displayName) {
+                            session.enterShadowSession()
+                        }
+                        : nil
+                ) }
             } else {
                 WewedScreenContainer { LoginView(onBack: { authMode = nil }) }
             }
         }
         .onOpenURL { url in
-            invitationEntryRequested = false
             appState.handleIncomingURL(url)
         }
         .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
             if let url = activity.webpageURL {
-                invitationEntryRequested = false
                 appState.handleIncomingURL(url)
             }
         }
