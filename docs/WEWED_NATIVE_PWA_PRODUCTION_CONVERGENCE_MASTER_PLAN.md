@@ -4255,3 +4255,115 @@ for production-like account/authority UAT. Debug/Shadow builds remain useful onl
 This closes the tooling gap that previously encouraged the implementation agent to treat Shadow persona traversal as if it were production-authority UAT.
 
 **Phase-13 status:** **NOT ACCEPTED — BOTH PLATFORMS NOW HAVE QUALIFIED PRODUCTION-LIKE SIMULATOR UAT TARGETS; TRUE RUNTIME AUTHORITY/GUEST EVIDENCE + FINAL PLAY DISTRIBUTION PROOF REMAIN.**
+
+
+### D-057 — Phase 13 moderator closure of real-account UAT prerequisites and production transport blocker (2026-09-24)
+**MODERATOR CLOSURE IMPLEMENTATION — PRODUCTION-LIKE NATIVE UAT TARGETS ARE QUALIFIED, NATIVE ASYNC SIGN-IN FEEDBACK IS FIXED, AND THE MISSING LIVE SERVER TRANSPORT IS NOW ISOLATED IN A MAIN-BASED DRAFT RELEASE CANDIDATE.**
+
+D-056 created a production-like Android UAT build so Android and iOS could both exercise real account authority without Shadow persona switching. Direct source/runtime-path review before issuing that UAT found two further blockers that the implementation-agent narrative had not established.
+
+**1. Native Sign In UI defect closed on both platforms.**
+The underlying account session implementations were asynchronous, but both Sign In screens used local UI state that was reset immediately after launching the async operation. Consequently “Signing in…” did not represent the actual network operation, and server-produced invalid-credential/transport errors were not reliably bound to the visible form.
+
+Moderator patch on `native-mobile/release-identity-deeplinks-phase13-20260924`:
+- Android `SessionState.kt`: exposes a narrow `clearAuthenticationError()`;
+- Android `LoginScreen.kt`: observes `SessionViewModel.isSigningIn` and `authenticationError`, keeps only local validation errors locally, and no longer clears a fake submitting flag immediately after coroutine launch;
+- Android `NativeAuthUiAsyncStateContractTest.kt`: pins the UI-to-session async-state binding;
+- iOS `SessionStore.swift`: exposes the same narrow authentication-error reset;
+- iOS `LoginView.swift`: binds button state/text and visible error output to `session.isSigningIn` / `session.authenticationError`;
+- iOS `NativeUatAndAuthUiContractTests.swift`: pins UAT identity and async Sign In behavior.
+
+Independent qualification:
+- exact temporary workflow/product head: `24ce22da19c5d314d01016ae732d763f6b5dcb7f`;
+- GitHub Actions run `35987186757`: **SUCCESS** on both Android and iOS;
+- Android: unit tests PASS, production-like `assembleUat` PASS, package `pro.wewed.app.uatdev`, versionCode 10, versionName `2.1.0-uatdev`, generated `BuildConfig.DEBUG=false`;
+- iOS: Swift tests PASS and `UAT: release` / `pro.wewed.app.uatdev` source contract PASS;
+- temporary workflow removed;
+- clean native head: `8e88c17e91c83c3120b654865579d65104633642`.
+
+**2. Genuine production-account simulator UAT is currently server-blocked, not credential-blocked.**
+Independent live and repository verification established:
+- production `wewed.pro` is deployed from `main` commit `ba4b08f8bca2d5cd5826e1ef1d2701d9049dd887`;
+- that main baseline does not contain `/api/native/account/signin`, `/api/native/account/authority`, or `/api/native/account/workspace`;
+- live `GET https://wewed.pro/api/native/account/authority` returns **404** and Vercel reports `x-matched-path: /404`;
+- therefore no genuine account credential can complete real production-authority UAT from either simulator until the native account transport is promoted.
+
+This means a simulator “sign-in failure” against current production must not be misclassified as a native navigation/authority defect.
+
+**3. Backend contract consistency patch.**
+Direct review of the accepted Phase-13 authority source found `grants.ts` correctly fails closed on an unknown Gate capability with reason `unsupported_gate_capability`, while the `NonGrantingRelationship.reason` TypeScript union did not declare that emitted reason. The moderator patched the shared contract rather than weakening the fail-closed rule.
+- backend Phase-13 clean head: `ede5a0718bdbb569bd207ff6b6e1dec9bad10539`.
+
+**4. Minimum main-based native-account promotion candidate staged — NOT deployed.**
+To avoid deploying the entire historical backend feature branch, the moderator created:
+- branch: `release/phase13-native-account-uat-20260924`;
+- exact base: current `main` `ba4b08f8bca2d5cd5826e1ef1d2701d9049dd887`;
+- clean RC head: `a0833956b81d0f9c4e085fce1088c863b8ef6cda`;
+- Vercel preview for that clean head reached **READY**;
+- draft PR: **#215**, open, mergeable, unmerged.
+
+The clean diff is deliberately narrow:
+- three native account routes: signin / authority / workspace;
+- identity-only native-account session + tests;
+- WewedProductionAuthorityV1 contract, grants, resolver + pure tests;
+- dedicated session-signing-secret helper;
+- `business-access.ts`: adds only the exported existing Wewed-internal admin-role vocabulary;
+- `wedding-access.ts`: changes only three existing helpers/constants from private to exported so the authority resolver reuses the exact PWA rules;
+- no Prisma migration;
+- no database mutation;
+- no production-data change;
+- no browser account-flow rewrite;
+- no Guest Session identity merge;
+- no release-association change.
+
+Security/authority properties retained:
+- sign-in verifies identity with Supabase but never accepts role/wedding authority from the caller;
+- the issued native account credential contains identity only and rejects workspace/gate-shaped authority fields;
+- authority is re-resolved read-only on every authority/workspace request;
+- workspace selection accepts only a server-issued grant id and revalidates all wedding/business/vendor/engagement scope from the fresh authority document;
+- production issuance requires dedicated `WEWED_SESSION_SECRET`; it does not silently use the Supabase service-role secret as a new native-account signer.
+
+**Independent RC qualification:**
+- qualification product head: `08313c9c1c6e6b015db59423685fcd90622ac122`;
+- GitHub Actions run `35988310521`: **SUCCESS**;
+- native account identity/route contract tests: PASS;
+- production-authority pure rule tests: PASS;
+- Next production build: PASS and build output explicitly contains:
+  - `ƒ /api/native/account/authority`;
+  - `ƒ /api/native/account/signin`;
+  - `ƒ /api/native/account/workspace`;
+- narrow-promotion-slice verification: PASS;
+- temporary RC qualification workflow removed, producing clean RC head `a083395...`.
+
+**Draft PR #215 repository-wide CI status at this checkpoint:**
+- 17 of 18 automatic PR workflows have completed **SUCCESS**;
+- the remaining `CI` workflow first failed only while Playwright tried to install Chromium because Ubuntu’s package mirror was mid-sync (`File has unexpected size ... Mirror sync in progress`), after its migrations, database tests and production build had already passed;
+- moderator reran that failed job only;
+- retry attempt 2 has passed the package-install step and is currently executing the planner browser release gate;
+- there is no current product/test failure in that retry.
+- **PR #215 must remain draft/unmerged until this final rerun settles successfully.**
+
+**Production boundary remains intact:**
+- no merge to `main`;
+- no production Vercel deployment;
+- no production database action;
+- no production account credential used;
+- no Charity & Kudzie production data touched;
+- association PR #214 remains a separate unmerged/undeployed release candidate;
+- Phase 14 remains unauthorized.
+
+**Next progressive unit after the final PR check is green:**
+1. Before production promotion, owner-controlled Vercel configuration must confirm that `WEWED_SESSION_SECRET` exists for Production without exposing its value.
+2. With explicit owner authorization, merge/deploy only the qualified PR #215 slice.
+3. Immediately verify live unauthenticated authority/workspace endpoints now fail closed as JSON 401 rather than 404.
+4. Run genuine account-authority UAT on **both** production-like simulator builds using legitimate safe test accounts:
+   - Android `uat` / `pro.wewed.app.uatdev`;
+   - iOS `UAT` / `pro.wewed.app.uatdev`;
+   - no Shadow persona switching;
+   - no self-selected role;
+   - visible invalid-credential/transport errors;
+   - server-resolved grants/context only.
+5. Guest live UAT remains separate and still requires a genuine safe invitation credential.
+6. Final Play delivery/App-Link and iOS signed-distribution/Universal-Link proof remain Phase-13 exit requirements.
+
+**Phase-13 status:** **NOT ACCEPTED — NATIVE UAT TARGETS + ASYNC SIGN-IN UI + MAIN-BASED ACCOUNT-TRANSPORT RC ARE QUALIFIED; LIVE TRANSPORT PROMOTION, TRUE RUNTIME AUTHORITY/GUEST UAT, AND FINAL DISTRIBUTION PROOF REMAIN.**
