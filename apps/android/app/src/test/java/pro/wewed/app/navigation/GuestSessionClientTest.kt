@@ -169,10 +169,14 @@ class GuestSessionClientTest {
         exchangeSucceeds("charity-and-kudzie", "guest_a", "Guest A", guestASession)
         client.exchangePrivateInvitation("charity-and-kudzie", rawToken)
 
+        // The real client may put the credential only on the one-shot HTTPS exchange body.
+        assertEquals(1, seenBodies.size)
+        assertTrue(seenBodies.single().contains(rawToken))
+
         val stored = storage.let { s ->
             listOf("wewed.guest.session", "wewed.guest.session.slug").mapNotNull { s.get(it) }
         }
-        assertTrue("a session must be stored", stored.isNotEmpty())
+        assertEquals(listOf(guestASession, "charity-and-kudzie"), stored)
         stored.forEach {
             assertNotEquals("the raw RSVP credential must not be stored", rawToken, it)
             assertFalse("the raw RSVP credential must not appear in stored values", it.contains(rawToken))
