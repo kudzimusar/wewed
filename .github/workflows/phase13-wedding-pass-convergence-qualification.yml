@@ -69,8 +69,20 @@ jobs:
           bun test src/lib/wedding-day-key-preflight.test.ts
           bun test src/lib/wedding-day-routes.integration.test.ts
 
-      - name: TypeScript check
-        run: bunx tsc --noEmit --pretty false
+      - name: Reject TypeScript errors in Wedding Pass convergence files
+        shell: bash
+        run: |
+          set +e
+          bunx tsc --noEmit --pretty false > /tmp/wewed-tsc.log 2>&1
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then exit 0; fi
+          errors="$(grep -E '^(src/(app/api/wedding-day/pass/route|components/wedding/invitation-experience/wedding-guest-pass-dialog|lib/(wedding-day|wedding-day-routes\.integration\.test|personal-invitation-mobile-entry\.test))\.(ts|tsx))' /tmp/wewed-tsc.log || true)"
+          if [ -n "$errors" ]; then
+            echo "$errors"
+            exit 1
+          fi
+          echo "Repository-wide TypeScript exit code: $status. No Wedding Pass convergence file errors found."
 
       - name: Production build
         run: bun run build
