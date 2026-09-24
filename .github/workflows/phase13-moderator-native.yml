@@ -1,0 +1,66 @@
+name: Phase 13 Moderator Native Qualification
+on:
+  pull_request:
+    branches:
+      - native-mobile/wedding-day-ww2-phase11b-20260924
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: apps/android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Unit and debug build
+        run: ./gradlew testDebugUnitTest assembleDebug --no-daemon
+      - name: Unsigned release must fail
+        shell: bash
+        run: |
+          set +e
+          ./gradlew bundleRelease --no-daemon > /tmp/unsigned-release.log 2>&1
+          status=$?
+          cat /tmp/unsigned-release.log
+          if [ "$status" -eq 0 ]; then exit 1; fi
+          grep -q "Release packaging requires WEWED_UPLOAD_STORE_FILE" /tmp/unsigned-release.log
+      - name: Signed release pipeline with ephemeral test signer
+        shell: bash
+        run: |
+          keytool -genkeypair -keystore "$RUNNER_TEMP/phase13-ci.jks" -storepass phase13test -keypass phase13test -alias phase13ci -keyalg RSA -keysize 2048 -validity 2 -dname "CN=Phase13 CI,O=Wewed Test,C=JP"
+          WEWED_UPLOAD_STORE_FILE="$RUNNER_TEMP/phase13-ci.jks" WEWED_UPLOAD_STORE_PASSWORD=phase13test WEWED_UPLOAD_KEY_ALIAS=phase13ci WEWED_UPLOAD_KEY_PASSWORD=phase13test ./gradlew bundleRelease --no-daemon
+          keytool -printcert -jarfile app/build/outputs/bundle/release/app-release.aab
+
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Ensure XcodeGen
+        run: command -v xcodegen >/dev/null || brew install xcodegen
+      - name: Swift tests
+        run: swift test
+      - name: Generate project
+        run: xcodegen generate
+      - name: Verify release identity injection
+        shell: bash
+        run: |
+          xcodebuild -showBuildSettings -scheme Wewed -configuration Release WEWED_APPLE_TEAM_ID=ABCDE12345 > /tmp/build-settings.txt
+          grep -E "DEVELOPMENT_TEAM = ABCDE12345" /tmp/build-settings.txt
+          grep -E "PRODUCT_BUNDLE_IDENTIFIER = pro.wewed.app" /tmp/build-settings.txt
+      - name: Simulator debug build
+        run: xcodebuild build -scheme Wewed -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO
+      - name: Generic device release build
+        run: xcodebuild build -scheme Wewed -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO
