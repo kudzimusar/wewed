@@ -3184,7 +3184,7 @@ D-039 is preserved as the implementation-agent submission and was not accepted a
 - server qualification product/workflow head: `76f0d61803458c51ba34e7ddfe572dc2a26840a7`;
 - server GitHub Actions run: `35936217785` — PASS;
 - server evidence covered exact pre-11A disposable migration state, read-only preflight, Phase-11A migration, postflight, key-preflight regressions, Phase-11A/11B Wedding Day regressions, guarded destructive rollback rehearsal on disposable PostgreSQL, migration reapply/postflight, repeated domain regressions, and production bundle build with Wedding Day disabled;
-- final clean server branch head after temporary workflow removal: `42f9c1f60b8b83ac9436bc9a8d583798adbd33a0`;
+- final clean server branch head after temporary workflow removal: `13089dea3408edf15e41d5c9e7ad7b892cb023eb`;
 - native qualification head: `4495fda935c3ef3213aff295f2d5aa32caea10ae`;
 - native GitHub Actions run: `35936424947` — PASS;
 - native evidence covered iOS Swift tests/build, XcodeGen, simulator Debug and unsigned generic-device Release build, plus Android unit tests, Debug build and Release build;
