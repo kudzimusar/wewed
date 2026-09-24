@@ -66,6 +66,18 @@ export function InvitationAppHandoff({
 
     const androidClient = /Android/i.test(navigator.userAgent)
     if (androidClient) {
+      // A valid personal invitation must never dead-end merely because the native
+      // deferred-install transport is not enabled yet. The token has already been
+      // exchanged into the short-lived pending-invitation cookie by /invite/[slug],
+      // so continuing here revalidates that cookie server-side, issues the normal
+      // Guest Session and reveals the wedding's saved digital invitation without
+      // putting the RSVP credential back in a URL.
+      //
+      // When native handoff IS enabled, preserve the Play/native path below.
+      if (!deferredInstallEnabled) {
+        window.location.replace(continueInBrowser)
+        return
+      }
       setPlatform('android')
     } else if (isAppleMobileClient()) {
       setPlatform('ios')
@@ -101,7 +113,7 @@ export function InvitationAppHandoff({
         if (!cancelled) setChecking(false)
       })
     return () => { cancelled = true }
-  }, [continueInApp])
+  }, [continueInApp, continueInBrowser, deferredInstallEnabled])
 
   async function prepareSecureHandoff() {
     if (
@@ -288,12 +300,6 @@ export function InvitationAppHandoff({
               </>
             )
           ) : null}
-
-          {!deferredInstallEnabled && platform === 'android' && !checking && (
-            <p role="alert" className="rounded-2xl border border-[#c97866]/50 bg-[#3a201c] px-4 py-3 text-sm leading-6 text-[#f3d8d1]">
-              Secure Android invitation handoff is not available yet. Your private invitation remains locked until the production Wewed release is available.
-            </p>
-          )}
 
           {handoffError && (
             <>
