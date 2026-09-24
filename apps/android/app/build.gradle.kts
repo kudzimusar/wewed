@@ -97,7 +97,12 @@ tasks.matching {
     it.name == "assembleRelease" || it.name == "bundleRelease" || it.name == "packageRelease"
 }.configureEach {
     doFirst {
-        if (!hasUploadSigning) {
+        val releaseSigningPresent =
+            !System.getenv("WEWED_UPLOAD_STORE_FILE").isNullOrBlank() &&
+            !System.getenv("WEWED_UPLOAD_STORE_PASSWORD").isNullOrBlank() &&
+            !System.getenv("WEWED_UPLOAD_KEY_ALIAS").isNullOrBlank() &&
+            !System.getenv("WEWED_UPLOAD_KEY_PASSWORD").isNullOrBlank()
+        if (!releaseSigningPresent) {
             throw GradleException(
                 "Release packaging requires WEWED_UPLOAD_STORE_FILE, WEWED_UPLOAD_STORE_PASSWORD, " +
                     "WEWED_UPLOAD_KEY_ALIAS and WEWED_UPLOAD_KEY_PASSWORD."
