@@ -23,6 +23,7 @@ describeDb('Phase 11A Wedding Day HTTP route handlers', () => {
   let getPassRoute: typeof import('@/app/api/wedding-day/pass/route')['GET']
   let getManifestRoute: typeof import('@/app/api/native/gate/wedding-day/manifest/route')['GET']
   let postCheckInRoute: typeof import('@/app/api/native/gate/wedding-day/check-in/route')['POST']
+  let postRevokeRoute: typeof import('@/app/api/native/gate/wedding-day/pass/revoke/route')['POST']
   let createNativeAccountSessionToken: typeof import('@/lib/native-account-session')['createNativeAccountSessionToken']
   let ensureWeddingPassCredential: typeof import('@/lib/wedding-day')['ensureWeddingPassCredential']
 
@@ -41,6 +42,7 @@ describeDb('Phase 11A Wedding Day HTTP route handlers', () => {
     ;({ GET: getPassRoute } = await import('@/app/api/wedding-day/pass/route'))
     ;({ GET: getManifestRoute } = await import('@/app/api/native/gate/wedding-day/manifest/route'))
     ;({ POST: postCheckInRoute } = await import('@/app/api/native/gate/wedding-day/check-in/route'))
+    ;({ POST: postRevokeRoute } = await import('@/app/api/native/gate/wedding-day/pass/revoke/route'))
     ;({ createNativeAccountSessionToken } = await import('@/lib/native-account-session'))
     ;({ ensureWeddingPassCredential } = await import('@/lib/wedding-day'))
 
@@ -89,7 +91,7 @@ describeDb('Phase 11A Wedding Day HTTP route handlers', () => {
         (id, "weddingId", "gateId", "userId", "operatorRole", capabilities, "activeFrom", "createdAt", "updatedAt")
        VALUES ($1, $2, $3, $4, 'usher', $5, now() - interval '1 hour', now(), now())`,
       id('assign'), WEDDING_ID, GATE_ID, OPERATOR_USER_ID,
-      JSON.stringify(['gate.manifest.read', 'gate.checkin.write', 'gate.guest_search.read', 'gate.audit.read']),
+      JSON.stringify(['gate.manifest.read', 'gate.checkin.write', 'gate.pass.revoke', 'gate.guest_search.read', 'gate.audit.read']),
     )
     await db.$executeRawUnsafe(
       `INSERT INTO public."Guest" (id, "weddingId", name, "updatedAt")
@@ -135,6 +137,14 @@ describeDb('Phase 11A Wedding Day HTTP route handlers', () => {
     checkInReq.headers.set('Authorization', `Bearer ${bearerToken}`)
     const checkInRes = await postCheckInRoute(checkInReq)
     expect(checkInRes.status).toBe(503)
+
+    const revokeReq = new NextRequest(`http://localhost/api/native/gate/wedding-day/pass/revoke?grantId=${GRANT_ID}`, {
+      method: 'POST',
+      body: JSON.stringify({ passSerial: 'WW12345678-001', reason: 'Feature-disabled test' }),
+    })
+    revokeReq.headers.set('Authorization', `Bearer ${bearerToken}`)
+    const revokeRes = await postRevokeRoute(revokeReq)
+    expect(revokeRes.status).toBe(503)
   })
 
   test('enabled feature remains unavailable until both signing roles pass preflight', async () => {
@@ -188,6 +198,142 @@ describeDb('Phase 11A Wedding Day HTTP route handlers', () => {
     wrongGrantReq.headers.set('Authorization', `Bearer ${bearerToken}`)
     const wrongGrantRes = await getManifestRoute(wrongGrantReq)
     expect(wrongGrantRes.status).toBe(403)
+  })
+
+
+  test('revocation requires dedicated authority, validates input, is idempotent, and audits the actor', async () => {
+    process.env.WEWED_WEDDING_DAY_WW2_ENABLED = 'true'
+
+    const revokeGuestId = id('guest-revoke')
+    await db.$executeRawUnsafe(
+      `INSERT INTO public."Guest" (id, "weddingId", name, "updatedAt")
+       VALUES ($1, $2, 'Revocation Guest', now())
+       ON CONFLICT (id) DO NOTHING`,
+      revokeGuestId,
+      WEDDING_ID,
+    )
+    await db.$executeRawUnsafe(
+      `INSERT INTO public."RSVP" (id, "guestId", token, attending, "updatedAt")
+       VALUES ($1, $2, $3, TRUE, now())
+       ON CONFLICT (id) DO NOTHING`,
+      id('rsvp-revoke'),
+      revokeGuestId,
+      id('rsvp-revoke-token'),
+    )
+    const credential = await ensureWeddingPassCredential({
+      weddingId: WEDDING_ID,
+      guestId: revokeGuestId,
+    })
+
+    const limitedUserId = id('operator-checkin-only')
+    await db.$executeRawUnsafe(
+      `INSERT INTO public."User" (id, email, name, role, "updatedAt")
+       VALUES ($1, $2, 'Checkin Only Operator', 'usher', now())
+       ON CONFLICT (id) DO NOTHING`,
+      limitedUserId,
+      `${limitedUserId}@example.test`,
+    )
+    const limitedAssignmentId = id('assign-checkin-only')
+    await db.$executeRawUnsafe(
+      `INSERT INTO public."WeddingGateAssignment"
+        (id, "weddingId", "gateId", "userId", "operatorRole", capabilities, "activeFrom", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, 'usher', $5, now() - interval '1 hour', now(), now())
+       ON CONFLICT (id) DO UPDATE SET
+         capabilities = EXCLUDED.capabilities,
+         "revokedAt" = NULL,
+         "updatedAt" = now()`,
+      limitedAssignmentId,
+      WEDDING_ID,
+      GATE_ID,
+      limitedUserId,
+      JSON.stringify(['gate.manifest.read', 'gate.checkin.write']),
+    )
+    const limitedBearer = createNativeAccountSessionToken({
+      accessUserId: limitedUserId,
+      authUserId: `auth-${limitedUserId}`,
+      email: `${limitedUserId}@example.test`,
+    })
+
+    const deniedReq = new NextRequest(
+      `http://localhost/api/native/gate/wedding-day/pass/revoke?grantId=${GRANT_ID}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ passSerial: credential.passSerial, reason: 'Lost phone' }),
+      },
+    )
+    deniedReq.headers.set('Authorization', `Bearer ${limitedBearer}`)
+    const deniedRes = await postRevokeRoute(deniedReq)
+    expect(deniedRes.status).toBe(403)
+
+    const longReasonReq = new NextRequest(
+      `http://localhost/api/native/gate/wedding-day/pass/revoke?grantId=${GRANT_ID}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ passSerial: credential.passSerial, reason: 'x'.repeat(501) }),
+      },
+    )
+    longReasonReq.headers.set('Authorization', `Bearer ${bearerToken}`)
+    const longReasonRes = await postRevokeRoute(longReasonReq)
+    expect(longReasonRes.status).toBe(400)
+    expect((await longReasonRes.json()).code).toBe('REVOCATION_REASON_TOO_LONG')
+
+    const ambiguousReq = new NextRequest(
+      `http://localhost/api/native/gate/wedding-day/pass/revoke?grantId=${GRANT_ID}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          credentialId: credential.id,
+          passSerial: credential.passSerial,
+          reason: 'Lost phone',
+        }),
+      },
+    )
+    ambiguousReq.headers.set('Authorization', `Bearer ${bearerToken}`)
+    const ambiguousRes = await postRevokeRoute(ambiguousReq)
+    expect(ambiguousRes.status).toBe(400)
+    expect((await ambiguousRes.json()).code).toBe('CREDENTIAL_SELECTOR_INVALID')
+
+    const revoke = async () => {
+      const request = new NextRequest(
+        `http://localhost/api/native/gate/wedding-day/pass/revoke?grantId=${GRANT_ID}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ passSerial: credential.passSerial, reason: 'Lost phone' }),
+        },
+      )
+      request.headers.set('Authorization', `Bearer ${bearerToken}`)
+      return postRevokeRoute(request)
+    }
+
+    const first = await revoke()
+    expect(first.status).toBe(200)
+    const firstBody = await first.json()
+    expect(firstBody.success).toBe(true)
+    expect(firstBody.data.passSerial).toBe(credential.passSerial)
+    expect(firstBody.data.weddingId).toBeUndefined()
+    expect(firstBody.data.guestId).toBeUndefined()
+
+    const second = await revoke()
+    expect(second.status).toBe(200)
+
+    const auditRows = await db.$queryRawUnsafe<Array<{
+      actorId: string
+      weddingId: string
+      action: string
+      resourceId: string
+      afterValue: unknown
+    }>>(
+      `SELECT "actorId", "weddingId", action, "resourceId", "afterValue"
+         FROM public."AuditEvent"
+        WHERE action = 'wedding_pass.revoked'
+          AND "resourceId" = $1
+        ORDER BY "createdAt"`,
+      credential.id,
+    )
+    expect(auditRows).toHaveLength(1)
+    expect(auditRows[0].actorId).toBe(OPERATOR_USER_ID)
+    expect(auditRows[0].weddingId).toBe(WEDDING_ID)
+    expect(JSON.stringify(auditRows[0].afterValue)).toContain(GATE_ID)
   })
 
   test('valid gate operator can fetch manifest and post check-in', async () => {

@@ -38,6 +38,7 @@ export type OperationalGrantKind = (typeof OPERATIONAL_GRANT_KINDS)[number]
 export const GATE_CAPABILITY_VOCABULARY = [
   'gate.manifest.read',
   'gate.checkin.write',
+  'gate.pass.revoke',
   'gate.guest_search.read',
   'gate.audit.read',
 ] as const
