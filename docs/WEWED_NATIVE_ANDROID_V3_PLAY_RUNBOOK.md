@@ -1,5 +1,9 @@
 # Wewed Native Android v3 — Play Candidate Runbook
 
+> **HISTORICAL PATH — DO NOT USE FOR THE CURRENT CONVERGENCE RELEASE CANDIDATE.**  
+> This document describes the earlier React Native / Expo `apps/mobile` migration path. The authoritative current native convergence plan is `docs/WEWED_NATIVE_PWA_PRODUCTION_CONVERGENCE_MASTER_PLAN.md`. For Phase 13 and later convergence work, Android is `apps/android` (Kotlin/Compose) and iOS is `apps/ios` (Swift). Do not use this document's `apps/mobile` build script, versionCode/versionName, branch coordinates, or release instructions for the current candidate unless a later moderator checkpoint explicitly re-authorizes them.
+>
+
 **Release candidate:** React Native / Expo Wewed 2.0.0  
 **Android package:** `pro.wewed.app`  
 **Android versionCode:** `3`  
