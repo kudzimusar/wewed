@@ -2,6 +2,13 @@ import XCTest
 @testable import WewedKit
 
 final class NativeDeepLinkTests: XCTestCase {
+    func testInvitationDeepLinkDescriptionRedactsCredential() {
+        let secret = "guest-token-must-not-appear"
+        let link = InvitationDeepLink(weddingSlug: "charity-and-kudzie", rsvpToken: secret)
+        XCTAssertFalse(String(describing: link).contains(secret))
+        XCTAssertTrue(String(describing: link).contains("***"))
+    }
+
     func testParsesPersonalInvitationLink() {
         let link = NativeDeepLinkParser.parse(
             "https://wewed.pro/invite/charity-and-kudzie?rsvp=guest-token-123"
