@@ -229,6 +229,7 @@ export interface NonGrantingRelationship {
     | 'assignment_expired'
     | 'assignment_not_yet_active'
     | 'operator_role_not_supported'
+    | 'unsupported_gate_capability'
     | 'no_recognized_capabilities'
 }
 
