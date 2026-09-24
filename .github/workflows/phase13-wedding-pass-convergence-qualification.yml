@@ -86,3 +86,55 @@ jobs:
 
       - name: Production build
         run: bun run build
+
+      - name: Generate disposable P-256 Wedding Day keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out /tmp/wewed-ww2-ci.pem
+          openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out /tmp/wewed-root-ci.pem
+          {
+            echo 'WEWED_WEDDING_DAY_WW2_ENABLED=true'
+            echo 'WEDDING_DAY_WW2_KEY_ID=ww2-pass-convergence-ci'
+            echo 'WEDDING_DAY_ROOT_KEY_ID=root-pass-convergence-ci'
+            echo 'WEDDING_DAY_WW2_PRIVATE_KEY_PEM<<WW2_EOF'
+            cat /tmp/wewed-ww2-ci.pem
+            echo 'WW2_EOF'
+            echo 'WEDDING_DAY_ROOT_PRIVATE_KEY_PEM<<ROOT_EOF'
+            cat /tmp/wewed-root-ci.pem
+            echo 'ROOT_EOF'
+          } >> "$GITHUB_ENV"
+
+      - name: Install Chromium
+        run: bash scripts/install-playwright-chromium-ci.sh
+
+      - name: Start production-built Wewed for browser pass UAT
+        shell: bash
+        run: |
+          PORT=3000 bun run start > /tmp/wewed-pass-convergence.log 2>&1 &
+          echo $! > /tmp/wewed-pass-convergence.pid
+          for attempt in $(seq 1 90); do
+            status="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/manifest.json || true)"
+            if [ "$status" != "000" ]; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/wewed-pass-convergence.log || true
+          exit 1
+
+      - name: Run Ivory-to-WW2 browser UAT
+        env:
+          WEWED_UAT_BASE_URL: http://127.0.0.1:3000
+        run: bunx playwright test --config=e2e/wedding-pass-convergence.playwright.config.mjs
+
+      - name: Print sanitized pass UAT log on failure
+        if: failure()
+        shell: bash
+        run: |
+          perl -pe 's/([?&](?:rsvp|h)=)[^&\s]+/${1}[REDACTED]/g' /tmp/wewed-pass-convergence.log || true
+
+      - name: Stop pass UAT server
+        if: always()
+        run: |
+          if [ -f /tmp/wewed-pass-convergence.pid ]; then
+            kill "$(cat /tmp/wewed-pass-convergence.pid)" || true
+          fi
