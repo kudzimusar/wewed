@@ -21,10 +21,11 @@ android {
         applicationId = "pro.wewed.app"
         minSdk = 24
         targetSdk = 34
-        // Must exceed the highest version already on Play, or the upload is rejected outright.
-        // Observed on the Play-installed `pro.wewed.app`: versionCode 7 / 2.0.4-uat. This is the
-        // next deliberate candidate, not an upload — see the Play runbook before publishing.
-        versionCode = 8
+        // Must exceed the highest version already present in Google Play, or the upload is rejected.
+        // Live Play Console inspection on 2026-09-24 confirmed versionCode 8 / 2.0.5 is already
+        // consumed by the legacy closed-test release. The Compose convergence candidate therefore
+        // starts at versionCode 9 while retaining its intended product versionName.
+        versionCode = 9
         versionName = "2.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
