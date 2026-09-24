@@ -1,0 +1,68 @@
+name: Phase 13 Native UAT Auth Qualification
+
+on:
+  push:
+    branches:
+      - native-mobile/release-identity-deeplinks-phase13-20260924
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: apps/android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Ensure Android 36 SDK is available
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort | tail -1)"
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest --no-daemon
+      - name: Build production-like UAT APK
+        run: ./gradlew assembleUat --no-daemon
+      - name: Verify UAT identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="$(find app/build/intermediates -type f -name AndroidManifest.xml -path '*uat*' | xargs -r grep -l 'package="pro.wewed.app.uatdev"' | head -n 1)"
+          test -n "$manifest"
+          grep -q 'android:versionCode="10"' "$manifest"
+          grep -q 'android:versionName="2.1.0-uatdev"' "$manifest"
+          buildconfig="$(find app/build/generated -type f -name BuildConfig.java -path '*uat*' | head -n 1)"
+          test -n "$buildconfig"
+          grep -q 'boolean DEBUG = false' "$buildconfig"
+          test -f app/build/outputs/apk/uat/app-uat.apk
+
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - name: Swift tests
+        run: swift test
+      - name: Verify UAT source configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '^  UAT: release$' project.yml
+          grep -q 'PRODUCT_BUNDLE_IDENTIFIER: pro.wewed.app.uatdev' project.yml
+          grep -q 'PRODUCT_BUNDLE_IDENTIFIER: pro.wewed.app$' project.yml
