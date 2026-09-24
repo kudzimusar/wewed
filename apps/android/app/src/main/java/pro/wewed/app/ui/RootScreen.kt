@@ -1210,6 +1210,7 @@ fun ContextSwitcherDialog(
 }
 
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun InvitationLinkEntryScreen(onBack: () -> Unit) {
     Box(
