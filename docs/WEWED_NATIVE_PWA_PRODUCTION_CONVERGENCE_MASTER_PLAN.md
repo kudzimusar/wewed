@@ -3147,3 +3147,68 @@ App/Universal Links, ecosystem UAT and staged rollout.
    - Zero production gate check-ins or admissions.
    - No merge to `main`, no deployment, no mobile app signing/publishing.
    - Phase 12 NOT started.
+
+### D-040 — Phase 11B moderator acceptance after corrective review and exact-head qualification (2026-09-24)
+**ACCEPTED — Phase 11B non-production activation/readiness rehearsal passes independent moderator review after reviewer-owned closure patches. Phase 12 may begin. Production Wedding Day migration, production signing-key provisioning/rotation, production WW2 enablement, live Gate admission, main merge/deployment, and signed Play/TestFlight publication remain NOT authorized by this checkpoint.**
+
+D-039 is preserved as the implementation-agent submission and was not accepted at face value. Independent review found material ordinary defects and closed them directly before acceptance.
+
+**Reviewer-owned closure:**
+1. **Credential revocation now uses least privilege.**
+   - Added dedicated `gate.pass.revoke` authority.
+   - `gate.checkin.write` alone cannot revoke a pass.
+   - Server revocation re-resolves the live Gate grant before mutation.
+2. **Revocation input/output and auditing were hardened.**
+   - Exactly one credential selector is accepted.
+   - Revocation reason is required and bounded.
+   - Internal exception strings are not returned as public server errors.
+   - Successful revocation records a `wedding_pass.revoked` audit event with Wedding, actor and Gate context.
+   - The response no longer exposes unnecessary Wedding/Guest identifiers.
+3. **Key preflight fingerprint evidence was corrected.**
+   - The helper previously labelled a truncated 16-byte digest as SHA-256.
+   - It now emits the complete 32-byte SHA-256 public fingerprint, with regression coverage.
+4. **Native revocation is operationally actionable and fail-closed.**
+   - Android/iOS preserve structured server failure codes/messages rather than collapsing all failures to a Boolean.
+   - Revocation requires `gate.pass.revoke` in the current operational context.
+   - After server success, the revoking device marks the cached credential revoked so it cannot be admitted again offline on that device.
+   - Local cache-update failure is surfaced as an explicit remediation state requiring manifest refresh.
+5. **Runbook safety/compatibility statements were corrected.**
+   - Production-shaped commands are explicitly future templates only and do not authorize production access or mutation.
+   - Current application signing uses PKCS#8 PEM environment secrets; a non-exportable HSM key requires a separate signing-adapter design rather than being assumed compatible.
+   - Cross-device offline revocation propagation is described accurately: disconnected devices cannot learn a new revocation until signed-manifest refresh.
+6. **Independent qualification exposed and closed a native test-harness defect.**
+   - iOS `URLProtocol` may surface a POST body as `httpBodyStream`; the submitted revocation test read only `httpBody`.
+   - The harness now captures either representation and the exact-head suite passes.
+
+**Independent exact-head qualification evidence:**
+- server qualification product/workflow head: `76f0d61803458c51ba34e7ddfe572dc2a26840a7`;
+- server GitHub Actions run: `35936217785` — PASS;
+- server evidence covered exact pre-11A disposable migration state, read-only preflight, Phase-11A migration, postflight, key-preflight regressions, Phase-11A/11B Wedding Day regressions, guarded destructive rollback rehearsal on disposable PostgreSQL, migration reapply/postflight, repeated domain regressions, and production bundle build with Wedding Day disabled;
+- final clean server branch head after temporary workflow removal: `42f9c1f60b8b83ac9436bc9a8d583798adbd33a0`;
+- native qualification head: `4495fda935c3ef3213aff295f2d5aa32caea10ae`;
+- native GitHub Actions run: `35936424947` — PASS;
+- native evidence covered iOS Swift tests/build, XcodeGen, simulator Debug and unsigned generic-device Release build, plus Android unit tests, Debug build and Release build;
+- final clean native branch head after temporary workflow removal: `c527e8037ab9b2a72a24bf0d994edf7e53879fc8`;
+- temporary moderator PRs #209 and #210 were closed unmerged after qualification.
+
+**Production boundary retained:**
+- production database touched: NO;
+- production private keys read/generated/changed: NO;
+- `WEWED_WEDDING_DAY_WW2_ENABLED` production enablement: NO;
+- production Gate admission/check-in: NO;
+- main merge or production deployment: NO;
+- signed Play/TestFlight publication: NO.
+
+**Phase gate:**
+- activation/rehearsal runbook safety: PASS;
+- production-shaped preflight/postflight/rollback rehearsal: PASS;
+- safe key preflight: PASS;
+- dedicated revocation authority/audit: PASS;
+- Android/iOS revocation behavior: PASS;
+- exact-head server qualification: PASS;
+- exact-head Android/iOS qualification: PASS;
+- Phase 11B: **ACCEPTED**.
+
+**Authorized next unit: Phase 12 — Remove/contain single-tenant and unsafe PWA remnants.**
+Phase 12 should classify and remediate the explicit master-plan inventory: Charity-specific root RSVP fallback, comments hardcoded Wedding, royalty/flagship routes, seed endpoint authorization, unauthenticated/internal one-time bootstrap behavior, legacy global-admin Wedding access, hardcoded/default Wedding IDs or slugs, and other demo/sample/single-tenant paths. Each item must be classified as required backward compatibility, safe to parameterize, safe to retire, or production defect. Backward compatibility must never become native authority. The Phase-12 exit gate remains: **no mature shared API used by native is secretly single-tenant.**
+
