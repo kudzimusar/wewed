@@ -671,9 +671,11 @@ export async function guestPassForRequest(request: NextRequest) {
     weddingId: context.weddingId,
     guestId: context.guestId,
   })
+  const passKey = await passKeyForCredential(db, credential)
   return {
     context,
     credential,
+    passKey,
   }
 }
 
