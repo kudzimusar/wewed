@@ -9,7 +9,9 @@ export const metadata: Metadata = {
 }
 
 export default function IvoryFloralGoldUatPage() {
-  if (process.env.VERCEL_ENV === 'production') notFound()
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production') {
+    notFound()
+  }
   return <IvoryFloralGoldUatPreview />
 }
 

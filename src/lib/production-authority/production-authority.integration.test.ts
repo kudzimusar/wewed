@@ -641,6 +641,72 @@ describeLocal('WewedProductionAuthorityV1 against a disposable migrated database
     }
   })
 
+  test('Phase 12 Invariant 6 & 7: legacy admin and platform admin receive [] from listAccessibleWeddings and null from getWeddingContext without explicit membership', async () => {
+    const { getWeddingContext } = await import('@/lib/wedding-access')
+    const { createAppSessionToken, APP_SESSION_COOKIE } = await import('@/lib/app-session')
+    const { NextRequest } = await import('next/server')
+
+    // 1. adminClassOnly has no WeddingMembership -> returns []
+    const legacyAdminWeddings = await listAccessibleWeddings(actors.adminClassOnly, 'admin')
+    expect(legacyAdminWeddings).toEqual([])
+
+    // 2. platformAdmin has no WeddingMembership -> returns []
+    const platformAdminWeddings = await listAccessibleWeddings(actors.platformAdmin, 'admin')
+    expect(platformAdminWeddings).toEqual([])
+
+    // 3. getWeddingContext fails closed for adminClassOnly even with an activeWeddingId requested
+    const legacySessionToken = createAppSessionToken({
+      userId: actors.adminClassOnly,
+      authUserId: `auth-${actors.adminClassOnly}`,
+      email: `${actors.adminClassOnly}@example.test`,
+      role: 'admin',
+      coupleId: null,
+      activeWeddingId: ids.A,
+    })
+    const legacyReq = new NextRequest('http://localhost/api/test', {
+      headers: { cookie: `${APP_SESSION_COOKIE}=${legacySessionToken}` },
+    })
+    const legacyContext = await getWeddingContext(legacyReq)
+    expect(legacyContext).toBeNull()
+
+    // 4. getWeddingContext fails closed for platformAdmin with activeWeddingId requested
+    const platformSessionToken = createAppSessionToken({
+      userId: actors.platformAdmin,
+      authUserId: `auth-${actors.platformAdmin}`,
+      email: `${actors.platformAdmin}@example.test`,
+      role: 'admin',
+      coupleId: null,
+      activeWeddingId: ids.A,
+    })
+    const platformReq = new NextRequest('http://localhost/api/test', {
+      headers: { cookie: `${APP_SESSION_COOKIE}=${platformSessionToken}` },
+    })
+    const platformContext = await getWeddingContext(platformReq)
+    expect(platformContext).toBeNull()
+
+    // 5. If an explicit WeddingMembership is created for an admin user, they access ONLY that wedding
+    const explicitAdminId = await user('explicitAdmin', 'admin')
+    await membership('explicitAdminMem', explicitAdminId, ids.A, 'planner')
+    const explicitWeddings = await listAccessibleWeddings(explicitAdminId, 'admin')
+    expect(explicitWeddings.length).toBe(1)
+    expect(explicitWeddings[0].id).toBe(ids.A)
+
+    const explicitToken = createAppSessionToken({
+      userId: explicitAdminId,
+      authUserId: `auth-${explicitAdminId}`,
+      email: `${explicitAdminId}@example.test`,
+      role: 'admin',
+      coupleId: null,
+      activeWeddingId: ids.A,
+    })
+    const explicitReq = new NextRequest('http://localhost/api/test', {
+      headers: { cookie: `${APP_SESSION_COOKIE}=${explicitToken}` },
+    })
+    const explicitContext = await getWeddingContext(explicitReq)
+    expect(explicitContext).not.toBeNull()
+    expect(explicitContext?.weddingId).toBe(ids.A)
+  })
+
   test('PWA agreement: platform-admin eligibility matches isWewedPlatformAdministrator', async () => {
     for (const actor of ['adminClassOnly', 'platformAdmin', 'suspendedRegistryAdmin', 'couple', 'planner1']) {
       const authority = await resolve(actors[actor])

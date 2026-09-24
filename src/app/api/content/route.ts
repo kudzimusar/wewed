@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-gate'
 import { db } from '@/lib/db'
 import {
-  getFlagshipWeddingId,
   isRevisionStatus,
   mapsToWeddingField,
   syncWeddingField,
@@ -94,15 +93,12 @@ export async function GET(request: NextRequest) {
     const section = url.searchParams.get('section')?.trim() || undefined
     const fieldKey = url.searchParams.get('fieldKey')?.trim() || undefined
     const status = url.searchParams.get('status')?.trim() || undefined
-    const weddingIdParam = url.searchParams.get('weddingId')?.trim() || undefined
-
-    // Resolve wedding id (query overrides flagship default)
-    const weddingId = weddingIdParam ?? (await getFlagshipWeddingId())
+    const weddingId = url.searchParams.get('weddingId')?.trim()
     if (!weddingId) {
       return NextResponse.json(
-        { success: false, error: 'Flagship wedding not found. Seed the database first.' },
-        { status: 404 },
-      )
+        { success: false, error: 'weddingId is required' },
+        { status: 400 },
+      );
     }
 
     // Parse limit
@@ -203,11 +199,11 @@ export async function POST(request: NextRequest) {
     const weddingId =
       typeof body.weddingId === 'string' && body.weddingId.trim()
         ? body.weddingId.trim()
-        : await getFlagshipWeddingId()
+        : null
     if (!weddingId) {
       return NextResponse.json(
-        { success: false, error: 'Flagship wedding not found. Seed the database first.' },
-        { status: 404 },
+        { success: false, error: 'weddingId is required' },
+        { status: 400 },
       )
     }
 

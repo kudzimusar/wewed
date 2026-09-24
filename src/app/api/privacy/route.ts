@@ -1,13 +1,12 @@
 import { db } from '@/lib/db'
 import {
-  FLAGSHIP_WEDDING_SLUG,
   asPrivacyLevel,
   asSubscriptionTier,
   isCanonSealed,
   type PrivacyLevel,
   type SubscriptionTier,
 } from '@/lib/privacy'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 /**
  * Legacy read-only privacy snapshot.
@@ -57,10 +56,18 @@ function buildSnapshot(row: {
   }
 }
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
+    const slug = request.nextUrl.searchParams.get('slug')?.trim()
+    if (!slug) {
+      return NextResponse.json(
+        { success: false, error: 'slug is required' },
+        { status: 400, headers: { 'Cache-Control': 'no-store, max-age=0' } },
+      )
+    }
+
     const wedding = await db.wedding.findFirst({
-      where: { slug: FLAGSHIP_WEDDING_SLUG },
+      where: { slug },
       select: {
         id: true,
         slug: true,

@@ -24,8 +24,6 @@ import {
      clothing | memory_books | anniversary | referrals
    ============================================================ */
 
-const FLAGSHIP_SLUG = "charity-and-kudzie";
-
 // ─── GET /api/royalty/preferences ──────────────────────────
 export async function GET(request: NextRequest) {
   const adminBlock = requireAdmin(request);
@@ -33,7 +31,13 @@ export async function GET(request: NextRequest) {
 
   try {
     const url = new URL(request.url);
-    const slug = url.searchParams.get("slug") ?? FLAGSHIP_SLUG;
+    const slug = url.searchParams.get("slug")?.trim();
+    if (!slug) {
+      return NextResponse.json(
+        { success: false, error: "Wedding slug is required" },
+        { status: 400 },
+      );
+    }
 
     const wedding = await db.wedding.findUnique({
       where: { slug },
@@ -108,7 +112,13 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = (await request.json()) as UpdatePreferencePayload;
-    const slug = body.slug?.trim() || FLAGSHIP_SLUG;
+    const slug = body.slug?.trim();
+    if (!slug) {
+      return NextResponse.json(
+        { success: false, error: "Wedding slug is required" },
+        { status: 400 },
+      );
+    }
     const category = body.category?.trim();
     const enabled = body.enabled;
     const actorId = body.actorId?.trim() || "admin";

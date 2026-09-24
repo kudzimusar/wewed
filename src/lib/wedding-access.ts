@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { readAppSession, type AppSession } from '@/lib/app-session'
-import { isWewedPlatformAdministrator } from '@/lib/business-access'
 import {
   PREVIEW_WRITE_BLOCK_MESSAGE,
   shouldBlockPreviewWrite,
@@ -166,42 +165,25 @@ export const BUSINESS_TEAM_MANAGEMENT_ACCESS = `
 
 export async function listAccessibleWeddings(
   userId: string,
-  globalRole: AppSession['role']
+  _globalRole?: AppSession['role']
 ): Promise<AccessibleWedding[]> {
-  let rows: WeddingRow[]
-
-  if (globalRole === 'admin') {
-    if (await isWewedPlatformAdministrator(userId)) return []
-
-    rows = await db.$queryRawUnsafe<WeddingRow[]>(`
-      SELECT w.id, w.slug, w.title, w.date, w.venue,
-             w."venueCity", w."venueCountry", w."coupleId",
-             'admin'::text AS "membershipRole",
-             'active'::text AS "membershipStatus",
-             NULL::text AS permissions,
-             FALSE AS "businessCanManageMembers"
-      FROM public."Wedding" w
-      ORDER BY w.date ASC, w."createdAt" ASC
-    `)
-  } else {
-    rows = await db.$queryRawUnsafe<WeddingRow[]>(
-      `
-      SELECT w.id, w.slug, w.title, w.date, w.venue,
-             w."venueCity", w."venueCountry", w."coupleId",
-             m.role AS "membershipRole", m.status AS "membershipStatus",
-             m.permissions,
-             ${BUSINESS_TEAM_MANAGEMENT_ACCESS} AS "businessCanManageMembers"
-      FROM public."WeddingMembership" m
-      JOIN public."Wedding" w ON w.id = m."weddingId"
-      WHERE m."userId" = $1
-        AND m.status IN ('active', 'invited')
-        ${GOVERNED_WEDDING_ACCESS}
-      ORDER BY CASE WHEN m.status = 'active' THEN 0 ELSE 1 END,
-               w.date ASC, w."createdAt" ASC
-    `,
-      userId
-    )
-  }
+  const rows = await db.$queryRawUnsafe<WeddingRow[]>(
+    `
+    SELECT w.id, w.slug, w.title, w.date, w.venue,
+           w."venueCity", w."venueCountry", w."coupleId",
+           m.role AS "membershipRole", m.status AS "membershipStatus",
+           m.permissions,
+           ${BUSINESS_TEAM_MANAGEMENT_ACCESS} AS "businessCanManageMembers"
+    FROM public."WeddingMembership" m
+    JOIN public."Wedding" w ON w.id = m."weddingId"
+    WHERE m."userId" = $1
+      AND m.status IN ('active', 'invited')
+      ${GOVERNED_WEDDING_ACCESS}
+    ORDER BY CASE WHEN m.status = 'active' THEN 0 ELSE 1 END,
+             w.date ASC, w."createdAt" ASC
+  `,
+    userId
+  )
 
   return rows.map((row) => {
     const { businessCanManageMembers, ...wedding } = row
@@ -242,19 +224,6 @@ export async function getWeddingContext(
 ): Promise<WeddingContext | null> {
   const session = readAppSession(request)
   if (!session?.activeWeddingId) return null
-
-  if (session.role === 'admin') {
-    if (await isWewedPlatformAdministrator(session.userId)) return null
-
-    const wedding = await db.wedding.findUnique({
-      where: { id: session.activeWeddingId },
-      select: { id: true },
-    })
-
-    return wedding
-      ? { session, weddingId: wedding.id, role: 'admin', permissions: ['*'] }
-      : null
-  }
 
   const rows = await db.$queryRawUnsafe<
     Array<{

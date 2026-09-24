@@ -15,7 +15,12 @@ function noStore(response: NextResponse): NextResponse {
 
 export async function GET(request: NextRequest) {
   try {
-    const slug = request.nextUrl.searchParams.get('slug')?.trim() || 'charity-and-kudzie'
+    const slug = request.nextUrl.searchParams.get('slug')?.trim()
+    if (!slug) {
+      return noStore(
+        NextResponse.json({ success: false, error: 'Wedding slug is required.' }, { status: 400 }),
+      )
+    }
     const access = await resolveWeddingAccessForRequest(request, slug)
     if (!access.allowed) {
       return noStore(

@@ -20,8 +20,6 @@ import { BRIDAL_PARTY } from "@/lib/bridal-party-data";
    Admin gate: wewed_admin_auth cookie (or ?admin=1 in dev).
    ============================================================ */
 
-const FLAGSHIP_SLUG = "charity-and-kudzie";
-
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface AdminContributionRow {
@@ -65,15 +63,6 @@ interface BridalSampleContribution {
   useField: "quote" | "favoriteMemory";
 }
 
-/**
- * Curated sample contributions for the 8 bridal party members.
- * Uses real bio data from bridal-party-data.ts so the demo wall
- * feels authentic to Charity & Kudzie's wedding.
- *
- * `useField` decides which bio field becomes the message:
- *   - 'quote'           → the member's toast to the couple
- *   - 'favoriteMemory'  → a shared memory with the couple
- */
 const BRIDAL_SAMPLES: BridalSampleContribution[] = [
   { bridalId: "tendai-m", type: "blessing", status: "featured", useField: "quote" },
   { bridalId: "takudzwa-m", type: "blessing", status: "approved", useField: "quote" },
@@ -86,9 +75,9 @@ const BRIDAL_SAMPLES: BridalSampleContribution[] = [
 ];
 
 // ─── GET /api/contributions ─────────────────────────────────────────────────
-// List all contributions for the flagship wedding, joined with guest info.
-// Query: ?status=pending|approved|rejected|draft|featured|hidden|all
-//        (default: all)
+// List all contributions for the wedding, joined with guest info.
+// Query: ?status=pending|approved|rejected|draft|featured|hidden|all&slug=...
+//        (default status: all)
 
 export async function GET(request: NextRequest) {
   const gate = requireAdmin(request);
@@ -115,14 +104,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const slug = request.nextUrl.searchParams.get("weddingSlug")?.trim() || request.nextUrl.searchParams.get("slug")?.trim();
+    if (!slug) {
+      return NextResponse.json(
+        { success: false, error: "Wedding slug is required." },
+        { status: 400 }
+      );
+    }
+
     const wedding = await db.wedding.findFirst({
-      where: { slug: FLAGSHIP_SLUG },
+      where: { slug },
       select: { id: true },
     });
 
     if (!wedding) {
       return NextResponse.json(
-        { success: false, error: "Flagship wedding not found." },
+        { success: false, error: "Wedding not found." },
         { status: 404 }
       );
     }
@@ -208,54 +205,64 @@ export async function POST(request: NextRequest) {
   if (gate) return gate;
 
   try {
+    const body = await request.json().catch(() => ({}));
+    const slug = (body?.weddingSlug || body?.slug || request.nextUrl.searchParams.get("weddingSlug") || request.nextUrl.searchParams.get("slug"))?.trim();
+
+    if (!slug) {
+      return NextResponse.json(
+        { success: false, error: "Wedding slug is required." },
+        { status: 400 }
+      );
+    }
+
     const wedding = await db.wedding.findFirst({
-      where: { slug: FLAGSHIP_SLUG },
-      select: { id: true },
+      where: { slug },
+      select: { id: true, slug: true },
     });
 
     if (!wedding) {
       return NextResponse.json(
-        { success: false, error: "Flagship wedding not found." },
+        { success: false, error: "Wedding not found." },
         { status: 404 }
       );
     }
 
-    // ── 1. Ensure bridal party guests exist (from bridal-party-data.ts) ──
-    // The seed route may have created slightly different placeholder names.
-    // We upsert by (weddingId, name) so bridal-party-data.ts is canonical.
+    // ── 1. Ensure bridal party guests exist (only for flagship demo seeding) ──
     const bridalGuests: Record<string, { id: string; name: string }> = {};
 
-    for (const member of BRIDAL_PARTY) {
-      const existing = await db.guest.findFirst({
-        where: { weddingId: wedding.id, name: member.name },
-        select: { id: true, name: true },
-      });
+    if (wedding.slug === 'charity-and-kudzie' || body?.seedSamples === true) {
+      for (const member of BRIDAL_PARTY) {
+        const existing = await db.guest.findFirst({
+          where: { weddingId: wedding.id, name: member.name },
+          select: { id: true, name: true },
+        });
 
-      let guestId: string;
-      if (existing) {
-        // Patch role/side if they were seeded as plain 'guest'
-        await db.guest.update({
-          where: { id: existing.id },
-          data: {
-            role: member.isKid ? "family" : "bridal_party",
-            roleDetail: member.role,
-            side: member.side,
-          },
-        });
-        guestId = existing.id;
-      } else {
-        const created = await db.guest.create({
-          data: {
-            name: member.name,
-            role: member.isKid ? "family" : "bridal_party",
-            roleDetail: member.role,
-            side: member.side,
-            weddingId: wedding.id,
-          },
-        });
-        guestId = created.id;
+        let guestId: string;
+        if (existing) {
+          // Patch role/side if they were seeded as plain 'guest'
+          await db.guest.update({
+            where: { id: existing.id },
+            data: {
+              role: member.isKid ? "family" : "bridal_party",
+              roleDetail: member.role,
+              side: member.side,
+            },
+          });
+          guestId = existing.id;
+        } else {
+          const created = await db.guest.create({
+            data: {
+              name: member.name,
+              role: member.isKid ? "family" : "bridal_party",
+              roleDetail: member.role,
+              side: member.side,
+              weddingId: wedding.id,
+            },
+          });
+          guestId = created.id;
+        }
+        bridalGuests[member.id] = { id: guestId, name: member.name };
       }
-      bridalGuests[member.id] = { id: guestId, name: member.name };
     }
 
     // ── 2. Generate tokens for every guest that doesn't have one ─────────
@@ -305,59 +312,61 @@ export async function POST(request: NextRequest) {
     // Stagger submittedAt timestamps so the public feed has variety.
     const baseTime = now.getTime();
 
-    for (const sample of BRIDAL_SAMPLES) {
-      const member = BRIDAL_PARTY.find((m) => m.id === sample.bridalId);
-      if (!member) continue;
-      const guestRef = bridalGuests[member.id];
-      if (!guestRef) continue;
+    if (wedding.slug === 'charity-and-kudzie' || body?.seedSamples === true) {
+      for (const sample of BRIDAL_SAMPLES) {
+        const member = BRIDAL_PARTY.find((m) => m.id === sample.bridalId);
+        if (!member) continue;
+        const guestRef = bridalGuests[member.id];
+        if (!guestRef) continue;
 
-      const existing = await db.guestContribution.findUnique({
-        where: { guestId: guestRef.id },
-        select: { id: true },
-      });
-      if (existing) continue;
+        const existing = await db.guestContribution.findUnique({
+          where: { guestId: guestRef.id },
+          select: { id: true },
+        });
+        if (existing) continue;
 
-      const message =
-        sample.useField === "quote" ? member.quote : member.favoriteMemory;
+        const message =
+          sample.useField === "quote" ? member.quote : member.favoriteMemory;
 
-      // Word/char counts (pre-sanitized — bridal data is trusted, but we
-      // still sanitize on storage for consistency).
-      const wordCount = message.trim().split(/\s+/).length;
-      const charCount = message.length;
+        // Word/char counts (pre-sanitized — bridal data is trusted, but we
+        // still sanitize on storage for consistency).
+        const wordCount = message.trim().split(/\s+/).length;
+        const charCount = message.length;
 
-      // Stagger timestamps: newest first, Tendai (index 0) is the most recent.
-      const staggerMs =
-        (BRIDAL_SAMPLES.length - BRIDAL_SAMPLES.indexOf(sample)) * 86_400_000; // 1 day apart
-      const submittedAt = new Date(baseTime - staggerMs);
+        // Stagger timestamps: newest first, Tendai (index 0) is the most recent.
+        const staggerMs =
+          (BRIDAL_SAMPLES.length - BRIDAL_SAMPLES.indexOf(sample)) * 86_400_000; // 1 day apart
+        const submittedAt = new Date(baseTime - staggerMs);
 
-      await db.guestContribution.create({
-        data: {
-          guestId: guestRef.id,
-          weddingId: wedding.id,
-          type: sample.type,
-          displayName: member.name,
-          relationship: member.relationshipToCouple,
-          message,
-          favoriteSong: member.favoriteSong,
-          privacy: "public",
-          status: sample.status,
-          wordCount,
-          charCount,
-          editCount: 1,
-          revisionHistory: null,
-          submittedAt,
-          reviewedAt: now,
-          reviewedBy: "admin",
-        },
-      });
+        await db.guestContribution.create({
+          data: {
+            guestId: guestRef.id,
+            weddingId: wedding.id,
+            type: sample.type,
+            displayName: member.name,
+            relationship: member.relationshipToCouple,
+            message,
+            favoriteSong: member.favoriteSong,
+            privacy: "public",
+            status: sample.status,
+            wordCount,
+            charCount,
+            editCount: 1,
+            revisionHistory: null,
+            submittedAt,
+            reviewedAt: now,
+            reviewedBy: "admin",
+          },
+        });
 
-      // Sync guest contributionStatus
-      await db.guest.update({
-        where: { id: guestRef.id },
-        data: { contributionStatus: sample.status },
-      });
+        // Sync guest contributionStatus
+        await db.guest.update({
+          where: { id: guestRef.id },
+          data: { contributionStatus: sample.status },
+        });
 
-      samplesCreated++;
+        samplesCreated++;
+      }
     }
 
     return NextResponse.json({

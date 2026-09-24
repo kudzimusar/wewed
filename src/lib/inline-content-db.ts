@@ -26,10 +26,9 @@ import { useCallback, useEffect, useState } from 'react'
 
 const PREFIX = 'wewed:content'
 const EVENT_NAME = 'wewed:content-change'
-const WEDDING_SLUG = 'charity-and-kudzie' // TODO: make dynamic per-couple
 
-function key(section: string, field: string): string {
-  return `${PREFIX}:${section}:${field}`
+function key(weddingSlug: string, section: string, field: string): string {
+  return `${PREFIX}:${weddingSlug || 'global'}:${section}:${field}`
 }
 
 function hasStorage(): boolean {
@@ -40,37 +39,37 @@ function hasStorage(): boolean {
   }
 }
 
-function getLocal(section: string, field: string): string {
+function getLocal(weddingSlug: string, section: string, field: string): string {
   if (!hasStorage()) return ''
   try {
-    return window.localStorage.getItem(key(section, field)) ?? ''
+    return window.localStorage.getItem(key(weddingSlug, section, field)) ?? ''
   } catch {
     return ''
   }
 }
 
-function setLocal(section: string, field: string, value: string): void {
+function setLocal(weddingSlug: string, section: string, field: string, value: string): void {
   if (!hasStorage()) return
   try {
-    window.localStorage.setItem(key(section, field), value)
+    window.localStorage.setItem(key(weddingSlug, section, field), value)
   } catch {
     /* ignore */
   }
 }
 
-function clearLocal(section: string, field: string): void {
+function clearLocal(weddingSlug: string, section: string, field: string): void {
   if (!hasStorage()) return
   try {
-    window.localStorage.removeItem(key(section, field))
+    window.localStorage.removeItem(key(weddingSlug, section, field))
   } catch {
     /* ignore */
   }
 }
 
-function notify(section: string, field: string, value: string): void {
+function notify(weddingSlug: string, section: string, field: string, value: string): void {
   if (typeof window === 'undefined') return
   window.dispatchEvent(
-    new CustomEvent(EVENT_NAME, { detail: { section, field, value } })
+    new CustomEvent(EVENT_NAME, { detail: { weddingSlug, section, field, value } })
   )
 }
 
@@ -79,16 +78,18 @@ function notify(section: string, field: string, value: string): void {
  * Returns true on success, false on failure (e.g. not authenticated).
  */
 async function saveToDB(
+  weddingSlug: string,
   section: string,
   field: string,
   value: string
 ): Promise<boolean> {
+  if (!weddingSlug) return false
   try {
     const res = await fetch('/api/wedding-content', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        slug: WEDDING_SLUG,
+        slug: weddingSlug,
         section,
         field,
         value,
@@ -105,12 +106,14 @@ async function saveToDB(
  * Returns the value or '' if not found.
  */
 async function fetchFromDB(
+  weddingSlug: string,
   section: string,
   field: string
 ): Promise<string> {
+  if (!weddingSlug) return ''
   try {
     const res = await fetch(
-      `/api/wedding-content?slug=${encodeURIComponent(WEDDING_SLUG)}`
+      `/api/wedding-content?slug=${encodeURIComponent(weddingSlug)}`
     )
     if (!res.ok) return ''
     const data = await res.json()
@@ -124,34 +127,43 @@ async function fetchFromDB(
 export function useInlineContentDB(
   section: string,
   field: string,
-  defaultValue: string = ''
+  defaultValue: string = '',
+  weddingSlug: string = ''
 ): [string, (value: string) => void, () => void] {
   const [value, setValueState] = useState<string>(defaultValue)
-  const [loaded, setLoaded] = useState(false)
+  const [, setLoaded] = useState(false)
 
   useEffect(() => {
     let active = true
     // 1. First, check localStorage for an immediate optimistic value
-    const local = getLocal(section, field)
+    const local = getLocal(weddingSlug, section, field)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setValueState(local || defaultValue)
 
-    // 2. Then fetch from DB (authoritative source)
-    fetchFromDB(section, field).then((dbValue) => {
-      if (!active) return
-      if (dbValue) {
-        setValueState(dbValue)
-        // Cache in localStorage for next mount
-        setLocal(section, field, dbValue)
-      }
+    // 2. Then fetch from DB (authoritative source) if weddingSlug provided
+    if (weddingSlug) {
+      fetchFromDB(weddingSlug, section, field).then((dbValue) => {
+        if (!active) return
+        if (dbValue) {
+          setValueState(dbValue)
+          // Cache in localStorage for next mount
+          setLocal(weddingSlug, section, field, dbValue)
+        }
+        setLoaded(true)
+      })
+    } else {
       setLoaded(true)
-    })
+    }
 
     // 3. Listen for cross-component changes (from other useInlineContentDB hooks)
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail
       if (!detail) return
-      if (detail.section === section && detail.field === field) {
+      if (
+        detail.weddingSlug === weddingSlug &&
+        detail.section === section &&
+        detail.field === field
+      ) {
         setValueState(detail.value || defaultValue)
       }
     }
@@ -160,26 +172,28 @@ export function useInlineContentDB(
       active = false
       window.removeEventListener(EVENT_NAME, handler)
     }
-  }, [section, field, defaultValue])
+  }, [weddingSlug, section, field, defaultValue])
 
   const setValue = useCallback(
     (next: string) => {
       setValueState(next) // immediate UI feedback
-      setLocal(section, field, next) // localStorage cache
-      notify(section, field, next) // cross-component sync
+      setLocal(weddingSlug, section, field, next) // localStorage cache
+      notify(weddingSlug, section, field, next) // cross-component sync
       // Fire-and-forget DB save (async, non-blocking)
-      void saveToDB(section, field, next)
+      if (weddingSlug) {
+        void saveToDB(weddingSlug, section, field, next)
+      }
     },
-    [section, field]
+    [weddingSlug, section, field]
   )
 
   const reset = useCallback(() => {
     setValueState(defaultValue)
-    clearLocal(section, field)
-    notify(section, field, '')
+    clearLocal(weddingSlug, section, field)
+    notify(weddingSlug, section, field, '')
     // Note: we don't DELETE from DB, just reset to defaultValue
     // (deleting content rows would break the multi-couple data layer)
-  }, [section, field, defaultValue])
+  }, [weddingSlug, section, field, defaultValue])
 
   return [value, setValue, reset]
 }

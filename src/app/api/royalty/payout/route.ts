@@ -19,8 +19,6 @@ import { payoutMutationsDisabledPayload } from "@/lib/royalty-payout-security";
        payout account storage are configured.
    ============================================================ */
 
-const FLAGSHIP_SLUG = "charity-and-kudzie";
-
 type PayoutMethod = "GET" | "POST" | "PATCH";
 
 function errorResponse(error: unknown, method: PayoutMethod) {
@@ -51,7 +49,13 @@ export async function GET(request: NextRequest) {
     await requireWewedAdmin(request, "admin.billing.read");
 
     const url = new URL(request.url);
-    const slug = url.searchParams.get("slug") ?? FLAGSHIP_SLUG;
+    const slug = url.searchParams.get("slug")?.trim();
+    if (!slug) {
+      return NextResponse.json(
+        { success: false, error: "Wedding slug is required." },
+        { status: 400 },
+      );
+    }
     const status = url.searchParams.get("status");
 
     if (status && !(PAYOUT_STATUSES as readonly string[]).includes(status)) {

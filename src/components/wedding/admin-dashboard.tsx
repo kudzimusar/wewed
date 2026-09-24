@@ -401,7 +401,7 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
       setAuthed(true)
       setSessionMs(ADMIN_SESSION_TTL_MS)
       toast({
-        title: 'Welcome back, Charity & Kudzie',
+        title: `Welcome back, ${wedding?.title || 'Couple'}`,
         description: 'You are signed in to the couple dashboard.',
       })
       return true
@@ -423,9 +423,9 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
   // ── Identfy as couple to socket (for ceremony broadcasts) ──
   useEffect(() => {
     if (authed && live.isConnected) {
-      live.identify('Charity & Kudzie', { isCouple: true })
+      live.identify(wedding?.title || 'Couple', { isCouple: true })
     }
-  }, [authed, live.isConnected, live])
+  }, [authed, live.isConnected, live, wedding?.title])
 
   // ── Body scroll lock when dashboard is open ──
   useEffect(() => {
@@ -616,20 +616,21 @@ export function AdminDashboard({ onClose }: AdminDashboardProps) {
   const handleSendMessage = useCallback(
     async (content: string) => {
       try {
+        const coupleName = wedding?.title || 'Couple'
         const res = await fetch('/api/messages', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             type: 'wall',
             content,
-            authorName: 'Charity & Kudzie',
+            authorName: coupleName,
           }),
         })
         if (!res.ok) throw new Error('Failed')
         const json = (await res.json()) as { data: MessageRow }
         setMessages((prev) => [json.data, ...prev])
         // Also broadcast live
-        live.sendMessage('Charity & Kudzie', content)
+        live.sendMessage(coupleName, content)
         toast({ title: 'Announcement sent', description: 'Visible to all connected guests.' })
       } catch {
         toast({
@@ -902,7 +903,7 @@ function LoginScreen({
                 Couple Dashboard
               </h2>
               <p className="mt-2 font-sans text-sm text-champagne/60">
-                A private control room for Charity &amp; Kudzie.
+                A private control room for {wedding?.title || 'the couple'}.
               </p>
             </div>
 

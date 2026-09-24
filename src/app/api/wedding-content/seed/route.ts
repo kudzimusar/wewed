@@ -1,10 +1,17 @@
 import { db } from "@/lib/db";
-import { requireAdmin } from "@/lib/admin-gate";
+import { requireWewedAdmin, WewedAdminAccessError } from "@/lib/wewed-admin";
 import {
   buildFlagshipContent,
   FLAGSHIP_WEDDING_SLUG,
 } from "@/lib/wedding-content-seed";
 import { NextRequest, NextResponse } from "next/server";
+
+function isProductionRuntime(): boolean {
+  return (
+    (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") &&
+    process.env.WEWED_ALLOW_TEST_SEED !== "true"
+  );
+}
 
 /* ============================================================
    /api/wedding-content/seed
@@ -24,8 +31,27 @@ import { NextRequest, NextResponse } from "next/server";
    ============================================================ */
 
 export async function POST(request: NextRequest) {
-  const denied = requireAdmin(request);
-  if (denied) return denied;
+  try {
+    await requireWewedAdmin(request, "admin.overview.read");
+  } catch (error) {
+    if (error instanceof WewedAdminAccessError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: error.status },
+      );
+    }
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 },
+    );
+  }
+
+  if (isProductionRuntime()) {
+    return NextResponse.json(
+      { success: false, error: "Database seeding is disabled in production." },
+      { status: 403 },
+    );
+  }
 
   try {
     const wedding = await db.wedding.findFirst({

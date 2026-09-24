@@ -1,5 +1,13 @@
 import { db } from "@/lib/db";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { requireWewedAdmin, WewedAdminAccessError } from "@/lib/wewed-admin";
+
+function isProductionRuntime(): boolean {
+  return (
+    (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") &&
+    process.env.WEWED_ALLOW_TEST_SEED !== "true"
+  );
+}
 
 // ─── Song Data ────────────────────────────────────────────────────────────────
 
@@ -71,7 +79,29 @@ const BRIDAL_PARTY = [
 // Seed the database with the flagship wedding data.
 // Uses upsert/check to avoid duplicates on repeated calls.
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  try {
+    await requireWewedAdmin(request, "admin.overview.read");
+  } catch (error) {
+    if (error instanceof WewedAdminAccessError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: error.status },
+      );
+    }
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 },
+    );
+  }
+
+  if (isProductionRuntime()) {
+    return NextResponse.json(
+      { success: false, error: "Database seeding is disabled in production." },
+      { status: 403 },
+    );
+  }
+
   try {
     const counts: Record<string, number> = {};
 
