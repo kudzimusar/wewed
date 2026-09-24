@@ -2,6 +2,8 @@ package pro.wewed.app
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import pro.wewed.app.models.InvitationDeepLink
 import pro.wewed.app.models.NativeDeepLink
@@ -17,6 +19,14 @@ private fun fixtureAppViewModel() = AppViewModel(
 )
 
 class NativeDeepLinkTest {
+    @Test
+    fun invitationDeepLinkDescriptionRedactsCredential() {
+        val secret = "guest-token-must-not-appear"
+        val link = InvitationDeepLink("charity-and-kudzie", secret)
+        assertFalse(link.toString().contains(secret))
+        assertTrue(link.toString().contains("***"))
+    }
+
     @Test
     fun parsesPersonalInvitationLink() {
         assertEquals(
