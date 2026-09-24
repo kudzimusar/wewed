@@ -29,6 +29,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/invite/" />
+                <data android:scheme="https" android:host="wewed.pro" android:path="/pass" />
                 <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/pass/" />
                 <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/w/" />
             </intent-filter>
