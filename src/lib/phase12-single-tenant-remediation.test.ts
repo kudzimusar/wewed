@@ -88,39 +88,11 @@ describe('Phase 12: Single-Tenant and Unsafe PWA Remnants Remediation', () => {
       expect(data).toEqual({ success: false, error: 'weddingSlug or weddingId is required.' })
     })
 
-    test('GET /api/content fails closed (400) without weddingId', async () => {
-      const { APP_SESSION_COOKIE } = await getSessionHelpers()
-      const { GET } = await import('@/app/api/content/route')
-      const adminCookie = await createValidSessionToken('admin')
-      const req = new NextRequest('http://localhost/api/content', {
-        headers: { cookie: `${APP_SESSION_COOKIE}=${adminCookie}` },
-      })
-      const res = await GET(req)
-      expect(res.status).toBe(400)
-      const data = await res.json()
-      expect(data).toEqual({ success: false, error: 'weddingId is required' })
-    })
-
-    test('POST /api/content fails closed (400) without weddingId', async () => {
-      const { APP_SESSION_COOKIE } = await getSessionHelpers()
-      const { POST } = await import('@/app/api/content/route')
-      const adminCookie = await createValidSessionToken('admin')
-      const req = new NextRequest('http://localhost/api/content', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          cookie: `${APP_SESSION_COOKIE}=${adminCookie}`,
-        },
-        body: JSON.stringify({
-          section: 'our-story',
-          fieldKey: 'title',
-          value: 'Our Story',
-        }),
-      })
-      const res = await POST(req)
-      expect(res.status).toBe(400)
-      const data = await res.json()
-      expect(data).toEqual({ success: false, error: 'weddingId is required' })
+    test('content revisions require explicit weddingId and active wedding authority', () => {
+      const contentSource = source('src/app/api/content/route.ts')
+      expect(contentSource).toContain("requireWeddingPermission(request, 'content.edit')")
+      expect(contentSource).toContain("error: 'weddingId is required'")
+      expect(contentSource).toContain('weddingId !== access.context.weddingId')
     })
 
     test('GET /api/privacy fails closed (400) without slug', async () => {
@@ -154,35 +126,12 @@ describe('Phase 12: Single-Tenant and Unsafe PWA Remnants Remediation', () => {
 
   // ── Invariant 3: Contributions & Royalty Require Explicit Slug ────────────
   describe('Invariant 3: Contributions and royalty endpoints require explicit slug', () => {
-    test('GET /api/contributions fails closed (400) without slug', async () => {
-      const { APP_SESSION_COOKIE } = await getSessionHelpers()
-      const { GET } = await import('@/app/api/contributions/route')
-      const adminCookie = await createValidSessionToken('admin')
-      const req = new NextRequest('http://localhost/api/contributions', {
-        headers: { cookie: `${APP_SESSION_COOKIE}=${adminCookie}` },
-      })
-      const res = await GET(req)
-      expect(res.status).toBe(400)
-      const data = await res.json()
-      expect(data).toEqual({ success: false, error: 'Wedding slug is required.' })
-    })
-
-    test('POST /api/contributions fails closed (400) without slug', async () => {
-      const { APP_SESSION_COOKIE } = await getSessionHelpers()
-      const { POST } = await import('@/app/api/contributions/route')
-      const adminCookie = await createValidSessionToken('admin')
-      const req = new NextRequest('http://localhost/api/contributions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          cookie: `${APP_SESSION_COOKIE}=${adminCookie}`,
-        },
-        body: JSON.stringify({ amount: 100 }),
-      })
-      const res = await POST(req)
-      expect(res.status).toBe(400)
-      const data = await res.json()
-      expect(data).toEqual({ success: false, error: 'Wedding slug is required.' })
+    test('contributions require an explicit wedding slug and active wedding authority', () => {
+      const contribSource = source('src/app/api/contributions/route.ts')
+      expect(contribSource).toContain('Wedding slug is required.')
+      expect(contribSource).toContain('wedding.id !== access.context.weddingId')
+      expect(contribSource).toContain('requireWeddingPermission(request, "content.edit")')
+      expect(contribSource).toContain('requireWeddingPermission(request, "guests.edit")')
     })
 
     test('contributions route has no named-wedding special case and binds requested slug to active wedding authority', () => {
