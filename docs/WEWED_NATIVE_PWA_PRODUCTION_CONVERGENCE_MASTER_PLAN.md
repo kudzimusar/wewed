@@ -3280,3 +3280,68 @@ Phase 12 should classify and remediate the explicit master-plan inventory: Chari
 - Phase 13: **NOT AUTHORIZED / NOT STARTED**.
 
 
+
+
+### D-042 — Phase 12 moderator acceptance after corrective review and exact-head qualification (2026-09-24)
+**MODERATOR ACCEPTANCE.** D-041 was treated as implementation-agent evidence only and was not accepted at face value. Independent review found several ordinary multi-wedding authority defects in the submitted Phase-12 head; the moderator patched them directly, added regression coverage, qualified the corrected exact head in GitHub Actions, removed the temporary qualification workflow, and closed the temporary PR unmerged.
+
+**Accepted baseline and final branch coordinates:**
+- accepted Phase-11B server baseline: `13089dea3408edf15e41d5c9e7ad7b892cb023eb`;
+- implementation-agent submitted Phase-12 head: `90a0d5424ecace566f685e70527954a7be241195`;
+- corrected qualification head: `39d9d3dcde95bd054e9261cf4feb4556accb1c58`;
+- independent GitHub Actions qualification run: `35941576458` — PASS;
+- final clean Phase-12 server head after temporary workflow removal: `5d6b188e96f4161878e5c79e8da1508a2fe77ba5`;
+- accepted native baseline remains unchanged: `c527e8037ab9b2a72a24bf0d994edf7e53879fc8`;
+- temporary moderator PR #211 was closed unmerged after qualification.
+
+**Corrective defects found and closed by moderator:**
+1. **Named-wedding demo seeding remained in `/api/contributions`.**
+   - D-041 described demo seeding as explicit but the submitted code still executed it when `wedding.slug === 'charity-and-kudzie'`.
+   - The named-wedding special case was removed. Demo seeding now requires an explicit `seedSamples === true` request only.
+   - Contributions GET/POST were additionally bound to `requireWeddingPermission` and the requested slug must resolve to the caller's active authorised wedding.
+2. **Cross-wedding comment reply reference.**
+   - `parentId` validation checked only target type/id and could link a reply in one wedding to a parent comment from another wedding.
+   - Parent validation now includes `parent.weddingId === resolved wedding.id`.
+3. **Comments privacy/access regression after parameterisation.**
+   - Replacing the hardcoded wedding with an arbitrary slug/id made comments resolvable for any known wedding without going through the shared wedding privacy/access policy.
+   - Comments GET/POST now use `resolveWeddingAccessForRequest` and fail through `weddingAccessErrorPayload`.
+4. **Caller-controlled cross-wedding content revisions.**
+   - `/api/content` accepted an explicit `weddingId` but retained the legacy generic dashboard-session gate.
+   - GET/POST now require `content.edit` through `requireWeddingPermission`, and the requested `weddingId` must match the active authorised wedding context.
+5. **Legacy admin bypass remained in `/api/wedding-content` mutation.**
+   - `canEditWeddingContent` still returned true for `session.role === 'admin'`, contradicting F-6 containment.
+   - The bypass was removed; POST now uses `requireWeddingPermission(request, 'content.edit')` and exact active-wedding matching.
+6. **Qualification-only cleanup.**
+   - A stale `isAdmin` reference in `/api/contributions` surfaced during independent CI and was removed.
+   - Focused regression tests were updated to assert the corrected authority contract rather than fake unbound sessions.
+
+**Independent exact-head qualification evidence:**
+- disposable PostgreSQL service initialised successfully;
+- Prisma client generation: PASS;
+- all repository migrations applied to disposable PostgreSQL: PASS;
+- Phase-12 focused regressions: PASS;
+- production-authority integration: PASS;
+- Wedding Day shared-authority regression: PASS;
+- production Next.js bundle: PASS;
+- GitHub Actions run `35941576458`: PASS.
+
+**Production boundary retained:**
+- production database touched: NO;
+- production private keys read/generated/changed: NO;
+- `WEWED_WEDDING_DAY_WW2_ENABLED` production enablement: NO;
+- production Gate admission/check-in: NO;
+- main merge or production deployment: NO;
+- signed Play/TestFlight publication: NO.
+
+**Phase gate:**
+- root and shared APIs no longer default to Charity & Kudzie: PASS;
+- comments are wedding-scoped and privacy-governed: PASS;
+- contributions and content writes are bound to explicit authorised wedding context: PASS;
+- seed/bootstrap unsafe production paths are contained or retired: PASS;
+- legacy global-admin wedding authority is contained: PASS;
+- preview/UAT single-tenant remnants are production-contained: PASS;
+- no mature shared API used by native is secretly single-tenant: PASS;
+- Phase 12: **ACCEPTED**.
+
+**Authorized next unit: Phase 13 — Release identity and deep-link infrastructure.**
+Phase 13 must prove real distribution identities and browser-to-OS-to-native deep links, not simulator/debug substitutes. It may inspect and prepare release configuration freely, but production signing credentials, Play/App Store submission, TestFlight publication, destructive release actions, or owner-only portal steps remain subject to the established approval/access boundary.
