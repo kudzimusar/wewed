@@ -3345,3 +3345,48 @@ Phase 12 should classify and remediate the explicit master-plan inventory: Chari
 
 **Authorized next unit: Phase 13 — Release identity and deep-link infrastructure.**
 Phase 13 must prove real distribution identities and browser-to-OS-to-native deep links, not simulator/debug substitutes. It may inspect and prepare release configuration freely, but production signing credentials, Play/App Store submission, TestFlight publication, destructive release actions, or owner-only portal steps remain subject to the established approval/access boundary.
+
+### D-043 — Phase 12 final moderator qualification supersession (2026-09-24)
+**FINAL MODERATOR EVIDENCE — Phase 12 remains ACCEPTED.** D-042 correctly records the Phase-12 moderator closure and corrective review, but its qualification coordinates were captured before the final platform-Administrator isolation repair. This append-only checkpoint supersedes only those stale qualification coordinates and records the final accepted evidence without rewriting historical D-042.
+
+**Final corrective closure after D-042 evidence capture:**
+- Independent repository CI exposed that the implementation-agent F-6 repair had removed the explicit `isWewedPlatformAdministrator()` guard together with the unsafe legacy `role=admin` global-Wedding bypass.
+- The intended authority distinction is now restored:
+  - genuine Wewed platform Administrators remain system-scoped and receive no ambient Wedding workspace from `listAccessibleWeddings` / `getWeddingContext`;
+  - a legacy dashboard user whose role string is merely `admin` receives no synthetic all-Weddings authority and falls through to real `WeddingMembership` relationships only;
+  - the synthetic `'admin'::text AS "membershipRole"` universal-Wedding path remains removed.
+- Focused regression coverage now distinguishes the legitimate platform-Admin guard from the prohibited legacy global-admin bypass.
+
+**Superseding exact-head qualification evidence:**
+- implementation-agent submitted Phase-12 head: `90a0d5424ecace566f685e70527954a7be241195`;
+- final moderator product/workflow qualification head: `af8d481dbd0ea5f114072672b2d4e36dbdb4fdaf`;
+- Phase-12 Moderator Qualification run: `35941852046` — **PASS**;
+- repository Admin Console CI on the same exact head: `35941851830` — **PASS**;
+- migrated disposable PostgreSQL qualification: PASS;
+- Phase-12 focused regressions: PASS;
+- production-authority integration: PASS;
+- Wedding Day shared-authority regressions: PASS;
+- Admin governance / invitation / segmentation-RBAC / stakeholder data-pipeline / billing contracts: PASS;
+- lint: PASS;
+- production application build: PASS;
+- final clean Phase-12 branch after temporary workflow removal:
+  `backend/pwa-single-tenant-remediation-phase12-20260924` @
+  `5d6b188e96f4161878e5c79e8da1508a2fe77ba5`;
+- accepted native baseline remains unchanged:
+  `native-mobile/wedding-day-ww2-phase11b-20260924` @
+  `c527e8037ab9b2a72a24bf0d994edf7e53879fc8`;
+- temporary moderator PR #211: CLOSED UNMERGED.
+
+**Production boundary remains unchanged:**
+- production database/data touched: NO;
+- production schema migration executed: NO;
+- production private signing keys read/generated/changed: NO;
+- production WW2 enablement or Gate admission: NO;
+- main merge/deployment: NO;
+- Play/TestFlight publication: NO.
+
+**Final Phase-12 verdict:** **ACCEPTED.**
+The Phase-12 exit gate is satisfied: no mature shared API reviewed in this phase is secretly single-tenant, legacy global-admin Wedding authority is contained, and genuine platform Admin remains system-scoped.
+
+**Authorized next unit:** Phase 13 — Release identity and deep-link infrastructure, subject to the existing owner/credential/local-device boundaries for actual production signing, store publication and real-device signed proof.
+
