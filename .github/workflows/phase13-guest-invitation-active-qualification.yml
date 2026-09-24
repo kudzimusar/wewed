@@ -1,0 +1,120 @@
+name: Phase 13 Active Guest Invitation Qualification
+
+on:
+  push:
+    branches:
+      - release/phase13-guest-invitation-active-20260924
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase13-active-guest-invitation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guest-invitation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wewed
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      CI: 'true'
+      WEWED_E2E_MODE: '1'
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
+      WEWED_SESSION_SECRET: ci-session-secret-not-for-production
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
+      NEXT_TELEMETRY_DISABLED: 1
+      WEWED_UAT_BASE_URL: http://127.0.0.1:3000
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma and apply migrations
+        run: |
+          bunx prisma validate --schema prisma/schema.prisma
+          bunx prisma generate --schema prisma/schema.prisma
+          bunx prisma migrate deploy --schema prisma/schema.prisma
+
+      - name: Run invitation regression contracts
+        run: |
+          bun test src/lib/personal-invitation-mobile-entry.test.ts src/lib/digital-invitation-card.test.ts
+
+      - name: Reject TypeScript errors in changed invitation path
+        shell: bash
+        run: |
+          set +e
+          bunx tsc --noEmit --pretty false > /tmp/wewed-tsc.log 2>&1
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then exit 0; fi
+          errors="$(grep -E 'src/(components/wedding/invitation-app-handoff|lib/personal-invitation-mobile-entry\.test)\.tsx?' /tmp/wewed-tsc.log || true)"
+          if [ -n "$errors" ]; then
+            echo "$errors"
+            exit 1
+          fi
+          echo "Repository-wide TypeScript exit code: $status. No changed invitation-path errors found."
+
+      - name: Production build
+        run: bun run build
+
+      - name: Install Chromium
+        run: bash scripts/install-playwright-chromium-ci.sh
+
+      - name: Start Wewed with native handoff deliberately disabled
+        shell: bash
+        run: |
+          unset ANDROID_DEFERRED_INVITATION_HANDOFF
+          bun run dev > /tmp/wewed-active-invitation.log 2>&1 &
+          echo $! > /tmp/wewed-active-invitation.pid
+          for attempt in $(seq 1 90); do
+            status="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/manifest.json || true)"
+            if [ "$status" != "000" ]; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/wewed-active-invitation.log || true
+          exit 1
+
+      - name: Run Android-browser guest-to-Ivory UAT
+        run: >-
+          bunx playwright test
+          --config=e2e/personal-invitation-browser-fallback.playwright.config.mjs
+
+      - name: Print sanitized server log on failure
+        if: failure()
+        shell: bash
+        run: |
+          perl -pe 's/([?&](?:rsvp|h)=)[^&\s]+/${1}[REDACTED]/g' /tmp/wewed-active-invitation.log || true
+
+      - name: Stop test server
+        if: always()
+        run: |
+          if [ -f /tmp/wewed-active-invitation.pid ]; then
+            kill "$(cat /tmp/wewed-active-invitation.pid)" || true
+          fi
