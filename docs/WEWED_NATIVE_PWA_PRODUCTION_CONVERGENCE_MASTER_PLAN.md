@@ -4426,3 +4426,104 @@ Backend Phase-13 branch remains `ede5a0718bdbb569bd207ff6b6e1dec9bad10539`.
 
 **Phase-13 status:** **NOT ACCEPTED — ANDROID V11 SOURCE/UAT QUALIFIED AND PR #215 CI FULLY GREEN; PLAY VERSION-CODE EVIDENCE, PRODUCTION SECRET/AUTHORIZATION, LIVE ACCOUNT TRANSPORT, TRUE RUNTIME AUTHORITY/GUEST UAT, AND FINAL DISTRIBUTION PROOF REMAIN.**
 
+### D-059 — Phase 13 moderator closure of Guest Pass authority divergence exposed by real guest-entry UAT (2026-09-25)
+**MODERATOR CLOSURE IMPLEMENTATION — THE IVORY INVITATION NO LONGER OPENS THE LEGACY SESSION-SUMMARY “PASS”; WEB, ANDROID AND IOS NOW CONVERGE ON THE WW2 WEDDING DAY PASS AUTHORITY CONTRACT.**
+
+The implementation agent’s real-device/browser qualification from the D-058 continuation established a strong invitation-entry result on the exact remote heads:
+- backend guest-entry head: `ce085d2754115ceae9214ed44f2f6a14f4efed24`;
+- native head: `b583b949d8bf925b087cda2ad5ff0e15bffb533f`;
+- Android Pixel 8 emulator / API 36;
+- valid private guest link securely continued through Chrome because the UAT package is not delegated by production `assetlinks.json`;
+- red Android handoff dead-end absent;
+- raw RSVP credential removed from the visible URL;
+- wedding-saved `ivory-floral-gold` style overrode a stale `card=midnight` query;
+- Ivory trifold, personalization, RSVP, Couple Site and A→B warm guest replacement all passed.
+
+The moderator did **not** accept the agent’s “Guest Pass: PASS” claim as proof of current pass convergence. Direct source review showed that the web Ivory card still dispatched `wewed:open-guest-pass` into `WeddingGuestPassDialog`, and that dialog fetched:
+- `/api/weddings/<slug>/guest-session`;
+- guest name / RSVP / arrival summary only;
+- no WW2 credential;
+- no Wedding Day QR admission token.
+
+By contrast, both native clients already use:
+- `GET /api/wedding-day/pass`;
+- require `token.startsWith("WW2.")`;
+- require `publicKeyDerBase64`;
+- verify the signed credential before constructing the native `WeddingReferencePass`.
+
+**Additional contract defect discovered during review:**
+The server route `/api/wedding-day/pass` returned the WW2 token but did **not** return `publicKeyDerBase64`, even though Android and iOS both require that field for asymmetric verification. This meant the native live-pass code path could not satisfy its own published response contract once exercised against that backend.
+
+**Moderator closure branch:**
+- branch: `backend/phase13-wedding-pass-convergence-20260925`;
+- exact base: `ce085d2754115ceae9214ed44f2f6a14f4efed24`;
+- final clean head: `600e1c4ce265c73f1ee5befa14718272d313bec3`.
+
+**Implemented closure:**
+1. `src/lib/wedding-day.ts`
+   - `guestPassForRequest` now resolves the credential’s active pass key and returns it with the credential/context.
+2. `src/app/api/wedding-day/pass/route.ts`
+   - response now includes the safe public verification material `publicKeyDerBase64`;
+   - private signing material remains server-only.
+3. `src/components/wedding/invitation-experience/wedding-guest-pass-dialog.tsx`
+   - retired the legacy guest-session summary as the invitation’s “Guest Pass”;
+   - now fetches only `/api/wedding-day/pass`;
+   - requires a real `WW2.` credential and public verification key;
+   - renders the signed admission token as the QR payload;
+   - shows pass serial and WW2 credential version;
+   - does not display the RSVP credential;
+   - pending/declined guests receive authority-derived unavailability messaging instead of a pseudo-pass.
+4. Regression coverage added:
+   - `src/lib/personal-invitation-mobile-entry.test.ts` pins web→WW2 authority convergence and forbids the old guest-session pass dependency;
+   - `src/lib/wedding-day-routes.integration.test.ts` proves an authenticated Guest Session receives a real signed WW2 token plus the exact public verification key bound to its `WeddingPassKey`;
+   - `e2e/wedding-pass-convergence.chromium.spec.mjs` proves a real Ivory browser journey opens a signed WW2 pass QR, with matching guest identity, serial and version and without exposing the RSVP token.
+
+**Independent qualification history:**
+- `36030107586`: first attempt stopped during `bun install` because Bun failed extracting the cached `next` tarball — infrastructure/transient, no product test executed;
+- retry of the same run: migrations and all new pass tests PASS; repository-wide TypeScript then surfaced unrelated pre-existing baseline errors;
+- `36030405180`: scoped qualification still caught pre-existing `src/lib/wedding-day.ts(552)` TypeScript debt outside the changed lines;
+- the gate was corrected to reject TypeScript errors only in the changed convergence surfaces/line range rather than laundering or “fixing” unrelated Phase-11 debt;
+- `36030635719`: preliminary exact-head qualification SUCCESS, including migrations, pass contracts, scoped TypeScript and production build;
+- final product+browser qualification head: `23169885826506d401a9a6b1ddceb90a7bed5149`;
+- GitHub Actions run `36030905920`: **SUCCESS**;
+- final run passed:
+  - clean PostgreSQL migrations;
+  - invitation→WW2 source contract;
+  - Wedding Day key preflight;
+  - route-level signed credential/public-key integration;
+  - scoped TypeScript;
+  - production Next build;
+  - disposable dual P-256 key generation;
+  - Chromium installation;
+  - production-built server start;
+  - end-to-end Ivory → Guest Pass → real WW2 QR browser UAT.
+- temporary qualification workflow removed after success, leaving clean final product head `600e1c4c...`.
+
+**Framework/version correction:**
+The local UAT report labelled the test server “Next.js 15 App Router”. Current repository `package.json` declares Next `^16.1.1` (CI resolved 16.1.3). The digital invitation did not newly switch to Next.js during this closure; the web invitation has historically been implemented in the existing Next App Router while Android/iOS also carry native renderers.
+
+**Android UAT App-Link boundary:**
+The UAT package `pro.wewed.app.uatdev` is debug/UAT signed and is intentionally not delegated in production `https://wewed.pro/.well-known/assetlinks.json`. Its Chrome routing in the agent’s test is therefore expected and useful for browser-fallback UAT. Do **not** add the UAT/debug signer to production assetlinks merely to make this simulator package auto-open. Final verified App-Link proof remains a production-signed `pro.wewed.app` release requirement.
+
+**Production boundary remains intact:**
+- no merge to `main`;
+- no Vercel production deployment;
+- no production Wedding Day flag/key mutation;
+- no production database mutation;
+- no Charity & Kudzie production-data mutation;
+- no Play/App Store release action;
+- native-account PR #215 and association PR #214 remain separate release gates.
+
+**Next progressive qualification unit:**
+Run local visual/device UAT against clean pass-convergence head `600e1c4c...` using disposable local Wedding Day P-256 keys and non-production fixtures:
+1. attending guest within the issuance window: Ivory → Guest Pass must show a real WW2 QR, matching serial and guest identity;
+2. pending RSVP: Guest Pass must remain unavailable with “confirm attendance” semantics and must not render a pseudo-pass;
+3. declined RSVP: no admission pass;
+4. verify raw RSVP credential is absent from the post-exchange URL and pass dialog;
+5. capture screenshots for closed/open Ivory, real WW2 Pass, pending state and declined state;
+6. do not alter production assetlinks to accommodate the UAT package.
+
+After that evidence is reviewed, the moderator may decide whether this narrow pass-convergence slice should be incorporated into the eventual server production release candidate. No production promotion is authorized by D-059 itself.
+
+**Phase-13 status:** **NOT ACCEPTED — REAL GUEST INVITATION ENTRY + WEB/NATIVE WW2 PASS AUTHORITY CONVERGENCE ARE QUALIFIED; LOCAL VISUAL PASS-STATE UAT, OWNER-CONTROLLED PRODUCTION PROMOTION/KEYS, TRUE LIVE AUTHORITY UAT, AND FINAL STORE/APP-LINK DISTRIBUTION PROOF REMAIN.**
+
