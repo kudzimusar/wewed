@@ -23,14 +23,18 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - name: Install Android 36 platform
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Ensure Android 36 SDK is available
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "ANDROID_HOME=${ANDROID_HOME:-}"
+          command -v sdkmanager
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --no-daemon
       - name: Debug build
         run: ./gradlew assembleDebug --no-daemon
-      - name: Verify current release metadata
+      - name: Verify current release metadata and Guest entry contract
         shell: bash
         run: |
           set -euo pipefail
