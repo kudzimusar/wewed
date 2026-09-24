@@ -112,6 +112,8 @@ describe('Phase 12: Single-Tenant and Unsafe PWA Remnants Remediation', () => {
       expect(commentsSource).not.toContain("const WEDDING_SLUG = 'charity-and-kudzie'")
       expect(commentsSource).not.toContain("const WEDDING_SLUG = \"charity-and-kudzie\"")
       expect(commentsSource).not.toContain("|| 'charity-and-kudzie'")
+      expect(commentsSource).toContain('resolveWeddingAccessForRequest')
+      expect(commentsSource).toContain('weddingAccessErrorPayload')
     })
   })
 
