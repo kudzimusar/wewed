@@ -18,8 +18,7 @@ public struct LoginView: View {
 
     @State private var email = ""
     @State private var password = ""
-    @State private var submitting = false
-    @State private var errorMessage: String?
+    @State private var validationError: String?
 
     private let onBack: (() -> Void)?
     private let onForgotPassword: (() -> Void)?
@@ -36,7 +35,7 @@ public struct LoginView: View {
     }
 
     private var canSubmit: Bool {
-        !email.isEmpty && !password.isEmpty && !submitting
+        !email.isEmpty && !password.isEmpty && !session.isSigningIn
     }
 
     public var body: some View {
@@ -70,7 +69,10 @@ public struct LoginView: View {
                             .stroke(WeddingIdentityPalette.hairline, lineWidth: 1)
                     )
                     .accessibilityIdentifier("sign-in-email")
-                    .onChange(of: email) { _, _ in errorMessage = nil }
+                    .onChange(of: email) { _, _ in
+                        validationError = nil
+                        session.clearAuthenticationError()
+                    }
 
                 SecureField("Password", text: $password)
                     .textContentType(.password)
@@ -82,9 +84,12 @@ public struct LoginView: View {
                             .stroke(WeddingIdentityPalette.hairline, lineWidth: 1)
                     )
                     .accessibilityIdentifier("sign-in-password")
-                    .onChange(of: password) { _, _ in errorMessage = nil }
+                    .onChange(of: password) { _, _ in
+                        validationError = nil
+                        session.clearAuthenticationError()
+                    }
 
-                if let errorMessage {
+                if let errorMessage = validationError ?? session.authenticationError {
                     Text(errorMessage)
                         .font(.system(size: 12))
                         .foregroundStyle(WeddingIdentityPalette.champagneDeep)
@@ -93,19 +98,18 @@ public struct LoginView: View {
                 }
 
                 Button {
-                    submitting = true
-                    errorMessage = nil
+                    validationError = nil
+                    session.clearAuthenticationError()
                     do {
                         // Role is deliberately NOT passed. The session resolves authorization from
                         // the identity; a caller cannot assert what it is allowed to be.
                         try session.signIn(email: email.trimmingCharacters(in: .whitespaces),
                                            password: password)
                     } catch {
-                        errorMessage = error.localizedDescription
+                        validationError = error.localizedDescription
                     }
-                    submitting = false
                 } label: {
-                    Text(submitting ? "Signing in…" : "Sign In")
+                    Text(session.isSigningIn ? "Signing in…" : "Sign In")
                         .font(.system(size: 15, weight: .semibold))
                         .frame(maxWidth: .infinity, minHeight: 52)
                         .foregroundStyle(WeddingIdentityPalette.ivorySoft)
