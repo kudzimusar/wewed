@@ -4,6 +4,15 @@ import { db } from '@/lib/db'
 
 export const WEWED_PLATFORM_SESSION_ID = 'wewed-platform'
 
+/** Wewed internal roles recognised by the platform-administrator entry gate. */
+export const WEWED_INTERNAL_ADMIN_ROLES = [
+  'wewed_super_admin',
+  'wewed_operations_admin',
+  'wewed_billing_admin',
+  'wewed_support_admin',
+  'wewed_analyst',
+] as const
+
 export async function isWewedPlatformAdministrator(userId: string): Promise<boolean> {
   const rows = await db.$queryRawUnsafe<Array<{ allowed: boolean }>>(
     `SELECT EXISTS (
