@@ -4044,3 +4044,61 @@ No additional Android source implementation or local AAB rebuild is required bef
 - no Phase 14.
 
 **Phase-13 status:** **NOT ACCEPTED — ANDROID PRE-PUBLICATION PACKAGE GATE ACCEPTED; LIVE ANDROID DISTRIBUTION PROOF + IOS DISTRIBUTION PROOF REMAIN.**
+
+
+### D-052 — Phase 13 moderator Play version-code collision closure and v9 progression (2026-09-24)
+**MODERATOR REVIEW — LIVE PLAY STATE AUDITED; VERSIONCODE 8 COLLISION CLOSED IN SOURCE; CONTROLLED V9 TESTING PROGRESSION AUTHORIZED.** The local implementation-agent report is preserved as evidence and does not decide release worth. The moderator independently reviewed the submitted Play Console state against the accepted Android source coordinates and patched the ordinary release-metadata defect directly.
+
+**Live Play state established by the implementation agent:**
+- Google Play developer account: Wewed app package `pro.wewed.app`;
+- active test track: `Closed testing - Alpha`;
+- Play already contains and serves legacy release `versionCode 8`, `versionName 2.0.5`;
+- emulator `emulator-5554` still had Play-installed `versionCode 7`, `versionName 2.0.4-uat`, legacy TWA generation;
+- therefore the D-050 Compose artifact `versionCode 8 / versionName 2.1.0` cannot be uploaded because Google Play forbids reusing an already-consumed versionCode.
+
+**Evidence interpretation:**
+- the D-050 AAB SHA-256 `e648269127cf92ce704663e544b089f47ec546f61cccc7279606abff03702ee5` remains valid evidence of official upload-key signing and the corrected Compose product, but it is **SUPERSEDED AS A PLAY-UPLOAD ARTIFACT** solely because its versionCode collides with the existing legacy Play release;
+- the previously superseded D-048 AAB remains forbidden for upload as well;
+- no Play upload occurred before the collision was discovered, so there is no failed/partial Compose release to unwind.
+
+**Moderator corrective implementation:**
+- branch: `native-mobile/release-identity-deeplinks-phase13-20260924`;
+- accepted prior product head: `bbf2c78d1a8210bb833140f4f47e6ee5b10973ae`;
+- corrected clean native head: `da26efc91a86e6b2c4dfdb7c4af3a07c4ae211d7`;
+- final product delta from `bbf2c78...` is exactly one file: `apps/android/app/build.gradle.kts`;
+- `versionCode` advanced from `8` to `9`;
+- `versionName` remains the intended `2.1.0`;
+- package remains `pro.wewed.app`;
+- no Kotlin/Compose behavior, authority, Guest, planner, vendor, Wedding Day, WW2, manifest App Link, server, schema or production-data code changed;
+- build comment now records that legacy Play versionCode 8 / 2.0.5 is already consumed and versionCode 9 is the first uploadable Compose convergence candidate.
+
+A temporary remote qualification workflow was added only to exercise unit tests / Release AAB identity at the v9 metadata coordinate and then removed. Its workflow commit was `99413c3235f16c83b46ae08032e3d682f524a379`; workflow run `35958581765` was still executing when the moderator chose not to stall progression. The final clean head differs from that qualification head only by removal of the temporary workflow. The v9 source correction is accepted on the stronger basis that the already-qualified product tree is byte-equivalent except for the single Android versionCode metadata change; the official local upload-signer build/tests remain mandatory before Play upload.
+
+**Emulator connectivity finding accepted:**
+The initial Android `You're offline` screen is not currently classified as a Wewed product defect. The implementation agent established that the emulator had a `netsimd`/NAT routing stall and that toggling airplane mode restored TCP connectivity for Google Play, Chrome `wewed.pro`, and Wewed. If the Play-delivered Compose v9 later shows offline while Chrome/Play remain online, that will become a real application UAT defect and must be root-caused.
+
+**Deterministic authorization for the next local execution:**
+The owner has authorized progression on the existing non-production Google Play test programme. The implementation agent may, without another decision round, do the following **only if every gate below passes exactly**:
+1. sync exact native head `da26efc91a86e6b2c4dfdb7c4af3a07c4ae211d7`, clean;
+2. run Android unit tests and build an official upload-key-signed Release AAB from `apps/android`;
+3. prove merged Release manifest identity `pro.wewed.app`, versionCode `9`, versionName `2.1.0`, approved App Link paths, no `/i/*`, no browser `/admin/*`;
+4. prove AAB signer equals the known Wewed upload certificate `C3:D8:56:D7:82:F6:42:C6:88:4D:98:25:52:F5:67:65:3E:35:D5:DA:1E:AB:B1:12:EF:6F:C0:59:8E:88:65:8C`;
+5. record the new v9 AAB SHA-256 and size;
+6. upload that exact v9 AAB to the existing `Closed testing - Alpha` track only;
+7. do not touch Production;
+8. wait until Play identifies the release as `versionCode 9 / versionName 2.1.0` and makes it available to the existing tester account;
+9. update the existing emulator through Google Play without uninstalling/sideloading;
+10. prove installed versionCode 9 / versionName 2.1.0 and Play App Signing certificate `32:16:B9:AE:56:44:F9:B5:B4:F8:C3:04:6A:6B:D6:BF:86:3E:A3:51:B3:2A:F3:AE:4B:32:27:99:B9:FE:DA:7B`;
+11. only after that begin real Compose emulator UAT, starting with launch/connectivity and then Guest.
+
+If any deterministic gate fails, stop at that gate and report the exact evidence. Do not improvise a v10, reset signing keys, create another Play app, change package identity, uninstall the existing test app, or use a legacy TWA/Expo artifact.
+
+**Distribution boundaries:**
+- Google Play Production rollout: NOT AUTHORIZED;
+- association RC #214 deployment/merge: NOT part of this execution;
+- production DB/schema/data mutation: NOT AUTHORIZED;
+- Charity & Kudzie production-data mutation: NOT AUTHORIZED;
+- WW2 production enablement/live Gate: NOT AUTHORIZED;
+- Phase 14: NOT STARTED.
+
+**Phase-13 status:** **NOT ACCEPTED — V9 COMPOSE TEST-CANDIDATE SOURCE CORRECTED; OFFICIAL V9 AAB + PLAY DELIVERY + SIMULATOR UAT NEXT.**
