@@ -3513,3 +3513,72 @@ The Phase-12 exit gate is satisfied: no mature shared API reviewed in this phase
 - Phase 14: **NOT AUTHORIZED / NOT STARTED**.
 
 
+
+
+### D-045 — Phase 13 moderator corrective review and distribution-proof gate (2026-09-24)
+**MODERATOR CORRECTIVE REVIEW — CODE QUALIFIED; PHASE 13 NOT YET ACCEPTED.** D-044 remains the implementation-agent submission and is preserved as historical evidence. Independent review of the actual remote branches found both ordinary code defects and evidence overstatements. Ordinary code defects were patched directly; the remaining blockers require real distribution/portal/device evidence and therefore remain outside ordinary repository closure.
+
+**Accepted starting baselines for this review:**
+- Phase-12 server baseline: `5d6b188e96f4161878e5c79e8da1508a2fe77ba5`;
+- Phase-11B native baseline: `c527e8037ab9b2a72a24bf0d994edf7e53879fc8`.
+
+**Moderator findings and corrective closure:**
+1. Production Digital Asset Links originally delegated `wewed.pro` URL authority to both the Google Play App Signing certificate and the upload certificate. The upload certificate is not the identity of Play-delivered APKs and did not need production URL-handling authority. Both the route and static `assetlinks.json` now trust the Play signing fingerprint only.
+2. The submitted AASA contract included paths that did not match the real native/server responsibilities. In particular, `/i/*` is a server-side physical-invitation resolver that looks up `QRDestination`, establishes shared invitation context and redirects; native interception could bypass that ceremony. It is excluded. The current AASA advertises only paths the iOS native parser can actually resolve, including `/invite/*`, `/w/*`, `/pass`, `/pass/*`, `/planner/*`, `/vendor/*`, `/gate/*` and `/wedding/*`.
+3. Android path prefixes were narrowed so `/invite`, `/pass` and `/w` no longer match unrelated prefix lookalikes. Exact `/pass` remains explicitly supported.
+4. The initial Android release-packaging guard referenced a Gradle-script-local variable from task scope and failed script compilation. The guard now evaluates the required signing environment directly at task execution and fails closed when release signing credentials are absent.
+5. The implementation submission overstated iOS signing configuration. The reviewed project used automatic signing and had no production Team ID configured. Release now has an explicit owner-supplied `WEWED_APPLE_TEAM_ID` injection point without guessing the Team ID or conflating it with the Apple Application Identifier Prefix.
+6. Phase-13 persistence tests that simulated storage rather than exercising the production guest-session client were removed. Existing Android and iOS `GuestSessionClient` tests now assert the real one-shot request body may contain the raw invitation credential while durable storage contains only the server-issued guest session and wedding slug.
+7. Android and iOS invitation deep-link values now redact the RSVP credential from diagnostic string interpolation.
+8. A short moderator UAT experiment that altered the welcome-screen invitation affordance was deliberately reverted after scope review. Phase 13 remains release-identity/deep-link infrastructure only. Account Sign In and the existing multi-stakeholder entry contract are unchanged. Guest Digital Invitation/RSVP/Guest Home behavior remains a Phase-14 ecosystem-UAT concern.
+
+**Independent code qualification:**
+- server product/workflow qualification head: `9144595ad20b6e473c41c75779d76a6f86a9c78d`;
+- Phase-13 Moderator Server Qualification run: `35945042929` — **PASS**;
+- server deep-link association contracts: PASS;
+- Phase-12 isolation/privacy regressions: PASS;
+- Next.js production build: PASS;
+- final clean server branch after temporary workflow removal:
+  `backend/release-identity-deeplinks-phase13-20260924` @
+  `39ec09d11732616268e92b2b8aea452ed0ef44d9`;
+- native product/workflow qualification head: `bfee97f7c65cbbb0b5c10d724731e3a67dfe79cf`;
+- Phase-13 Moderator Native Qualification run: `35945722552` — **PASS**;
+- Android unit tests + debug build: PASS;
+- Android unsigned Release packaging fail-closed check: PASS;
+- Android signed Release pipeline using an ephemeral CI signer: PASS;
+- iOS Swift tests: PASS;
+- XcodeGen generation: PASS;
+- iOS release Team-ID injection contract: PASS;
+- iOS simulator Debug build: PASS;
+- generic iOS device Release compile with signing disabled: PASS;
+- final clean native branch after the temporary workflow and out-of-scope UAT experiment were removed:
+  `native-mobile/release-identity-deeplinks-phase13-20260924` @
+  `fcf8be8167dd6e286487fc7f069959945a90e103`;
+- temporary moderator PRs #212 and #213: CLOSED UNMERGED.
+
+**Distribution-proof audit — evidence that is still required by the Phase-13 exit gate:**
+- **Android direct browser proof: NOT PROVEN.** D-044's cold/warm commands explicitly selected `pro.wewed.app.dev` through `adb shell am start ... pro.wewed.app.dev`. That demonstrates parser/activity handling in a debug package, not Chrome resolving a `wewed.pro` link into the Play-distributed `pro.wewed.app` identity. `pm get-app-links pro.wewed.app` is useful association evidence but is not the required browser → OS → app proof.
+- **Android private invitation browser handoff: NOT PROVEN on the Play-distributed identity.** A safe controlled invitation URL must be opened from Chrome without an explicit package override and shown to reach the native guest-entry parser. A valid UAT invitation is preferred; do not create or mutate Charity & Kudzie production guest data merely to obtain it.
+- **iOS distribution identity: NOT PROVEN.** The implementation environment reported zero valid Apple code-signing identities and no provisioning profiles. The repository now has a release Team-ID injection point but no verified owner Team ID / Application Identifier Prefix pair has been supplied to the signed build.
+- **iOS signed archive/TestFlight: NOT PROVEN.** An unsigned generic Release compile is not a signed archive or TestFlight build.
+- **iOS Safari Universal Link: NOT PROVEN.** It requires the real signed app, associated-domains entitlement, correct live AASA using the verified Application Identifier Prefix, and Safari → OS → native proof.
+- **Live corrected association-file state: NOT PROVEN by this repository-only review.** The corrected branch is intentionally not deployed to production; no production deployment was authorized by this checkpoint.
+
+**Current evidence matrix:**
+
+| Platform | Distribution identity | Association contract in code | Signed distribution build | Browser → OS → app | Private invitation handoff |
+|---|---|---|---|---|---|
+| Android | PROVEN for package/certificate coordinates | PROVEN | PROVEN for upload-signed release artifact; Play-delivered identity observed by agent | **NOT PROVEN — prior proof explicitly targeted debug package rather than Chrome resolving production app** | **NOT PROVEN on real Play browser handoff; production client exchange/storage behavior is code-qualified** |
+| iOS | **NOT PROVEN — owner Team ID/Application Identifier Prefix/signing materials unavailable** | PROVEN, fail-closed until real prefix supplied | **NOT PROVEN** | **NOT PROVEN** | **NOT PROVEN on signed real-link handoff; production client exchange/storage behavior is code-qualified** |
+
+**Production boundary maintained:**
+- production database/data touched: NO;
+- production schema migration executed: NO;
+- Charity & Kudzie production data changed: NO;
+- WW2 production enablement / live Gate admission: NO;
+- production private signing keys read/generated/changed by moderator: NO;
+- main merge/deployment: NO;
+- Play/TestFlight/App Store publication: NO.
+
+**Phase-13 verdict:** **NOT ACCEPTED YET — CODE QUALIFIED, DISTRIBUTION-PROOF GATE OPEN.**
+Do not begin Phase 14 until the remaining real distribution proofs above are supplied and independently reviewed. The next progressive unit is Phase-13 distribution-proof closure only.
