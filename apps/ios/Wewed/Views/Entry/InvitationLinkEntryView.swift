@@ -38,9 +38,6 @@ public struct InvitationLinkEntryView: View {
                     .multilineTextAlignment(.center)
 
                 TextField("https://wewed.pro/invite/…", text: $rawLink, axis: .vertical)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .keyboardType(.URL)
                     .padding(14)
                     .background(WeddingIdentityPalette.ivorySoft)
                     .overlay(
