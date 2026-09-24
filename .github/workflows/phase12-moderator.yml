@@ -1,0 +1,63 @@
+name: Phase 12 Moderator Qualification
+
+on:
+  pull_request:
+    branches:
+      - backend/wedding-day-ww2-phase11b-20260924
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase12-moderator-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wewed_authority_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      CI: 'true'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/wewed_authority_test
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/wewed_authority_test
+      AUTHORITY_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/wewed_authority_test
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
+      WEWED_SESSION_SECRET: ci-session-secret-not-for-production
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      NEXT_TELEMETRY_DISABLED: '1'
+      WEWED_WEDDING_DAY_WW2_ENABLED: 'false'
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bunx prisma generate --schema prisma/schema.prisma
+      - run: bunx prisma migrate deploy --schema prisma/schema.prisma
+      - name: Phase 12 focused regressions
+        run: bun test src/lib/phase12-single-tenant-remediation.test.ts src/lib/unified-navigation-privacy.test.ts src/lib/royalty-payout-security.test.ts src/lib/wedding-data-isolation.test.ts
+      - name: Production authority integration
+        run: bun test src/lib/production-authority/production-authority.integration.test.ts
+      - name: Wedding Day shared-authority regression
+        run: bun test src/lib/wedding-day-routes.integration.test.ts src/lib/wedding-day.integration.test.ts
+      - name: Production bundle
+        run: bun run build
