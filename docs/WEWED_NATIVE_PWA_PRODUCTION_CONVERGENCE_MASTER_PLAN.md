@@ -3660,3 +3660,53 @@ Do not begin Phase 14 until the remaining real distribution proofs above are sup
 - Phase 13: **SUBMITTED FOR MODERATOR REVIEW (NOT SELF-DECLARED ACCEPTED)**.
 - Phase 14: **NOT AUTHORIZED / NOT STARTED**.
 
+
+
+### D-047 — Phase 13 moderator review of distribution-proof submission and safe release staging (2026-09-24)
+**MODERATOR REVIEW — D-046 AUDITED; PHASE 13 REMAINS OPEN.** D-046 is preserved as implementation-agent evidence and is not rewritten. The moderator independently verified the submitted remote coordinates and repository state, corrected evidence interpretation where the report was too strong, removed a repository ambiguity that could send later agents to a stale mobile stack, and prepared a minimal main-based association release candidate. No production deployment, store upload, database action, WW2 activation, or live Gate action is authorized by this checkpoint.
+
+**Remote state verified:**
+- Phase-13 server branch remains `backend/release-identity-deeplinks-phase13-20260924` @ `39ec09d11732616268e92b2b8aea452ed0ef44d9`.
+- D-046 was the only change after D-045 on the plan branch: one documentation commit, no server/native product mutation.
+- Phase-13 native product tree at `fcf8be8167dd6e286487fc7f069959945a90e103` remained unchanged by D-046.
+- The moderator then added documentation-only guardrails to the same native branch, producing current native head `1accfdbf5cece58c25b844025c7c8af0b7d5daee`. Product code is unchanged from `fcf8be...`; only two historical release documents gained a prominent warning.
+
+**D-046 evidence interpretation:**
+1. The installed `pro.wewed.app` v7 / `2.0.4-uat` evidence proves the existing Google Play package identity and Play App Signing certificate. It does **not** prove that the current Kotlin/Compose candidate has been distributed by Play. The current convergence candidate is `apps/android` with `versionCode = 8`, `versionName = "2.1.0"`.
+2. The real Chrome click correctly remains **NOT PROVEN** for the current candidate: Chrome stayed in `com.android.chrome` because the installed Play package is the older TWA/UAT generation whose verified domain is `uat.wewed.pro`, not the new `apps/android` build declaring `wewed.pro`.
+3. D-046's live association mismatch is corroborated by current `main`: `public/.well-known/assetlinks.json` still contains both the Play App Signing and upload certificate fingerprints. Current `main` also contains an older AASA route contract whose component set includes `/i/*`, while the root `/apple-app-site-association` compatibility route is absent. Therefore the corrected Phase-13 association delta is not on the production branch.
+4. The D-046 row “Android Wewed raw-token logging invariant: PROVEN” is too strong as a real-distribution statement. The new Compose application did not receive the browser link, so no real browser→current-native logging path was exercised. Code-level redaction/storage behavior remains moderator-qualified. D-046 also records the proof token appearing in legacy TWA launcher/framework logging; no real guest credential was used. Real-distribution raw-token absence must be rechecked after the Play-delivered Compose candidate actually receives the link.
+5. The iOS blocker is legitimate: no usable Apple signing identity, provisioning profile, verified Team ID, or Application Identifier Prefix is present on the local host. Unsigned compile evidence cannot satisfy the signed/TestFlight/Safari Phase-13 exit gate.
+
+**Repository ambiguity closed:**
+- `android/` = legacy Bubblewrap/TWA generation represented by the currently installed Play v7 test build.
+- `apps/mobile/` = historical React Native/Expo migration generation; its release runbook/scripts/versionCode 3 are **not** authoritative for current convergence release work.
+- `apps/android/` = current Kotlin/Compose Android convergence target.
+- `apps/ios/` = current Swift iOS convergence target.
+- `docs/WEWED_NATIVE_ANDROID_V3_PLAY_RUNBOOK.md` and `docs/WEWED_NATIVE_MOBILE_COMPLETION_RELEASE_PLAN.md` are now explicitly marked historical on the Phase-13 native branch so future agents do not invoke the stale `apps/mobile` release pipeline.
+
+**Safe production-association staging:**
+Direct deployment of `backend/release-identity-deeplinks-phase13-20260924` is **not authorized and is not the correct promotion method**. That feature branch descends from convergence work rather than current production `main`. In accordance with the master plan's promotion policy, the moderator created a minimal release-candidate branch from current `main`:
+- base: `main` @ `ba4b08f8bca2d5cd5826e1ef1d2701d9049dd887`;
+- branch: `release/phase13-association-proof-20260924`;
+- current head: `75c602a3a5c2a37706e3a1d46984061b5c9f57e6`;
+- draft PR: #214;
+- deployment: **NOT AUTHORIZED**.
+
+The release-candidate diff is intentionally restricted to five files:
+- `public/.well-known/assetlinks.json` — remove upload-certificate URL delegation; retain only Play App Signing fingerprint;
+- `src/lib/apple-app-site-association.ts` — advertise only current native-owned routes and exclude server-owned `/i/*`;
+- `src/lib/apple-app-site-association.test.ts` — lock corrected AASA scope;
+- `src/app/apple-app-site-association/route.ts` — add root compatibility endpoint reusing the existing fail-closed well-known handler;
+- `src/lib/phase13-production-association-release.test.ts` — assert the exact minimal production association contract.
+
+No schema, database, authentication, planner, guest-session, RSVP, Wedding Day, WW2, role-authority, or ordinary UI file is part of this release candidate.
+
+**Next progressive unit before any owner-controlled publication:**
+1. Locally qualify the exact main-based association RC (`75c602a...`) with its focused tests and production build; do not deploy it.
+2. From the exact current Compose native head (`1accfdb...`; product tree identical to `fcf8be...`), build a new upload-signed `apps/android` Release AAB using the already-established private local upload keystore, verify package/version/certificate and record artifact SHA-256. Do **not** use `android/`, `apps/mobile/`, `scripts/build-native-play-aab.sh`, or the historical v3 runbook.
+3. Stop for owner authorization before either deploying the minimal association RC to `wewed.pro` or uploading the exact Compose AAB to the existing Google Play closed/internal test track.
+4. Apple signing/portal/device evidence remains a separate owner-controlled blocker; do not fabricate it and do not begin Phase 14.
+
+**Phase-13 status:** **NOT ACCEPTED — CODE QUALIFIED; RELEASE ARTIFACT + LIVE DISTRIBUTION PROOF STILL OPEN.**
+Phase 14 remains unauthorized.
