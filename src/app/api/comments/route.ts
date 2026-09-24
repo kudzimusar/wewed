@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
     if (parentId) {
       const parent = await db.comment.findUnique({
         where: { id: parentId },
-        select: { id: true, targetType: true, targetId: true },
+        select: { id: true, weddingId: true, targetType: true, targetId: true },
       })
       if (!parent) {
         return NextResponse.json(
@@ -220,9 +220,13 @@ export async function POST(request: NextRequest) {
           { status: 404 }
         )
       }
-      if (parent.targetType !== targetType || parent.targetId !== targetId) {
+      if (
+        parent.weddingId !== wedding.id ||
+        parent.targetType !== targetType ||
+        parent.targetId !== targetId
+      ) {
         return NextResponse.json(
-          { success: false, error: 'Parent comment does not match the target.' },
+          { success: false, error: 'Parent comment does not match this wedding and target.' },
           { status: 400 }
         )
       }
