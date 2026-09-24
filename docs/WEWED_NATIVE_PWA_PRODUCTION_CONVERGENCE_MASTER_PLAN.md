@@ -4208,3 +4208,50 @@ Perform **truth-labeled simulator runtime UAT** from exact native head `ade13d01
 - Google Play remains untouched during this simulator-runtime unit.
 
 **Phase-13 status:** **NOT ACCEPTED — WELCOME GUEST-ENTRY FIX + ANDROID COMPILE CLOSURE QUALIFIED; TRUE DUAL-PLATFORM RUNTIME UAT AND FINAL PLAY ARTIFACT/DISTRIBUTION PROOF REMAIN.**
+
+
+### D-056 — Phase 13 moderator addition of production-like Android simulator UAT target (2026-09-24)
+**MODERATOR CLOSURE IMPLEMENTATION — ANDROID SIMULATOR UAT CAN NOW EXERCISE PRODUCTION-LIKE AUTHORITY WITHOUT USING SHADOW OR COLLIDING WITH THE PLAY PACKAGE.**
+
+D-055 established that the implementation agent overclaimed full runtime UAT partly because Android had no equivalent of iOS's release-like UAT configuration: Android `debug` is intentionally a development/Shadow environment, while `release` owns the real `pro.wewed.app` store identity and cannot safely be used as a parallel simulator qualification package.
+
+**Moderator implementation:**
+- file: `apps/android/app/build.gradle.kts`;
+- added build type `uat`;
+- `uat` inherits `release`, therefore `BuildConfig.DEBUG == false` and `NativeLaunchConfiguration` resolves **PRODUCTION** rather than Sanitized Shadow;
+- UAT package identity: `pro.wewed.app.uatdev`;
+- UAT version name suffix: `-uatdev`;
+- display name: `Wewed UAT`;
+- signing: ordinary Android debug signer, explicitly for simulator/device qualification only;
+- Play identity `pro.wewed.app` remains reserved for signed `release`;
+- no production/store artifact or signing policy was weakened;
+- added `UatBuildContractTest.kt` to pin the release-like inheritance, distinct package identity and debug-signer-only UAT contract.
+
+**Independent qualification:**
+- temporary qualification product/workflow head: `cfee6bf0e759a116869d74407754e4af77af6217`;
+- GitHub Actions run `35986178257`: **SUCCESS**;
+- verified:
+  - Android SDK/API 36 available;
+  - unit tests PASS;
+  - `assembleUat` PASS;
+  - generated UAT APK exists;
+  - generated package = `pro.wewed.app.uatdev`;
+  - versionCode = `10`;
+  - versionName = `2.1.0-uatdev`;
+  - generated `BuildConfig.DEBUG = false`;
+  - UAT package is debug-signed and distinct from the Play package.
+- temporary workflow removed after qualification.
+- clean final native head: `409cfe12b08c2841bdd33152e536b6019763e5d1`.
+- final clean diff from D-055 native head `ade13d...` is exactly:
+  - `apps/android/app/build.gradle.kts`;
+  - `apps/android/app/src/test/java/pro/wewed/app/navigation/UatBuildContractTest.kt`.
+
+**Practical consequence:**
+The next simulator-runtime qualification must use:
+- iOS: existing `UAT` build, bundle `pro.wewed.app.uatdev`;
+- Android: new `uat` build, package `pro.wewed.app.uatdev`;
+for production-like account/authority UAT. Debug/Shadow builds remain useful only for explicitly labeled Shadow UX coverage.
+
+This closes the tooling gap that previously encouraged the implementation agent to treat Shadow persona traversal as if it were production-authority UAT.
+
+**Phase-13 status:** **NOT ACCEPTED — BOTH PLATFORMS NOW HAVE QUALIFIED PRODUCTION-LIKE SIMULATOR UAT TARGETS; TRUE RUNTIME AUTHORITY/GUEST EVIDENCE + FINAL PLAY DISTRIBUTION PROOF REMAIN.**
