@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { isAdmin, requireAdmin } from "@/lib/admin-gate";
+import { requireWeddingPermission } from "@/lib/wedding-access";
 import { generateToken } from "@/lib/contribution-utils";
 import { BRIDAL_PARTY } from "@/lib/bridal-party-data";
 
@@ -10,14 +10,14 @@ import { BRIDAL_PARTY } from "@/lib/bridal-party-data";
    Admin-only moderation endpoints for the guest contributions
    feature.
 
-   • GET  → list all contributions for the flagship wedding,
-            optionally filtered by status. Guest name is joined.
-   • POST → bulk-generate contribution tokens for every guest
-            in the flagship wedding that doesn't already have one.
-            Also creates sample bridal party contributions using
-            bridal-party-data.ts so there's demo content.
+   • GET  → list contributions for the explicitly selected wedding.
+   • POST → generate contribution tokens only inside the caller's
+            active authorised wedding context.
+   • Optional demo samples require an explicit seedSamples=true request;
+     no named production wedding receives implicit special treatment.
 
-   Admin gate: wewed_admin_auth cookie (or ?admin=1 in dev).
+   Wedding authority is resolved from the signed application session and
+   must match the requested wedding slug.
    ============================================================ */
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -80,8 +80,8 @@ const BRIDAL_SAMPLES: BridalSampleContribution[] = [
 //        (default status: all)
 
 export async function GET(request: NextRequest) {
-  const gate = requireAdmin(request);
-  if (gate) return gate;
+  const access = await requireWeddingPermission(request, "content.edit");
+  if (access.error) return access.error;
 
   try {
     const statusParam = request.nextUrl.searchParams.get("status") ?? "all";
@@ -121,6 +121,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: "Wedding not found." },
         { status: 404 }
+      );
+    }
+    if (wedding.id !== access.context.weddingId) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden — wedding context does not match the active workspace." },
+        { status: 403 }
       );
     }
 
@@ -196,13 +202,13 @@ export async function GET(request: NextRequest) {
 }
 
 // ─── POST /api/contributions ────────────────────────────────────────────────
-// Bulk-generate contribution tokens for all flagship-wedding guests that
+// Bulk-generate contribution tokens for all selected-wedding guests that
 // don't already have one. Also creates sample bridal party contributions
 // using bridal-party-data.ts so there's demo content for moderation.
 
 export async function POST(request: NextRequest) {
-  const gate = requireAdmin(request);
-  if (gate) return gate;
+  const access = await requireWeddingPermission(request, "guests.edit");
+  if (access.error) return access.error;
 
   try {
     const body = await request.json().catch(() => ({}));
@@ -226,11 +232,17 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
+    if (wedding.id !== access.context.weddingId) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden — wedding context does not match the active workspace." },
+        { status: 403 }
+      );
+    }
 
-    // ── 1. Ensure bridal party guests exist (only for flagship demo seeding) ──
+    // ── 1. Optional explicit demo seeding; never triggered by a named wedding ──
     const bridalGuests: Record<string, { id: string; name: string }> = {};
 
-    if (wedding.slug === 'charity-and-kudzie' || body?.seedSamples === true) {
+    if (body?.seedSamples === true) {
       for (const member of BRIDAL_PARTY) {
         const existing = await db.guest.findFirst({
           where: { weddingId: wedding.id, name: member.name },
@@ -312,7 +324,7 @@ export async function POST(request: NextRequest) {
     // Stagger submittedAt timestamps so the public feed has variety.
     const baseTime = now.getTime();
 
-    if (wedding.slug === 'charity-and-kudzie' || body?.seedSamples === true) {
+    if (body?.seedSamples === true) {
       for (const sample of BRIDAL_SAMPLES) {
         const member = BRIDAL_PARTY.find((m) => m.id === sample.bridalId);
         if (!member) continue;
