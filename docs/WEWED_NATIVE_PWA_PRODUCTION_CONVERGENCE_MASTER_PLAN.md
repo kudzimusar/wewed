@@ -4102,3 +4102,26 @@ If any deterministic gate fails, stop at that gate and report the exact evidence
 - Phase 14: NOT STARTED.
 
 **Phase-13 status:** **NOT ACCEPTED — V9 COMPOSE TEST-CANDIDATE SOURCE CORRECTED; OFFICIAL V9 AAB + PLAY DELIVERY + SIMULATOR UAT NEXT.**
+
+
+### D-053 — Phase 13 moderator closure of Play API-36 blocker and v10 progression (2026-09-24)
+**MODERATOR DECISION — PLAY CONSOLE ACCEPTED THE V9 AAB UPLOAD BUT BLOCKED SUBMISSION BECAUSE IT TARGETED API 34; THE ORDINARY RELEASE-BUILD DEFECT IS PATCHED DIRECTLY.** Google Play's live release screen reported that app updates must target at least API level 36. Current Google Play policy confirms that, from 2026-08-31, new apps and app updates must target Android 16 / API 36 or higher. Because versionCode 9 was already uploaded to Play, it is treated as consumed and is not reused for the corrected artifact.
+
+**Moderator corrective implementation:**
+- native branch: `native-mobile/release-identity-deeplinks-phase13-20260924`;
+- prior head: `da26efc91a86e6b2c4dfdb7c4af3a07c4ae211d7`;
+- corrected head: `91074e11e22147986c4828ac425ff5cfb4c1a3cb`;
+- `apps/android/build.gradle.kts`: Android Gradle Plugin `8.5.2 → 8.10.1`;
+- `apps/android/app/build.gradle.kts`: `compileSdk 34 → 36`, `targetSdk 34 → 36`, `versionCode 9 → 10`, `versionName` remains `2.1.0`;
+- package remains `pro.wewed.app`;
+- Gradle wrapper remains `8.11.1`, which is compatible with AGP 8.10;
+- no Compose product behavior, authority, navigation, Guest, planner, vendor, WW2, server, DB or production-data logic changed.
+
+**Artifact supersession:**
+- v9 AAB SHA-256 `38593eb90c638ecb41ad73529f82ef1d13dfb3275d07732a2112dfcfe50c9b04` is valid signing evidence but is **SUPERSEDED AS A RELEASE ARTIFACT** because it targets API 34 and has already been uploaded to Play;
+- do not attempt to reuse versionCode 9;
+- next candidate is `versionCode 10 / versionName 2.1.0 / targetSdk 36`.
+
+**Next deterministic step:** sync exact head `91074e11...`, confirm Android SDK platform 36 is installed, run unit tests, build the official upload-key-signed v10 AAB, verify merged manifest/package/version/target, verify signer and hash, then upload v10 to the same Closed Testing - Alpha release. Production remains unauthorized.
+
+**Phase-13 status:** **NOT ACCEPTED — PLAY API-36 BUILD BLOCKER PATCHED; OFFICIAL V10 AAB + CLOSED-TEST DELIVERY + SIMULATOR UAT NEXT.**
