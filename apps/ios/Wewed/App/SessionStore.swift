@@ -147,6 +147,10 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
     /// unavailable. With a client, it verifies the credential against Supabase server-side, stores
     /// only the resulting opaque identity session, then immediately resolves real authority for
     /// it — never a role chosen by the caller.
+    public func clearAuthenticationError() {
+        authenticationError = nil
+    }
+
     public func signIn(email: String, password: String) throws {
         guard !email.isEmpty else { throw SessionError.message("Enter your email address.") }
         guard !password.isEmpty else { throw SessionError.message("Enter your password.") }
