@@ -1,0 +1,43 @@
+name: Phase 13 Native Android UAT Fix Qualification
+
+on:
+  push:
+    branches:
+      - native-mobile/release-identity-deeplinks-phase13-20260924
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: apps/android
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android 36 platform
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest --no-daemon
+      - name: Debug build
+        run: ./gradlew assembleDebug --no-daemon
+      - name: Verify current release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'compileSdk = 36' app/build.gradle.kts
+          grep -q 'targetSdk = 36' app/build.gradle.kts
+          grep -q 'versionCode = 10' app/build.gradle.kts
+          grep -q 'versionName = "2.1.0"' app/build.gradle.kts
+          grep -q '@OptIn(ExperimentalComposeUiApi::class)' app/src/main/java/pro/wewed/app/ui/RootScreen.kt
+          grep -q 'onOpenInvitation = { showingInvitationHelp = true }' app/src/main/java/pro/wewed/app/ui/RootScreen.kt
+          ! grep -q 'onOpenInvitation = { authMode = AuthenticationMode.SIGN_IN }' app/src/main/java/pro/wewed/app/ui/RootScreen.kt
