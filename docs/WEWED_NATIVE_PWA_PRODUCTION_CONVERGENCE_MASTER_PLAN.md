@@ -3710,3 +3710,66 @@ No schema, database, authentication, planner, guest-session, RSVP, Wedding Day, 
 
 **Phase-13 status:** **NOT ACCEPTED — CODE QUALIFIED; RELEASE ARTIFACT + LIVE DISTRIBUTION PROOF STILL OPEN.**
 Phase 14 remains unauthorized.
+
+### D-048 — Phase 13 pre-publication artifact qualification evidence, submitted for moderator review (2026-09-24)
+**IMPLEMENTATION-AGENT SUBMISSION, NOT MODERATOR ACCEPTANCE.** Phase 13 acceptance remains reserved exclusively for the moderator. The implementation agent has qualified the exact main-based association release candidate and built/cryptographically qualified the current Kotlin/Compose Android Release AAB without code changes, production deployments, or Google Play uploads.
+
+**1. Main-Based Association Release Candidate Qualification:**
+- **Branch:** `release/phase13-association-proof-20260924`
+- **Head SHA:** `75c602a3a5c2a37706e3a1d46984061b5c9f57e6`
+- **Base Main SHA:** `ba4b08f8bca2d5cd5826e1ef1d2701d9049dd887`
+- **Draft PR:** #214 (unmerged, undeployed)
+- **Verified 5-File Diff (`git diff --name-status ba4b08f8bca2d5cd5826e1ef1d2701d9049dd887..HEAD`):**
+  - `M public/.well-known/assetlinks.json` (delegates URL authority strictly to Play App Signing key `32:16:B9:AE:56:44:F9:B5:B4:F8:C3:04:6A:6B:D6:BF:86:3E:A3:51:B3:2A:F3:AE:4B:32:27:99:B9:FE:DA:7B`)
+  - `M src/lib/apple-app-site-association.ts` (restricts AASA to native-owned routes; excludes server-owned `/i/*`)
+  - `M src/lib/apple-app-site-association.test.ts` (locks corrected AASA scope)
+  - `A src/app/apple-app-site-association/route.ts` (root compatibility re-export with `force-dynamic`)
+  - `A src/lib/phase13-production-association-release.test.ts` (locks minimal production association contract)
+- **Focused Tests:** `bun test src/lib/apple-app-site-association.test.ts src/lib/phase13-production-association-release.test.ts`
+  - Result: **6 pass, 0 fail, 19 expect() calls [203.00ms]**
+- **Production Build:** `NEXT_PUBLIC_SUPABASE_URL="https://placeholder.supabase.co" NEXT_PUBLIC_SUPABASE_ANON_KEY="placeholder-anon-key" bun run build`
+  - Result: **Exit Code 0 (Compiled successfully, static/SSG pages generated cleanly)**
+- **Deployment Status:** **NO (Undeployed)**
+
+**2. Kotlin/Compose Android Release AAB Qualification:**
+- **Target Application:** `apps/android` (Kotlin / Jetpack Compose; NOT `android/` TWA, NOT `apps/mobile/` Expo)
+- **Branch:** `native-mobile/release-identity-deeplinks-phase13-20260924`
+- **Source SHA:** `1accfdbf5cece58c25b844025c7c8af0b7d5daee`
+- **Product Tree Parity:** Confirmed zero product differences against `fcf8be8167dd6e286487fc7f069959945a90e103`; only two historical documentation files were updated with guardrails.
+- **Identity Confirmed (`apps/android/app/build.gradle.kts` & `AndroidManifest.xml`):**
+  - `applicationId`: `pro.wewed.app` (Debug: `pro.wewed.app.dev`)
+  - `versionCode`: `8` (exceeds existing Play-installed v7 `2.0.4-uat`)
+  - `versionName`: `2.1.0`
+  - App Links: Scheme `https`, Host `wewed.pro`, paths `/invite/`, `/pass`, `/pass/`, `/w/`
+- **Signing Keystore Check:**
+  - Local Upload Keystore: `~/.wewed-release/wewed-upload.jks` (alias: `wewed-upload`)
+  - Environment File: `~/.wewed-release/android-signing.env` (all 4 variables populated without logging secrets)
+  - Upload Key SHA-256: `C3:D8:56:D7:82:F6:42:C6:88:4D:98:25:52:F5:67:65:3E:35:D5:DA:1E:AB:B1:12:EF:6F:C0:59:8E:88:65:8C`
+- **Build Execution:**
+  - Unit Tests: `./gradlew testDebugUnitTest --no-daemon` — **BUILD SUCCESSFUL in 20s (25 actionable tasks)**
+  - Release Bundle: `./gradlew bundleRelease --no-daemon` — **BUILD SUCCESSFUL in 40s (47 actionable tasks, signed release bundle generated)**
+- **Cryptographic AAB Verification:**
+  - Output File: `apps/android/app/build/outputs/bundle/release/app-release.aab`
+  - File Size: `14234397` bytes (14.2 MB)
+  - AAB SHA-256 Digest: `27363eaa08cb0268d85b70381bdc870de03dc85d37c30624ec9aad3f4b742d1f`
+  - `jarsigner -verify`: **jar verified (PASS)**
+  - `keytool -printcert -jarfile`: Signer #1 Owner `CN=Wewed, OU=Mobile, O=Wewed, L=Harare, ST=Harare, C=ZW`, SHA-256: `C3:D8:56:D7:82:F6:42:C6:88:4D:98:25:52:F5:67:65:3E:35:D5:DA:1E:AB:B1:12:EF:6F:C0:59:8E:88:65:8C` (Exact match with official Wewed Upload Certificate)
+- **Google Play Continuity Preserved:**
+  - Installed Play `pro.wewed.app` (v7 / `2.0.4-uat`) preserved on test device (NOT uninstalled, NOT sideloaded over)
+  - Google Play Upload: **NO (Not uploaded, awaiting moderator/owner authorization)**
+
+**3. iOS External Blocker Status:**
+- `security find-identity -p codesigning -v` confirms 0 valid identities; no provisioning profiles exist in `~/Library/MobileDevice/Provisioning Profiles/`.
+- `WEWED_APPLE_TEAM_ID` is unset.
+- Status remains: **NO CHANGE — EXTERNAL OWNER BLOCKER**.
+
+**4. External Owner-Controlled Actions Required Next:**
+1. Association RC Production Deployment: Authorizing deployment of minimal main-based RC `release/phase13-association-proof-20260924` (PR #214) to `wewed.pro`.
+2. Google Play Test-Track Upload: Authorizing upload of signed Compose `app-release.aab` (SHA-256 `27363eaa...`, versionCode 8) to Google Play Console internal/closed testing track.
+3. Google Play App Update on Device: Updating `pro.wewed.app` on `emulator-5554` from Google Play to verify Google Play App Signing key continuity and real Chrome App Link resolution.
+4. Apple Signing & Provisioning: Provisioning Apple Team ID and distribution certificates for signed iOS testing.
+
+**Phase Gate:**
+- Phase 13: **SUBMITTED FOR MODERATOR REVIEW (NOT SELF-DECLARED ACCEPTED)**.
+- Phase 14: **NOT AUTHORIZED / NOT STARTED**.
+
