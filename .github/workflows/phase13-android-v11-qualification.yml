@@ -34,8 +34,6 @@ jobs:
         run: ./gradlew testDebugUnitTest --no-daemon
       - name: Build production-like UAT APK
         run: ./gradlew assembleUat --no-daemon
-      - name: Build release bundle
-        run: ./gradlew bundleRelease --no-daemon
       - name: Verify v11 identities
         shell: bash
         run: |
@@ -49,4 +47,5 @@ jobs:
           grep -q 'android:versionCode="11"' "$uat_manifest"
           grep -q 'android:versionName="2.1.0-uatdev"' "$uat_manifest"
           test -f app/build/outputs/apk/uat/app-uat.apk
-          test -f app/build/outputs/bundle/release/app-release.aab
+          # Final release AAB signing is intentionally local-only with the official upload key.
+          grep -q 'Release packaging requires WEWED_UPLOAD_STORE_FILE' app/build.gradle.kts
