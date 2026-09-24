@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
-import { GET as getAssetLinks, ANDROID_PACKAGE_NAME, PLAY_SIGNING_SHA256, UPLOAD_KEY_SHA256 } from '@/app/.well-known/assetlinks.json/route'
+import { GET as getAssetLinks, ANDROID_PACKAGE_NAME, PLAY_SIGNING_SHA256 } from '@/app/.well-known/assetlinks.json/route'
 import { GET as getAasa } from '@/app/.well-known/apple-app-site-association/route'
 import { GET as getRootAasa } from '@/app/apple-app-site-association/route'
 import { WEWED_IOS_BUNDLE_ID, buildAppleAppSiteAssociation } from '@/lib/apple-app-site-association'
@@ -21,16 +21,14 @@ describe('Deep-link and release identity server contract', () => {
     expect(statement.relation).toContain('delegate_permission/common.handle_all_urls')
     expect(statement.target.namespace).toBe('android_app')
     expect(statement.target.package_name).toBe('pro.wewed.app')
-    expect(statement.target.sha256_cert_fingerprints).toContain(PLAY_SIGNING_SHA256)
-    expect(statement.target.sha256_cert_fingerprints).toContain(UPLOAD_KEY_SHA256)
+    expect(statement.target.sha256_cert_fingerprints).toEqual([PLAY_SIGNING_SHA256])
   })
 
   test('public/.well-known/assetlinks.json matches the route handler contract', () => {
     const fileContent = JSON.parse(readFileSync('public/.well-known/assetlinks.json', 'utf8'))
     const statement = fileContent.find((s: any) => s.target?.package_name === 'pro.wewed.app')
     expect(statement).toBeDefined()
-    expect(statement.target.sha256_cert_fingerprints).toContain(PLAY_SIGNING_SHA256)
-    expect(statement.target.sha256_cert_fingerprints).toContain(UPLOAD_KEY_SHA256)
+    expect(statement.target.sha256_cert_fingerprints).toEqual([PLAY_SIGNING_SHA256])
   })
 
   test('Apple App Site Association fails closed (404) when prefix is unset', async () => {
@@ -65,7 +63,7 @@ describe('Deep-link and release identity server contract', () => {
 
       const paths = body.applinks.details[0].components.map((c: any) => c['/'])
       expect(paths).toContain('/invite/*')
-      expect(paths).toContain('/i/*')
+      expect(paths).not.toContain('/i/*')
       expect(paths).toContain('/w/*')
       expect(paths).toContain('/pass*')
       expect(paths).toContain('/pass/*')
