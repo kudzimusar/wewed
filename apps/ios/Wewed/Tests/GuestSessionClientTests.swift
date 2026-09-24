@@ -147,9 +147,14 @@ final class GuestSessionClientTests: XCTestCase {
         _ = try await client.exchangePrivateInvitation(weddingSlug: "charity-and-kudzie",
                                                        rsvpToken: rawToken)
 
+        // Exercise the real GuestSessionClient: the credential is allowed only in the
+        // one-shot exchange body and must be replaced by the server-issued session in storage.
+        XCTAssertEqual(Stub.seenBodies.count, 1)
+        XCTAssertTrue(Stub.seenBodies[0].contains(rawToken))
+
         let stored = ["wewed.guest.session", "wewed.guest.session.slug"]
             .compactMap { storage.get(key: $0) }
-        XCTAssertFalse(stored.isEmpty, "a session must be stored")
+        XCTAssertEqual(stored, [guestASession, "charity-and-kudzie"])
         for value in stored {
             XCTAssertNotEqual(value, rawToken, "the raw RSVP credential must not be stored")
             XCTAssertFalse(value.contains(rawToken))
