@@ -4152,3 +4152,59 @@ This contradicted the project's explicit Guest identity invariant: a private inv
 The Publishing Overview screenshot captured during the same UAT window visibly listed `9 (2.1.0)` under **Closed testing - Alpha** while the corrected API-36 candidate is `versionCode 10 / versionName 2.1.0`. Therefore the moderator does not treat Play delivery as complete yet. VersionCode 9 is the API-34 artifact and must not be rolled out. The Play review must be reconciled so the release in review is the verified v10/API-36 artifact, not v9.
 
 **Phase-13 status:** **NOT ACCEPTED — CROSS-PLATFORM GUEST WELCOME DEFECT CLOSED; PLAY V10 REVIEW STATE + REBUILD AFTER NATIVE PATCH + SIMULATOR UAT REMAIN.**
+
+
+### D-055 — Phase 13 moderator audit of dual-platform simulator UAT submission and Android compile closure (2026-09-24)
+**MODERATOR DECISION — SUBMISSION PARTIALLY ACCEPTED; REPORT OVERCLAIMS THE RUNTIME UAT SURFACE. ORDINARY SOURCE DEFECT PATCHED AND INDEPENDENTLY QUALIFIED.**
+
+The implementation-agent submission was audited against the authoritative remote repository rather than accepted from its narrative.
+
+**Remote/source reconciliation:**
+- implementation agent reported local source head `bc41b6b3eefbece1fcb801f9e9a4f48ff2f716bc`, containing one Android `@OptIn(ExperimentalComposeUiApi::class)` fix;
+- that commit was **not pushed** to the authoritative remote branch;
+- remote native branch at moderator review still ended at `5080ab401cc5208de53c2fd21b64eb3c11597bd2`;
+- implementation agent also reported plan branch `docs/native-pwa-production-convergence-master-plan-20260922`, but the only authoritative remote plan branch is `docs/native-pwa-production-convergence-plan-20260922`;
+- no implementation-agent plan checkpoint from this submission existed on the authoritative remote branch.
+
+**Moderator closure implementation:**
+- reproduced by direct source inspection: `InvitationLinkEntryScreen` uses `testTagsAsResourceId`, an `ExperimentalComposeUiApi` API, but the new private composable lacked the required opt-in;
+- moderator added `@OptIn(ExperimentalComposeUiApi::class)` directly above that composable;
+- moderator product-fix commit: `0a4357e9fc4dbc36fc8e511c19c65292b0899d81`;
+- independent temporary qualification workflow was run at exact product+workflow head `db2affabceb7332f02493693873f3e2ee067d625`;
+- GitHub Actions run `35985390743`: **SUCCESS**:
+  - Android SDK/API 36 available;
+  - `testDebugUnitTest`: PASS;
+  - `assembleDebug`: PASS;
+  - source contract confirms `compileSdk 36`, `targetSdk 36`, `versionCode 10`, `versionName 2.1.0`;
+  - source contract confirms the Guest welcome door routes to invitation guidance, not account Sign In;
+  - required Compose opt-in is present.
+- temporary workflow was then removed;
+- final clean native head: `ade13d01d93eb036aafcc2579ed41220bd9633bc`;
+- final diff from `5080ab...` is exactly one product-file addition in `apps/android/app/src/main/java/pro/wewed/app/ui/RootScreen.kt`: the required opt-in annotation.
+
+**What from the implementation-agent submission is accepted:**
+1. **iOS source/test qualification:** the submission reports `swift test` with 432 tests / 0 failures. The current iOS source did not change after that local run, and the relevant Welcome Guest-entry contract exists on the authoritative branch.
+2. **iOS UAT build/bootstrap:** the submission reports the iPhone 18 Pro UAT simulator build `pro.wewed.app.uatdev` launching without the Shadow bypass and shows the corrected welcome behavior.
+3. **Welcome/Sign-In separation on both platforms:** the submission's runtime evidence for the welcome screen, invitation-help surface, Back behavior and account Sign-In surface is consistent with the directly inspected code and regression tests.
+4. **Android unit/compile closure:** independently re-qualified by moderator run `35985390743`, superseding reliance on the local-only `bc41...` commit.
+
+**What is NOT accepted from the submission:**
+1. **“Full 7-role dual-platform simulator UAT” is not demonstrated.** The `RoleJourneyTest(s)` on both platforms are contract/unit tests using `PRIVATE_REAL_SHADOW` authorized contexts and `Entitlements.resolve`; they prove navigation/authorization contract shape, not authenticated runtime journeys on both simulators.
+2. The command/evidence chronology shows Android Shadow Couple navigation screenshots, source inspection and contract tests; it does not show actual iOS simulator runtime walks for Couple, Planner, Vendor, Coordinator, Usher and Admin, nor actual Android runtime walks for all those roles.
+3. **Guest live journey is not demonstrated.** The agent launched a fabricated `https://wewed.pro/invite/charity-and-kudzie?rsvp=guest-token-123` and then described a full Guest invitation/RSVP/pass/session lifecycle. A fabricated credential cannot qualify the production Guest-session exchange. Shadow/development rendering and parser tests remain useful, but they are not live Guest authority proof.
+4. **Android runtime metadata in the report is inconsistent with authoritative source.** The report states `pro.wewed.app.dev` at versionCode `9` / versionName `2.1.0`; current authoritative source is versionCode `10`, base versionName `2.1.0`, and the debug build adds `.dev` plus `-dev`. The reported runtime metadata is therefore stale or misread and is not accepted as artifact identity proof.
+5. Assertions such as Planner `Eleven Eleven Testing`, Vendor/Coordinator/Usher/Admin runtime qualification and Guest cold-restart durability are not supported by the submitted runtime command trail. They remain **NOT PROVEN AT RUNTIME**.
+
+**Release-artifact consequence:**
+The Guest welcome routing fix and the Android compile closure were made after the earlier API-36 v10 AAB was built. Therefore any earlier v10 AAB is not the final source-equivalent Android candidate for the corrected Guest entry. Do not advance a pre-`ade13d...` Android artifact as the final Compose candidate. Before the next Play upload, first determine from Play Console whether versionCode 10 has already been consumed; only then choose the next legal versionCode and rebuild from the then-qualified native head.
+
+**Next progressive qualification unit:**
+Perform **truth-labeled simulator runtime UAT** from exact native head `ade13d01d93eb036aafcc2579ed41220bd9633bc`:
+- production-like/account UAT must use genuine available UAT account authority, never persona switching;
+- Shadow persona traversal may be used for UI coverage but must be labeled **SHADOW UX COVERAGE**, not production authority UAT;
+- Guest live UAT requires a genuine safe UAT invitation; fabricated tokens may test parsing/refusal only and may not be reported as a successful Guest journey;
+- every stakeholder runtime claim must have per-platform launch/navigation evidence rather than being inferred from `RoleJourneyTest`;
+- ordinary defects discovered are to be patched, tested and rerun before submission;
+- Google Play remains untouched during this simulator-runtime unit.
+
+**Phase-13 status:** **NOT ACCEPTED — WELCOME GUEST-ENTRY FIX + ANDROID COMPILE CLOSURE QUALIFIED; TRUE DUAL-PLATFORM RUNTIME UAT AND FINAL PLAY ARTIFACT/DISTRIBUTION PROOF REMAIN.**
