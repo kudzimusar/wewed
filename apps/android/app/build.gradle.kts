@@ -25,7 +25,7 @@ android {
         // Legacy versionCode 8 / 2.0.5 was already active, and the first Compose versionCode 9
         // upload was consumed while Play exposed the API-36 submission requirement. The corrected
         // API-36 Compose convergence candidate therefore advances to versionCode 10.
-        versionCode = 10
+        versionCode = 11
         versionName = "2.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
