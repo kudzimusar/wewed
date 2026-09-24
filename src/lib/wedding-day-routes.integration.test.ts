@@ -26,6 +26,7 @@ describeDb('Phase 11A Wedding Day HTTP route handlers', () => {
   let postRevokeRoute: typeof import('@/app/api/native/gate/wedding-day/pass/revoke/route')['POST']
   let createNativeAccountSessionToken: typeof import('@/lib/native-account-session')['createNativeAccountSessionToken']
   let ensureWeddingPassCredential: typeof import('@/lib/wedding-day')['ensureWeddingPassCredential']
+  let createWeddingGuestSessionToken: typeof import('@/lib/wedding-guest-session')['createWeddingGuestSessionToken']
 
   const run = randomUUID().slice(0, 8)
   const id = (name: string) => `p11a-rt-${run}-${name}`
@@ -45,6 +46,7 @@ describeDb('Phase 11A Wedding Day HTTP route handlers', () => {
     ;({ POST: postRevokeRoute } = await import('@/app/api/native/gate/wedding-day/pass/revoke/route'))
     ;({ createNativeAccountSessionToken } = await import('@/lib/native-account-session'))
     ;({ ensureWeddingPassCredential } = await import('@/lib/wedding-day'))
+    ;({ createWeddingGuestSessionToken } = await import('@/lib/wedding-guest-session'))
 
     const ww2KeyPair = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
     const rootKeyPair = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
@@ -177,6 +179,41 @@ describeDb('Phase 11A Wedding Day HTTP route handlers', () => {
 
     process.env.WEDDING_DAY_ROOT_PRIVATE_KEY_PEM = rootPrivateKey
     process.env.WEDDING_DAY_ROOT_KEY_ID = rootKeyId
+  })
+
+  test('guest pass route returns the signed WW2 credential and public verification key', async () => {
+    process.env.WEWED_WEDDING_DAY_WW2_ENABLED = 'true'
+
+    const guestSession = createWeddingGuestSessionToken({
+      weddingId: WEDDING_ID,
+      guestId: GUEST_ID,
+      rsvpToken: id('rsvp-token'),
+    })
+    const request = new NextRequest('http://localhost/api/wedding-day/pass', {
+      headers: {
+        Cookie: `wewed_wedding_guest=${guestSession}`,
+      },
+    })
+
+    const response = await getPassRoute(request)
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.success).toBe(true)
+    expect(body.data.guestId).toBe(GUEST_ID)
+    expect(body.data.weddingId).toBe(WEDDING_ID)
+    expect(body.data.token).toStartWith('WW2.')
+    expect(body.data.tokenVersion).toBe('WW2')
+    expect(body.data.publicKeyDerBase64).toBeTruthy()
+
+    const keyRows = await db.$queryRawUnsafe<Array<{ publicKeyDerBase64: string }>>(
+      `SELECT "publicKeyDerBase64"
+         FROM public."WeddingPassKey"
+        WHERE "weddingId" = $1
+        ORDER BY "createdAt" DESC
+        LIMIT 1`,
+      WEDDING_ID,
+    )
+    expect(body.data.publicKeyDerBase64).toBe(keyRows[0]?.publicKeyDerBase64)
   })
 
   test('enabled feature gate enforces authentication and grant authorization', async () => {
