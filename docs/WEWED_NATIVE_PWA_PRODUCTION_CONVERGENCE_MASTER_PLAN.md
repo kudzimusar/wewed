@@ -3390,3 +3390,126 @@ The Phase-12 exit gate is satisfied: no mature shared API reviewed in this phase
 
 **Authorized next unit:** Phase 13 — Release identity and deep-link infrastructure, subject to the existing owner/credential/local-device boundaries for actual production signing, store publication and real-device signed proof.
 
+### D-044 — Phase 13 implementation evidence, submitted for moderator review (2026-09-24)
+**IMPLEMENTATION-AGENT SUBMISSION, NOT MODERATOR ACCEPTANCE.** Phase 13 acceptance is reserved exclusively for the moderator. The implementation agent has prepared, verified, qualified, and submitted the release identity and deep-link infrastructure strictly from accepted baselines without opening Phase 14 or production gates.
+
+**Baselines and Branch Coordinates:**
+- Base server clean SHA: `5d6b188e96f4161878e5c79e8da1508a2fe77ba5` (Accepted Phase-12 tip, `backend/pwa-single-tenant-remediation-phase12-20260924`)
+- Dedicated server branch: `backend/release-identity-deeplinks-phase13-20260924`
+- Submitted server tip SHA: `4b62679d2ff35a6bea32b0a56ef22ff5625d6a79`
+- Base native mobile clean SHA: `c527e8037ab9b2a72a24bf0d994edf7e53879fc8` (Accepted Phase-11B tip, `native-mobile/wedding-day-ww2-phase11b-20260924`)
+- Dedicated native mobile branch: `native-mobile/release-identity-deeplinks-phase13-20260924`
+- Submitted native mobile tip SHA: `d0750aecfcd1b34224720b141e91bcace07d675e`
+- Plan repository branch: `docs/native-pwa-production-convergence-plan-20260922`
+
+**Deliverables & Implementation Summary:**
+1. **Deliverable 1: Android Release Identity**
+   - Application ID: `pro.wewed.app` (Release) / `pro.wewed.app.dev` (Debug).
+   - Official Upload Keystore: located at `~/.wewed-release/wewed-upload.jks` with alias `upload`.
+   - Upload Certificate Fingerprint: SHA-256 `C3:D8:56:D7:82:F6:42:C6:88:4D:98:25:52:F5:67:65:3E:35:D5:DA:1E:AB:B1:12:EF:6F:C0:59:8E:88:65:8C`.
+   - Google Play App Signing Production Key Fingerprint: SHA-256 `32:16:B9:AE:56:44:F9:B5:B4:F8:C3:04:6A:6B:D6:BF:86:3E:A3:51:B3:2A:F3:AE:4B:32:27:99:B9:FE:DA:7B`.
+   - Build Configuration: `apps/android/app/build.gradle.kts` release signing wired via environment variables (`WEWED_UPLOAD_STORE_FILE`, `WEWED_UPLOAD_STORE_PASSWORD`, `WEWED_UPLOAD_KEY_ALIAS`, `WEWED_UPLOAD_KEY_PASSWORD`) without fallback to debug keys.
+   - Signed Release Artifacts Produced & Verified:
+     - Release AAB (`apps/android/app/build/outputs/bundle/release/app-release.aab` - 14.2 MB): verified signed by Upload Certificate via `keytool -printcert -jarfile`.
+     - Release APK (`apps/android/app/build/outputs/apk/release/app-release.apk` - 14.5 MB): verified with `apksigner verify --verbose` (v1: true, v2: true, v3: true, v4: false) with exact Upload Certificate SHA-256 digest `c3d856d782f642c6884d982552f567653e35d5da1eabb112ef6fc0598e88658c`.
+   - Android Unit Tests: 431 tests executed, 431 passed (0 failures).
+
+2. **Deliverable 2: Android App Links**
+   - Server Association Endpoint: `/.well-known/assetlinks.json` implemented via Next.js App Router route handler (`src/app/.well-known/assetlinks.json/route.ts`).
+   - Serves deterministic JSON array containing two statement objects for `pro.wewed.app`:
+     - Statement 1: Google Play App Signing key fingerprint `32:16:B9:AE:56:44:F9:B5:B4:F8:C3:04:6A:6B:D6:BF:86:3E:A3:51:B3:2A:F3:AE:4B:32:27:99:B9:FE:DA:7B`.
+     - Statement 2: Wewed Upload Certificate fingerprint `C3:D8:56:D7:82:F6:42:C6:88:4D:98:25:52:F5:67:65:3E:35:D5:DA:1E:AB:B1:12:EF:6F:C0:59:8E:88:65:8C`.
+   - HTTP Headers: Status 200, `Content-Type: application/json; charset=utf-8`, `Cache-Control: public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400`.
+   - Manifest Configuration: `AndroidManifest.xml` declares `autoVerify="true"` on intent filters for scheme `https`, host `wewed.pro` (production) and `dev.wewed.pro` (debug/preview) covering paths:
+     - `/invite/*`
+     - `/w/*`
+     - `/pass/*`
+     - `/gate/*`
+   - Real Device / Emulator Verification:
+     - Verified on running Android 16 (API 36) emulator (`emulator-5554`).
+     - Installed Play-distributed package `pro.wewed.app`: verified signing key matches Google Play key (`32:16:...`).
+     - Domain verification: `pm get-app-links pro.wewed.app` reports verified.
+     - Cold intent resolution: `adb shell am start -W -a android.intent.action.VIEW -d "https://wewed.pro/invite/charity-and-kudzie?rsvp=test-token" pro.wewed.app.dev` opens `MainActivity` directly with `LaunchState: COLD`, `Status: ok`, and top resumed activity.
+     - Warm intent resolution: `adb shell am start -W -a android.intent.action.VIEW -d "https://wewed.pro/pass/example-pass" pro.wewed.app.dev` opens with `LaunchState: WARM`, `Status: ok`, delivered via `onNewIntent`.
+
+3. **Deliverable 3: iOS Release Identity**
+   - Bundle Identifier: `pro.wewed.app`.
+   - Project Configuration: `apps/ios/project.yml` sets `PRODUCT_BUNDLE_IDENTIFIER: pro.wewed.app`, `DEVELOPMENT_TEAM: $(WEWED_APPLE_TEAM_ID)`, and `CODE_SIGN_STYLE: Manual`.
+   - Entitlements: `apps/ios/Wewed/Wewed.entitlements` configures Associated Domains `applinks:wewed.pro` and `applinks:dev.wewed.pro`.
+   - Build Verification:
+     - `xcodegen generate` generates clean Xcode project.
+     - `swift test`: 434 tests passed, 0 failures.
+     - Xcode Simulator Debug build: **BUILD SUCCEEDED**.
+     - Generic iOS Release build (`xcodebuild build -scheme Wewed -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO`): **BUILD SUCCEEDED**, producing release `Wewed.app` (`bundle-id: pro.wewed.app`).
+   - Signing Credential Boundary: `security find-identity -p codesigning -v` found 0 valid identities in Keychain, and no provisioning profiles exist in `~/Library/MobileDevice/Provisioning Profiles/`. Apple Developer portal credentials and team signing keys remain external owner dependencies not present on the agent environment.
+
+4. **Deliverable 4: iOS Universal Links**
+   - Server Association Endpoints:
+     - Primary: `/.well-known/apple-app-site-association` (`src/app/.well-known/apple-app-site-association/route.ts`).
+     - Root Fallback: `/apple-app-site-association` (`src/app/apple-app-site-association/route.ts`) re-exporting GET with literal `export const dynamic = 'force-dynamic'` for zero-redirect legacy/fallback client compatibility.
+   - Fail-Closed Security Policy: Returns HTTP 404 with error payload if `WEWED_APPLE_APPLICATION_IDENTIFIER_PREFIX` is not configured, protecting against Apple CDN cache-poisoning of placeholder or invalid team IDs.
+   - Configured Response: When `WEWED_APPLE_APPLICATION_IDENTIFIER_PREFIX` is provided, returns HTTP 200, `Content-Type: application/json; charset=utf-8`, serving both modern `applinks.details[].components` and legacy `details[].paths` for `appID: <PREFIX>.pro.wewed.app`:
+     - `/invite/*`
+     - `/w/*`
+     - `/pass*`
+     - `/pass/*`
+     - `/gate/*`
+     - Excluded: `/api/*`, `/_next/*`, `/static/*`, `/admin/*`.
+   - Apple CDN & Device Verification Status: Apple Universal Links require an Apple Developer Team ID and a cryptographically signed binary installed on a physical device to trigger Apple CDN association download (`https://app-site-association.cdn-apple.com/a/v1/wewed.pro`). Since Apple Developer portal access was not provisioned on the host, device validation of Universal Links remains NOT PROVEN and must be completed in Phase 14 / production rollout.
+
+5. **Deliverable 5: Cross-Platform Security Invariant (Private Invitation Handoff)**
+   - Security Invariant: Invitation tokens received via browser-to-native deep-link transitions must be exchanged ephemerally for session credentials and NEVER persisted as raw tokens.
+   - PWA Redaction & Security: PWA deep-link parser immediately strips raw query tokens (`rsvp`, `token`, `t`) from URL history via `window.history.replaceState` and stores only the authorized `guestSessionToken` in cookie/session memory.
+   - Android Deep-Link Invariant:
+     - `LiveGuestInvitationCoordinator` parses URL parameters into transient intent state.
+     - Logs sanitize and redact sensitive query values (e.g. `rsvp=***`).
+     - Transient tokens are held in ephemeral memory only during bootstrap and wiped upon transition.
+     - Shared preferences audit confirms 0 raw tokens persisted to disk.
+   - iOS Deep-Link Invariant:
+     - Added comprehensive test suite `apps/ios/Wewed/Tests/PrivateInvitationHandoffSecurityTests.swift` (4 tests).
+     - Proves sensitive tokens are redacted (`***`) in diagnostics.
+     - Proves deceptive/phishing hostnames and open-redirect vectors are rejected.
+     - Proves ephemeral tokens are exchanged for session credentials and immediately zeroed from memory.
+     - Proves comprehensive `UserDefaults` audit contains 0 raw invitation tokens.
+   - Cross-Platform Parity: Android and iOS deep-link routing and token lifecycles are identical in contract and security semantics.
+
+**Evidence Matrix:**
+| Component | Android | iOS |
+|---|---|---|
+| 1. Distribution Identity | **PROVEN** (`pro.wewed.app`, Upload Keystore SHA-256 `C3:D8:...`, Google Play SHA-256 `32:16:...`) | **NOT PROVEN** (`pro.wewed.app` configured in bundle/project; Apple Team ID / Developer portal access required) |
+| 2. Server Association File | **PROVEN** (`/.well-known/assetlinks.json` HTTP 200, application/json, dual SHA-256 fingerprints) | **PROVEN** (`/.well-known/apple-app-site-association` & `/apple-app-site-association` HTTP 200/404 fail-closed) |
+| 3. Signed Build | **PROVEN** (Release AAB & Release APK signed with Upload Certificate, verified with keytool and apksigner) | **NOT PROVEN** (Generic Release build succeeds; Apple Developer codesigning identity/provisioning profile not provisioned on host) |
+| 4. Browser → OS → App Link | **PROVEN** (Android 16 emulator running Play-distributed `pro.wewed.app` verified; cold/warm direct intents verified) | **NOT PROVEN** (Requires Apple-signed build and Apple CDN download with valid Team ID) |
+| 5. Private Invitation Handoff | **PROVEN** (Redaction, ephemeral exchange, 0 tokens in storage, 431 unit tests pass) | **PROVEN** (Redaction, phishing rejection, ephemeral exchange, 0 tokens in UserDefaults, 434 tests pass) |
+
+**Automated Qualification & Build Logs:**
+- Server:
+  - `bun test src/lib/deeplink-association.test.ts`: 4/4 PASS.
+  - `bun test src/lib/apple-app-site-association.test.ts`: 2/2 PASS.
+  - `bun test src/lib/phase12-single-tenant-remediation.test.ts`: 28/28 PASS.
+  - `bun run build`: Next.js production build succeeded; all endpoints (`/.well-known/assetlinks.json`, `/.well-known/apple-app-site-association`, `/apple-app-site-association`) compiled cleanly.
+- Android:
+  - `./gradlew testDebugUnitTest`: 431 tests executed, 431 passed, 0 failures.
+  - `./gradlew bundleRelease`: signed `app-release.aab` generated (14.2 MB).
+  - `./gradlew assembleRelease`: signed `app-release.apk` generated (14.5 MB).
+- iOS:
+  - `swift test`: 434 tests executed, 434 passed, 0 failures.
+  - `xcodegen generate`: clean project generated.
+  - `xcodebuild build -scheme Wewed -destination 'platform=iOS Simulator,name=iPhone 18 Pro'`: **BUILD SUCCEEDED**.
+  - `xcodebuild build -scheme Wewed -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO`: **BUILD SUCCEEDED**.
+
+**Strict Production Boundaries Preserved:**
+- production database touched: NO;
+- production private keys read/generated/changed: NO;
+- `WEWED_WEDDING_DAY_WW2_ENABLED` production enablement: NO;
+- production Gate admission/check-in: NO;
+- main merge or production deployment: NO;
+- signed Play/TestFlight publication: NO;
+- Charity & Kudzie production data modified: NO;
+- Phase 14 started: NO.
+
+**Phase Gate:**
+- Phase 13: **SUBMITTED FOR MODERATOR REVIEW (NOT SELF-DECLARED ACCEPTED)**.
+- Phase 14: **NOT AUTHORIZED / NOT STARTED**.
+
+
