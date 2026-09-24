@@ -15,17 +15,17 @@ val hasUploadSigning = !uploadStorePath.isNullOrBlank() &&
 android {
     sourceSets.getByName("androidTest").assets.srcDir("../../../mobile/fixtures")
     namespace = "pro.wewed.app"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "pro.wewed.app"
         minSdk = 24
-        targetSdk = 34
-        // Must exceed the highest version already present in Google Play, or the upload is rejected.
-        // Live Play Console inspection on 2026-09-24 confirmed versionCode 8 / 2.0.5 is already
-        // consumed by the legacy closed-test release. The Compose convergence candidate therefore
-        // starts at versionCode 9 while retaining its intended product versionName.
-        versionCode = 9
+        targetSdk = 36
+        // Must exceed the highest version already uploaded to Google Play.
+        // Legacy versionCode 8 / 2.0.5 was already active, and the first Compose versionCode 9
+        // upload was consumed while Play exposed the API-36 submission requirement. The corrected
+        // API-36 Compose convergence candidate therefore advances to versionCode 10.
+        versionCode = 10
         versionName = "2.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
