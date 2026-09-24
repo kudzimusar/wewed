@@ -7,7 +7,11 @@ import java.nio.charset.StandardCharsets
 data class InvitationDeepLink(
     val weddingSlug: String,
     val rsvpToken: String
-)
+) {
+    /** A private RSVP credential must never leak through diagnostic interpolation. */
+    override fun toString(): String =
+        "InvitationDeepLink(weddingSlug=$weddingSlug, rsvpToken=***)"
+}
 
 sealed interface NativeDeepLink {
     data class Invitation(val value: InvitationDeepLink) : NativeDeepLink
