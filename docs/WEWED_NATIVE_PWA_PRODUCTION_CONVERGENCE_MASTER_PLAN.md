@@ -3845,3 +3845,140 @@ Phase 14 remains unauthorized.
 
 **Phase-13 verdict:** **NOT ACCEPTED — CORRECTED CODE QUALIFIED; FINAL OFFICIAL-SIGNER AAB REBUILD + LIVE DISTRIBUTION PROOF STILL OPEN.**
 Phase 14 remains unauthorized.
+
+
+### D-050 — Phase 13 corrected Compose Release AAB rebuild and cryptographic qualification (2026-09-24)
+**IMPLEMENTATION-AGENT SUBMISSION, NOT MODERATOR ACCEPTANCE.**
+
+#### 0. Supersession Declaration
+D-048 AAB SHA-256 `27363eaa08cb0268d85b70381bdc870de03dc85d37c30624ec9aad3f4b742d1f` is **SUPERSEDED — DO NOT UPLOAD TO GOOGLE PLAY**. It predates the moderator's App Link parity correction (D-049). This checkpoint supersedes it with a new official-signer artifact rebuilt from the corrected head.
+
+#### 1. Native Worktree Synchronization
+- Branch: `native-mobile/release-identity-deeplinks-phase13-20260924`
+- Expected moderator head: `bbf2c78d1a8210bb833140f4f47e6ee5b10973ae`
+- Actual HEAD after `git merge --ff-only origin/...`: `bbf2c78d1a8210bb833140f4f47e6ee5b10973ae` ✓
+- Fast-forward delta from D-048 source (`1accfdbf5cece58c25b844025c7c8af0b7d5daee`): 3 files changed, 97 lines added (moderator-added manifest paths + 2 new test files)
+
+#### 2. Corrected Product File Inspection (read-only — no edits)
+
+**`apps/android/app/src/main/AndroidManifest.xml`**
+- `package="pro.wewed.app"` ✓
+- `android:autoVerify="true"` HTTPS intent-filter with host `wewed.pro` ✓
+- Paths claimed (all 8 required):
+  - `android:pathPrefix="/invite/"` ✓
+  - `android:path="/pass"` ✓
+  - `android:pathPrefix="/pass/"` ✓
+  - `android:pathPrefix="/w/"` ✓
+  - `android:pathPrefix="/planner/"` ✓ ← moderator-added
+  - `android:pathPrefix="/vendor/"` ✓ ← moderator-added
+  - `android:pathPrefix="/gate/"` ✓ ← moderator-added
+  - `android:pathPrefix="/wedding/"` ✓ ← moderator-added
+- `/i/*` NOT claimed ✓
+- `/admin/*` NOT claimed ✓
+
+**`apps/android/app/src/test/java/pro/wewed/app/navigation/ReleaseAppLinkManifestContractTest.kt`** (new — 3 tests):
+- `release manifest claims the approved wewed pro app link surface` — asserts all 8 required paths ✓
+- `release manifest never intercepts the server owned physical invitation resolver` — asserts no `/i/*` ✓
+- `release manifest does not claim admin as a browser universal route` — asserts no `/admin/*` ✓
+
+**`apps/android/app/src/test/java/pro/wewed/app/NativeDeepLinkTest.kt`** (extended — adds `httpsWorkspaceLinksParseForTheManifestOwnedBrowserRoutes`):
+- Proves HTTPS parsing for `/planner/clients/wed_1`, `/vendor/jobs/eng_1`, `/gate/gate_a/scan`, `/wedding/wed_1/plan/tasks` ✓
+
+**`apps/android/app/src/main/java/pro/wewed/app/models/NativeDeepLink.kt`** — `NativeDeepLinkParser` handles `planner`, `vendor`, `gate`, `wedding` route prefixes; `admin` parsed but router remains authority boundary ✓
+
+**`apps/android/app/src/main/java/pro/wewed/app/navigation/DeepLinkRouter.kt`** — `resolve()` enforces entitlement/active-context checks; a link never carries its own authority ✓
+
+#### 3. Signing Material Verification
+- Keystore path `$HOME/.wewed-release/wewed-upload.jks`: **PRESENT** ✓
+- Signing env file `$HOME/.wewed-release/android-signing.env`: **PRESENT** ✓
+- Upload certificate SHA-256 (from `keytool -list -v ... -alias wewed-upload`):
+  `C3:D8:56:D7:82:F6:42:C6:88:4D:98:25:52:F5:67:65:3E:35:D5:DA:1E:AB:B1:12:EF:6F:C0:59:8E:88:65:8C` ✓ — exact match to expected
+- Alias owner: `CN=Wewed, OU=Mobile, O=Wewed, L=Harare, ST=Harare, C=ZW`
+- Certificate valid until: 2054-01-24 (self-signed upload key, standard for Google Play upload certs)
+- Secrets not printed
+
+#### 4. Unit Test Results
+- Command: `bash -c 'set -a; source "$HOME/.wewed-release/android-signing.env"; set +a; ./gradlew testDebugUnitTest --no-daemon'`
+- Exit code: **0**
+- Result: **BUILD SUCCESSFUL in 31s**
+- Tasks executed: `compileDebugUnitTestKotlin`, `testDebugUnitTest`
+- Tests including `ReleaseAppLinkManifestContractTest` (3 tests) and `NativeDeepLinkTest` (all including the new `httpsWorkspaceLinksParseForTheManifestOwnedBrowserRoutes`): **ALL PASS, 0 FAILURES**
+- Warning noted: `application@android:networkSecurityConfig` tagged replace in debug manifest with no other declaration — pre-existing, non-blocking, debug-variant-only warning
+
+#### 5. Release AAB Build
+- Command: `bash -c 'set -a; source "$HOME/.wewed-release/android-signing.env"; set +a; ./gradlew bundleRelease --no-daemon'`
+- Exit code: **0**
+- Result: **BUILD SUCCESSFUL in 23s**
+- Tasks executed including: `processReleaseMainManifest`, `processReleaseManifest`, `processApplicationManifestReleaseForBundle`, `validateSigningRelease`, `packageReleaseBundle`, `signReleaseBundle`, `bundleRelease`
+- `signReleaseBundle` ran and completed ✓
+
+#### 6. Merged Release Manifest Verification
+- File: `app/build/intermediates/bundle_manifest/release/processApplicationManifestReleaseForBundle/AndroidManifest.xml`
+- `package="pro.wewed.app"` ✓
+- `android:versionCode="8"` ✓
+- `android:versionName="2.1.0"` ✓
+- `android:autoVerify="true"` HTTPS intent-filter — `android:host="wewed.pro"` ✓
+- All 8 required paths present in merged manifest:
+  - `/invite/` (pathPrefix) ✓
+  - `/pass` (exact path) ✓
+  - `/pass/` (pathPrefix) ✓
+  - `/w/` (pathPrefix) ✓
+  - `/planner/` (pathPrefix) ✓
+  - `/vendor/` (pathPrefix) ✓
+  - `/gate/` (pathPrefix) ✓
+  - `/wedding/` (pathPrefix) ✓
+- `/i/*` NOT present ✓
+- `/admin/*` NOT present ✓
+- Custom scheme `wewed://` intent-filter also present ✓
+
+#### 7. Cryptographic Verification
+- AAB path: `app/build/outputs/bundle/release/app-release.aab`
+- `jarsigner -verify`: **jar verified** ✓
+  - Warnings (all expected/non-blocking for a self-signed upload key):
+    - Chain invalid — self-signed cert, not a CA chain (standard for Play upload keys)
+    - No timestamp (standard; cert valid until 2054)
+    - POSIX attributes ignored (standard for AAB zip entries)
+- `keytool -printcert -jarfile`:
+  - Owner: `CN=Wewed, OU=Mobile, O=Wewed, L=Harare, ST=Harare, C=ZW`
+  - SHA-256: `C3:D8:56:D7:82:F6:42:C6:88:4D:98:25:52:F5:67:65:3E:35:D5:DA:1E:AB:B1:12:EF:6F:C0:59:8E:88:65:8C` ✓ — matches upload key exactly
+
+#### 8. New Artifact Identity (D-050 Official Record)
+| Field | Value |
+|---|---|
+| **AAB SHA-256** | `e648269127cf92ce704663e544b089f47ec546f61cccc7279606abff03702ee5` |
+| **AAB size** | 14,234,484 bytes (≈13.6 MB) |
+| **Source native SHA** | `bbf2c78d1a8210bb833140f4f47e6ee5b10973ae` |
+| **applicationId** | `pro.wewed.app` |
+| **versionCode** | `8` |
+| **versionName** | `2.1.0` |
+| **Upload cert SHA-256** | `C3:D8:56:D7:82:F6:42:C6:88:4D:98:25:52:F5:67:65:3E:35:D5:DA:1E:AB:B1:12:EF:6F:C0:59:8E:88:65:8C` |
+| **Signing method** | `signReleaseBundle` via Gradle release signing config (upload keystore) |
+| **Supersedes** | D-048 AAB `27363eaa08cb0268d85b70381bdc870de03dc85d37c30624ec9aad3f4b742d1f` |
+
+SHA-256 differs from D-048 (`27363eaa...` ≠ `e6482691...`) — confirms this is a distinct artifact rebuilt from the corrected head. ✓
+
+#### 9. Plan Worktree Starting Head Confirmed
+- Expected D-049 head: `234ab408d53e98469c35ebe8bf89e62c9506245c`
+- Actual after `git merge --ff-only origin/...`: `234ab408d53e98469c35ebe8bf89e62c9506245c` ✓
+
+#### 10. iOS Status
+- NO CHANGE — EXTERNAL OWNER BLOCKER
+- `security find-identity -p codesigning -v` continues to show 0 valid identities
+- `WEWED_APPLE_TEAM_ID` is unset
+- No Apple provisioning profiles in `~/Library/MobileDevice/Provisioning Profiles/`
+- No iOS build run; no unsigned build produced
+
+#### 11. Actions NOT Taken
+- No Google Play upload (any track) ✓
+- No production deployment of association RC ✓
+- No merge of any Phase-13 branch to main ✓
+- No sideload of new AAB over Play-installed `pro.wewed.app` v7 on test device ✓
+- No modification of `RootScreen.kt`, `RootView.swift`, or any stakeholder UX ✓
+- No Phase 14 work ✓
+- No secrets printed ✓
+- `android/` (TWA legacy) and `apps/mobile/` (React Native/Expo historical) not touched ✓
+
+#### 12. Submission
+- Phase 13 verdict: **SUBMITTED FOR MODERATOR REVIEW (NOT SELF-DECLARED ACCEPTED)**
+- Phase 14: **NOT AUTHORIZED / NOT STARTED**
+- Moderator action required: review this D-050 evidence and decide whether the exact corrected AAB (`e648269127...`) and association RC (`75c602a3...`) are fit for the owner-controlled Android distribution step (Play test-track upload)
