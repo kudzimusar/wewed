@@ -96,7 +96,7 @@ function parsePermissions(raw: string | null, role: MembershipRole): string[] {
   }
 }
 
-function resolveWeddingPermissions(
+export function resolveWeddingPermissions(
   raw: string | null,
   role: MembershipRole,
   businessCanManageMembers: boolean,
@@ -113,7 +113,7 @@ function resolveWeddingPermissions(
   return [...permissions, 'members.manage']
 }
 
-const GOVERNED_WEDDING_ACCESS = `
+export const GOVERNED_WEDDING_ACCESS = `
   AND (
     m.role = 'owner'
     OR NOT EXISTS (
@@ -138,7 +138,7 @@ const GOVERNED_WEDDING_ACCESS = `
   )
 `
 
-const BUSINESS_TEAM_MANAGEMENT_ACCESS = `
+export const BUSINESS_TEAM_MANAGEMENT_ACCESS = `
   EXISTS (
     SELECT 1
     FROM public."BusinessAccountMember" team_bam
