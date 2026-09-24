@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const { credential, context } = result
+    const { credential, context, passKey } = result
     return NextResponse.json(
       {
         success: true,
@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
           issuedAt: credential.issuedAt,
           expiresAt: credential.expiresAt,
           revokedAt: credential.revokedAt,
+          publicKeyDerBase64: passKey.publicKeyDerBase64,
         },
       },
       { headers: { 'Cache-Control': 'no-store' } },
