@@ -89,6 +89,22 @@ android {
     }
 }
 
+// A production artifact must never be silently emitted unsigned. Unit tests and ordinary
+// debug work remain independent of release credentials, while assemble/bundle/package Release
+// refuse to run unless the upload signer is explicitly supplied.
+tasks.matching {
+    it.name == "assembleRelease" || it.name == "bundleRelease" || it.name == "packageRelease"
+}.configureEach {
+    doFirst {
+        if (!hasUploadSigning) {
+            throw GradleException(
+                "Release packaging requires WEWED_UPLOAD_STORE_FILE, WEWED_UPLOAD_STORE_PASSWORD, " +
+                    "WEWED_UPLOAD_KEY_ALIAS and WEWED_UPLOAD_KEY_PASSWORD."
+            )
+        }
+    }
+}
+
 androidComponents {
     onVariants { variant ->
         val resolvedApplicationId = variant.applicationId.get()
