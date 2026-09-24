@@ -32,6 +32,8 @@ function friendlyPassError(payload: WeddingPassResponse): string {
   switch (payload.code) {
     case 'ATTENDANCE_REQUIRED':
       return 'Confirm your attendance to unlock your Wedding Pass.'
+    case 'ATTENDANCE_DECLINED':
+      return 'No admission Pass is available because your response is declined.'
     case 'PASS_ISSUANCE_CLOSED':
       return 'Your Wedding Pass is not available in the current issuance window.'
     case 'WEDDING_DAY_DISABLED':
@@ -49,6 +51,7 @@ export function WeddingGuestPassDialog({ slug }: { slug: string }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [passState, setPassState] = useState<'attending' | 'pending' | 'declined' | 'error' | null>(null)
   const [pass, setPass] = useState<WeddingPassData | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
@@ -82,6 +85,7 @@ export function WeddingGuestPassDialog({ slug }: { slug: string }) {
       setOpen(true)
       setLoading(true)
       setError(null)
+      setPassState(null)
       setPass(null)
       setQrDataUrl(null)
 
@@ -99,9 +103,17 @@ export function WeddingGuestPassDialog({ slug }: { slug: string }) {
             !data.token.startsWith('WW2.') ||
             !data.publicKeyDerBase64
           ) {
+            if (payload.code === 'ATTENDANCE_DECLINED') {
+              setPassState('declined')
+            } else if (payload.code === 'ATTENDANCE_REQUIRED') {
+              setPassState('pending')
+            } else {
+              setPassState('error')
+            }
             throw new Error(friendlyPassError(payload))
           }
           setPass(data)
+          setPassState('attending')
         })
         .catch((caught) => {
           setPass(null)
@@ -132,7 +144,11 @@ export function WeddingGuestPassDialog({ slug }: { slug: string }) {
             Your Wedding Pass
           </DialogTitle>
           <DialogDescription className="mx-auto mt-3 max-w-xs text-sm leading-6 text-[#d8cbbb]">
-            This is your signed WW2 admission credential. Keep it private and present it at the wedding gate.
+            {passState === 'declined'
+              ? 'No admission Pass is available because your response is declined.'
+              : passState === 'pending'
+                ? 'Confirm your attendance to unlock your Wedding Pass.'
+                : 'This is your signed WW2 admission credential. Keep it private and present it at the wedding gate.'}
           </DialogDescription>
         </div>
 

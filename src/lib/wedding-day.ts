@@ -664,6 +664,9 @@ export async function guestPassForRequest(request: NextRequest) {
   }
   const context = await readWeddingDayGuestContext(request)
   if (!context) return null
+  if (context.attending === false) {
+    throw new Error('ATTENDANCE_DECLINED')
+  }
   if (context.attending !== true) {
     throw new Error('ATTENDANCE_REQUIRED')
   }

@@ -62,10 +62,11 @@ export async function GET(request: NextRequest) {
     )
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    const isAttendance = message.includes('accepted RSVP') || message.includes('ATTENDANCE_REQUIRED')
+    const isDeclined = message === 'ATTENDANCE_DECLINED'
+    const isAttendance = isDeclined || message.includes('accepted RSVP') || message.includes('ATTENDANCE_REQUIRED')
     const isClosed = message === 'PASS_ISSUANCE_CLOSED'
     const status = isAttendance ? 403 : isClosed ? 410 : 500
-    const code = isAttendance ? 'ATTENDANCE_REQUIRED' : isClosed ? 'PASS_ISSUANCE_CLOSED' : 'PASS_UNAVAILABLE'
+    const code = isDeclined ? 'ATTENDANCE_DECLINED' : isAttendance ? 'ATTENDANCE_REQUIRED' : isClosed ? 'PASS_ISSUANCE_CLOSED' : 'PASS_UNAVAILABLE'
     return NextResponse.json(
       { success: false, code, error: message },
       { status, headers: { 'Cache-Control': 'no-store' } },
