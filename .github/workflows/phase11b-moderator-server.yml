@@ -1,4 +1,5 @@
 name: Phase 11B Moderator Server Qualification
+# Reviewer qualification revision: full authority + migration coverage
 
 on:
   pull_request:
