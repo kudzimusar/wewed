@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/admin-gate'
+import { requireWeddingPermission } from '@/lib/wedding-access'
 import { db } from '@/lib/db'
 import {
   isRevisionStatus,
@@ -85,8 +85,8 @@ function formatRevision(r: {
 
 // ─── GET /api/content ────────────────────────────────────────
 export async function GET(request: NextRequest) {
-  const gateFail = requireAdmin(request)
-  if (gateFail) return gateFail
+  const access = await requireWeddingPermission(request, 'content.edit')
+  if (access.error) return access.error
 
   try {
     const url = new URL(request.url)
@@ -98,7 +98,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'weddingId is required' },
         { status: 400 },
-      );
+      )
+    }
+    if (weddingId !== access.context.weddingId) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden — weddingId does not match the active workspace.' },
+        { status: 403 },
+      )
     }
 
     // Parse limit
@@ -145,8 +151,8 @@ interface CreateRevisionBody {
 }
 
 export async function POST(request: NextRequest) {
-  const gateFail = requireAdmin(request)
-  if (gateFail) return gateFail
+  const access = await requireWeddingPermission(request, 'content.edit')
+  if (access.error) return access.error
 
   try {
     let body: CreateRevisionBody
@@ -204,6 +210,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'weddingId is required' },
         { status: 400 },
+      )
+    }
+    if (weddingId !== access.context.weddingId) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden — weddingId does not match the active workspace.' },
+        { status: 403 },
       )
     }
 
