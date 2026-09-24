@@ -22,9 +22,9 @@ android {
         minSdk = 24
         targetSdk = 36
         // Must exceed the highest version already uploaded to Google Play.
-        // Legacy versionCode 8 / 2.0.5 was already active, and the first Compose versionCode 9
-        // upload was consumed while Play exposed the API-36 submission requirement. The corrected
-        // API-36 Compose convergence candidate therefore advances to versionCode 10.
+        // Legacy versionCode 8 / 2.0.5 was already active, and later test-track uploads consumed
+        // additional version codes. This branch currently stages versionCode 11; final Play
+        // promotion still requires moderator reconciliation against the Play Console state.
         versionCode = 11
         versionName = "2.1.0"
 
