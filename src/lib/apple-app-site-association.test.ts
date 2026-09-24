@@ -19,7 +19,7 @@ describe('Apple App Site Association contract', () => {
 
     expect(details.appIDs).toEqual([`${prefix}.${WEWED_IOS_BUNDLE_ID}`])
     expect(details.components.map((component) => component['/'])).toEqual(
-      expect.arrayContaining(['/invite/*', '/i/*', '/w/*', '/app*', '/planner/*']),
+      expect.arrayContaining(['/invite/*', '/i/*', '/w/*', '/app*', '/planner/*', '/pass*', '/pass/*', '/gate/*']),
     )
   })
 })
