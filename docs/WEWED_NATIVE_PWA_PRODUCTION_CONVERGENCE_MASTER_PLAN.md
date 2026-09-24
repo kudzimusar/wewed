@@ -3982,3 +3982,65 @@ SHA-256 differs from D-048 (`27363eaa...` ≠ `e6482691...`) — confirms this i
 - Phase 13 verdict: **SUBMITTED FOR MODERATOR REVIEW (NOT SELF-DECLARED ACCEPTED)**
 - Phase 14: **NOT AUTHORIZED / NOT STARTED**
 - Moderator action required: review this D-050 evidence and decide whether the exact corrected AAB (`e648269127...`) and association RC (`75c602a3...`) are fit for the owner-controlled Android distribution step (Play test-track upload)
+
+
+### D-051 — Phase 13 moderator acceptance of Android pre-publication package gate (2026-09-24)
+**MODERATOR DECISION — D-050 AUDITED AND ACCEPTED FOR ANDROID PRE-PUBLICATION PROGRESSION; PHASE 13 ITSELF REMAINS OPEN.** D-050 is preserved as implementation-agent evidence. The moderator independently verified the remote source coordinates, exact clean native product delta, exact association RC delta, unchanged production `main` base, PR #214 state, corrected Android release identity/signing configuration, and the prior exact-head qualification run. The local implementation agent does not decide release worth; this checkpoint records the moderator's decision.
+
+**Verified source state:**
+- clean native branch: `native-mobile/release-identity-deeplinks-phase13-20260924` @ `bbf2c78d1a8210bb833140f4f47e6ee5b10973ae`;
+- corrected qualification product head: `c9fa31a4b4b417df8e53f5f1c35c9299f099c16e`;
+- qualification run `35951441179`: **PASS** for Android unit tests, ephemeral-signed Release AAB build, and merged Release App Link assertions;
+- `c9fa31a...` → `bbf2c78...` removes only the temporary qualification workflow; product/test tree is identical;
+- clean native delta after D-048 source `1accfdb...` is exactly three files:
+  - `apps/android/app/src/main/AndroidManifest.xml`;
+  - `apps/android/app/src/test/java/pro/wewed/app/NativeDeepLinkTest.kt`;
+  - `apps/android/app/src/test/java/pro/wewed/app/navigation/ReleaseAppLinkManifestContractTest.kt`.
+- release Gradle identity remains `applicationId = "pro.wewed.app"`, `versionCode = 8`, `versionName = "2.1.0"`, with release packaging fail-closed when upload-signing credentials are absent.
+
+**D-050 official-signer evidence accepted for progression:**
+- source native SHA: `bbf2c78d1a8210bb833140f4f47e6ee5b10973ae`;
+- AAB: `apps/android/app/build/outputs/bundle/release/app-release.aab`;
+- AAB SHA-256: `e648269127cf92ce704663e544b089f47ec546f61cccc7279606abff03702ee5`;
+- size: `14,234,484` bytes;
+- package/version: `pro.wewed.app`, versionCode `8`, versionName `2.1.0`;
+- upload certificate SHA-256: `C3:D8:56:D7:82:F6:42:C6:88:4D:98:25:52:F5:67:65:3E:35:D5:DA:1E:AB:B1:12:EF:6F:C0:59:8E:88:65:8C`;
+- local `jarsigner -verify`: PASS as reported in D-050;
+- merged Release manifest reported from Gradle bundle output contains `wewed.pro` with `/invite/*`, exact `/pass`, `/pass/*`, `/w/*`, `/planner/*`, `/vendor/*`, `/gate/*`, and `/wedding/*`, while excluding server-owned `/i/*` and browser `/admin/*`.
+- D-048 AAB SHA-256 `27363eaa08cb0268d85b70381bdc870de03dc85d37c30624ec9aad3f4b742d1f` remains **SUPERSEDED / FORBIDDEN FOR UPLOAD**.
+
+The moderator cannot independently re-read the private local upload keystore or re-hash the local AAB from the remote repository. That is an intentional signing-boundary limitation, not an unresolved code defect. D-050's local cryptographic evidence is consistent with the already-verified source identity, known upload certificate, release-signing contract, and exact-head remote product qualification. It is accepted as sufficient to progress to the controlled Google Play test-distribution boundary.
+
+**Association release candidate independently accepted for controlled promotion:**
+- production `main` remains `ba4b08f8bca2d5cd5826e1ef1d2701d9049dd887`;
+- association RC remains directly based on that main:
+  `release/phase13-association-proof-20260924` @ `75c602a3a5c2a37706e3a1d46984061b5c9f57e6`;
+- draft PR #214 remains OPEN / DRAFT / UNMERGED;
+- exact delta remains five association/test files only;
+- exact RC head has passed the repository PR CI/build/browser matrix;
+- RC is therefore **MODERATOR-ACCEPTED AS THE ONLY ASSOCIATION CANDIDATE FOR THE CONTROLLED PHASE-13 LIVE PROOF STEP**.
+- the broader `backend/release-identity-deeplinks-phase13-20260924` branch is **not** a production-promotion candidate and must not be deployed merely to close Phase 13.
+
+**Android pre-publication verdict: ACCEPTED.**
+No additional Android source implementation or local AAB rebuild is required before the owner-controlled distribution step unless the accepted coordinates change.
+
+**Owner-controlled live proof still required before Phase 13 can be accepted:**
+1. controlled promotion of the accepted association RC to `wewed.pro`, followed by live verification of `/.well-known/assetlinks.json` and AASA endpoints against the accepted contract;
+2. controlled upload of the exact D-050 AAB (SHA-256 `e6482691...`) to the existing non-production Google Play testing track only;
+3. update/install `pro.wewed.app` through Google Play so the delivered APK is re-signed by the Play App Signing certificate;
+4. verify installed versionCode/versionName/signing identity and Android domain-verification state;
+5. prove a genuine clickable Chrome HTTPS link resolves through Android into the Play-delivered Compose `pro.wewed.app`, cold and warm, without an explicit package override;
+6. prove a safe private-invitation browser handoff on the Play-delivered candidate, or accurately retain successful guest-session exchange as NOT PROVEN if no safe valid UAT invitation exists; audit application diagnostics for raw-credential leakage;
+7. Apple Team/Application Identifier Prefix, signed archive/TestFlight and Safari Universal Link proof remain a separate owner-controlled Phase-13 blocker.
+
+**Production boundaries remain in force until explicit owner authorization:**
+- no automatic merge of PR #214;
+- no production deployment;
+- no Google Play upload or track mutation;
+- no production DB/schema/data mutation;
+- no Charity & Kudzie production-data mutation;
+- no WW2 production activation/live Gate action;
+- no TestFlight/App Store publication;
+- no Phase 14.
+
+**Phase-13 status:** **NOT ACCEPTED — ANDROID PRE-PUBLICATION PACKAGE GATE ACCEPTED; LIVE ANDROID DISTRIBUTION PROOF + IOS DISTRIBUTION PROOF REMAIN.**
