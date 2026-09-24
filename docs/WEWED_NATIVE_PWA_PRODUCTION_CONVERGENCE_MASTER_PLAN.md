@@ -4125,3 +4125,30 @@ If any deterministic gate fails, stop at that gate and report the exact evidence
 **Next deterministic step:** sync exact head `91074e11...`, confirm Android SDK platform 36 is installed, run unit tests, build the official upload-key-signed v10 AAB, verify merged manifest/package/version/target, verify signer and hash, then upload v10 to the same Closed Testing - Alpha release. Production remains unauthorized.
 
 **Phase-13 status:** **NOT ACCEPTED — PLAY API-36 BUILD BLOCKER PATCHED; OFFICIAL V10 AAB + CLOSED-TEST DELIVERY + SIMULATOR UAT NEXT.**
+
+
+### D-054 — Simulator UAT finding: welcome Guest door was wired to account sign-in; cross-platform closure (2026-09-24)
+**MODERATOR CLOSURE IMPLEMENTATION — ORDINARY UAT DEFECT PATCHED DIRECTLY ON BOTH NATIVE PLATFORMS.**
+
+Simulator UAT of the release-like iOS UAT configuration established that the native branded welcome screen rendered correctly and correctly hid the development-only Sanitized Shadow affordance. However, tapping **I Have an Invitation** routed to the account **Sign In** screen. Independent source inspection found the same defect in both platforms:
+- iOS `RootView.swift`: `onOpenInvitation: { authMode = .signIn }`;
+- Android `RootScreen.kt`: `onOpenInvitation = { authMode = AuthenticationMode.SIGN_IN }`.
+
+This contradicted the project's explicit Guest identity invariant: a private invitation is guest-entry authority and must never require an account.
+
+**Moderator patch:**
+- iOS now routes the welcome Guest door to a dedicated invitation-link help surface rather than authentication;
+- Android now does the same;
+- the help surface tells the guest to use the private Wewed invitation link they received and explicitly states that no account is required;
+- the existing OS/deep-link handlers remain authoritative for the actual private invitation credential, so no manual credential persistence or alternate invitation protocol was introduced;
+- Back returns to the welcome screen;
+- regression contract tests were added on both platforms to forbid rewiring the Guest door to Sign In.
+
+**Native branch progression:**
+- API-36 / v10 base before this UAT closure: `91074e11e22147986c4828ac425ff5cfb4c1a3cb`;
+- current native branch after cross-platform Guest-door closure: `5080ab401cc5208de53c2fd21b64eb3c11597bd2`.
+
+**Google Play reconciliation still required:**
+The Publishing Overview screenshot captured during the same UAT window visibly listed `9 (2.1.0)` under **Closed testing - Alpha** while the corrected API-36 candidate is `versionCode 10 / versionName 2.1.0`. Therefore the moderator does not treat Play delivery as complete yet. VersionCode 9 is the API-34 artifact and must not be rolled out. The Play review must be reconciled so the release in review is the verified v10/API-36 artifact, not v9.
+
+**Phase-13 status:** **NOT ACCEPTED — CROSS-PLATFORM GUEST WELCOME DEFECT CLOSED; PLAY V10 REVIEW STATE + REBUILD AFTER NATIVE PATCH + SIMULATOR UAT REMAIN.**
