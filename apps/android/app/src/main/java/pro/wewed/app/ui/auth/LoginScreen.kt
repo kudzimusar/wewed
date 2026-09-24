@@ -47,8 +47,9 @@ fun LoginScreen(
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var submitting by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var validationError by remember { mutableStateOf<String?>(null) }
+    val submitting by sessionViewModel.isSigningIn.collectAsState()
+    val sessionError by sessionViewModel.authenticationError.collectAsState()
 
     val canSubmit = email.isNotBlank() && password.isNotBlank() && !submitting
 
@@ -85,7 +86,11 @@ fun LoginScreen(
 
             OutlinedTextField(
                 value = email,
-                onValueChange = { email = it; error = null },
+                onValueChange = {
+                    email = it
+                    validationError = null
+                    sessionViewModel.clearAuthenticationError()
+                },
                 label = { Text("Email") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(
@@ -100,7 +105,11 @@ fun LoginScreen(
 
             OutlinedTextField(
                 value = password,
-                onValueChange = { password = it; error = null },
+                onValueChange = {
+                    password = it
+                    validationError = null
+                    sessionViewModel.clearAuthenticationError()
+                },
                 label = { Text("Password") },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
@@ -114,7 +123,7 @@ fun LoginScreen(
                 shape = RoundedCornerShape(12.dp)
             )
 
-            error?.let {
+            (validationError ?: sessionError)?.let {
                 Text(
                     it,
                     color = WeddingIdentityPalette.ChampagneDeep,
@@ -126,13 +135,13 @@ fun LoginScreen(
 
             Button(
                 onClick = {
-                    submitting = true
-                    error = null
+                    validationError = null
+                    sessionViewModel.clearAuthenticationError()
                     // Role is deliberately NOT passed. The session resolves authorization from the
                     // identity; a caller cannot assert what it is allowed to be.
-                    val outcome = runCatching { sessionViewModel.signIn(email.trim(), password) }
-                    submitting = false
-                    error = outcome.exceptionOrNull()?.message
+                    validationError = runCatching {
+                        sessionViewModel.signIn(email.trim(), password)
+                    }.exceptionOrNull()?.message
                 },
                 enabled = canSubmit,
                 modifier = Modifier
