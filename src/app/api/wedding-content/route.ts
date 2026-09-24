@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAdminSession, hasPermission } from '@/lib/admin-gate'
+import { requireWeddingPermission } from '@/lib/wedding-access'
 import { loadWeddingDataBySlug } from '@/lib/wedding-data-server'
 import {
   resolveWeddingAccessForRequest,
@@ -56,34 +56,10 @@ interface PostBody {
   metadata?: string | Record<string, unknown> | null
 }
 
-async function canEditWeddingContent(
-  request: NextRequest,
-  wedding: { id: string; coupleId: string },
-): Promise<boolean> {
-  const session = getAdminSession(request)
-  if (!session) return false
-  if (session.role === 'admin') return true
-  if (session.activeWeddingId !== wedding.id) return false
-  if (!hasPermission(request, 'content.edit')) return false
-
-  const membership = await db.weddingMembership.findFirst({
-    where: {
-      weddingId: wedding.id,
-      userId: session.userId,
-      status: 'active',
-    },
-    select: { role: true },
-  })
-  if (!membership) return false
-
-  if (session.role === 'couple') {
-    return session.coupleId === wedding.coupleId && membership.role === 'owner'
-  }
-
-  return session.role === 'planner'
-}
-
 export async function POST(request: NextRequest) {
+  const access = await requireWeddingPermission(request, 'content.edit')
+  if (access.error) return access.error
+
   try {
     const body = (await request.json().catch(() => null)) as PostBody | null
     const slug = body?.slug?.trim()
@@ -104,7 +80,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Wedding not found.' }, { status: 404 })
     }
 
-    if (!(await canEditWeddingContent(request, wedding))) {
+    if (wedding.id !== access.context.weddingId) {
       return NextResponse.json(
         { success: false, error: 'Forbidden — this account cannot edit this wedding.' },
         { status: 403 },
