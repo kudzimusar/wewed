@@ -141,6 +141,7 @@ data class IvoryRsvpState(
 ) {
     /** An answered guest is never asked again, whichever way they answered. */
     val awaitsResponse: Boolean get() = answer == IvoryRsvpAnswer.AWAITING
+    val isPassLocked: Boolean get() = answer == IvoryRsvpAnswer.AWAITING
 }
 
 /** Label for the details surface RSVP action: "RSVP" while awaiting response, "Update RSVP" once answered. */
@@ -576,13 +577,21 @@ fun IvoryFloralGoldNative(
                                 .testTag("invitation-back-to-invitation")
                         )
                         if (rsvp.offersPass && actions.onViewPass != null) {
+                            val isPending = rsvp.isPassLocked
                             Text(
-                                "Guest Pass",
-                                color = IvoryPalette.Gold,
+                                text = if (isPending) "Guest Pass (locked)" else "Guest Pass",
+                                color = if (isPending) IvoryPalette.InkSoft else IvoryPalette.Gold,
                                 fontSize = (stageWidth.value * 0.026f).sp,
                                 modifier = Modifier
                                     .clickable { actions.onViewPass.invoke() }
                                     .padding(horizontal = 10.dp)
+                                    .semantics {
+                                        contentDescription = if (isPending) {
+                                            "Guest Pass (available after you confirm attendance)"
+                                        } else {
+                                            "Guest Pass"
+                                        }
+                                    }
                                     .testTag("invitation-cta-pass")
                             )
                         }

@@ -594,15 +594,17 @@ private struct GenericInvitationActionsView: View {
             }
 
             if rsvp.offersPass, let onViewPass = actions.onViewPass {
+                let isPending = rsvp.isPassLocked
                 Button(action: onViewPass) {
-                    Text("View Guest Pass")
+                    Text(isPending ? "View Guest Pass (locked)" : "View Guest Pass")
                         .font(.system(size: 13, weight: .semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
-                        .background(palette.accent)
-                        .foregroundStyle(palette.paper)
+                        .background(isPending ? palette.muted.opacity(0.5) : palette.accent)
+                        .foregroundStyle(isPending ? palette.ink : palette.paper)
                         .clipShape(Capsule())
                 }
+                .accessibilityLabel(isPending ? "Guest Pass (available after you confirm attendance)" : "Guest Pass")
                 .accessibilityIdentifier("invitation-cta-pass")
             }
 

@@ -186,7 +186,7 @@ fun ivoryRsvpStateFrom(status: RSVPStatus): IvoryRsvpState = when (status) {
     RSVPStatus.PENDING -> IvoryRsvpState(
         answer = IvoryRsvpAnswer.AWAITING,
         statusLabel = null,
-        offersPass = false
+        offersPass = true
     )
     RSVPStatus.ATTENDING -> IvoryRsvpState(
         answer = IvoryRsvpAnswer.ATTENDING,

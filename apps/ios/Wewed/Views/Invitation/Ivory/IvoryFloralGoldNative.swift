@@ -134,6 +134,7 @@ public struct IvoryRsvpState: Equatable {
 
     /// An answered guest is never asked again, whichever way they answered.
     public var awaitsResponse: Bool { answer == .awaiting }
+    public var isPassLocked: Bool { answer == .awaiting }
 
     public init(answer: IvoryRsvpAnswer, statusLabel: String?, offersPass: Bool) {
         self.answer = answer
@@ -433,10 +434,14 @@ public struct IvoryFloralGoldNative: View {
                         .foregroundStyle(IvoryPalette.gold)
                         .accessibilityIdentifier("invitation-back-to-invitation")
                     if rsvp.offersPass, let onViewPass = actions.onViewPass {
-                        Button("Guest Pass", action: onViewPass)
-                            .font(IvoryTypography.body(size: w * 0.026))
-                            .foregroundStyle(IvoryPalette.gold)
-                            .accessibilityIdentifier("invitation-cta-pass")
+                        let isPending = rsvp.isPassLocked
+                        Button(action: onViewPass) {
+                            Text(isPending ? "Guest Pass (locked)" : "Guest Pass")
+                                .font(IvoryTypography.body(size: w * 0.026))
+                                .foregroundStyle(isPending ? IvoryPalette.inkSoft : IvoryPalette.gold)
+                        }
+                        .accessibilityLabel(isPending ? "Guest Pass (available after you confirm attendance)" : "Guest Pass")
+                        .accessibilityIdentifier("invitation-cta-pass")
                     }
                     if let onVisitCoupleSite = actions.onVisitCoupleSite {
                         Button("Visit Couple Website", action: onVisitCoupleSite)

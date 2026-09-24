@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -839,19 +841,31 @@ private fun GenericInvitationActionSection(
         }
 
         if (rsvp.offersPass && actions.onViewPass != null) {
+            val isPending = rsvp.isPassLocked
             Button(
                 onClick = { actions.onViewPass.invoke() },
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = palette.accent,
-                    contentColor = palette.paper
+                    containerColor = if (isPending) palette.muted.copy(alpha = 0.5f) else palette.accent,
+                    contentColor = if (isPending) palette.ink else palette.paper
                 ),
                 modifier = Modifier
                     .fillMaxWidth(0.85f)
                     .height(44.dp)
+                    .semantics {
+                        contentDescription = if (isPending) {
+                            "Guest Pass (available after you confirm attendance)"
+                        } else {
+                            "Guest Pass"
+                        }
+                    }
                     .testTag("invitation-cta-pass")
             ) {
-                Text("View Guest Pass", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (isPending) "View Guest Pass (locked)" else "View Guest Pass",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
 

@@ -178,7 +178,7 @@ public func ivoryData(
 public func ivoryRsvpState(from status: RSVPStatus) -> IvoryRsvpState {
     switch status {
     case .pending:
-        return IvoryRsvpState(answer: .awaiting, statusLabel: nil, offersPass: false)
+        return IvoryRsvpState(answer: .awaiting, statusLabel: nil, offersPass: true)
     case .attending:
         return IvoryRsvpState(answer: .attending, statusLabel: "RSVP confirmed", offersPass: true)
     // A declined guest keeps the invitation and the wedding's public content, but never a pass.

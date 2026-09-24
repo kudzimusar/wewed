@@ -174,11 +174,13 @@ final class IvoryInvitationGeometryTests: XCTestCase {
         XCTAssertEqual("Update RSVP", ivoryRsvpActionLabel(rsvp: ivoryRsvpState(from: .declined)))
     }
 
-    /// A declined guest keeps the invitation and never gets a pass.
+    /// A declined guest keeps the invitation and never gets a pass; pending has a locked pass affordance; attending offers pass.
     func testADeclinedGuestNeverGetsAPass() {
         XCTAssertFalse(ivoryRsvpState(from: .declined).offersPass)
-        XCTAssertFalse(ivoryRsvpState(from: .pending).offersPass)
+        XCTAssertTrue(ivoryRsvpState(from: .pending).offersPass)
+        XCTAssertTrue(ivoryRsvpState(from: .pending).isPassLocked)
         XCTAssertTrue(ivoryRsvpState(from: .attending).offersPass)
+        XCTAssertFalse(ivoryRsvpState(from: .attending).isPassLocked)
     }
 
     /// Attending and declined are distinguishable outcomes, not one "answered" state.
