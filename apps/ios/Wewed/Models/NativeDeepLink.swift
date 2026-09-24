@@ -1,12 +1,17 @@
 import Foundation
 
-public struct InvitationDeepLink: Hashable, Sendable {
+public struct InvitationDeepLink: Hashable, Sendable, CustomStringConvertible {
     public let weddingSlug: String
     public let rsvpToken: String
 
     public init(weddingSlug: String, rsvpToken: String) {
         self.weddingSlug = weddingSlug
         self.rsvpToken = rsvpToken
+    }
+
+    /// A private RSVP credential must never leak through diagnostic interpolation.
+    public var description: String {
+        "InvitationDeepLink(weddingSlug: \(weddingSlug), rsvpToken: ***)"
     }
 }
 
