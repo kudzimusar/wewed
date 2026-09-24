@@ -396,7 +396,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ─── Note: isAdmin is re-exported indirectly via requireAdmin. ───────────────
-// The import above keeps the file self-documenting and lets future handlers
-// in this file use either helper without another import line.
-void isAdmin;
