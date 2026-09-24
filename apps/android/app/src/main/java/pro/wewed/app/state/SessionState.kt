@@ -210,6 +210,10 @@ class SessionViewModel(
      * only the resulting opaque identity session, then immediately resolves real authority for it —
      * never a role chosen by the caller.
      */
+    fun clearAuthenticationError() {
+        _authenticationError.value = null
+    }
+
     fun signIn(email: String, password: String) {
         require(email.isNotBlank()) { "Enter your email address." }
         require(password.isNotBlank()) { "Enter your password." }
