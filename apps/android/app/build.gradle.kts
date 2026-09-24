@@ -63,6 +63,18 @@ android {
                 signingConfig = signingConfigs.getByName("release")
             }
         }
+        // Simulator/device UAT counterpart to iOS's UAT configuration. It inherits Release so
+        // BuildConfig.DEBUG stays false and NativeLaunchConfiguration therefore uses PRODUCTION,
+        // but it has a distinct package and debug signing so it can live beside the Play app and
+        // can never be mistaken for a store artifact.
+        create("uat") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".uatdev"
+            versionNameSuffix = "-uatdev"
+            resValue("string", "app_name", "Wewed UAT")
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+        }
     }
 
     compileOptions {
