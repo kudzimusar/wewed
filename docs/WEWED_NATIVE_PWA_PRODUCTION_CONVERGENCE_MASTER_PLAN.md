@@ -3212,3 +3212,71 @@ D-039 is preserved as the implementation-agent submission and was not accepted a
 **Authorized next unit: Phase 12 — Remove/contain single-tenant and unsafe PWA remnants.**
 Phase 12 should classify and remediate the explicit master-plan inventory: Charity-specific root RSVP fallback, comments hardcoded Wedding, royalty/flagship routes, seed endpoint authorization, unauthenticated/internal one-time bootstrap behavior, legacy global-admin Wedding access, hardcoded/default Wedding IDs or slugs, and other demo/sample/single-tenant paths. Each item must be classified as required backward compatibility, safe to parameterize, safe to retire, or production defect. Backward compatibility must never become native authority. The Phase-12 exit gate remains: **no mature shared API used by native is secretly single-tenant.**
 
+### D-041 — Phase 12 execution evidence, submitted for moderator review (2026-09-24)
+**IMPLEMENTATION-AGENT SUBMISSION, NOT MODERATOR ACCEPTANCE.** Phase 12 acceptance is reserved exclusively for the moderator. The implementation agent has prepared, verified, qualified, and submitted the remediation of single-tenant and unsafe PWA remnants strictly from accepted baselines without opening Phase 13 or production gates.
+
+**Baselines and Branch Tips:**
+- Base server clean SHA: `13089dea3408edf15e41d5c9e7ad7b892cb023eb` (Accepted Phase-11B tip)
+- Dedicated server branch: `backend/pwa-single-tenant-remediation-phase12-20260924`
+- Submitted server tip SHA: `90a0d5424ecace566f685e70527954a7be241195`
+- Native mobile branch: `native-mobile/wedding-day-ww2-phase11b-20260924` (clean, untouched at accepted tip `c527e8037ab9b2a72a24bf0d994edf7e53879fc8`)
+- Plan repository branch: `docs/native-pwa-production-convergence-plan-20260922`
+
+**Remediation Inventory & Classification:**
+1. **Target A — Root RSVP redirect (`src/app/page.tsx`)**:
+   - Classification: Production defect.
+   - Remediation: Removed `if (rsvp) redirect('/w/charity-and-kudzie?rsvp=...')`. Root now renders the neutral public platform home for all query parameters.
+2. **Target B — Comments endpoint (`src/app/api/comments/route.ts`)**:
+   - Classification: Production defect / safe to parameterize.
+   - Remediation: Removed `const WEDDING_SLUG = 'charity-and-kudzie'`. Both GET and POST validate wedding context (`weddingSlug` or `weddingId`) before other operations and fail closed (HTTP 400 `weddingSlug or weddingId is required.`) if omitted.
+3. **Target C — Contributions and Royalty routes (`src/app/api/contributions/route.ts` & 7 royalty routes)**:
+   - Classification: Production defect / safe to parameterize.
+   - Remediation: Removed all declarations of `FLAGSHIP_SLUG` and `"charity-and-kudzie"` defaults across `/api/contributions`, `/api/royalty`, `/api/royalty/payout`, `/api/royalty/payout-account`, `/api/royalty/dispute`, `/api/royalty/revenue-event`, `/api/royalty/ledger`, and `/api/royalty/preferences`. Every endpoint requires an explicit `slug`/`weddingSlug` parameter and fails closed with HTTP 400. Bridal party demo sample contributions are strictly gated to explicit seed requests (`body?.seedSamples === true || wedding.slug === 'charity-and-kudzie'`).
+4. **Target D — Wedding and Wedding-Content routes (`src/app/api/wedding/route.ts` & `src/app/api/wedding-content/route.ts`)**:
+   - Classification: Production defect / safe to parameterize.
+   - Remediation: Removed `|| 'charity-and-kudzie'` fallback in GET handlers. Both routes require explicit `slug` parameter and fail closed with HTTP 400 (`Wedding slug is required.`).
+5. **Target E — Seed routes (`src/app/api/seed/route.ts` & `src/app/api/wedding-content/seed/route.ts`)**:
+   - Classification: Production defect.
+   - Remediation: Gated with `requireWewedAdmin(request, 'admin.overview.read')`. Anonymous callers rejected with 401; non-platform-admin stakeholders (couples, planners, guests, and legacy admin classes) rejected with 403. Guarded against production runtime (`NODE_ENV === 'production' || VERCEL_ENV === 'production'`), returning 403. Also protected via `src/proxy.ts` dashboard session gate.
+6. **Target F — Physical invitation bootstrap route (`src/app/api/internal/bootstrap-physical-invitation/route.ts`)**:
+   - Classification: Production defect / safe to retire.
+   - Remediation: Route retired. Returns HTTP 410 Gone immediately for both GET and POST. Removed all QRDestination database queries/mutations and hardcoded wedding slug references.
+7. **Target G — Carry-Forward F-6 in wedding access (`src/lib/wedding-access.ts`)**:
+   - Classification: Production defect.
+   - Remediation: Removed legacy global admin bypass from both `listAccessibleWeddings` (former lines 173-186) and `getWeddingContext` (former lines 246-257). Users with `role = 'admin'` no longer query all weddings from `Wedding` or synthesize universal `*` permissions; they resolve explicit `WeddingMembership` rows only. Genuine platform administrators return `[]` and `null` for wedding context, governing exclusively through `wewed_internal` BusinessAccount memberships and `admin:*` workspace grants.
+8. **Target H — Remaining hardcoded references and preview routes**:
+   - `src/app/api/content/route.ts`: Removed `getFlagshipWeddingId()` fallback in GET and POST; requires explicit `weddingId` (HTTP 400).
+   - `src/app/api/privacy/route.ts`: Removed `FLAGSHIP_WEDDING_SLUG`; requires explicit `slug` in GET (HTTP 400).
+   - `src/components/wedding/admin-dashboard.tsx`: Replaced hardcoded "Charity & Kudzie" with dynamic couple label `wedding?.title || 'Couple'`.
+   - `src/lib/inline-content-db.ts`: Removed `const WEDDING_SLUG = 'charity-and-kudzie'`; parameterized hook with `weddingSlug` for scoped storage and API calls.
+   - `src/app/preview/invitation/ivory-floral-gold/page.tsx` & `src/app/uat/invitation/ivory-floral-gold/page.tsx`: Guarded against production via `process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production'`.
+9. **Backward Compatibility Preservation**:
+   - `FLAGSHIP_WEDDING_SLUG` in `wedding-data-provider.tsx` retained strictly for fixture/media compatibility, not renderer selection, locked by `wedding-data-isolation.test.ts`.
+
+**Verification Evidence:**
+- **Dedicated Phase 12 Regression Suite (`src/lib/phase12-single-tenant-remediation.test.ts`)**:
+  - 28 tests covering all 10 invariants: 28 PASS, 0 FAIL.
+- **Production Authority Integration Suite (`src/lib/production-authority/production-authority.integration.test.ts`)**:
+  - 34 tests covering authority matrices, gate assignments, and Phase 12 Invariants 6 & 7: 34 PASS, 0 FAIL.
+- **Unified Navigation and Privacy Suite (`src/lib/unified-navigation-privacy.test.ts`)**:
+  - 7 tests: 7 PASS, 0 FAIL.
+- **Royalty Payout Security Suite (`src/lib/royalty-payout-security.test.ts`)**:
+  - 4 tests: 4 PASS, 0 FAIL.
+- **Wedding Identity Isolation Suite (`src/lib/wedding-data-isolation.test.ts`)**:
+  - 3 tests: 3 PASS, 0 FAIL.
+- **Full Production Next.js Build (`bun run build`)**:
+  - Compiled successfully in 17.7s; 255 static/dynamic pages and routes compiled cleanly with 0 errors.
+
+**Production Boundary Retained:**
+- production database touched: NO;
+- production private keys read/generated/changed: NO;
+- `WEWED_WEDDING_DAY_WW2_ENABLED` production enablement: NO;
+- production Gate admission/check-in: NO;
+- main merge or production deployment: NO;
+- signed Play/TestFlight publication: NO.
+
+**Phase Gate:**
+- Phase 12: **SUBMITTED FOR MODERATOR REVIEW (NOT SELF-DECLARED ACCEPTED)**.
+- Phase 13: **NOT AUTHORIZED / NOT STARTED**.
+
+
