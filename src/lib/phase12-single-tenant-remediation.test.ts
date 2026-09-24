@@ -143,6 +143,15 @@ describe('Phase 12: Single-Tenant and Unsafe PWA Remnants Remediation', () => {
     })
   })
 
+  // ── Invariant 2b: Comment reply relationships remain wedding-scoped ──────
+  describe('Invariant 2b: comment replies cannot cross wedding boundaries', () => {
+    test('parent comments are checked against the resolved wedding before reply creation', () => {
+      const commentsSource = source('src/app/api/comments/route.ts')
+      expect(commentsSource).toContain('select: { id: true, weddingId: true, targetType: true, targetId: true }')
+      expect(commentsSource).toContain('parent.weddingId !== wedding.id')
+    })
+  })
+
   // ── Invariant 3: Contributions & Royalty Require Explicit Slug ────────────
   describe('Invariant 3: Contributions and royalty endpoints require explicit slug', () => {
     test('GET /api/contributions fails closed (400) without slug', async () => {
@@ -176,9 +185,14 @@ describe('Phase 12: Single-Tenant and Unsafe PWA Remnants Remediation', () => {
       expect(data).toEqual({ success: false, error: 'Wedding slug is required.' })
     })
 
-    test('contributions route source has no FLAGSHIP_SLUG', () => {
+    test('contributions route has no named-wedding special case and binds requested slug to active wedding authority', () => {
       const contribSource = source('src/app/api/contributions/route.ts')
       expect(contribSource).not.toContain('FLAGSHIP_SLUG')
+      expect(contribSource).not.toContain("wedding.slug === 'charity-and-kudzie'")
+      expect(contribSource).not.toContain('wedding.slug === "charity-and-kudzie"')
+      expect(contribSource).toContain('requireWeddingPermission(request, "content.edit")')
+      expect(contribSource).toContain('requireWeddingPermission(request, "guests.edit")')
+      expect(contribSource).toContain('wedding.id !== access.context.weddingId')
     })
 
     test('all 7 royalty route sources have no FLAGSHIP_SLUG declarations', () => {
