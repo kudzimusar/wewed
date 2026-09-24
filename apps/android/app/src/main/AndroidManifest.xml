@@ -32,6 +32,12 @@
                 <data android:scheme="https" android:host="wewed.pro" android:path="/pass" />
                 <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/pass/" />
                 <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/w/" />
+                <!-- Authenticated workspace routes are parser-owned but still authority-checked
+                     by DeepLinkRouter; claiming them here only hands navigation to Wewed. -->
+                <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/planner/" />
+                <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/vendor/" />
+                <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/gate/" />
+                <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/wedding/" />
             </intent-filter>
 
             <intent-filter>
