@@ -48,6 +48,10 @@ targets:
           PRODUCT_BUNDLE_IDENTIFIER: pro.wewed.app.uatdev
         Release:
           PRODUCT_BUNDLE_IDENTIFIER: pro.wewed.app
+          # Supplied at archive/signing time by the owner-controlled release environment.
+          # Keeping this separate from the AASA Application Identifier Prefix is deliberate:
+          # legacy Apple accounts may have a prefix that differs from the Team ID.
+          DEVELOPMENT_TEAM: $(WEWED_APPLE_TEAM_ID)
     scheme:
       gatherCoverageData: false
       testTargets:
