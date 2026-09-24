@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { createServerClient } from '@/lib/supabase/server'
+import {
+  resolveWeddingAccessForRequest,
+  weddingAccessErrorPayload,
+} from '@/lib/wedding-public-access'
 
 /* ============================================================
    /api/comments
@@ -50,13 +54,21 @@ export async function GET(request: NextRequest) {
 
     const wedding = await db.wedding.findFirst({
       where: weddingId ? { id: weddingId } : { slug: weddingSlug! },
-      select: { id: true },
+      select: { id: true, slug: true },
     })
 
     if (!wedding) {
       return NextResponse.json(
         { success: false, error: 'Wedding not found.' },
         { status: 404 }
+      )
+    }
+
+    const access = await resolveWeddingAccessForRequest(request, wedding.slug)
+    if (!access.allowed) {
+      return NextResponse.json(
+        weddingAccessErrorPayload(access),
+        { status: access.status },
       )
     }
 
@@ -198,13 +210,21 @@ export async function POST(request: NextRequest) {
     // 5. Find the wedding
     const wedding = await db.wedding.findFirst({
       where: weddingId ? { id: weddingId } : { slug: weddingSlug! },
-      select: { id: true },
+      select: { id: true, slug: true },
     })
 
     if (!wedding) {
       return NextResponse.json(
         { success: false, error: 'Wedding not found.' },
         { status: 404 }
+      )
+    }
+
+    const access = await resolveWeddingAccessForRequest(request, wedding.slug)
+    if (!access.allowed) {
+      return NextResponse.json(
+        weddingAccessErrorPayload(access),
+        { status: access.status },
       )
     }
 
