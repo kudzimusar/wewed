@@ -127,6 +127,7 @@ fun RootScreen(
     // -----------------------------------------------------------------------------------------
     var splashComplete by remember { mutableStateOf(false) }
     var authMode by remember { mutableStateOf<AuthenticationMode?>(null) }
+    var showingInvitationHelp by remember { mutableStateOf(false) }
 
     // --- The live guest invitation path -------------------------------------------------------
     //
@@ -325,9 +326,14 @@ fun RootScreen(
         return
     }
 
+    if (entryState is NativeAppEntryState.Welcome && showingInvitationHelp) {
+        InvitationLinkEntryScreen(onBack = { showingInvitationHelp = false })
+        return
+    }
+
     if (entryState is NativeAppEntryState.Welcome && authMode == null) {
         WewedWelcomeScreen(
-            onOpenInvitation = { authMode = AuthenticationMode.SIGN_IN },
+            onOpenInvitation = { showingInvitationHelp = true },
             onSignIn = { authMode = AuthenticationMode.SIGN_IN },
             onCreateAccount = { authMode = AuthenticationMode.CREATE_ACCOUNT },
             shadowEntry = appViewModel.dataEnvironment
@@ -1201,4 +1207,52 @@ fun ContextSwitcherDialog(
         },
         modifier = Modifier.testTag("context-switcher"),
     )
+}
+
+
+@Composable
+private fun InvitationLinkEntryScreen(onBack: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(WeddingIdentityPalette.Ivory)
+            .semantics { testTagsAsResourceId = true }
+            .testTag("invitation-link-help"),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            Text(
+                text = "Open your invitation",
+                fontSize = 30.sp,
+                fontWeight = FontWeight.Medium,
+                color = WeddingIdentityPalette.Ink
+            )
+            Text(
+                text = "Use the private Wewed invitation link you received in WhatsApp, Messages, email or your browser. Wewed will open your invitation directly — no account is required.",
+                fontSize = 15.sp,
+                color = WeddingIdentityPalette.Muted
+            )
+            Text(
+                text = "If the link is on this phone, return to it and tap it now.",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = WeddingIdentityPalette.Ink
+            )
+            OutlinedButton(
+                onClick = onBack,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 50.dp)
+                    .testTag("invitation-link-help-back")
+            ) {
+                Text("Back")
+            }
+        }
+    }
 }
