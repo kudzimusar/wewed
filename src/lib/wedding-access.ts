@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { readAppSession, type AppSession } from '@/lib/app-session'
+import { isWewedPlatformAdministrator } from '@/lib/business-access'
 import {
   PREVIEW_WRITE_BLOCK_MESSAGE,
   shouldBlockPreviewWrite,
@@ -165,8 +166,13 @@ export const BUSINESS_TEAM_MANAGEMENT_ACCESS = `
 
 export async function listAccessibleWeddings(
   userId: string,
-  _globalRole?: AppSession['role']
+  globalRole?: AppSession['role']
 ): Promise<AccessibleWedding[]> {
+  // Platform Admin is system-scoped and must never acquire a Wedding workspace
+  // merely because a WeddingMembership happens to exist. Legacy role=admin users
+  // are NOT platform admins and continue below through ordinary membership authority.
+  if (globalRole === 'admin' && await isWewedPlatformAdministrator(userId)) return []
+
   const rows = await db.$queryRawUnsafe<WeddingRow[]>(
     `
     SELECT w.id, w.slug, w.title, w.date, w.venue,
@@ -224,6 +230,16 @@ export async function getWeddingContext(
 ): Promise<WeddingContext | null> {
   const session = readAppSession(request)
   if (!session?.activeWeddingId) return null
+
+  // Genuine platform administrators stay system-scoped. A legacy dashboard
+  // role of "admin" does not receive this treatment unless the platform-admin
+  // relationship is actually present.
+  if (
+    session.role === 'admin' &&
+    await isWewedPlatformAdministrator(session.userId)
+  ) {
+    return null
+  }
 
   const rows = await db.$queryRawUnsafe<
     Array<{
