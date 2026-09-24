@@ -31,6 +31,7 @@ public struct RootView: View {
     /// True once `resolveContext` has answered, so "no workspace" is shown rather than a spinner.
     @State private var contextResolutionFinished = false
     @State private var authMode: AuthenticationMode?
+    @State private var showingInvitationHelp = false
     @State private var resolvingDeepLinkedInvitation = false
     /// Master plan Phase 6 §1, §2, §11 — an explicit switcher reachable AFTER a workspace is open.
     @State private var showingContextSwitcher = false
@@ -457,11 +458,15 @@ public struct RootView: View {
                                 "shadow-source-" + appState.dataEnvironment.rawValue.replacingOccurrences(of: "_", with: "-")
                             )
                     }
+            } else if showingInvitationHelp {
+                WewedScreenContainer {
+                    InvitationLinkEntryView(onBack: { showingInvitationHelp = false })
+                }
             } else if authMode == nil {
                 // Entry surfaces sit outside the role shell, so nothing else publishes a bounded
                 // content width for them.
                 WewedScreenContainer { WewedWelcomeView(
-                    onOpenInvitation: { authMode = .signIn },
+                    onOpenInvitation: { showingInvitationHelp = true },
                     onSignIn: { authMode = .signIn },
                     onCreateAccount: { authMode = .createAccount },
                     shadowEntry: appState.dataEnvironment.allowsDevelopmentPersonaSwitching
@@ -903,5 +908,48 @@ public struct RootView: View {
         appState.pendingInvitationDeepLink = nil
         resolvingDeepLinkedInvitation = false
         deepLinkedInvitation = resolved
+    }
+}
+
+
+private struct InvitationLinkEntryView: View {
+    let onBack: () -> Void
+
+    var body: some View {
+        ZStack {
+            WeddingIdentityPalette.ivory.ignoresSafeArea()
+            WeddingFloralBackground(opacity: 0.09)
+
+            VStack(spacing: 18) {
+                WewedLogo()
+
+                Text("Open your invitation")
+                    .font(.system(size: 30, weight: .medium, design: .serif))
+                    .foregroundStyle(WeddingIdentityPalette.ink)
+
+                Text("Use the private Wewed invitation link you received in WhatsApp, Messages, email or your browser. Wewed will open your invitation directly — no account is required.")
+                    .font(.system(size: 15))
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(4)
+
+                Text("If the link is on this phone, return to it and tap it now.")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(WeddingIdentityPalette.ink)
+                    .multilineTextAlignment(.center)
+
+                Button("Back", action: onBack)
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .foregroundStyle(WeddingIdentityPalette.ink)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(WeddingIdentityPalette.champagne, lineWidth: 1)
+                    )
+                    .accessibilityIdentifier("invitation-link-help-back")
+            }
+            .wewedBoundedWidth(horizontalInset: 28)
+        }
+        .accessibilityIdentifier("invitation-link-help")
     }
 }
