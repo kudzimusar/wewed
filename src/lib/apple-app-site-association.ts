@@ -6,21 +6,14 @@ const APPLICATION_IDENTIFIER_PREFIX = /^[A-Z0-9]{10}$/
 // In particular /i/* is intentionally excluded: that physical-invitation QR endpoint resolves
 // QRDestination, sets shared invitation cookies, and redirects on the server.
 const UNIVERSAL_LINK_COMPONENTS = [
-  '/app*',
   '/invite/*',
   '/w/*',
-  '/pass*',
+  '/pass',
   '/pass/*',
-  '/gate/*',
   '/planner/*',
-  '/messages/*',
   '/vendor/*',
-  '/vendors/*',
-  '/booking/*',
-  '/bookings/*',
+  '/gate/*',
   '/wedding/*',
-  '/contribute/*',
-  '/contracts/*',
 ] as const
 
 export function normalizeAppleApplicationIdentifierPrefix(
