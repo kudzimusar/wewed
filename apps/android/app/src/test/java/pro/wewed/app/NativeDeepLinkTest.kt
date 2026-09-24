@@ -60,6 +60,29 @@ class NativeDeepLinkTest {
     }
 
     @Test
+    fun httpsWorkspaceLinksParseForTheManifestOwnedBrowserRoutes() {
+        val planner = NativeDeepLinkParser.parse("https://wewed.pro/planner/clients/wed_1")
+        assertTrue(planner is NativeDeepLink.Workspace)
+        assertEquals("clients", (planner as NativeDeepLink.Workspace).destinationId)
+        assertEquals("wed_1", planner.weddingId)
+
+        val vendor = NativeDeepLinkParser.parse("https://wewed.pro/vendor/jobs/eng_1")
+        assertTrue(vendor is NativeDeepLink.Workspace)
+        assertEquals("jobs", (vendor as NativeDeepLink.Workspace).destinationId)
+        assertEquals("eng_1", vendor.entityId)
+
+        val gate = NativeDeepLinkParser.parse("https://wewed.pro/gate/gate_a/scan")
+        assertTrue(gate is NativeDeepLink.Workspace)
+        assertEquals("scan", (gate as NativeDeepLink.Workspace).destinationId)
+        assertEquals("gate_a", gate.entityId)
+
+        val wedding = NativeDeepLinkParser.parse("https://wewed.pro/wedding/wed_1/plan/tasks")
+        assertTrue(wedding is NativeDeepLink.Workspace)
+        assertEquals("plan", (wedding as NativeDeepLink.Workspace).destinationId)
+        assertEquals("tasks", wedding.section)
+    }
+
+    @Test
     fun failsClosedForForeignHostsAndInvitationWithoutCredential() {
         assertNull(
             NativeDeepLinkParser.parse(
