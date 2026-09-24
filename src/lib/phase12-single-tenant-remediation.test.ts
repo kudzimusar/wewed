@@ -249,6 +249,9 @@ describe('Phase 12: Single-Tenant and Unsafe PWA Remnants Remediation', () => {
       expect(accessSource).not.toContain("globalRole === 'admin'")
       expect(accessSource).not.toContain("session.role === 'admin'")
       expect(accessSource).not.toContain("'admin'::text AS \"membershipRole\"")
+      expect(accessSource).toContain('isWewedPlatformAdministrator')
+      expect(accessSource).toContain("globalRole === 'admin'")
+      expect(accessSource).toContain("session.role === 'admin'")
     })
   })
 
