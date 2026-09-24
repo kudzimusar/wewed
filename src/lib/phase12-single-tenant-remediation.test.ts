@@ -243,15 +243,15 @@ describe('Phase 12: Single-Tenant and Unsafe PWA Remnants Remediation', () => {
   })
 
   // ── Invariant 6: Legacy Admin Receives [] and null Without Membership ─────
-  describe('Invariant 6: Legacy admin receives [] from listAccessibleWeddings and null from getWeddingContext', () => {
-    test('wedding-access.ts contains no globalRole === admin or session.role === admin bypass', () => {
+  describe('Invariant 6: legacy admin has no synthetic global wedding authority', () => {
+    test('platform-admin guard is explicit while legacy admin falls through to real memberships', () => {
       const accessSource = source('src/lib/wedding-access.ts')
-      expect(accessSource).not.toContain("globalRole === 'admin'")
-      expect(accessSource).not.toContain("session.role === 'admin'")
       expect(accessSource).not.toContain("'admin'::text AS \"membershipRole\"")
+      expect(accessSource).not.toContain('FROM public."Wedding" w\n      ORDER BY w.date')
       expect(accessSource).toContain('isWewedPlatformAdministrator')
       expect(accessSource).toContain("globalRole === 'admin'")
       expect(accessSource).toContain("session.role === 'admin'")
+      expect(accessSource).toContain('FROM public."WeddingMembership" m')
     })
   })
 
