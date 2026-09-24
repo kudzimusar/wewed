@@ -4367,3 +4367,62 @@ Security/authority properties retained:
 6. Final Play delivery/App-Link and iOS signed-distribution/Universal-Link proof remain Phase-13 exit requirements.
 
 **Phase-13 status:** **NOT ACCEPTED — NATIVE UAT TARGETS + ASYNC SIGN-IN UI + MAIN-BASED ACCOUNT-TRANSPORT RC ARE QUALIFIED; LIVE TRANSPORT PROMOTION, TRUE RUNTIME AUTHORITY/GUEST UAT, AND FINAL DISTRIBUTION PROOF REMAIN.**
+
+### D-058 — Phase 13 moderator audit of Android v11 staging and native-account RC final CI state (2026-09-24)
+**MODERATOR CLOSURE IMPLEMENTATION — ANDROID V11 SOURCE/UAT QUALIFICATION IS CLEAN; FINAL PLAY VERSION-CODE ACCEPTANCE AND SERVER PRODUCTION PROMOTION REMAIN OWNER/LOCAL-EVIDENCE GATED.**
+
+Refresh after D-057 found that the authoritative native branch had advanced from `8e88c17e91c83c3120b654865579d65104633642` to a two-commit v11 staging delta:
+- `c99dc72a0daabb05bcb3460ea3cbbc4c3cd0b255`: changed Android `versionCode` from 10 to 11;
+- `4cbca4c0d467eb248bd95a03dbe62cb3bfdf4152`: added a temporary v11 qualification workflow.
+
+The first qualification run, GitHub Actions `35991364833`, was **FAILURE**, but independent job inspection established that this was not a product/test failure:
+- unit tests: PASS;
+- production-like `assembleUat`: PASS;
+- failure occurred only at `bundleRelease` because CI did not and must not possess the owner-local Android upload keystore environment;
+- the build correctly refused unsigned release packaging with the existing `WEWED_UPLOAD_STORE_*` guard.
+
+**Moderator closure patch:**
+- removed `bundleRelease` from the temporary CI workflow because the final signed AAB is explicitly a local-owner signing operation;
+- retained source/UAT identity verification for compileSdk/targetSdk 36, `versionCode 11`, `versionName 2.1.0`, UAT package `pro.wewed.app.uatdev`, and UAT version `2.1.0-uatdev`;
+- pinned the release-signing guard by source check instead of attempting to bypass it;
+- corrected stale Android source commentary that still described versionCode 10 as the current candidate while code staged 11.
+
+**Independent exact-head qualification:**
+- workflow-fix head `5bb756d1b2b62211a8940662d6abfe9caa4dd4f2`: run `36004824307` SUCCESS;
+- exact current product+workflow head `db56386e25debb33463384d2725fb242aa9cb267`: run `36004826835` SUCCESS;
+- both runs passed unit tests, `assembleUat`, and v11 identity verification;
+- temporary workflow removed after qualification;
+- final clean native head: `b583b949d8bf925b087cda2ad5ff0e15bffb533f`;
+- net diff from D-057 native head `8e88c17...` is only `apps/android/app/build.gradle.kts`.
+
+**Important acceptance boundary for versionCode 11:**
+The source/UAT build at versionCode 11 is technically qualified, but the moderator does **not** yet accept 11 as the final Play delivery version solely from the branch change. D-055/D-056 required a Play Console reconciliation proving whether versionCode 10 had already been consumed. That Play-owned evidence is not available through the current moderator connection. Therefore:
+- v11 source/UAT qualification: **ACCEPTED**;
+- claim that Play required v11 because v10 was consumed: **NOT PROVEN HERE**;
+- final signed Play artifact/versionCode: **NOT ACCEPTED** until Play Console evidence is independently captured.
+
+**Native-account RC final CI state:**
+Draft PR #215 remains open, mergeable, unmerged and based on production `main` `ba4b08f8bca2d5cd5826e1ef1d2701d9049dd887`, with clean RC head `a0833956b81d0f9c4e085fce1088c863b8ef6cda`.
+The previously outstanding repository-wide CI retry has now settled:
+- all 18 automatic workflows on the PR head: **SUCCESS**;
+- the earlier package-mirror transient is closed;
+- no current repository CI product failure remains on PR #215.
+
+**Production boundary independently reconfirmed:**
+Vercel production deployment remains `dpl_BLD2JjcBEiBxMVHyVVUoUNUgkYKR`, sourced from `main` `ba4b08f8bca2d5cd5826e1ef1d2701d9049dd887`, with aliases including `wewed.pro`.
+Therefore the native account endpoints are still not production-promoted by this moderator checkpoint.
+No merge, production deployment, database action, secret mutation, Play Production action, App Store action, or Charity & Kudzie production-data mutation was performed.
+
+The protected RC preview remains behind Vercel SSO; a read-only fetch still resolves to the protection redirect rather than providing useful route-level runtime proof. Do not spend further time on preview bypass because the production-like native clients target `https://wewed.pro`.
+
+**Owner/local gates before the next production-authority UAT unit:**
+1. Independently confirm only the existence of `WEWED_SESSION_SECRET` in the Vercel **Production** environment; never expose its value. The currently available Vercel connector does not expose environment-variable inventory, so this remains a legitimate owner/local-access check.
+2. Obtain explicit owner authorization before merging/deploying PR #215. Production promotion must not be inferred.
+3. Independently capture Google Play Closed/Alpha evidence showing whether versionCode 10 has been consumed. If 10 is unconsumed, the previously documented decision requires reconsidering the staged v11 choice; if 10 is consumed, v11 becomes the next legal candidate.
+4. After authorized native-account deployment, immediately verify live unauthenticated account endpoints return JSON 401 rather than 404, then run genuine dual-platform production-like account-authority UAT with safe real test identities and no Shadow/persona switching.
+
+Association PR #214 remains separate, open/draft/unmerged at `75c602a3a5c2a37706e3a1d46984061b5c9f57e6`.
+Backend Phase-13 branch remains `ede5a0718bdbb569bd207ff6b6e1dec9bad10539`.
+
+**Phase-13 status:** **NOT ACCEPTED — ANDROID V11 SOURCE/UAT QUALIFIED AND PR #215 CI FULLY GREEN; PLAY VERSION-CODE EVIDENCE, PRODUCTION SECRET/AUTHORIZATION, LIVE ACCOUNT TRANSPORT, TRUE RUNTIME AUTHORITY/GUEST UAT, AND FINAL DISTRIBUTION PROOF REMAIN.**
+
