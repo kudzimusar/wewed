@@ -3,6 +3,15 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val uploadStorePath = System.getenv("WEWED_UPLOAD_STORE_FILE")
+val uploadStorePassword = System.getenv("WEWED_UPLOAD_STORE_PASSWORD")
+val uploadKeyAlias = System.getenv("WEWED_UPLOAD_KEY_ALIAS")
+val uploadKeyPassword = System.getenv("WEWED_UPLOAD_KEY_PASSWORD")
+val hasUploadSigning = !uploadStorePath.isNullOrBlank() &&
+    !uploadStorePassword.isNullOrBlank() &&
+    !uploadKeyAlias.isNullOrBlank() &&
+    !uploadKeyPassword.isNullOrBlank()
+
 android {
     sourceSets.getByName("androidTest").assets.srcDir("../../../mobile/fixtures")
     namespace = "pro.wewed.app"
@@ -24,14 +33,6 @@ android {
         }
     }
 
-    val uploadStorePath = System.getenv("WEWED_UPLOAD_STORE_FILE")
-    val uploadStorePassword = System.getenv("WEWED_UPLOAD_STORE_PASSWORD")
-    val uploadKeyAlias = System.getenv("WEWED_UPLOAD_KEY_ALIAS")
-    val uploadKeyPassword = System.getenv("WEWED_UPLOAD_KEY_PASSWORD")
-    val hasUploadSigning = !uploadStorePath.isNullOrBlank() &&
-        !uploadStorePassword.isNullOrBlank() &&
-        !uploadKeyAlias.isNullOrBlank() &&
-        !uploadKeyPassword.isNullOrBlank()
 
     signingConfigs {
         if (hasUploadSigning) {
