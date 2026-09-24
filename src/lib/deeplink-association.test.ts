@@ -65,10 +65,12 @@ describe('Deep-link and release identity server contract', () => {
       expect(paths).toContain('/invite/*')
       expect(paths).not.toContain('/i/*')
       expect(paths).toContain('/w/*')
-      expect(paths).toContain('/pass*')
+      expect(paths).toContain('/pass')
       expect(paths).toContain('/pass/*')
       expect(paths).toContain('/gate/*')
       expect(paths).toContain('/planner/*')
+      expect(paths).toContain('/vendor/*')
+      expect(paths).toContain('/wedding/*')
 
       // Root route /apple-app-site-association behaves identically
       const rootResponse = getRootAasa()
