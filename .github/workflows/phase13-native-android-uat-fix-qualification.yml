@@ -28,8 +28,9 @@ jobs:
         run: |
           set -euo pipefail
           echo "ANDROID_HOME=${ANDROID_HOME:-}"
-          command -v sdkmanager
-          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort | tail -1)"
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --no-daemon
       - name: Debug build
