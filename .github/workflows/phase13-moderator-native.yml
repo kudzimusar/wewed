@@ -1,5 +1,8 @@
 name: Phase 13 Moderator Native Qualification
 on:
+  push:
+    branches:
+      - native-mobile/release-identity-deeplinks-phase13-20260924
   pull_request:
     branches:
       - native-mobile/wedding-day-ww2-phase11b-20260924
