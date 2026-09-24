@@ -309,6 +309,16 @@ describe('Phase 12: Single-Tenant and Unsafe PWA Remnants Remediation', () => {
       expect(wewedAdminSource).toContain('readPlatformRegistry')
       expect(wewedAdminSource).toContain('hasWewedAdminPermission')
     })
+
+    test('legacy admin role cannot bypass active-wedding authority on content mutation routes', () => {
+      const contentSource = source('src/app/api/content/route.ts')
+      const weddingContentSource = source('src/app/api/wedding-content/route.ts')
+      expect(contentSource).toContain("requireWeddingPermission(request, 'content.edit')")
+      expect(contentSource).toContain('weddingId !== access.context.weddingId')
+      expect(weddingContentSource).toContain("requireWeddingPermission(request, 'content.edit')")
+      expect(weddingContentSource).not.toContain("session.role === 'admin'")
+      expect(weddingContentSource).toContain('wedding.id !== access.context.weddingId')
+    })
   })
 
   // ── Invariant 8: Multi-Wedding Separation Intact ───────────────────────────
