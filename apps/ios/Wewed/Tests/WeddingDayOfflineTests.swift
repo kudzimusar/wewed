@@ -247,6 +247,7 @@ final class WeddingDayOfflineTests: XCTestCase {
 
     func testRevokePassCallsRevokeEndpoint() async throws {
         RevokeStubProtocol.lastRequest = nil
+        RevokeStubProtocol.lastBody = nil
         RevokeStubProtocol.statusCode = 200
         RevokeStubProtocol.responseBody = "{\"success\":true}"
         let config = URLSessionConfiguration.ephemeral
@@ -267,7 +268,7 @@ final class WeddingDayOfflineTests: XCTestCase {
         XCTAssertEqual(req.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
         XCTAssertEqual(req.value(forHTTPHeaderField: "x-wewed-grant-id"), "grant-456")
         XCTAssertEqual(req.httpMethod, "POST")
-        let data = try XCTUnwrap(req.httpBody)
+        let data = try XCTUnwrap(RevokeStubProtocol.lastBody)
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual(json["passSerial"] as? String, "WWTEST999")
         XCTAssertEqual(json["reason"] as? String, "Lost pass")
@@ -326,12 +327,27 @@ final class WeddingDayOfflineTests: XCTestCase {
 
 private final class RevokeStubProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var lastRequest: URLRequest?
+    nonisolated(unsafe) static var lastBody: Data?
     nonisolated(unsafe) static var statusCode = 200
     nonisolated(unsafe) static var responseBody = "{\"success\":true}"
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         RevokeStubProtocol.lastRequest = request
+        if let body = request.httpBody {
+            RevokeStubProtocol.lastBody = body
+        } else if let stream = request.httpBodyStream {
+            stream.open()
+            var data = Data()
+            var buffer = [UInt8](repeating: 0, count: 4096)
+            while stream.hasBytesAvailable {
+                let count = stream.read(&buffer, maxLength: buffer.count)
+                if count <= 0 { break }
+                data.append(contentsOf: buffer.prefix(count))
+            }
+            stream.close()
+            RevokeStubProtocol.lastBody = data
+        }
         let response = HTTPURLResponse(url: request.url!, statusCode: RevokeStubProtocol.statusCode, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: Data(RevokeStubProtocol.responseBody.utf8))
