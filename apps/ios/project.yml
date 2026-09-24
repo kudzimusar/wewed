@@ -39,6 +39,9 @@ targets:
         MARKETING_VERSION: 2.0.0
         CURRENT_PROJECT_VERSION: 1
         CODE_SIGN_STYLE: Automatic
+        # Owner-controlled release automation passes WEWED_APPLE_TEAM_ID as an xcodebuild
+        # user-defined build setting. Empty by default so repository builds never guess identity.
+        WEWED_APPLE_TEAM_ID: ""
         TARGETED_DEVICE_FAMILY: "1,2"
         SUPPORTS_MACCATALYST: NO
       configs:
