@@ -45,7 +45,6 @@ import pro.wewed.app.theme.WeddingIdentityPalette
 import pro.wewed.app.navigation.AuthenticationMode
 import pro.wewed.app.navigation.InvitationEntryStage
 import pro.wewed.app.ui.entry.NativeEnvironmentUnavailableScreen
-import pro.wewed.app.ui.entry.InvitationLinkEntryScreen
 import pro.wewed.app.navigation.LaunchRouter
 import pro.wewed.app.navigation.NativeAppEntryState
 import pro.wewed.app.ui.auth.LoginScreen
@@ -128,7 +127,6 @@ fun RootScreen(
     // -----------------------------------------------------------------------------------------
     var splashComplete by remember { mutableStateOf(false) }
     var authMode by remember { mutableStateOf<AuthenticationMode?>(null) }
-    var invitationEntryRequested by remember { mutableStateOf(false) }
 
     // --- The live guest invitation path -------------------------------------------------------
     //
@@ -328,28 +326,16 @@ fun RootScreen(
     }
 
     if (entryState is NativeAppEntryState.Welcome && authMode == null) {
-        if (invitationEntryRequested) {
-            InvitationLinkEntryScreen(
-                onOpen = { rawUrl ->
-                    invitationEntryRequested = false
-                    appViewModel.handleIncomingUrl(rawUrl)
-                },
-                onBack = { invitationEntryRequested = false },
-            )
-        } else {
-            WewedWelcomeScreen(
-                // Guest entry is not account authentication. A launch from the app icon can
-                // recover by pasting the exact private link and then rejoins the App Link path.
-                onOpenInvitation = { invitationEntryRequested = true },
-                onSignIn = { authMode = AuthenticationMode.SIGN_IN },
-                onCreateAccount = { authMode = AuthenticationMode.CREATE_ACCOUNT },
-                shadowEntry = appViewModel.dataEnvironment
-                    .takeIf { it.allowsDevelopmentPersonaSwitching }
-                    ?.let { environment ->
-                        ShadowEntryOption(environment.displayName) { sessionViewModel.enterShadowSession() }
-                    }
-            )
-        }
+        WewedWelcomeScreen(
+            onOpenInvitation = { authMode = AuthenticationMode.SIGN_IN },
+            onSignIn = { authMode = AuthenticationMode.SIGN_IN },
+            onCreateAccount = { authMode = AuthenticationMode.CREATE_ACCOUNT },
+            shadowEntry = appViewModel.dataEnvironment
+                .takeIf { it.allowsDevelopmentPersonaSwitching }
+                ?.let { environment ->
+                    ShadowEntryOption(environment.displayName) { sessionViewModel.enterShadowSession() }
+                }
+        )
         return
     }
 
