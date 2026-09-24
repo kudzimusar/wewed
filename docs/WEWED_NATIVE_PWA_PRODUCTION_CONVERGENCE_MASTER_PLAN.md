@@ -3773,3 +3773,75 @@ Phase 14 remains unauthorized.
 - Phase 13: **SUBMITTED FOR MODERATOR REVIEW (NOT SELF-DECLARED ACCEPTED)**.
 - Phase 14: **NOT AUTHORIZED / NOT STARTED**.
 
+
+
+### D-049 — Phase 13 moderator review of pre-publication artifact and Android App Link parity closure (2026-09-24)
+**MODERATOR REVIEW — D-048 AUDITED; PREVIOUS AAB SUPERSEDED; PHASE 13 REMAINS OPEN.** D-048 is preserved as implementation-agent evidence and is not rewritten. The moderator independently verified the remote coordinates, the exact main-based association RC, PR state, native-product parity, and repository CI. The implementation agent does not decide release worth: the moderator found one remaining Android release-manifest parity defect before any Play upload, patched it directly, independently qualified the corrected product head, and invalidated the D-048 AAB as a publication candidate.
+
+**D-048 evidence independently verified:**
+- server Phase-13 branch remains `backend/release-identity-deeplinks-phase13-20260924` @ `39ec09d11732616268e92b2b8aea452ed0ef44d9`;
+- native Phase-13 branch was `1accfdbf5cece58c25b844025c7c8af0b7d5daee` at submission time;
+- D-048 plan submission is `fe5eb0a903e72287b6bdd4107fe2bad0a313027b`;
+- association RC remains `release/phase13-association-proof-20260924` @ `75c602a3a5c2a37706e3a1d46984061b5c9f57e6`, based directly on current `main` @ `ba4b08f8bca2d5cd5826e1ef1d2701d9049dd887`;
+- draft PR #214 remains OPEN, DRAFT, UNMERGED;
+- RC diff remains exactly five files and contains no schema, database, auth, planner, guest-session, RSVP, Wedding Day, WW2, or role-authority change;
+- all ordinary PR CI observed for the exact RC head completed successfully, including the repository's main CI/build/browser gate;
+- D-048 local evidence also reports the focused RC contract tests and production build PASS;
+- D-048 reports an upload-key-signed Compose AAB from `apps/android`, source `1accfdb...`, applicationId `pro.wewed.app`, versionCode `8`, versionName `2.1.0`, upload certificate SHA-256 `C3:D8:56:D7:82:F6:42:C6:88:4D:98:25:52:F5:67:65:3E:35:D5:DA:1E:AB:B1:12:EF:6F:C0:59:8E:88:65:8C`, and AAB SHA-256 `27363eaa08cb0268d85b70381bdc870de03dc85d37c30624ec9aad3f4b742d1f`.
+
+**Moderator defect found before Play upload: Android HTTPS App Link parity was incomplete.**
+- iOS AASA and both native deep-link parsers already support authenticated workspace browser routes including `/planner/*`, `/vendor/*`, `/gate/*`, and `/wedding/*`.
+- Android's release `AndroidManifest.xml` claimed only `/invite/*`, `/pass`, `/pass/*`, and `/w/*`.
+- This did not create an authorization bypass—the Android `DeepLinkRouter` still enforces entitlement and active-context checks—but it made Android browser handoff narrower than the router and iOS contract and would have produced avoidable cross-platform deep-link asymmetry in the first Compose Play candidate.
+- Because versionCode 8 had **not** been uploaded to Play, the correct closure is to fix the existing v8 candidate rather than consume versionCode 9.
+
+**Moderator corrective implementation:**
+- `apps/android/app/src/main/AndroidManifest.xml`
+  - retains verified HTTPS host `wewed.pro`;
+  - retains `/invite/*`, exact `/pass`, `/pass/*`, and `/w/*`;
+  - adds `/planner/*`, `/vendor/*`, `/gate/*`, and `/wedding/*`;
+  - continues to exclude server-owned physical invitation resolver `/i/*`;
+  - does not claim browser `/admin/*`.
+- `apps/android/app/src/test/java/pro/wewed/app/navigation/ReleaseAppLinkManifestContractTest.kt`
+  - locks the approved HTTPS manifest surface;
+  - explicitly rejects `/i/*` and `/admin/*`.
+- `apps/android/app/src/test/java/pro/wewed/app/NativeDeepLinkTest.kt`
+  - now proves HTTPS parsing for planner, vendor, gate, and wedding workspace links.
+
+**Independent qualification of corrected Android product:**
+- qualification product/workflow head: `c9fa31a4b4b417df8e53f5f1c35c9299f099c16e`;
+- GitHub Actions run: `35951441179` — **PASS**;
+- Android unit tests: PASS;
+- ephemeral-signed Release AAB: PASS;
+- merged Release manifest App Link contract: PASS;
+- no `/i/*` or browser `/admin/*` interception in the merged Release manifest;
+- temporary qualification workflow removed after the passing run;
+- current clean native branch:
+  `native-mobile/release-identity-deeplinks-phase13-20260924` @
+  `bbf2c78d1a8210bb833140f4f47e6ee5b10973ae`.
+
+**Artifact decision:**
+- D-048 AAB SHA-256 `27363eaa08cb0268d85b70381bdc870de03dc85d37c30624ec9aad3f4b742d1f` is **SUPERSEDED — DO NOT UPLOAD TO GOOGLE PLAY**.
+- It was valid evidence that the local upload key could sign the Compose Release build, but it predates the moderator's App Link parity correction.
+- The next local artifact must be rebuilt from clean native head `bbf2c78...`, still as versionCode 8 / versionName 2.1.0, and must receive a new recorded SHA-256 before the moderator decides whether the Play test-track upload is fit to authorize.
+
+**Association RC decision:**
+- `release/phase13-association-proof-20260924` @ `75c602a...` remains the only production association candidate under review;
+- PR #214 remains draft and unmerged;
+- direct deployment of the broader Phase-13 backend feature branch remains forbidden;
+- production deployment of the association RC remains an owner-controlled action and is **NOT AUTHORIZED** by this checkpoint.
+
+**iOS state:**
+- no new valid Apple signing identity or provisioning profile was demonstrated;
+- verified Apple Team ID / Application Identifier Prefix, signed archive/TestFlight, Safari Universal Link, and signed private-invitation handoff remain **NOT PROVEN**;
+- this is an external owner-controlled blocker, not a reason to redo unsigned simulator/generic builds.
+
+**Next progressive unit:**
+1. Local agent must rebuild and cryptographically qualify the official upload-key-signed Compose AAB from exact clean head `bbf2c78d1a8210bb833140f4f47e6ee5b10973ae`.
+2. It must prove the **merged Release manifest** contains the full approved App Link set and excludes `/i/*` and browser `/admin/*`.
+3. It must record the new AAB SHA-256, file size, upload signer, source SHA, versionCode/versionName, and test results.
+4. It must not upload to Play, merge PR #214, deploy production, touch production data, or begin Phase 14.
+5. After that evidence returns, the moderator—not the implementation agent—will decide whether the exact association RC and exact rebuilt AAB are fit for the owner-controlled Android distribution step.
+
+**Phase-13 verdict:** **NOT ACCEPTED — CORRECTED CODE QUALIFIED; FINAL OFFICIAL-SIGNER AAB REBUILD + LIVE DISTRIBUTION PROOF STILL OPEN.**
+Phase 14 remains unauthorized.
