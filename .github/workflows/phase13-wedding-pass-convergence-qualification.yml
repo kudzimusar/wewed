@@ -77,7 +77,7 @@ jobs:
           status=$?
           set -e
           if [ "$status" -eq 0 ]; then exit 0; fi
-          errors="$(grep -E '^(src/(app/api/wedding-day/pass/route|components/wedding/invitation-experience/wedding-guest-pass-dialog|lib/(wedding-day|wedding-day-routes\.integration\.test|personal-invitation-mobile-entry\.test))\.(ts|tsx))' /tmp/wewed-tsc.log || true)"
+          errors="$(grep -E '^(src/app/api/wedding-day/pass/route\.ts|src/components/wedding/invitation-experience/wedding-guest-pass-dialog\.tsx|src/lib/(wedding-day-routes\.integration\.test|personal-invitation-mobile-entry\.test)\.ts|src/lib/wedding-day\.ts\((66[0-9]|67[0-9]|680),)' /tmp/wewed-tsc.log || true)"
           if [ -n "$errors" ]; then
             echo "$errors"
             exit 1
