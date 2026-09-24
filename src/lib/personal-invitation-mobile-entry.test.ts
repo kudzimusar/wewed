@@ -39,3 +39,20 @@ describe('personal invitation mobile entry', () => {
     expect(registry).toContain("motion: 'tri-fold'")
   })
 })
+
+  test('web Guest Pass is backed by the same WW2 Wedding Day authority as native', () => {
+    const dialog = source(
+      'src/components/wedding/invitation-experience/wedding-guest-pass-dialog.tsx',
+    )
+    const route = source('src/app/api/wedding-day/pass/route.ts')
+
+    expect(dialog).toContain("fetch('/api/wedding-day/pass'")
+    expect(dialog).toContain('data-pass-authority="ww2"')
+    expect(dialog).toContain('wedding-pass-ww2-qr')
+    expect(dialog).toContain("data.token.startsWith('WW2.')")
+    expect(dialog).not.toContain('/guest-session')
+
+    expect(route).toContain('publicKeyDerBase64: passKey.publicKeyDerBase64')
+    expect(route).toContain('token: credential.token')
+  })
+
