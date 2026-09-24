@@ -24,6 +24,26 @@ android {
         }
     }
 
+    val uploadStorePath = System.getenv("WEWED_UPLOAD_STORE_FILE")
+    val uploadStorePassword = System.getenv("WEWED_UPLOAD_STORE_PASSWORD")
+    val uploadKeyAlias = System.getenv("WEWED_UPLOAD_KEY_ALIAS")
+    val uploadKeyPassword = System.getenv("WEWED_UPLOAD_KEY_PASSWORD")
+    val hasUploadSigning = !uploadStorePath.isNullOrBlank() &&
+        !uploadStorePassword.isNullOrBlank() &&
+        !uploadKeyAlias.isNullOrBlank() &&
+        !uploadKeyPassword.isNullOrBlank()
+
+    signingConfigs {
+        if (hasUploadSigning) {
+            create("release") {
+                storeFile = file(uploadStorePath!!)
+                storePassword = uploadStorePassword
+                keyAlias = uploadKeyAlias
+                keyPassword = uploadKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".dev"
@@ -37,6 +57,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (hasUploadSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
