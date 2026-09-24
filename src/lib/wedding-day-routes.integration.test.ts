@@ -201,7 +201,7 @@ describeDb('Phase 11A Wedding Day HTTP route handlers', () => {
     expect(body.success).toBe(true)
     expect(body.data.guestId).toBe(GUEST_ID)
     expect(body.data.weddingId).toBe(WEDDING_ID)
-    expect(body.data.token).toStartWith('WW2.')
+    expect(body.data.token.startsWith('WW2.')).toBe(true)
     expect(body.data.tokenVersion).toBe('WW2')
     expect(body.data.publicKeyDerBase64).toBeTruthy()
 
