@@ -292,9 +292,12 @@ public struct LiveGuestInvitationView: View {
             )
 
             ZStack {
+                // Dismiss only through the explicit close control. If this background
+                // also handles the opening tap, SwiftUI can insert the overlay during the
+                // details-button gesture and immediately close it again on the same event.
                 Color.black.opacity(0.40)
                     .ignoresSafeArea()
-                    .onTapGesture { showNote = false }
+                    .allowsHitTesting(false)
 
                 ZStack {
                     WeddingFloralBackground(opacity: 0.075)
