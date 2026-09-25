@@ -75,7 +75,8 @@ final class GuestPresentationConvergenceTests: XCTestCase {
         XCTAssertTrue(source.contains("presentation.invitationCardMessage"))
         XCTAssertTrue(source.contains("WeddingFloralBackground"))
         XCTAssertTrue(source.contains("WeddingBrandMark()"))
-        XCTAssertTrue(source.contains("WeddingPrimaryButtonLabel"))
+        XCTAssertTrue(source.contains("WeddingIdentityPalette.champagneDeep"))
+        XCTAssertTrue(source.contains("minHeight: 50"))
         XCTAssertTrue(source.contains("GuestRsvpUpdate("))
 
         for field in [
