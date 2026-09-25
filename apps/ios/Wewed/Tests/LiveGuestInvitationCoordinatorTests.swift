@@ -413,7 +413,8 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
         kidsCount: Int? = nil,
         dietaryNotes: String? = nil,
         message: String? = nil,
-        childrenPolicy: String? = "welcome"
+        childrenPolicy: String? = "welcome",
+        venueMapUrl: String? = nil
     ) -> GuestInvitationSnapshot {
         GuestInvitationSnapshot(
             weddingSlug: "charity-and-kudzie",
@@ -422,7 +423,7 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
             tagline: nil,
             date: "2026-12-23T14:00:00",
             venue: "Imba Manor",
-            venueMapUrl: nil,
+            venueMapUrl: venueMapUrl,
             venueCity: "Harare",
             venueCountry: "Zimbabwe",
             invitationCardStyle: "ivory-floral-gold",
@@ -494,6 +495,7 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
             onViewPass: { navigated = true }
         )
         XCTAssertTrue(ivoryRsvpState(from: pending.rsvpStatus).isPassLocked)
+        XCTAssertNil(pendingActions.onContinue, "pending invitation must not expose a Continue transition")
         pendingActions.onViewPass?()
         XCTAssertTrue(prompted, "pending Pass must open RSVP")
         XCTAssertFalse(navigated, "pending Pass must not enter the persistent shell")
@@ -508,10 +510,29 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
                 onViewPass: { navigated = true }
             )
             XCTAssertTrue(ivoryRsvpState(from: answered.rsvpStatus).offersPass)
+            XCTAssertNotNil(actions.onContinue, "answered invitation may expose Continue")
             actions.onViewPass?()
             XCTAssertTrue(navigated, "answered Guest Pass must transition to Pass")
             XCTAssertFalse(prompted, "answered Guest Pass must not reopen RSVP")
         }
+    }
+
+    func testVenueActionPrefersTheCoupleConfiguredMapUrl() {
+        let configured = LiveInvitationPresentation.from(
+            makeSnapshot(
+                attending: true,
+                venueMapUrl: "https://maps.example/authoritative-destination"
+            )
+        )
+        XCTAssertEqual(
+            resolveLiveVenueDestination(presentation: configured),
+            "https://maps.example/authoritative-destination"
+        )
+
+        let fallback = LiveInvitationPresentation.from(makeSnapshot(attending: true))
+        let destination = resolveLiveVenueDestination(presentation: fallback)
+        XCTAssertTrue(destination.hasPrefix("http://maps.apple.com/?q="))
+        XCTAssertTrue(destination.contains("Imba"))
     }
 
     /// Exercises the full mutation cycles through the existing Guest Session path:
