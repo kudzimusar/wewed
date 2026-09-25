@@ -125,7 +125,7 @@ public struct LiveGuestInvitationView: View {
                         ? { showNote = true } : nil,
                     onViewPass: onViewPass,
                     onVisitCoupleSite: { open(coupleSite(fragment: nil)) },
-                    onContinue: onContinue
+                    onContinue: presentation.attending == nil ? nil : onContinue
                 )
             )
 
@@ -341,7 +341,7 @@ public func resolveLiveInvitationActions(
     onNote: (() -> Void)? = nil,
     onViewPass: (() -> Void)? = nil,
     onVisitCoupleSite: @escaping () -> Void = {},
-    onContinue: @escaping () -> Void = {}
+    onContinue: (() -> Void)? = nil
 ) -> IvoryActions {
     IvoryActions(
         onRsvp: onRsvpPrompt,
