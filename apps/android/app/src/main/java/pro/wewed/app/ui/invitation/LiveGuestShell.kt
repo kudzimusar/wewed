@@ -2,7 +2,9 @@ package pro.wewed.app.ui.invitation
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -15,15 +17,26 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import pro.wewed.app.R
 import pro.wewed.app.invitation.*
+import pro.wewed.app.theme.WeddingBrandMark
 import pro.wewed.app.theme.WeddingIdentityPalette
 import pro.wewed.app.theme.WewedColors
+import java.text.SimpleDateFormat
+import java.util.Locale
+import kotlin.math.max
 
 /**
  * The persistent experience an invitation-bound Guest lands in.
@@ -126,34 +139,58 @@ private fun LiveGuestHome(
     capabilities: Set<GuestCapability>,
     onOpenInvitation: () -> Unit
 ) {
-    Text(
-        profile.coupleNames,
-        fontFamily = FontFamily.Serif,
-        fontSize = 28.sp,
-        color = WeddingIdentityPalette.Ink,
-        modifier = Modifier.testTag("live-guest-couple")
-    )
-    Text(
-        profile.guestName,
-        fontSize = 16.sp,
-        fontWeight = FontWeight.Medium,
-        color = WeddingIdentityPalette.Ink,
-        modifier = Modifier.testTag("live-guest-name")
-    )
-    Text(
-        rsvpLabel(profile.attending),
-        fontSize = 14.sp,
-        color = WewedColors.Emerald,
-        modifier = Modifier.testTag("live-guest-rsvp-status")
-    )
+    LiveGuestHero(profile)
 
-    Card(onClick = onOpenInvitation, modifier = Modifier.fillMaxWidth().testTag("guest-home-digital-invitation")) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("MY DIGITAL INVITATION", style = MaterialTheme.typography.labelMedium)
-            Text(profile.coupleNames, fontFamily = FontFamily.Serif, fontSize = 22.sp)
-            Text("View invitation →")
+    Card(
+        onClick = onOpenInvitation,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = WeddingIdentityPalette.Champagne.copy(alpha = 0.20f)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("guest-home-digital-invitation")
+    ) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(
+                "MY DIGITAL INVITATION",
+                style = MaterialTheme.typography.labelMedium,
+                color = WeddingIdentityPalette.ChampagneDeep
+            )
+            Text(
+                profile.coupleNames,
+                fontFamily = FontFamily.Serif,
+                fontSize = 22.sp,
+                color = WeddingIdentityPalette.Ink
+            )
+            Text(
+                "Open your interactive invitation →",
+                fontSize = 14.sp,
+                color = WewedColors.Emerald
+            )
         }
     }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        GuestFact(
+            "RSVP",
+            rsvpLabel(profile.attending),
+            "live-guest-rsvp-status",
+            modifier = Modifier.weight(1f)
+        )
+        if (GuestCapability.WEDDING_PASS in capabilities) {
+            GuestFact(
+                "Wedding Pass",
+                "Ready in Pass",
+                "live-guest-pass-hint",
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+
     GuestFact("When", formatWeddingDate(profile.weddingDate), "live-guest-date")
     GuestFact(
         "Where",
@@ -162,16 +199,152 @@ private fun LiveGuestHome(
         "live-guest-venue"
     )
 
-    // Seating is attending-only: it presumes someone is coming.
     if (GuestCapability.SEATING in capabilities) {
         profile.tableName?.takeIf { it.isNotBlank() }?.let {
             GuestFact("Your table", it, "live-guest-table")
         }
     }
+}
 
-    if (GuestCapability.WEDDING_PASS in capabilities) {
-        GuestFact("Wedding Pass", "Available in the Pass tab", "live-guest-pass-hint")
+@Composable
+private fun LiveGuestHero(profile: LiveInvitationPresentation) {
+    val countdown by produceState(
+        initialValue = guestCountdownFrom(profile.weddingDate),
+        key1 = profile.weddingDate
+    ) {
+        while (true) {
+            value = guestCountdownFrom(profile.weddingDate)
+            delay(1_000)
+        }
     }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(350.dp)
+            .clip(RoundedCornerShape(23.dp))
+            .border(
+                1.dp,
+                WeddingIdentityPalette.Champagne.copy(alpha = 0.35f),
+                RoundedCornerShape(23.dp)
+            )
+            .testTag("live-guest-hero")
+    ) {
+        Image(
+            painter = painterResource(R.drawable.hero_wedding),
+            contentDescription = "Wedding visual",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.16f),
+                            Color.Black.copy(alpha = 0.82f)
+                        )
+                    )
+                )
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(17.dp)
+        ) {
+            WeddingBrandMark()
+            Spacer(Modifier.weight(1f))
+            Text(
+                profile.coupleNames,
+                fontFamily = FontFamily.Serif,
+                fontStyle = FontStyle.Italic,
+                fontSize = 34.sp,
+                color = Color.White,
+                modifier = Modifier.testTag("live-guest-couple")
+            )
+            Text(
+                "YOUR WEDDING INVITATION",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 2.6.sp,
+                color = Color.White.copy(alpha = 0.90f)
+            )
+            Text(
+                formatWeddingDate(profile.weddingDate),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
+            )
+            countdown?.let { remaining ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    GuestCountdownTile(remaining.days, "Days", Modifier.weight(1f))
+                    GuestCountdownTile(remaining.hours, "Hours", Modifier.weight(1f))
+                    GuestCountdownTile(remaining.minutes, "Mins", Modifier.weight(1f))
+                    GuestCountdownTile(remaining.seconds, "Secs", Modifier.weight(1f))
+                }
+            }
+            Text(
+                "Welcome, ${profile.guestName}",
+                fontSize = 14.sp,
+                color = Color.White.copy(alpha = 0.94f),
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .testTag("live-guest-name")
+            )
+        }
+    }
+}
+
+@Composable
+private fun GuestCountdownTile(value: Long, label: String, modifier: Modifier = Modifier) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.Black.copy(alpha = 0.46f))
+            .padding(vertical = 7.dp)
+    ) {
+        Text(value.toString(), fontFamily = FontFamily.Serif, fontSize = 21.sp, color = Color.White)
+        Text(label, fontSize = 9.sp, color = Color.White.copy(alpha = 0.88f))
+    }
+}
+
+private data class GuestCountdown(
+    val days: Long,
+    val hours: Long,
+    val minutes: Long,
+    val seconds: Long
+)
+
+private fun guestCountdownFrom(raw: String?): GuestCountdown? {
+    val source = raw.orEmpty().trim()
+    if (source.isEmpty()) return null
+    val target = listOf(
+        "yyyy-MM-dd'T'HH:mm:ssXXX",
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd'T'HH:mm",
+        "yyyy-MM-dd"
+    ).firstNotNullOfOrNull { pattern ->
+        runCatching {
+            SimpleDateFormat(pattern, Locale.US).apply { isLenient = false }.parse(source)
+        }.getOrNull()
+    } ?: return null
+    var seconds = max(0L, (target.time - System.currentTimeMillis()) / 1_000L)
+    val days = seconds / 86_400L
+    seconds %= 86_400L
+    val hours = seconds / 3_600L
+    seconds %= 3_600L
+    val minutes = seconds / 60L
+    seconds %= 60L
+    return GuestCountdown(days, hours, minutes, seconds)
 }
 
 /** The pass, or an honest statement of why there isn't one. */
@@ -340,10 +513,15 @@ private fun LiveGuestProfile(
 }
 
 @Composable
-private fun GuestFact(label: String, value: String, tag: String) {
+private fun GuestFact(
+    label: String,
+    value: String,
+    tag: String,
+    modifier: Modifier = Modifier
+) {
     if (value.isBlank()) return
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(WeddingIdentityPalette.Ivory)
