@@ -2,17 +2,15 @@ package pro.wewed.app.ui.invitation
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,7 +25,9 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import pro.wewed.app.invitation.*
 import pro.wewed.app.models.RSVPStatus
+import pro.wewed.app.theme.WeddingBrandMark
 import pro.wewed.app.theme.WeddingIdentityPalette
+import pro.wewed.app.theme.WeddingOrnamentBackdrop
 import pro.wewed.app.theme.WewedColors
 import pro.wewed.app.ui.invitation.ivory.IvoryActions
 import pro.wewed.app.ui.invitation.ivory.IvoryInvitationData
@@ -247,32 +247,58 @@ private fun NoteFromTheCouple(note: String, onDismiss: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.45f))
+            .background(Color.Black.copy(alpha = 0.40f))
             .clickable(onClick = onDismiss)
             .testTag("invitation-note-sheet"),
         contentAlignment = Alignment.Center
     ) {
-        Column(
+        Surface(
             modifier = Modifier
-                .padding(32.dp)
-                .background(WeddingIdentityPalette.Ivory)
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 28.dp)
+                .fillMaxWidth()
+                .clickable(enabled = false) {},
+            shape = RoundedCornerShape(24.dp),
+            color = WeddingIdentityPalette.IvorySoft,
+            border = BorderStroke(1.dp, WeddingIdentityPalette.Champagne.copy(alpha = 0.55f)),
+            shadowElevation = 10.dp
         ) {
-            Text(
-                "A note from us",
-                fontSize = 13.sp,
-                letterSpacing = 1.8.sp,
-                color = WeddingIdentityPalette.Muted
-            )
-            Text(
-                note,
-                fontSize = 16.sp,
-                fontFamily = FontFamily.Serif,
-                color = WeddingIdentityPalette.Ink,
-                textAlign = TextAlign.Center
-            )
+            Box {
+                WeddingOrnamentBackdrop(
+                    modifier = Modifier.matchParentSize(),
+                    alpha = 0.075f
+                )
+                Column(
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 30.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    WeddingBrandMark()
+                    Text(
+                        "A note from us",
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 21.sp,
+                        color = WeddingIdentityPalette.Ink
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.width(64.dp),
+                        thickness = 1.dp,
+                        color = WeddingIdentityPalette.Champagne.copy(alpha = 0.70f)
+                    )
+                    Text(
+                        note,
+                        fontSize = 16.sp,
+                        fontFamily = FontFamily.Serif,
+                        color = WeddingIdentityPalette.Ink,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 24.sp
+                    )
+                    Text(
+                        "Tap outside to return to your invitation",
+                        fontSize = 11.sp,
+                        color = WeddingIdentityPalette.Muted
+                    )
+                }
+            }
         }
     }
 }
@@ -416,25 +442,56 @@ private fun LiveRsvpForm(
             .testTag("invitation-rsvp-prompt"),
         contentAlignment = Alignment.BottomCenter
     ) {
-        Column(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.88f)
-                .background(WeddingIdentityPalette.Ivory)
-                .clickable(enabled = false) {}
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .clickable(enabled = false) {},
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            color = WeddingIdentityPalette.IvorySoft,
+            border = BorderStroke(1.dp, WeddingIdentityPalette.Champagne.copy(alpha = 0.42f)),
+            shadowElevation = 12.dp
         ) {
-            Text(
-                "Will you be joining us?",
-                fontSize = 20.sp,
-                fontFamily = FontFamily.Serif,
-                color = WeddingIdentityPalette.Ink
-            )
-            guestName.takeIf { it.isNotBlank() }?.let {
-                Text(it, fontSize = 13.sp, color = WeddingIdentityPalette.Muted)
-            }
+            Box {
+                WeddingOrnamentBackdrop(
+                    modifier = Modifier.matchParentSize(),
+                    alpha = 0.045f
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 24.dp, vertical = 22.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        WeddingBrandMark()
+                        Column {
+                            Text(
+                                "RSVP",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 2.sp,
+                                color = WeddingIdentityPalette.ChampagneDeep
+                            )
+                            Text(
+                                "Will you be joining us?",
+                                fontSize = 23.sp,
+                                fontFamily = FontFamily.Serif,
+                                color = WeddingIdentityPalette.Ink
+                            )
+                        }
+                    }
+                    guestName.takeIf { it.isNotBlank() }?.let {
+                        Text(
+                            "For $it",
+                            fontSize = 13.sp,
+                            color = WeddingIdentityPalette.Muted
+                        )
+                    }
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 RsvpChoiceChip("Joyfully accept", selected = accepting, testTag = "invitation-rsvp-accept") { accepting = true }
@@ -555,19 +612,32 @@ private fun LiveRsvpForm(
                 )
             }
 
-            if (isSubmitting) {
-                Text("Recording your answer…", fontSize = 13.sp, color = WeddingIdentityPalette.Muted)
-            } else {
-                Text(
-                    "Save RSVP",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = WewedColors.Emerald,
-                    modifier = Modifier
-                        .clickable { onSubmit(buildUpdate()) }
-                        .padding(vertical = 8.dp)
-                        .testTag("invitation-rsvp-save")
-                )
+                    if (isSubmitting) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = WeddingIdentityPalette.ChampagneDeep
+                            )
+                            Text("Recording your answer…", fontSize = 13.sp, color = WeddingIdentityPalette.Muted)
+                        }
+                    } else {
+                        Button(
+                            onClick = { onSubmit(buildUpdate()) },
+                            colors = ButtonDefaults.buttonColors(containerColor = WeddingIdentityPalette.Forest),
+                            shape = RoundedCornerShape(13.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 50.dp)
+                                .testTag("invitation-rsvp-save")
+                        ) {
+                            Text("Save RSVP", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
             }
         }
     }
@@ -575,16 +645,25 @@ private fun LiveRsvpForm(
 
 @Composable
 private fun RsvpChoiceChip(label: String, selected: Boolean, testTag: String, onClick: () -> Unit) {
-    Text(
-        label,
-        fontSize = 13.sp,
-        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-        color = if (selected) WewedColors.Emerald else WeddingIdentityPalette.Muted,
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp, horizontal = 14.dp)
-            .testTag(testTag)
-    )
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(999.dp),
+        color = if (selected) WeddingIdentityPalette.ForestSoft else WeddingIdentityPalette.IvorySoft,
+        border = BorderStroke(
+            1.dp,
+            if (selected) WeddingIdentityPalette.Forest.copy(alpha = 0.55f)
+            else WeddingIdentityPalette.Hairline
+        ),
+        modifier = Modifier.testTag(testTag)
+    ) {
+        Text(
+            label,
+            fontSize = 13.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) WeddingIdentityPalette.Forest else WeddingIdentityPalette.Muted,
+            modifier = Modifier.padding(vertical = 9.dp, horizontal = 14.dp)
+        )
+    }
 }
 
 @Composable
