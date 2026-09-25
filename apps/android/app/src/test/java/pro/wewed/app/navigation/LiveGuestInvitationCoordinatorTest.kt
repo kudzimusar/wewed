@@ -536,7 +536,8 @@ class LiveGuestInvitationCoordinatorTest {
         val pendingActions = resolveLiveInvitationActions(
             pending,
             onRsvpPrompt = { prompted = true },
-            onViewPass = { navigated = true }
+            onViewPass = { navigated = true },
+            onContinue = { navigated = true }
         )
         assertTrue(ivoryRsvpStateFrom(pending.rsvpStatus).isPassLocked)
         assertNull("pending invitation must not expose a Continue transition", pendingActions.onContinue)
@@ -551,7 +552,8 @@ class LiveGuestInvitationCoordinatorTest {
             val actions = resolveLiveInvitationActions(
                 answered,
                 onRsvpPrompt = { prompted = true },
-                onViewPass = { navigated = true }
+                onViewPass = { navigated = true },
+                onContinue = { navigated = true }
             )
             assertTrue("answered Guest Pass must remain available", ivoryRsvpStateFrom(answered.rsvpStatus).offersPass)
             assertNotNull("answered invitation may expose Continue", actions.onContinue)
