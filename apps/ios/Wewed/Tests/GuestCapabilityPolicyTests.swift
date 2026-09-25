@@ -38,11 +38,21 @@ final class GuestCapabilityPolicyTests: XCTestCase {
         XCTAssertTrue(GuestCapabilityPolicy.mayEnterPersistentExperience(attending: false))
     }
 
-    /// Accepting is what unlocks the day itself.
-    func testAnAttendingGuestGainsTheDayCapabilities() {
+    /// Both answered states may see the shared wedding-day information.
+    func testAnsweredGuestsCanSeeSharedWeddingDayDetails() {
+        for attending in [true, false] {
+            let capabilities = GuestCapabilityPolicy.capabilities(attending: attending)
+            for capability in [GuestCapability.partyDetails, .weddingDayProgramme, .announcements] {
+                XCTAssertTrue(capabilities.contains(capability),
+                              "\(capability) must remain available to invited guests")
+            }
+        }
+    }
+
+    /// Attending alone unlocks venue-admission and attendance operations.
+    func testAnAttendingGuestGainsAdmissionCapabilities() {
         let attending = GuestCapabilityPolicy.capabilities(attending: true)
-        for capability in [GuestCapability.weddingPass, .partyDetails, .seating,
-                           .weddingDayProgramme, .announcements, .checkInState] {
+        for capability in [GuestCapability.weddingPass, .seating, .checkInState] {
             XCTAssertTrue(attending.contains(capability), "\(capability) must follow from attending")
         }
     }
@@ -64,13 +74,14 @@ final class GuestCapabilityPolicyTests: XCTestCase {
         XCTAssertTrue(declined.contains(.coupleWebsite))
     }
 
-    /// What they do not get is admission, or anything that presumes it.
-    func testADeclinedGuestReceivesNoAdmission() {
-        for capability in [GuestCapability.weddingPass, .seating, .checkInState,
-                           .weddingDayProgramme] {
+    /// Declining removes venue admission, not the benefit of remaining an invited Guest.
+    func testADeclinedGuestReceivesNoVenueAdmission() {
+        for capability in [GuestCapability.weddingPass, .seating, .checkInState] {
             XCTAssertFalse(GuestCapabilityPolicy.allows(attending: false, capability),
                            "\(capability) must not follow a decline")
         }
+        XCTAssertTrue(GuestCapabilityPolicy.allows(attending: false, .weddingDayProgramme))
+        XCTAssertTrue(GuestCapabilityPolicy.allows(attending: false, .announcements))
     }
 
     /// The pass is the one capability that separates attending from every other state.
