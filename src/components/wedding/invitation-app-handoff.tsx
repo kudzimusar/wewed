@@ -29,7 +29,6 @@ type ClientPlatform = 'checking' | 'android' | 'ios' | 'web'
 
 const INSTALL_PREPARATION_TIMEOUT_MS = 20_000
 const GOOGLE_PLAY_BADGE = 'https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png'
-const APP_STORE_BADGE = 'https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg'
 const APPLE_MOBILE_RE = /iPad|iPhone|iPod/i
 
 function isAppleMobileClient() {
@@ -222,18 +221,8 @@ export function InvitationAppHandoff({
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#c8a56b]">Wewed · Private invitation</p>
           <h1 className="mt-3 font-serif text-3xl leading-tight">Your invitation is ready</h1>
           <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-[#d6cec5]">
-            Wewed for iPhone is coming soon. For now, continue {weddingTitle} securely in your browser.
+            Continue {weddingTitle} securely in your browser. A direct App Store handoff is not configured for this invitation yet.
           </p>
-
-          <p className="mt-6 text-xs font-semibold uppercase tracking-[0.2em] text-[#d8b477]">Coming Soon</p>
-          <button
-            type="button"
-            onClick={() => window.location.assign(continueInBrowser)}
-            aria-label="App Store coming soon — continue invitation in browser"
-            className="mx-auto mt-2 inline-flex items-center justify-center rounded-lg bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8b477]"
-          >
-            <img src={APP_STORE_BADGE} alt="Download on the App Store" width={196} height={66} className="h-12 w-auto max-w-full" />
-          </button>
           <button
             type="button"
             onClick={() => window.location.assign(continueInBrowser)}
@@ -242,7 +231,7 @@ export function InvitationAppHandoff({
             Continue in browser
           </button>
           <p className="mt-4 text-xs leading-5 text-[#9f958a]">
-            Your private invitation stays with Wewed while the iPhone app is being prepared.
+            Your private invitation remains with Wewed. Browser continuation stays available until an authoritative App Store destination is configured.
           </p>
         </section>
       </main>
