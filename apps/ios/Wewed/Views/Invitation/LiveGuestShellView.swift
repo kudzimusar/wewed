@@ -112,7 +112,8 @@ public struct LiveGuestShellView: View {
                         .frame(width: viewport.size.width)
                     }
                 }
-                .frame(width: viewport.size.width, maxHeight: .infinity)
+                .frame(width: viewport.size.width)
+                .frame(maxHeight: .infinity)
                 .clipped()
             }
             .frame(width: viewport.size.width, height: viewport.size.height)
