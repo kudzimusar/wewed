@@ -346,10 +346,8 @@ jobs:
               visible:
                 id: "invitation-cta-note"
               timeout: 5000
-          # Tap the visible Note card itself. Maestro's accessibility-ID tap has proven
-          # unreliable for this ScrollView hotspot even though the published bounds are correct.
           - tapOn:
-              point: "50%,76%"
+              id: "invitation-cta-note"
           - extendedWaitUntil:
               visible:
                 id: "invitation-note-message"
