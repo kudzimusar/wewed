@@ -79,97 +79,90 @@ public struct LiveGuestShellView: View {
     }
 
     public var body: some View {
-        GeometryReader { viewport in
-            let contentWidth = max(0, viewport.size.width - 40)
+        ZStack {
+            WeddingIdentityPalette.ivory.ignoresSafeArea()
 
-            ZStack {
-                WeddingIdentityPalette.ivory.ignoresSafeArea()
-                AccessibilityMarker("live-guest-shell", label: "Your wedding")
-
-                Group {
-                    if section == .invitation {
-                        invitationContent()
-                    } else if section == .pass && profile.attending == true {
-                        LiveIssuedGuestPassView(profile: profile, coordinator: coordinator)
-                            .id(profile.guestId)
-                    } else if section == .weddingDay {
-                        weddingDay
-                    } else if section == .more {
-                        guestProfile
-                    } else {
-                        ScrollView(.vertical, showsIndicators: false) {
-                            VStack(alignment: .leading, spacing: 16) {
-                                switch section {
-                                case .home: home
-                                case .pass: pass
-                                default: EmptyView()
-                                }
-                            }
-                            .frame(width: contentWidth, alignment: .leading)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 20)
+            // Structural design authority comes from the qualified Shadow/RoleShell path:
+            // every phone destination is hosted by WewedScreenContainer and iOS owns the
+            // bottom safe-area through TabView. LiveGuest remains the data/security authority.
+            TabView(selection: tabSelection) {
+                ForEach(GuestSection.allCases, id: \.self) { candidate in
+                    WewedScreenContainer {
+                        GeometryReader { viewport in
+                            guestDestination(candidate, viewportWidth: viewport.size.width)
                         }
-                        .frame(width: viewport.size.width)
                     }
+                    .tabItem {
+                        Label(candidate.label, systemImage: candidate.icon)
+                            .accessibilityIdentifier("nav-guest-\(candidate.id)")
+                    }
+                    .tag(candidate)
                 }
-                .frame(width: viewport.size.width)
-                .frame(maxHeight: .infinity)
-                .clipped()
             }
-            .frame(width: viewport.size.width, height: viewport.size.height)
-            .clipped()
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                guestBottomNavigation(viewportWidth: viewport.size.width)
-            }
+            .tint(WeddingIdentityPalette.champagneDeep)
+
+            AccessibilityMarker("live-guest-shell", label: "Your wedding")
         }
+        .accessibilityIdentifier("live-guest-shell-root")
     }
 
-    private func guestBottomNavigation(viewportWidth: CGFloat) -> some View {
-        VStack(spacing: 0) {
-            Divider().foregroundStyle(WeddingIdentityPalette.hairline)
-            HStack(spacing: 0) {
-                ForEach(GuestSection.allCases, id: \.self) { candidate in
-                    Button {
-                        if candidate == .invitation { onOpenInvitation() }
-                        else { onSelect(candidate) }
-                    } label: {
-                        VStack(spacing: 4) {
-                            Image(systemName: candidate.icon)
-                                .font(.system(size: 17))
-                            Text(candidate.label)
-                                .font(.system(
-                                    size: 10,
-                                    weight: section == candidate ? .semibold : .regular
-                                ))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.82)
-                        }
-                        .foregroundStyle(
-                            section == candidate
-                                ? WeddingIdentityPalette.champagneDeep
-                                : WeddingIdentityPalette.muted
-                        )
-                        .frame(maxWidth: .infinity, minHeight: 56)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("nav-guest-\(candidate.id)")
-                    .accessibilityAddTraits(section == candidate ? .isSelected : [])
+    private var tabSelection: Binding<GuestSection> {
+        Binding(
+            get: { section },
+            set: { candidate in
+                if candidate == .invitation {
+                    onOpenInvitation()
+                } else {
+                    onSelect(candidate)
                 }
             }
-            .frame(width: viewportWidth)
-            .background(WeddingIdentityPalette.ivorySoft)
+        )
+    }
+
+    @ViewBuilder
+    private func guestDestination(_ candidate: GuestSection, viewportWidth: CGFloat) -> some View {
+        let contentWidth = GuestViewportGeometry.shellContentWidth(viewportWidth: viewportWidth)
+
+        Group {
+            if candidate == .invitation {
+                invitationContent()
+            } else if candidate == .pass && profile.attending == true {
+                LiveIssuedGuestPassView(profile: profile, coordinator: coordinator)
+                    .id(profile.guestId)
+            } else if candidate == .weddingDay {
+                weddingDay
+            } else if candidate == .more {
+                guestProfile
+            } else {
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        switch candidate {
+                        case .home:
+                            home(contentWidth: contentWidth)
+                        case .pass:
+                            pass
+                        default:
+                            EmptyView()
+                        }
+                    }
+                    .frame(width: contentWidth, alignment: .leading)
+                    .padding(.horizontal, GuestViewportGeometry.shellHorizontalInset)
+                    .padding(.vertical, 20)
+                }
+                .frame(width: viewportWidth)
+            }
         }
         .frame(width: viewportWidth)
-        .background(WeddingIdentityPalette.ivorySoft)
+        .frame(maxHeight: .infinity)
+        .clipped()
     }
 
     /// The Guest's own wedding at a glance — the qualified Wewed wedding identity language,
     /// backed only by Guest-authorized session data.
     @ViewBuilder
-    private var home: some View {
+    private func home(contentWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            guestHero
+            guestHero(width: contentWidth)
 
             Button {
                 openVenue()
@@ -243,12 +236,20 @@ public struct LiveGuestShellView: View {
         openURL(url)
     }
 
-    private var guestHero: some View {
-        ZStack(alignment: .bottomLeading) {
+    private func guestHero(width: CGFloat) -> some View {
+        let rowWidth = GuestViewportGeometry.countdownRowWidth(heroWidth: width)
+        let innerHeight = max(0, 350 - GuestViewportGeometry.heroInternalPadding * 2)
+
+        return ZStack(alignment: .bottomLeading) {
             WewedMediaImage(WewedAsset.heroWedding)
                 .scaledToFill()
-                .frame(maxWidth: .infinity)
-                .frame(height: 350)
+                // Reuse the responsive media contract already qualified by Sanitized Shadow:
+                // parent width controls media; media never gets to widen the screen.
+                .wewedMedia(
+                    height: 350,
+                    horizontalInset: GuestViewportGeometry.shellHorizontalInset * 2
+                )
+                .frame(width: width, height: 350)
                 .clipped()
 
             LinearGradient(
@@ -256,6 +257,7 @@ public struct LiveGuestShellView: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
+            .frame(width: width, height: 350)
 
             VStack(alignment: .leading, spacing: 8) {
                 WeddingBrandMark()
@@ -264,44 +266,50 @@ public struct LiveGuestShellView: View {
                     .font(.system(size: 36, design: .serif))
                     .italic()
                     .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+                    .allowsTightening(true)
                     .accessibilityIdentifier("live-guest-couple")
                 Text("YOUR WEDDING INVITATION")
                     .font(.system(size: 10, weight: .semibold))
                     .tracking(2.6)
                     .foregroundStyle(.white.opacity(0.90))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.80)
                 Text(Self.formatWeddingDate(profile.weddingDate))
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+                    .allowsTightening(true)
 
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     if let countdown = Self.countdown(from: profile.weddingDate, now: context.date) {
-                        GeometryReader { rowProxy in
-                            let tileWidth = GuestViewportGeometry.countdownTileWidth(
-                                rowWidth: rowProxy.size.width
-                            )
+                        let tileWidth = GuestViewportGeometry.countdownTileWidth(rowWidth: rowWidth)
 
-                            HStack(spacing: GuestViewportGeometry.countdownInterTileSpacing) {
-                                guestCountdownTile(countdown.days, "Days", width: tileWidth)
-                                guestCountdownTile(countdown.hours, "Hours", width: tileWidth)
-                                guestCountdownTile(countdown.minutes, "Mins", width: tileWidth)
-                                guestCountdownTile(countdown.seconds, "Secs", width: tileWidth)
-                            }
-                            .frame(width: rowProxy.size.width, alignment: .leading)
+                        HStack(spacing: GuestViewportGeometry.countdownInterTileSpacing) {
+                            guestCountdownTile(countdown.days, "Days", width: tileWidth)
+                            guestCountdownTile(countdown.hours, "Hours", width: tileWidth)
+                            guestCountdownTile(countdown.minutes, "Mins", width: tileWidth)
+                            guestCountdownTile(countdown.seconds, "Secs", width: tileWidth)
                         }
-                        .frame(height: 48)
-                        .padding(.top, 3)
+                        .frame(width: rowWidth, alignment: .leading)
                     }
                 }
+                .frame(width: rowWidth, height: 48, alignment: .leading)
+                .padding(.top, 3)
 
                 Text("Welcome, \(profile.guestName)")
                     .font(.system(size: 14))
                     .foregroundStyle(.white.opacity(0.94))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.80)
                     .accessibilityIdentifier("live-guest-name")
             }
-            .padding(17)
+            .frame(width: rowWidth, height: innerHeight, alignment: .leading)
+            .padding(GuestViewportGeometry.heroInternalPadding)
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 350)
+        .frame(width: width, height: 350)
         .clipShape(RoundedRectangle(cornerRadius: 23))
         .overlay(
             RoundedRectangle(cornerRadius: 23)
