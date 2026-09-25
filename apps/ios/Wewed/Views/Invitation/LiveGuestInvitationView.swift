@@ -363,8 +363,10 @@ public struct LiveGuestInvitationView: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .clipped()
+            .overlay(
+                AccessibilityMarker("invitation-note-sheet", label: "A note from us")
+            )
         }
-        .accessibilityIdentifier("invitation-note-sheet")
     }
 
     /// The public couple site. Safe to share; the private invitation link is not.
