@@ -608,7 +608,7 @@ private struct LiveRsvpFormView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .frame(maxHeight: UIScreen.main.bounds.height * 0.88)
+            .frame(maxHeight: 720)
             .background(WeddingIdentityPalette.ivorySoft)
             .clipShape(RoundedRectangle(cornerRadius: 28))
             .overlay(
