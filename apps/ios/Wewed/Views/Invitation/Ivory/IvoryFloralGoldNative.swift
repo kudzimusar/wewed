@@ -261,22 +261,23 @@ public struct IvoryFloralGoldNative: View {
                 .clipped()
 
             region(IvoryGeometry.names, w, h) {
-                Text(data.coupleNames)
-                    // `.ivory-names { font-family: IvoryScript }`.
-                    .font(IvoryTypography.script(size: w * 0.112))
-                    .foregroundStyle(IvoryPalette.ink)
-                    .multilineTextAlignment(.center)
+                fittedScriptText(
+                    data.coupleNames,
+                    size: w * 0.112,
+                    color: IvoryPalette.ink
+                )
             }
             .accessibilityIdentifier("invitation-couple-names")
 
             region(IvoryGeometry.message, w, h) {
                 // `.ivory-message { text-transform: uppercase; letter-spacing: .13em }`
-                Text(data.message.uppercased())
-                    .font(IvoryTypography.body(size: w * 0.030))
-                    .tracking(w * 0.030 * 0.13)
-                    .lineSpacing(w * 0.030 * 0.7)
-                    .foregroundStyle(IvoryPalette.ink)
-                    .multilineTextAlignment(.center)
+                fittedBodyText(
+                    data.message.uppercased(),
+                    size: w * 0.030,
+                    color: IvoryPalette.ink,
+                    tracking: w * 0.030 * 0.13,
+                    lineSpacing: w * 0.030 * 0.7
+                )
             }
 
             region(IvoryGeometry.date, w, h) {
@@ -313,49 +314,32 @@ public struct IvoryFloralGoldNative: View {
             .accessibilityIdentifier("invitation-date")
 
             region(IvoryGeometry.location, w, h) {
-                VStack(spacing: 1) {
-                    // `.ivory-location strong { text-transform: uppercase; font-size: 3.8cqw }`
-                    Text(data.venue.uppercased())
-                        .font(IvoryTypography.body(size: w * 0.038))
-                        .foregroundStyle(IvoryPalette.ink)
-                    if let address = data.venueAddress {
-                        Text(address)
-                            .font(IvoryTypography.body(size: w * 0.030))
-                            .foregroundStyle(IvoryPalette.ink)
-                    }
-                    Text(data.venueCityCountry)
-                        .font(IvoryTypography.body(size: w * 0.030))
-                        .foregroundStyle(IvoryPalette.ink)
-                }
-                .multilineTextAlignment(.center)
+                fittedVenueText(
+                    venue: data.venue.uppercased(),
+                    address: data.venueAddress,
+                    cityCountry: data.venueCityCountry,
+                    primarySize: w * 0.038,
+                    secondarySize: w * 0.030,
+                    primaryColor: IvoryPalette.ink,
+                    secondaryColor: IvoryPalette.ink
+                )
             }
             .accessibilityIdentifier("invitation-venue")
 
             if let tagline = data.tagline, !tagline.isEmpty {
                 region(IvoryGeometry.tagline, w, h) {
-                    Text(tagline)
-                        // `.ivory-tagline { font-family: IvoryScript }`.
-                        .font(IvoryTypography.script(size: w * 0.050))
-                        .foregroundStyle(IvoryPalette.gold)
+                    fittedScriptText(
+                        tagline,
+                        size: w * 0.050,
+                        color: IvoryPalette.gold
+                    )
                 }
             }
 
             // The personalisation. Without it this is a template, not an invitation.
             region(IvoryGeometry.guest, w, h) {
                 // `.ivory-guest { gap: .25cqw; font-size: 2.2cqw; line-height: 1.4 }`
-                VStack(spacing: w * 0.0025) {
-                    if let guest = data.guestName, !guest.isEmpty {
-                        Text("Especially for \(guest)")
-                            .font(IvoryTypography.body(size: w * 0.022))
-                            .foregroundStyle(IvoryPalette.ink)
-                    }
-                    if let deadline = data.rsvpDeadlineLabel {
-                        Text("RSVP by \(deadline)")
-                            .font(IvoryTypography.body(size: w * 0.022))
-                            .foregroundStyle(IvoryPalette.ink)
-                    }
-                }
-                .multilineTextAlignment(.center)
+                fittedGuestPersonalization(w: w)
             }
             .accessibilityIdentifier("invitation-guest-personalization")
 
@@ -399,32 +383,33 @@ public struct IvoryFloralGoldNative: View {
             AccessibilityMarker("invitation-details", label: "Invitation details")
 
             region(IvoryGeometry.detailCouple, w, h) {
-                Text(data.coupleNames)
-                    .font(IvoryTypography.body(size: w * 0.030))
-                    .foregroundStyle(IvoryPalette.ink)
+                fittedBodyText(
+                    data.coupleNames,
+                    size: w * 0.030,
+                    color: IvoryPalette.ink
+                )
             }
             // The artwork's own sample copy is erased in these regions; leaving them empty showed
             // the erasure as a smudge where the couple's words belong.
             if let tagline = data.tagline, !tagline.isEmpty {
                 region(IvoryGeometry.detailNoteIntro, w, h) {
-                    Text(tagline)
-                        .font(IvoryTypography.script(size: w * 0.052))
-                        .foregroundStyle(IvoryPalette.gold)
-                        .multilineTextAlignment(.center)
+                    fittedScriptText(
+                        tagline,
+                        size: w * 0.052,
+                        color: IvoryPalette.gold
+                    )
                 }
             }
             region(IvoryGeometry.detailVenue, w, h) {
-                VStack(spacing: 1) {
-                    Text(data.venue).font(IvoryTypography.body(size: w * 0.024))
-                        .foregroundStyle(IvoryPalette.ink)
-                    if let address = data.venueAddress, !address.isEmpty {
-                        Text(address).font(IvoryTypography.body(size: w * 0.022))
-                            .foregroundStyle(IvoryPalette.inkSoft)
-                    }
-                    Text(data.venueCityCountry).font(IvoryTypography.body(size: w * 0.022))
-                        .foregroundStyle(IvoryPalette.inkSoft)
-                }
-                .multilineTextAlignment(.center)
+                fittedVenueText(
+                    venue: data.venue,
+                    address: data.venueAddress,
+                    cityCountry: data.venueCityCountry,
+                    primarySize: w * 0.024,
+                    secondarySize: w * 0.022,
+                    primaryColor: IvoryPalette.ink,
+                    secondaryColor: IvoryPalette.inkSoft
+                )
             }
             region(IvoryGeometry.detailNote, w, h) {
                 Text("A special message from us")
@@ -508,11 +493,13 @@ public struct IvoryFloralGoldNative: View {
 
             // The seal sits over the closed doors, and inks out as they part.
             region(IvoryGeometry.monogram, w, h) {
-                Text(data.monogram.replacingOccurrences(of: "·", with: " ")
-                        .replacingOccurrences(of: "|", with: " "))
-                    .font(IvoryTypography.body(size: w * 0.055))
-                    .foregroundStyle(IvoryPalette.ink)
-                    .opacity(max(0, min(1, 1 - doorProgress * 6)))
+                fittedBodyText(
+                    data.monogram.replacingOccurrences(of: "·", with: " ")
+                        .replacingOccurrences(of: "|", with: " "),
+                    size: w * 0.055,
+                    color: IvoryPalette.ink
+                )
+                .opacity(max(0, min(1, 1 - doorProgress * 6)))
             }
             .accessibilityIdentifier("invitation-monogram")
 
@@ -580,6 +567,173 @@ public struct IvoryFloralGoldNative: View {
                 perspective: 1 / IvoryGeometry.perspective * w
             )
             .offset(x: transform.translate * w)
+    }
+
+    // MARK: - Responsive authored text
+
+    /// Dynamic wedding copy must fit its authored percentage region without ever widening the
+    /// physical invitation. ViewThatFits evaluates vertical fit against the region's fixed width
+    /// and height; the source string itself is never truncated or rewritten.
+    @ViewBuilder
+    private func fittedBodyText(
+        _ text: String,
+        size: CGFloat,
+        color: Color,
+        tracking: CGFloat = 0,
+        lineSpacing: CGFloat = 0
+    ) -> some View {
+        ViewThatFits(in: .vertical) {
+            bodyTextVariant(text, size: size, scale: 1.00, color: color,
+                            tracking: tracking, lineSpacing: lineSpacing)
+            bodyTextVariant(text, size: size, scale: 0.86, color: color,
+                            tracking: tracking, lineSpacing: lineSpacing)
+            bodyTextVariant(text, size: size, scale: 0.72, color: color,
+                            tracking: tracking, lineSpacing: lineSpacing)
+            bodyTextVariant(text, size: size, scale: 0.58, color: color,
+                            tracking: tracking, lineSpacing: lineSpacing)
+            bodyTextVariant(text, size: size, scale: 0.46, color: color,
+                            tracking: tracking, lineSpacing: lineSpacing)
+        }
+    }
+
+    @ViewBuilder
+    private func bodyTextVariant(
+        _ text: String,
+        size: CGFloat,
+        scale: CGFloat,
+        color: Color,
+        tracking: CGFloat,
+        lineSpacing: CGFloat
+    ) -> some View {
+        Text(text)
+            .font(IvoryTypography.body(size: size * scale))
+            .tracking(tracking * scale)
+            .lineSpacing(lineSpacing * scale)
+            .foregroundStyle(color)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func fittedScriptText(_ text: String, size: CGFloat, color: Color) -> some View {
+        ViewThatFits(in: .vertical) {
+            scriptTextVariant(text, size: size, scale: 1.00, color: color)
+            scriptTextVariant(text, size: size, scale: 0.86, color: color)
+            scriptTextVariant(text, size: size, scale: 0.72, color: color)
+            scriptTextVariant(text, size: size, scale: 0.58, color: color)
+            scriptTextVariant(text, size: size, scale: 0.46, color: color)
+        }
+    }
+
+    @ViewBuilder
+    private func scriptTextVariant(
+        _ text: String,
+        size: CGFloat,
+        scale: CGFloat,
+        color: Color
+    ) -> some View {
+        Text(text)
+            .font(IvoryTypography.script(size: size * scale))
+            .foregroundStyle(color)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func fittedVenueText(
+        venue: String,
+        address: String?,
+        cityCountry: String,
+        primarySize: CGFloat,
+        secondarySize: CGFloat,
+        primaryColor: Color,
+        secondaryColor: Color
+    ) -> some View {
+        ViewThatFits(in: .vertical) {
+            venueVariant(
+                venue: venue, address: address, cityCountry: cityCountry,
+                primarySize: primarySize, secondarySize: secondarySize,
+                scale: 1.00, primaryColor: primaryColor, secondaryColor: secondaryColor
+            )
+            venueVariant(
+                venue: venue, address: address, cityCountry: cityCountry,
+                primarySize: primarySize, secondarySize: secondarySize,
+                scale: 0.82, primaryColor: primaryColor, secondaryColor: secondaryColor
+            )
+            venueVariant(
+                venue: venue, address: address, cityCountry: cityCountry,
+                primarySize: primarySize, secondarySize: secondarySize,
+                scale: 0.66, primaryColor: primaryColor, secondaryColor: secondaryColor
+            )
+            venueVariant(
+                venue: venue, address: address, cityCountry: cityCountry,
+                primarySize: primarySize, secondarySize: secondarySize,
+                scale: 0.52, primaryColor: primaryColor, secondaryColor: secondaryColor
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func venueVariant(
+        venue: String,
+        address: String?,
+        cityCountry: String,
+        primarySize: CGFloat,
+        secondarySize: CGFloat,
+        scale: CGFloat,
+        primaryColor: Color,
+        secondaryColor: Color
+    ) -> some View {
+        VStack(spacing: 1) {
+            Text(venue)
+                .font(IvoryTypography.body(size: primarySize * scale))
+                .foregroundStyle(primaryColor)
+                .fixedSize(horizontal: false, vertical: true)
+            if let address, !address.isEmpty {
+                Text(address)
+                    .font(IvoryTypography.body(size: secondarySize * scale))
+                    .foregroundStyle(secondaryColor)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text(cityCountry)
+                .font(IvoryTypography.body(size: secondarySize * scale))
+                .foregroundStyle(secondaryColor)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func fittedGuestPersonalization(w: CGFloat) -> some View {
+        ViewThatFits(in: .vertical) {
+            guestPersonalizationVariant(w: w, scale: 1.00)
+            guestPersonalizationVariant(w: w, scale: 0.84)
+            guestPersonalizationVariant(w: w, scale: 0.68)
+            guestPersonalizationVariant(w: w, scale: 0.54)
+        }
+    }
+
+    @ViewBuilder
+    private func guestPersonalizationVariant(w: CGFloat, scale: CGFloat) -> some View {
+        VStack(spacing: w * 0.0025 * scale) {
+            if let guest = data.guestName, !guest.isEmpty {
+                Text("Especially for \(guest)")
+                    .font(IvoryTypography.body(size: w * 0.022 * scale))
+                    .foregroundStyle(IvoryPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let deadline = data.rsvpDeadlineLabel, !deadline.isEmpty {
+                Text("RSVP by \(deadline)")
+                    .font(IvoryTypography.body(size: w * 0.022 * scale))
+                    .foregroundStyle(IvoryPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Layout helpers
