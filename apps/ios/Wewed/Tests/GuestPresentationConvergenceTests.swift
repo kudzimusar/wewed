@@ -42,7 +42,8 @@ final class GuestPresentationConvergenceTests: XCTestCase {
         XCTAssertTrue(source.contains("WeddingBrandMark()"))
         XCTAssertTrue(source.contains("WewedAsset.heroWedding"))
         XCTAssertTrue(source.contains("WeddingReferencePassView(pass: pass, showScanner: false)"))
-        XCTAssertTrue(source.contains("section == .pass && profile.attending == true"))
+        XCTAssertTrue(source.contains("case .pass where profile.attending == true"))
+        XCTAssertTrue(source.contains("WewedScreenContainer {"))
         XCTAssertTrue(source.contains("No venue admission pass is currently issued"))
 
         for forbidden in [
@@ -169,7 +170,9 @@ final class GuestPresentationConvergenceTests: XCTestCase {
         XCTAssertTrue(shell.contains("Directions to Venue"))
         XCTAssertTrue(shell.contains("WeddingReferencePassView(pass: pass, showScanner: false)"))
         XCTAssertTrue(shell.contains("Update RSVP in Invitation"))
-        XCTAssertTrue(shell.contains("safeAreaInset(edge: .bottom"))
+        XCTAssertTrue(shell.contains("TabView(selection: tabSelection)"))
+        XCTAssertTrue(shell.contains("WewedScreenContainer {"))
+        XCTAssertFalse(shell.contains(".safeAreaInset(edge: .bottom"))
     }
 
     func testInvitationReopensThroughLiveIvoryInsteadOfShadowOrWebview() throws {
