@@ -141,6 +141,7 @@ final class GuestResponsiveRootClosureTests: XCTestCase {
         XCTAssertTrue(ivory.contains("IvoryGeometry.hitNote"))
         XCTAssertTrue(ivory.contains(".highPriorityGesture("))
         XCTAssertTrue(ivory.contains("TapGesture().onEnded { action() }"))
+        XCTAssertTrue(ivory.contains(".accessibilityAction { action() }"))
         XCTAssertTrue(ivory.contains(".accessibilityIdentifier(identifier)"))
     }
 
