@@ -9,17 +9,22 @@ public enum GuestCapability: String, CaseIterable, Sendable {
 
 /// What a Guest may do, given what they have answered.
 ///
-/// The rule this encodes is the product rule, and it is easy to get backwards: **the invitation
-/// establishes identity; RSVP determines capability.** A guest who has not answered is not a
-/// stranger to be turned away — they are an invited guest who has not answered yet, and they may
-/// see their wedding, their invitation and their own profile.
+/// The invitation establishes identity; RSVP completion gates the persistent Guest experience.
+/// A pending Guest remains inside the invitation ceremony and its wedding-authorized actions.
+/// Attending and declined Guests may both enter the persistent shell; only attending Guests gain
+/// admission and Wedding Day capabilities.
 ///
 /// A pure function on purpose. Scattering `attending == true` checks through views is how a
 /// declined guest ends up holding an admission credential in one place and not another.
 public enum GuestCapabilityPolicy {
 
-    /// Everything an invited Guest may reach regardless of their answer.
-    private static let always: Set<GuestCapability> = [
+    /// Invitation-side actions available before an RSVP answer exists.
+    private static let invitationOnly: Set<GuestCapability> = [
+        .invitation, .weddingDetails, .venue, .coupleWebsite, .registry,
+    ]
+
+    /// Persistent Guest application capabilities shared by attending and declined Guests.
+    private static let persistent: Set<GuestCapability> = [
         .home, .invitation, .weddingDetails, .venue, .coupleWebsite, .registry, .profile,
     ]
 
@@ -31,17 +36,21 @@ public enum GuestCapabilityPolicy {
     /// - Parameter attending: nil when the guest has not answered; true attending; false declined.
     public static func capabilities(attending: Bool?) -> Set<GuestCapability> {
         switch attending {
-        // Not answered: everything except the pass, plus the question itself.
-        case .none: return always.union([.rsvp])
-        case .some(true): return always.union(attendingOnly)
-        // Declined. They keep their invitation and their profile — they were invited, and that
-        // does not stop being true because they cannot come. What they do not get is admission.
-        case .some(false): return always
+        // Pending: invitation ceremony only. No Home/Profile shell before RSVP completion.
+        case .none: return invitationOnly.union([.rsvp])
+        case .some(true): return persistent.union(attendingOnly)
+        // Declined Guests remain invited and may enter their Guest application, but never admission.
+        case .some(false): return persistent
         }
     }
 
     public static func allows(attending: Bool?, _ capability: GuestCapability) -> Bool {
         capabilities(attending: attending).contains(capability)
+    }
+
+    /// The navigation/state-machine gate; views must not substitute tab hiding for this rule.
+    public static func mayEnterPersistentExperience(attending: Bool?) -> Bool {
+        attending != nil
     }
 
     /// Whether the RSVP question should still be asked.
