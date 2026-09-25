@@ -23,18 +23,27 @@ enum class GuestCapability {
 /**
  * What a Guest may do, given what they have answered.
  *
- * The rule this encodes is the product rule, and it is easy to get backwards: **the invitation
- * establishes identity; RSVP determines capability.** A guest who has not answered is not a
- * stranger to be turned away — they are an invited guest who has not answered yet, and they may
- * see their wedding, their invitation and their own profile.
+ * The invitation establishes identity; RSVP completion gates the persistent Guest experience.
+ * A pending Guest remains inside the invitation ceremony and its wedding-authorized actions.
+ * Attending and declined Guests may both enter the persistent shell; only attending Guests gain
+ * admission and Wedding Day capabilities.
  *
  * A pure function on purpose. Scattering `attending == true` checks through views is how a
  * declined guest ends up holding an admission credential in one place and not another.
  */
 object GuestCapabilityPolicy {
 
-    /** Everything an invited Guest may reach regardless of their answer. */
-    private val ALWAYS = setOf(
+    /** Invitation-side actions available before an RSVP answer exists. */
+    private val INVITATION_ONLY = setOf(
+        GuestCapability.INVITATION,
+        GuestCapability.WEDDING_DETAILS,
+        GuestCapability.VENUE,
+        GuestCapability.COUPLE_WEBSITE,
+        GuestCapability.REGISTRY
+    )
+
+    /** Persistent Guest application capabilities shared by attending and declined Guests. */
+    private val PERSISTENT = setOf(
         GuestCapability.HOME,
         GuestCapability.INVITATION,
         GuestCapability.WEDDING_DETAILS,
@@ -58,15 +67,17 @@ object GuestCapabilityPolicy {
      * @param attending null when the guest has not answered; true attending; false declined.
      */
     fun capabilities(attending: Boolean?): Set<GuestCapability> = when (attending) {
-        // Not answered: everything except the pass, plus the question itself.
-        null -> ALWAYS + GuestCapability.RSVP
+        // Pending: invitation ceremony only. No Home/Profile shell before RSVP completion.
+        null -> INVITATION_ONLY + GuestCapability.RSVP
 
-        true -> ALWAYS + ATTENDING_ONLY
+        true -> PERSISTENT + ATTENDING_ONLY
 
-        // Declined. They keep their invitation and their profile — they were invited, and that
-        // does not stop being true because they cannot come. What they do not get is admission.
-        false -> ALWAYS
+        // Declined Guests remain invited and may enter their Guest application, but never admission.
+        false -> PERSISTENT
     }
+
+    /** The navigation/state-machine gate; views must not substitute tab hiding for this rule. */
+    fun mayEnterPersistentExperience(attending: Boolean?): Boolean = attending != null
 
     fun allows(attending: Boolean?, capability: GuestCapability): Boolean =
         capability in capabilities(attending)
