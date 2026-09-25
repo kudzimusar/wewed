@@ -132,28 +132,19 @@ final class GuestResponsiveRootClosureTests: XCTestCase {
         XCTAssertTrue(invitation.contains("rsvpDeadlineLabel: rsvpDeadline"))
     }
 
-    func testCoupleNoteHotspotUsesSameNativeButtonContractAsOtherDetailsActions() throws {
+    func testCoupleNoteUsesOneVisibleNativeButtonInTheAuthoredHitRegion() throws {
         let ivory = try Self.source(
             "apps/ios/Wewed/Views/Invitation/Ivory/IvoryFloralGoldNative.swift"
         )
 
-        XCTAssertTrue(ivory.contains("IvoryGeometry.hitNote"))
-        XCTAssertTrue(ivory.contains("\"invitation-cta-note\""))
-        XCTAssertFalse(ivory.contains("gestureHit("))
-        XCTAssertFalse(ivory.contains(".highPriorityGesture("))
-    }
-
-    func testCoupleNoteHitBoxAlsoRoutesPhysicalTapsThroughDetailsCoordinateSpace() throws {
-        let ivory = try Self.source(
-            "apps/ios/Wewed/Views/Invitation/Ivory/IvoryFloralGoldNative.swift"
-        )
-
-        XCTAssertTrue(ivory.contains("SpatialTapGesture().onEnded"))
-        XCTAssertTrue(ivory.contains("let noteRect = CGRect("))
+        XCTAssertTrue(ivory.contains("if let onNote = actions.onNote"))
+        XCTAssertTrue(ivory.contains("Button(action: onNote)"))
         XCTAssertTrue(ivory.contains("IvoryGeometry.hitNote[0]"))
         XCTAssertTrue(ivory.contains("IvoryGeometry.hitNote[1]"))
-        XCTAssertTrue(ivory.contains("if noteRect.contains(tap.location)"))
-        XCTAssertTrue(ivory.contains("onNote()"))
+        XCTAssertTrue(ivory.contains("\"invitation-cta-note\""))
+        XCTAssertFalse(ivory.contains("SpatialTapGesture().onEnded"))
+        XCTAssertFalse(ivory.contains("let noteRect = CGRect("))
+        XCTAssertFalse(ivory.contains("gestureHit("))
     }
 
     func testIvoryDetailHotspotsUseNativeButtonsForReliableActivation() throws {
