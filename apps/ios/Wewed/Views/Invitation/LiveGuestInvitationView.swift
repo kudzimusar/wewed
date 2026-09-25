@@ -582,8 +582,15 @@ private struct LiveRsvpFormView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let horizontalInset: CGFloat = 8
-            let sheetWidth = max(0, proxy.size.width - horizontalInset * 2)
+            let sheetWidth = GuestViewportGeometry.rsvpSheetWidth(
+                viewportWidth: proxy.size.width
+            )
+            let contentWidth = GuestViewportGeometry.rsvpContentWidth(
+                viewportWidth: proxy.size.width
+            )
+            let attendanceChoiceWidth = GuestViewportGeometry.rsvpAttendanceChoiceWidth(
+                viewportWidth: proxy.size.width
+            )
             let sheetHeight = min(max(0, proxy.size.height * 0.90), 720)
 
             ZStack(alignment: .bottom) {
@@ -608,29 +615,33 @@ private struct LiveRsvpFormView: View {
                                         .foregroundStyle(WeddingIdentityPalette.ink)
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
+                            .frame(width: contentWidth, alignment: .leading)
 
                             if !guestName.isEmpty {
                                 Text("For \(guestName)")
                                     .font(.system(size: 13))
                                     .foregroundStyle(WeddingIdentityPalette.muted)
                                     .fixedSize(horizontal: false, vertical: true)
+                                    .frame(width: contentWidth, alignment: .leading)
                             }
 
-                            HStack(spacing: 8) {
+                            HStack(spacing: GuestViewportGeometry.rsvpAttendanceSpacing) {
                                 choiceChip(
                                     "Joyfully accept",
                                     selected: accepting,
                                     identifier: "invitation-rsvp-accept",
-                                    fillsWidth: true
+                                    fixedWidth: attendanceChoiceWidth
                                 ) { accepting = true }
                                 choiceChip(
                                     "Regretfully decline",
                                     selected: !accepting,
                                     identifier: "invitation-rsvp-decline",
-                                    fillsWidth: true
+                                    fixedWidth: attendanceChoiceWidth
                                 ) { accepting = false }
                             }
+                            .frame(width: contentWidth, alignment: .leading)
 
                             if accepting {
                                 VStack(alignment: .leading, spacing: 8) {
@@ -638,6 +649,9 @@ private struct LiveRsvpFormView: View {
                                         .font(.system(size: 12, weight: .semibold))
                                         .foregroundStyle(WeddingIdentityPalette.muted)
 
+                                    // The meal options are the only intentionally horizontal region
+                                    // inside RSVP. The ScrollView itself is bounded to contentWidth,
+                                    // so its wider HStack cannot enlarge the modal.
                                     ScrollView(.horizontal, showsIndicators: false) {
                                         HStack(spacing: 8) {
                                             ForEach(liveRsvpMealOptions, id: \.value) { option in
@@ -651,6 +665,8 @@ private struct LiveRsvpFormView: View {
                                             }
                                         }
                                     }
+                                    .frame(width: contentWidth)
+                                    .accessibilityIdentifier("invitation-rsvp-meal-carousel")
 
                                     Divider().padding(.vertical, 4)
 
@@ -659,16 +675,20 @@ private struct LiveRsvpFormView: View {
                                         isOn: $plusOne,
                                         identifier: "invitation-rsvp-plus-one-toggle"
                                     )
+                                    .frame(width: contentWidth)
+
                                     if plusOne {
                                         VStack(spacing: 8) {
                                             TextField("Plus one's name", text: $plusOneName)
                                                 .textFieldStyle(.roundedBorder)
+                                                .frame(width: contentWidth)
                                                 .accessibilityIdentifier("invitation-rsvp-plus-one-name")
                                             TextField("Their meal preference", text: $plusOneMeal)
                                                 .textFieldStyle(.roundedBorder)
+                                                .frame(width: contentWidth)
                                                 .accessibilityIdentifier("invitation-rsvp-plus-one-meal")
                                         }
-                                        .frame(maxWidth: .infinity)
+                                        .frame(width: contentWidth)
                                         .accessibilityIdentifier("invitation-rsvp-plus-one-details")
                                     }
 
@@ -679,6 +699,7 @@ private struct LiveRsvpFormView: View {
                                             .font(.system(size: 12))
                                             .foregroundStyle(WeddingIdentityPalette.muted)
                                             .fixedSize(horizontal: false, vertical: true)
+                                            .frame(width: contentWidth, alignment: .leading)
                                             .accessibilityIdentifier("invitation-rsvp-adults-only-note")
                                     } else {
                                         toggleRow(
@@ -686,6 +707,8 @@ private struct LiveRsvpFormView: View {
                                             isOn: $kidsAttending,
                                             identifier: "invitation-rsvp-kids-toggle"
                                         )
+                                        .frame(width: contentWidth)
+
                                         if kidsAttending {
                                             HStack(spacing: 16) {
                                                 Button {
@@ -712,22 +735,23 @@ private struct LiveRsvpFormView: View {
                                                 .buttonStyle(.plain)
                                                 .foregroundStyle(WeddingIdentityPalette.ink)
                                             }
+                                            .frame(width: contentWidth, alignment: .leading)
                                             .accessibilityIdentifier("invitation-rsvp-kids-stepper")
                                         }
                                     }
 
                                     TextField("Dietary notes", text: $dietaryNotes, axis: .vertical)
                                         .textFieldStyle(.roundedBorder)
-                                        .frame(maxWidth: .infinity)
+                                        .frame(width: contentWidth)
                                         .accessibilityIdentifier("invitation-rsvp-dietary-notes")
                                 }
-                                .frame(maxWidth: .infinity)
+                                .frame(width: contentWidth, alignment: .leading)
                                 .accessibilityIdentifier("invitation-rsvp-attending-fields")
                             }
 
                             TextField("Message to the couple", text: $message, axis: .vertical)
                                 .textFieldStyle(.roundedBorder)
-                                .frame(maxWidth: .infinity)
+                                .frame(width: contentWidth)
                                 .accessibilityIdentifier("invitation-rsvp-message")
 
                             if childrenNotAllowed {
@@ -735,6 +759,7 @@ private struct LiveRsvpFormView: View {
                                     .font(.system(size: 12))
                                     .foregroundStyle(WewedColors.error)
                                     .fixedSize(horizontal: false, vertical: true)
+                                    .frame(width: contentWidth, alignment: .leading)
                                     .onTapGesture(perform: onDismissChildrenNotice)
                                     .accessibilityIdentifier("invitation-rsvp-children-not-allowed")
                             }
@@ -747,7 +772,7 @@ private struct LiveRsvpFormView: View {
                                         .font(.system(size: 13))
                                         .foregroundStyle(WeddingIdentityPalette.muted)
                                 }
-                                .frame(minHeight: 44)
+                                .frame(width: contentWidth, minHeight: 44, alignment: .leading)
                             } else {
                                 Button { onSubmit(buildUpdate()) } label: {
                                     HStack(spacing: 8) {
@@ -756,7 +781,7 @@ private struct LiveRsvpFormView: View {
                                             .fontWeight(.semibold)
                                     }
                                     .foregroundStyle(.white)
-                                    .frame(maxWidth: .infinity, minHeight: 50)
+                                    .frame(width: contentWidth, minHeight: 50)
                                     .background(WeddingIdentityPalette.champagneDeep)
                                     .clipShape(RoundedRectangle(cornerRadius: 13))
                                 }
@@ -764,10 +789,11 @@ private struct LiveRsvpFormView: View {
                                 .accessibilityIdentifier("invitation-rsvp-save")
                             }
                         }
-                        .padding(.horizontal, 20)
+                        .frame(width: contentWidth, alignment: .leading)
+                        .padding(.horizontal, GuestViewportGeometry.rsvpInternalPadding)
                         .padding(.vertical, 22)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .frame(width: sheetWidth)
                 }
                 .frame(width: sheetWidth, height: sheetHeight)
                 .background(WeddingIdentityPalette.ivorySoft)
@@ -789,7 +815,7 @@ private struct LiveRsvpFormView: View {
         _ label: String,
         selected: Bool,
         identifier: String,
-        fillsWidth: Bool = false,
+        fixedWidth: CGFloat? = nil,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -799,11 +825,8 @@ private struct LiveRsvpFormView: View {
                 .foregroundStyle(
                     selected ? WeddingIdentityPalette.forest : WeddingIdentityPalette.muted
                 )
-                .padding(.horizontal, 12)
-                .frame(
-                    maxWidth: fillsWidth ? .infinity : nil,
-                    minHeight: 44
-                )
+                .padding(.horizontal, 10)
+                .frame(width: fixedWidth, minHeight: 44)
                 .background(
                     selected
                         ? WeddingIdentityPalette.forestSoft
