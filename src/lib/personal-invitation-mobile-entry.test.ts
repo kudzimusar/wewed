@@ -14,6 +14,14 @@ describe('personal invitation mobile entry', () => {
     )
   })
 
+  test('Android keeps browser continuation as a secondary option when native handoff is enabled', () => {
+    const handoff = source('src/components/wedding/invitation-app-handoff.tsx')
+
+    expect(handoff).toContain('data-testid="android-continue-in-browser"')
+    expect(handoff).toContain('Continue in browser instead')
+    expect(handoff).toContain('href={continueInBrowser}')
+  })
+
   test('iOS fallback does not invent an App Store destination or claim the app is coming soon', () => {
     const handoff = source('src/components/wedding/invitation-app-handoff.tsx')
 
@@ -48,7 +56,6 @@ describe('personal invitation mobile entry', () => {
     expect(registry).toContain("id: 'ivory-floral-gold'")
     expect(registry).toContain("motion: 'tri-fold'")
   })
-})
 
   test('web Guest Pass is backed by the same WW2 Wedding Day authority as native', () => {
     const dialog = source(
@@ -65,4 +72,4 @@ describe('personal invitation mobile entry', () => {
     expect(route).toContain('publicKeyDerBase64: passKey.publicKeyDerBase64')
     expect(route).toContain('token: credential.token')
   })
-
+})
