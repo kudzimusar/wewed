@@ -328,7 +328,8 @@ fun resolveLiveVenueDestination(presentation: LiveInvitationPresentation): Strin
         presentation.venue?.takeIf { it.isNotBlank() },
         presentation.venueCityCountry.takeIf { it.isNotBlank() }
     ).joinToString(", ")
-    return "geo:0,0?q=" + Uri.encode(query)
+    val encoded = java.net.URLEncoder.encode(query, Charsets.UTF_8.name()).replace("+", "%20")
+    return "geo:0,0?q=$encoded"
 }
 
 fun resolveLiveInvitationActions(
