@@ -10,6 +10,7 @@ import pro.wewed.app.invitation.*
 import pro.wewed.app.models.RSVPStatus
 import pro.wewed.app.services.InMemorySecureStorage
 import pro.wewed.app.ui.invitation.resolveLiveInvitationActions
+import pro.wewed.app.ui.invitation.resolveLiveVenueDestination
 import pro.wewed.app.ui.invitation.ivory.ivoryRsvpActionLabel
 import pro.wewed.app.ui.invitation.ivoryRsvpStateFrom
 import java.io.BufferedReader
@@ -538,6 +539,7 @@ class LiveGuestInvitationCoordinatorTest {
             onViewPass = { navigated = true }
         )
         assertTrue(ivoryRsvpStateFrom(pending.rsvpStatus).isPassLocked)
+        assertNull("pending invitation must not expose a Continue transition", pendingActions.onContinue)
         pendingActions.onViewPass!!.invoke()
         assertTrue("pending Pass must open RSVP", prompted)
         assertFalse("pending Pass must not enter the persistent shell", navigated)
@@ -552,10 +554,56 @@ class LiveGuestInvitationCoordinatorTest {
                 onViewPass = { navigated = true }
             )
             assertTrue("answered Guest Pass must remain available", ivoryRsvpStateFrom(answered.rsvpStatus).offersPass)
+            assertNotNull("answered invitation may expose Continue", actions.onContinue)
             actions.onViewPass!!.invoke()
             assertTrue("answered Guest Pass must transition to Pass", navigated)
             assertFalse("answered Guest Pass must not reopen RSVP", prompted)
         }
+    }
+
+    @Test
+    fun venueActionPrefersTheCoupleConfiguredMapUrl() {
+        val configured = LiveInvitationPresentation.from(
+            GuestInvitationSnapshot(
+                weddingSlug = "sample-wedding",
+                title = "Sample Wedding",
+                monogram = "S&W",
+                tagline = null,
+                date = "2026-12-23T14:00:00",
+                venue = "Imba Manor",
+                venueMapUrl = "https://maps.example/authoritative-destination",
+                venueCity = "Harare",
+                venueCountry = "Zimbabwe",
+                invitationCardStyle = "ivory-floral-gold",
+                invitationCardMessage = null,
+                rsvpDeadline = null,
+                childrenPolicy = "welcome",
+                guestId = "guest_live",
+                guestName = "Live Guest",
+                email = null,
+                tableNumber = null,
+                tableName = null,
+                attending = true,
+                mealChoice = null,
+                plusOne = false,
+                plusOneName = null,
+                plusOneMeal = null,
+                kidsAttending = false,
+                kidsCount = null,
+                dietaryNotes = null,
+                message = null,
+                checkedIn = false,
+                checkedInAt = null
+            )
+        )
+        assertEquals(
+            "https://maps.example/authoritative-destination",
+            resolveLiveVenueDestination(configured)
+        )
+
+        val fallback = configured.copyPresentationForVenueTest(venueMapUrl = null)
+        assertTrue(resolveLiveVenueDestination(fallback).startsWith("geo:0,0?q="))
+        assertTrue(resolveLiveVenueDestination(fallback).contains("Imba"))
     }
 
     /**
