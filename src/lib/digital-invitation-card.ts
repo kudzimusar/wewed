@@ -79,5 +79,5 @@ export function buildDigitalInvitationUrl({ siteUrl, weddingSlug, token, style }
 }
 
 export function buildDigitalInvitationMessage({ guestName, weddingTitle, invitationUrl }: { guestName: string; weddingTitle: string; invitationUrl: string }): string {
-  return `Dear ${guestName},\n\nYou are warmly invited to ${weddingTitle}. Open your private digital wedding card and RSVP here:\n${invitationUrl}\n\nThis link is personal to you. Please do not forward it.`
+  return `Dear ${guestName},\n\nYou are warmly invited to ${weddingTitle}.\n\nOpen your private digital wedding invitation and RSVP:\n${invitationUrl}\n\nThis invitation is personal to you. Please do not forward it.`
 }
