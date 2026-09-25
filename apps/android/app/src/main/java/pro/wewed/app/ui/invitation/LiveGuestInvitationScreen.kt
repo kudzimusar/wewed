@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -157,10 +160,37 @@ fun LiveGuestInvitationScreen(
         )
 
         if (onBackToWedding != null) {
-            androidx.compose.material3.TextButton(
+            Surface(
                 onClick = onBackToWedding,
-                modifier = Modifier.align(Alignment.TopStart).testTag("invitation-back-to-wedding")
-            ) { Text("Back to My Wedding") }
+                shape = RoundedCornerShape(999.dp),
+                color = WeddingIdentityPalette.IvorySoft.copy(alpha = 0.97f),
+                border = BorderStroke(1.dp, WeddingIdentityPalette.Champagne.copy(alpha = 0.70f)),
+                shadowElevation = 2.dp,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .heightIn(min = 48.dp)
+                    .testTag("invitation-back-to-wedding")
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.ArrowBack,
+                        contentDescription = null,
+                        tint = WeddingIdentityPalette.ChampagneDeep,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        "Back to My Wedding",
+                        color = WeddingIdentityPalette.ChampagneDeep,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
         }
 
         if (rsvpPrompt && rsvpEditorPresentation != null) {
@@ -254,8 +284,9 @@ private fun NoteFromTheCouple(note: String, onDismiss: () -> Unit) {
     ) {
         Surface(
             modifier = Modifier
-                .padding(horizontal = 28.dp)
+                .padding(horizontal = 16.dp)
                 .fillMaxWidth()
+                .widthIn(max = 420.dp)
                 .clickable(enabled = false) {},
             shape = RoundedCornerShape(24.dp),
             color = WeddingIdentityPalette.IvorySoft,
@@ -268,10 +299,35 @@ private fun NoteFromTheCouple(note: String, onDismiss: () -> Unit) {
                     alpha = 0.075f
                 )
                 Column(
-                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 30.dp),
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Surface(
+                            onClick = onDismiss,
+                            shape = RoundedCornerShape(999.dp),
+                            color = WeddingIdentityPalette.IvorySoft.copy(alpha = 0.94f),
+                            border = BorderStroke(
+                                1.dp,
+                                WeddingIdentityPalette.Champagne.copy(alpha = 0.55f)
+                            ),
+                            modifier = Modifier
+                                .size(44.dp)
+                                .testTag("invitation-note-dismiss")
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Filled.Close,
+                                    contentDescription = "Close note",
+                                    tint = WeddingIdentityPalette.ChampagneDeep
+                                )
+                            }
+                        }
+                    }
                     WeddingBrandMark()
                     Text(
                         "A note from us",
@@ -293,9 +349,10 @@ private fun NoteFromTheCouple(note: String, onDismiss: () -> Unit) {
                         lineHeight = 24.sp
                     )
                     Text(
-                        "Tap outside to return to your invitation",
+                        "Your invitation remains behind this note.",
                         fontSize = 11.sp,
-                        color = WeddingIdentityPalette.Muted
+                        color = WeddingIdentityPalette.Muted,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
@@ -493,9 +550,22 @@ private fun LiveRsvpForm(
                         )
                     }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                RsvpChoiceChip("Joyfully accept", selected = accepting, testTag = "invitation-rsvp-accept") { accepting = true }
-                RsvpChoiceChip("Regretfully decline", selected = !accepting, testTag = "invitation-rsvp-decline") { accepting = false }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                RsvpChoiceChip(
+                    "Joyfully accept",
+                    selected = accepting,
+                    testTag = "invitation-rsvp-accept",
+                    modifier = Modifier.weight(1f)
+                ) { accepting = true }
+                RsvpChoiceChip(
+                    "Regretfully decline",
+                    selected = !accepting,
+                    testTag = "invitation-rsvp-decline",
+                    modifier = Modifier.weight(1f)
+                ) { accepting = false }
             }
 
             if (accepting) {
@@ -627,7 +697,10 @@ private fun LiveRsvpForm(
                     } else {
                         Button(
                             onClick = { onSubmit(buildUpdate()) },
-                            colors = ButtonDefaults.buttonColors(containerColor = WeddingIdentityPalette.Forest),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = WeddingIdentityPalette.ChampagneDeep,
+                                contentColor = Color.White
+                            ),
                             shape = RoundedCornerShape(13.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -644,7 +717,13 @@ private fun LiveRsvpForm(
 }
 
 @Composable
-private fun RsvpChoiceChip(label: String, selected: Boolean, testTag: String, onClick: () -> Unit) {
+private fun RsvpChoiceChip(
+    label: String,
+    selected: Boolean,
+    testTag: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(999.dp),
@@ -654,15 +733,22 @@ private fun RsvpChoiceChip(label: String, selected: Boolean, testTag: String, on
             if (selected) WeddingIdentityPalette.Forest.copy(alpha = 0.55f)
             else WeddingIdentityPalette.Hairline
         ),
-        modifier = Modifier.testTag(testTag)
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .testTag(testTag)
     ) {
-        Text(
-            label,
-            fontSize = 13.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (selected) WeddingIdentityPalette.Forest else WeddingIdentityPalette.Muted,
-            modifier = Modifier.padding(vertical = 9.dp, horizontal = 14.dp)
-        )
+        Box(
+            modifier = Modifier.padding(horizontal = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                label,
+                fontSize = 13.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (selected) WeddingIdentityPalette.Forest else WeddingIdentityPalette.Muted,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
@@ -677,7 +763,7 @@ private fun RsvpToggleRow(label: String, checked: Boolean, onCheckedChange: (Boo
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedTrackColor = WewedColors.Emerald)
+            colors = SwitchDefaults.colors(checkedTrackColor = WeddingIdentityPalette.Forest)
         )
     }
 }
@@ -819,15 +905,20 @@ fun InvitationUnavailableScreen(onRetry: () -> Unit) {
                 color = WeddingIdentityPalette.Muted,
                 textAlign = TextAlign.Center
             )
-            Text(
-                "Continue to Wewed",
-                fontWeight = FontWeight.SemiBold,
-                color = WewedColors.Emerald,
+            Button(
+                onClick = onRetry,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = WeddingIdentityPalette.ChampagneDeep,
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(13.dp),
                 modifier = Modifier
-                    .clickable(onClick = onRetry)
-                    .padding(8.dp)
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
                     .testTag("invitation-unavailable-dismiss")
-            )
+            ) {
+                Text("Continue to Wewed", fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
