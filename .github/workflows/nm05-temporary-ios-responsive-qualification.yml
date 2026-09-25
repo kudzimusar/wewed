@@ -1,0 +1,55 @@
+name: NM05 Temporary iOS Responsive Qualification
+
+on:
+  push:
+    branches:
+      - native-mobile/phase13-ios-responsive-shell-closure-nm05-20260925
+    paths:
+      - 'apps/ios/**'
+      - '.github/workflows/nm05-temporary-ios-responsive-qualification.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nm05-ios-responsive-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    name: iOS Swift + application build
+    runs-on: macos-14
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Select Xcode 16.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Swift tests
+        working-directory: apps/ios
+        run: swift test
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate app project
+        working-directory: apps/ios
+        run: xcodegen generate --spec project.yml
+
+      - name: Build iOS app target for simulator
+        working-directory: apps/ios
+        run: >-
+          xcodebuild
+          -project Wewed.xcodeproj
+          -scheme Wewed
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          build
