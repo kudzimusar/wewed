@@ -275,12 +275,20 @@ public struct LiveGuestShellView: View {
 
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     if let countdown = Self.countdown(from: profile.weddingDate, now: context.date) {
-                        HStack(spacing: 6) {
-                            guestCountdownTile(countdown.days, "Days")
-                            guestCountdownTile(countdown.hours, "Hours")
-                            guestCountdownTile(countdown.minutes, "Mins")
-                            guestCountdownTile(countdown.seconds, "Secs")
+                        GeometryReader { rowProxy in
+                            let tileWidth = GuestViewportGeometry.countdownTileWidth(
+                                rowWidth: rowProxy.size.width
+                            )
+
+                            HStack(spacing: GuestViewportGeometry.countdownInterTileSpacing) {
+                                guestCountdownTile(countdown.days, "Days", width: tileWidth)
+                                guestCountdownTile(countdown.hours, "Hours", width: tileWidth)
+                                guestCountdownTile(countdown.minutes, "Mins", width: tileWidth)
+                                guestCountdownTile(countdown.seconds, "Secs", width: tileWidth)
+                            }
+                            .frame(width: rowProxy.size.width, alignment: .leading)
                         }
+                        .frame(height: 48)
                         .padding(.top, 3)
                     }
                 }
@@ -302,15 +310,22 @@ public struct LiveGuestShellView: View {
         .accessibilityIdentifier("live-guest-hero")
     }
 
-    private func guestCountdownTile(_ value: Int, _ label: String) -> some View {
+    private func guestCountdownTile(
+        _ value: Int,
+        _ label: String,
+        width: CGFloat
+    ) -> some View {
         VStack(spacing: 1) {
             Text("\(value)")
                 .font(.system(size: 21, design: .serif))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
             Text(label)
                 .font(.system(size: 9))
+                .lineLimit(1)
         }
         .foregroundStyle(.white)
-        .frame(maxWidth: .infinity)
+        .frame(width: width)
         .padding(.vertical, 7)
         .background(Color.black.opacity(0.46))
         .clipShape(RoundedRectangle(cornerRadius: 10))
