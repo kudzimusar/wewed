@@ -307,10 +307,18 @@ export function InvitationAppHandoff({
               </button>
             </>
           )}
+
+          <a
+            data-testid="android-continue-in-browser"
+            href={continueInBrowser}
+            className="flex min-h-12 w-full items-center justify-center rounded-2xl border border-[#b89155]/35 px-5 py-3 text-sm font-semibold text-[#d6cec5]"
+          >
+            Continue in browser instead
+          </a>
         </div>
 
         <p className="mt-5 text-center text-xs leading-5 text-[#9f958a]">
-          On Android the invitation is revealed only inside Wewed. Google Play receives only a temporary one-time handoff, never the RSVP token or guest details.
+          Wewed is preferred on Android. Google Play receives only a temporary one-time handoff, never the RSVP token or guest details; secure browser continuation remains available as a secondary option.
         </p>
       </section>
     </main>
