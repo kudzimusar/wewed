@@ -273,8 +273,30 @@ jobs:
           DEVICE="$(xcrun simctl list devicetypes -j | python3 -c 'import json,sys; d=json.load(sys.stdin); a=d["devicetypes"]; x=next((v for v in a if v["name"]=="iPhone 16 Pro"),None) or next(v for v in a if "iPhone" in v["name"]); print(x["identifier"])')"
           UDID="$(xcrun simctl create NM05-iPhone "$DEVICE" "$RUNTIME")"
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
-          xcrun simctl boot "$UDID"
-          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl boot "$UDID" || true
+
+          python3 - "$UDID" <<'PY'
+          import subprocess, sys, time
+          udid = sys.argv[1]
+
+          def wait_for_boot(label):
+              print(f"Waiting for simulator boot ({label})...", flush=True)
+              subprocess.run(
+                  ["xcrun", "simctl", "bootstatus", udid, "-b"],
+                  check=True,
+                  timeout=150,
+              )
+
+          try:
+              wait_for_boot("attempt 1")
+          except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+              print(f"First boot attempt failed: {error}", flush=True)
+              subprocess.run(["xcrun", "simctl", "shutdown", udid], check=False)
+              time.sleep(3)
+              subprocess.run(["xcrun", "simctl", "boot", udid], check=False)
+              wait_for_boot("attempt 2")
+          PY
+
           xcrun simctl install "$UDID" "$RUNNER_TEMP/nm05-derived/Build/Products/Debug-iphonesimulator/Wewed.app"
 
       - name: Launch Guest app
