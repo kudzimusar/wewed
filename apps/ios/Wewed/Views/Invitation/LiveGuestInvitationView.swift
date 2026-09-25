@@ -215,22 +215,41 @@ public struct LiveGuestInvitationView: View {
     /// alternative is putting words in their mouth.
     private func noteFromTheCouple(_ note: String) -> some View {
         ZStack {
-            Color.black.opacity(0.45)
+            Color.black.opacity(0.40)
                 .ignoresSafeArea()
                 .onTapGesture { showNote = false }
-            VStack(spacing: 12) {
-                Text("A note from us")
-                    .font(.system(size: 13))
-                    .tracking(1.8)
-                    .foregroundStyle(WeddingIdentityPalette.muted)
-                Text(note)
-                    .font(.system(size: 16, design: .serif))
-                    .foregroundStyle(WeddingIdentityPalette.ink)
-                    .multilineTextAlignment(.center)
+
+            ZStack {
+                WeddingFloralBackground(opacity: 0.075)
+                VStack(spacing: 14) {
+                    WeddingBrandMark()
+                    Text("A note from us")
+                        .font(.system(size: 22, design: .serif))
+                        .foregroundStyle(WeddingIdentityPalette.ink)
+                    Rectangle()
+                        .fill(WeddingIdentityPalette.champagne.opacity(0.70))
+                        .frame(width: 64, height: 1)
+                    Text(note)
+                        .font(.system(size: 16, design: .serif))
+                        .foregroundStyle(WeddingIdentityPalette.ink)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(5)
+                    Text("Tap outside to return to your invitation")
+                        .font(.system(size: 11))
+                        .foregroundStyle(WeddingIdentityPalette.muted)
+                }
+                .padding(.horizontal, 28)
+                .padding(.vertical, 30)
             }
-            .padding(24)
-            .background(WeddingIdentityPalette.ivory)
-            .padding(32)
+            .frame(maxWidth: 420)
+            .background(WeddingIdentityPalette.ivorySoft)
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .overlay(
+                RoundedRectangle(cornerRadius: 24)
+                    .stroke(WeddingIdentityPalette.champagne.opacity(0.55), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 8)
+            .padding(.horizontal, 28)
         }
         .accessibilityIdentifier("invitation-note-sheet")
     }
@@ -450,19 +469,31 @@ private struct LiveRsvpFormView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Color.black.opacity(0.45)
+            Color.black.opacity(0.40)
                 .ignoresSafeArea()
                 .onTapGesture { if !isSubmitting { onDismiss() } }
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Will you be joining us?")
-                        .font(.system(size: 20, design: .serif))
-                        .foregroundStyle(WeddingIdentityPalette.ink)
-                    if !guestName.isEmpty {
-                        Text(guestName)
-                            .font(.system(size: 13))
-                            .foregroundStyle(WeddingIdentityPalette.muted)
-                    }
+
+            ZStack {
+                WeddingFloralBackground(opacity: 0.045)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(spacing: 12) {
+                            WeddingBrandMark()
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("RSVP")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .tracking(2)
+                                    .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                                Text("Will you be joining us?")
+                                    .font(.system(size: 23, design: .serif))
+                                    .foregroundStyle(WeddingIdentityPalette.ink)
+                            }
+                        }
+                        if !guestName.isEmpty {
+                            Text("For \(guestName)")
+                                .font(.system(size: 13))
+                                .foregroundStyle(WeddingIdentityPalette.muted)
+                        }
 
                     HStack(spacing: 12) {
                         choiceChip("Joyfully accept", selected: accepting,
@@ -556,22 +587,37 @@ private struct LiveRsvpFormView: View {
                             .accessibilityIdentifier("invitation-rsvp-children-not-allowed")
                     }
 
-                    if isSubmitting {
-                        Text("Recording your answer…")
-                            .font(.system(size: 13))
-                            .foregroundStyle(WeddingIdentityPalette.muted)
-                    } else {
-                        Button("Save RSVP") { onSubmit(buildUpdate()) }
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(WewedColors.emerald)
-                            .padding(.vertical, 8)
+                        if isSubmitting {
+                            HStack(spacing: 10) {
+                                ProgressView()
+                                    .tint(WeddingIdentityPalette.champagneDeep)
+                                Text("Recording your answer…")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(WeddingIdentityPalette.muted)
+                            }
+                        } else {
+                            Button { onSubmit(buildUpdate()) } label: {
+                                WeddingPrimaryButtonLabel("Save RSVP", icon: "checkmark")
+                            }
+                            .buttonStyle(.plain)
                             .accessibilityIdentifier("invitation-rsvp-save")
+                        }
                     }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 22)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(24)
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .background(WeddingIdentityPalette.ivory)
+            .frame(maxHeight: UIScreen.main.bounds.height * 0.88)
+            .background(WeddingIdentityPalette.ivorySoft)
+            .clipShape(RoundedRectangle(cornerRadius: 28))
+            .overlay(
+                RoundedRectangle(cornerRadius: 28)
+                    .stroke(WeddingIdentityPalette.champagne.opacity(0.42), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.14), radius: 16, x: 0, y: -3)
+            .padding(.horizontal, 8)
+            .padding(.bottom, 4)
         }
         .accessibilityIdentifier("invitation-rsvp-prompt")
     }
@@ -581,9 +627,20 @@ private struct LiveRsvpFormView: View {
     ) -> some View {
         Text(label)
             .font(.system(size: 13, weight: selected ? .semibold : .regular))
-            .foregroundStyle(selected ? WewedColors.emerald : WeddingIdentityPalette.muted)
-            .padding(.vertical, 8)
+            .foregroundStyle(selected ? WeddingIdentityPalette.forest : WeddingIdentityPalette.muted)
+            .padding(.vertical, 9)
             .padding(.horizontal, 14)
+            .background(selected ? WeddingIdentityPalette.forestSoft : WeddingIdentityPalette.ivorySoft)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule().stroke(
+                    selected
+                        ? WeddingIdentityPalette.forest.opacity(0.55)
+                        : WeddingIdentityPalette.hairline,
+                    lineWidth: 1
+                )
+            )
+            .contentShape(Capsule())
             .onTapGesture(perform: action)
             .accessibilityIdentifier(identifier)
     }
