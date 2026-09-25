@@ -132,17 +132,15 @@ final class GuestResponsiveRootClosureTests: XCTestCase {
         XCTAssertTrue(invitation.contains("rsvpDeadlineLabel: rsvpDeadline"))
     }
 
-    func testCoupleNoteHotspotUsesHighPriorityGestureInsideScrollableDetails() throws {
+    func testCoupleNoteHotspotUsesSameNativeButtonContractAsOtherDetailsActions() throws {
         let ivory = try Self.source(
             "apps/ios/Wewed/Views/Invitation/Ivory/IvoryFloralGoldNative.swift"
         )
 
-        XCTAssertTrue(ivory.contains("gestureHit("))
         XCTAssertTrue(ivory.contains("IvoryGeometry.hitNote"))
-        XCTAssertTrue(ivory.contains(".highPriorityGesture("))
-        XCTAssertTrue(ivory.contains("TapGesture().onEnded { action() }"))
-        XCTAssertTrue(ivory.contains(".accessibilityAction { action() }"))
-        XCTAssertTrue(ivory.contains(".accessibilityIdentifier(identifier)"))
+        XCTAssertTrue(ivory.contains("\"invitation-cta-note\""))
+        XCTAssertFalse(ivory.contains("gestureHit("))
+        XCTAssertFalse(ivory.contains(".highPriorityGesture("))
     }
 
     func testIvoryDetailHotspotsUseNativeButtonsForReliableActivation() throws {
