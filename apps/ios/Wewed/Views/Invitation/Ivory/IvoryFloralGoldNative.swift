@@ -759,17 +759,21 @@ public struct IvoryFloralGoldNative: View {
         _ label: String, _ identifier: String, _ action: (() -> Void)?
     ) -> some View {
         if let action {
-            Color.clear
-                .contentShape(Rectangle())
-                .frame(width: w * IvoryGeometry.hitWidth / 100, height: h * box[1] / 100)
-                .position(
-                    x: w * (IvoryGeometry.hitLeft + IvoryGeometry.hitWidth / 2) / 100,
-                    y: h * (box[0] + box[1] / 2) / 100
-                )
-                .onTapGesture(perform: action)
-                .accessibilityLabel(label)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityIdentifier(identifier)
+            Button(action: action) {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .frame(
+                        width: w * IvoryGeometry.hitWidth / 100,
+                        height: h * box[1] / 100
+                    )
+            }
+            .buttonStyle(.plain)
+            .position(
+                x: w * (IvoryGeometry.hitLeft + IvoryGeometry.hitWidth / 2) / 100,
+                y: h * (box[0] + box[1] / 2) / 100
+            )
+            .accessibilityLabel(label)
+            .accessibilityIdentifier(identifier)
         }
     }
 
