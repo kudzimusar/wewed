@@ -4732,3 +4732,44 @@ It must not redesign Android or broaden Guest IA. After NM04 source/CI qualifica
 
 **Phase-13 status:** **NOT ACCEPTED — ANDROID VISUAL GATE PASSED; IOS NM04 REMEDIATION REQUIRED; LIVE PRODUCTION DATA/PWA PARITY REMAINS UNPROVEN AND IS THE NEXT AUTHORITY GATE AFTER IOS VISUAL CLOSURE.**
 
+### D-064 — NM04 iOS Guest viewport source closure (2026-09-25)
+**MODERATOR REVIEW — NM04 ACCEPTED FOR NARROW iOS DEVICE REGRESSION. SOURCE/BUILD QUALIFIED; DEVICE VISUAL CERTIFICATION REMAINS OPEN.**
+
+NM04 continued exactly from NM03 and remediated only the three device-observed iOS viewport defects: RSVP horizontal containment, Couple Note wrapping/dismissal containment, and Home countdown four-cell containment.
+
+**Authoritative state:**
+- source: `native-mobile/phase13-final-guest-ui-composition-nm03-20260925` at `d388b00804360230ee6a1e6ee952ca22e5890a6f`;
+- continuation: `native-mobile/phase13-ios-guest-viewport-closure-nm04-20260925`;
+- source/CI-qualified implementation: `9a27e5ebc19a62ce4d7f68fc595891f8697cd99e`;
+- final clean HEAD: `3039439bd3e2911786849987fc37fc9f54ca8968`;
+- backend remains read-only at `55cadd944564cd717fe255aca2fed34230857238`;
+- production `main` remains `ba4b08f8bca2d5cd5826e1ef1d2701d9049dd887`.
+
+**Independent moderator verification:**
+- final NM04 branch tip is exactly `3039439bd3e2911786849987fc37fc9f54ca8968`;
+- NM04 is nine commits ahead of NM03 and permanently changes only:
+  - `apps/ios/Wewed/Views/Invitation/LiveGuestInvitationView.swift`;
+  - `apps/ios/Wewed/Views/Invitation/LiveGuestShellView.swift`;
+  - `apps/ios/Wewed/Tests/GuestViewportClosureTests.swift`;
+  - `docs/PHASE13_NM04_IOS_GUEST_VIEWPORT_CLOSURE_RECEIPT_20260925.md`;
+- no Android, backend, Ivory, Guest Session client, WeddingReferencePass, production, store, signing, AASA/assetlinks or WW2 authority changes are present;
+- GitHub Actions run `36131916390` completed SUCCESS on qualified implementation `9a27e5eb...`, job `108060903964`, with Swift tests, XcodeGen and simulator app build all successful;
+- final head differs from the qualified implementation only by deletion of the temporary NM04 qualification workflow and addition of the permanent receipt.
+
+**Source remediation accepted:**
+- RSVP now derives concrete sheet/content/attendance-choice widths from viewport width, while leaving only the meal-choice carousel horizontally scrollable;
+- Couple Note now derives both the decorated surface width and actual multiline text width from viewport geometry, with the close control inside the same bounded surface;
+- Home countdown now computes one exact width for each of four cells from the measured row width and inter-cell spacing.
+
+**Next progressive unit — iOS device visual regression only:**
+LNM must use native `3039439bd3e2911786849987fc37fc9f54ca8968` and backend `55cadd944564cd717fe255aca2fed34230857238`. Do not rerun Android and do not repeat the full Guest state matrix yet. Capture only:
+1. Home — all four countdown cells visible;
+2. RSVP — full heading, both attendance choices, all root fields and Save action inside viewport; only meal choices may scroll horizontally;
+3. Couple Note — complete authoritative message wraps and dismissal remains visible;
+4. Invitation — regression guard;
+5. Pass — canonical WeddingReferencePass regression guard.
+
+If these five pass, close visual presentation and proceed immediately to the release-mode production-data parity probe against `https://wewed.pro` with no local qualification origin override.
+
+**Phase-13 status:** **NOT ACCEPTED — NM04 SOURCE/BUILD CLOSURE PASSED; FIVE-SCREEN iOS DEVICE VISUAL REGRESSION IS NEXT, FOLLOWED BY RELEASE-MODE LIVE PRODUCTION-DATA/PWA PARITY PROOF.**
+
