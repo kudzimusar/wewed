@@ -129,16 +129,6 @@ public struct LiveGuestInvitationView: View {
                 )
             )
 
-            if let onBackToWedding {
-                VStack {
-                    HStack {
-                        Button("Back to My Wedding", action: onBackToWedding)
-                            .accessibilityIdentifier("invitation-back-to-wedding")
-                        Spacer()
-                    }.padding()
-                    Spacer()
-                }
-            }
             if rsvpPrompt, let editorPresentation = rsvpEditorPresentation {
                 LiveRsvpFormView(
                     guestName: editorPresentation.guestName,
@@ -162,6 +152,35 @@ public struct LiveGuestInvitationView: View {
             if refreshUnavailable { refreshUnavailableView }
             if showNote, let note = presentation.invitationCardMessage, !note.isEmpty {
                 noteFromTheCouple(note)
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let onBackToWedding {
+                HStack {
+                    Button(action: onBackToWedding) {
+                        HStack(spacing: 7) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 12, weight: .bold))
+                            Text("Back to My Wedding")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                        .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 44)
+                        .background(WeddingIdentityPalette.ivorySoft)
+                        .overlay(
+                            Capsule()
+                                .stroke(WeddingIdentityPalette.champagne.opacity(0.70), lineWidth: 1)
+                        )
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("invitation-back-to-wedding")
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(WeddingIdentityPalette.ivory.opacity(0.98))
             }
         }
     }
@@ -214,42 +233,72 @@ public struct LiveGuestInvitationView: View {
     /// The couple's own note. Shown only when `invitationCardMessage` is set, because the
     /// alternative is putting words in their mouth.
     private func noteFromTheCouple(_ note: String) -> some View {
-        ZStack {
-            Color.black.opacity(0.40)
-                .ignoresSafeArea()
-                .onTapGesture { showNote = false }
+        GeometryReader { proxy in
+            let horizontalInset: CGFloat = 16
+            let availableWidth = max(0, proxy.size.width - horizontalInset * 2)
+            let sheetWidth = min(availableWidth, 420)
 
             ZStack {
-                WeddingFloralBackground(opacity: 0.075)
-                VStack(spacing: 14) {
-                    WeddingBrandMark()
-                    Text("A note from us")
-                        .font(.system(size: 22, design: .serif))
-                        .foregroundStyle(WeddingIdentityPalette.ink)
-                    Rectangle()
-                        .fill(WeddingIdentityPalette.champagne.opacity(0.70))
-                        .frame(width: 64, height: 1)
-                    Text(note)
-                        .font(.system(size: 16, design: .serif))
-                        .foregroundStyle(WeddingIdentityPalette.ink)
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(5)
-                    Text("Tap outside to return to your invitation")
-                        .font(.system(size: 11))
-                        .foregroundStyle(WeddingIdentityPalette.muted)
+                Color.black.opacity(0.40)
+                    .ignoresSafeArea()
+                    .onTapGesture { showNote = false }
+
+                ZStack {
+                    WeddingFloralBackground(opacity: 0.075)
+                    VStack(spacing: 14) {
+                        HStack {
+                            Spacer(minLength: 0)
+                            Button { showNote = false } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                                    .frame(width: 44, height: 44)
+                                    .background(WeddingIdentityPalette.ivorySoft.opacity(0.94))
+                                    .clipShape(Circle())
+                                    .overlay(
+                                        Circle().stroke(
+                                            WeddingIdentityPalette.champagne.opacity(0.55),
+                                            lineWidth: 1
+                                        )
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Close note")
+                            .accessibilityIdentifier("invitation-note-dismiss")
+                        }
+
+                        WeddingBrandMark()
+                        Text("A note from us")
+                            .font(.system(size: 22, design: .serif))
+                            .foregroundStyle(WeddingIdentityPalette.ink)
+                        Rectangle()
+                            .fill(WeddingIdentityPalette.champagne.opacity(0.70))
+                            .frame(width: 64, height: 1)
+                        Text(note)
+                            .font(.system(size: 16, design: .serif))
+                            .foregroundStyle(WeddingIdentityPalette.ink)
+                            .multilineTextAlignment(.center)
+                            .lineSpacing(5)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity)
+                        Text("Your invitation remains behind this note.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(WeddingIdentityPalette.muted)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 18)
                 }
-                .padding(.horizontal, 28)
-                .padding(.vertical, 30)
+                .frame(width: sheetWidth)
+                .background(WeddingIdentityPalette.ivorySoft)
+                .clipShape(RoundedRectangle(cornerRadius: 24))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24)
+                        .stroke(WeddingIdentityPalette.champagne.opacity(0.55), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 8)
             }
-            .frame(maxWidth: 420)
-            .background(WeddingIdentityPalette.ivorySoft)
-            .clipShape(RoundedRectangle(cornerRadius: 24))
-            .overlay(
-                RoundedRectangle(cornerRadius: 24)
-                    .stroke(WeddingIdentityPalette.champagne.opacity(0.55), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.12), radius: 14, x: 0, y: 8)
-            .padding(.horizontal, 28)
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
         }
         .accessibilityIdentifier("invitation-note-sheet")
     }
@@ -468,181 +517,246 @@ private struct LiveRsvpFormView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Color.black.opacity(0.40)
-                .ignoresSafeArea()
-                .onTapGesture { if !isSubmitting { onDismiss() } }
+        GeometryReader { proxy in
+            let horizontalInset: CGFloat = 8
+            let sheetWidth = max(0, proxy.size.width - horizontalInset * 2)
+            let sheetHeight = min(max(0, proxy.size.height * 0.90), 720)
 
-            ZStack {
-                WeddingFloralBackground(opacity: 0.045)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack(spacing: 12) {
-                            WeddingBrandMark()
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("RSVP")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .tracking(2)
-                                    .foregroundStyle(WeddingIdentityPalette.champagneDeep)
-                                Text("Will you be joining us?")
-                                    .font(.system(size: 23, design: .serif))
-                                    .foregroundStyle(WeddingIdentityPalette.ink)
-                            }
-                        }
-                        if !guestName.isEmpty {
-                            Text("For \(guestName)")
-                                .font(.system(size: 13))
-                                .foregroundStyle(WeddingIdentityPalette.muted)
-                        }
+            ZStack(alignment: .bottom) {
+                Color.black.opacity(0.40)
+                    .ignoresSafeArea()
+                    .onTapGesture { if !isSubmitting { onDismiss() } }
 
-                    HStack(spacing: 12) {
-                        choiceChip("Joyfully accept", selected: accepting,
-                                   identifier: "invitation-rsvp-accept") { accepting = true }
-                        choiceChip("Regretfully decline", selected: !accepting,
-                                   identifier: "invitation-rsvp-decline") { accepting = false }
-                    }
+                ZStack {
+                    WeddingFloralBackground(opacity: 0.045)
 
-                    if accepting {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Meal preference")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(WeddingIdentityPalette.muted)
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach(liveRsvpMealOptions, id: \.value) { option in
-                                        choiceChip(option.label, selected: mealChoice == option.value,
-                                                   identifier: "invitation-rsvp-meal-\(option.value)") {
-                                            mealChoice = option.value
-                                        }
-                                    }
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 16) {
+                            HStack(spacing: 12) {
+                                WeddingBrandMark()
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("RSVP")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .tracking(2)
+                                        .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                                    Text("Will you be joining us?")
+                                        .font(.system(size: 23, design: .serif))
+                                        .foregroundStyle(WeddingIdentityPalette.ink)
+                                        .fixedSize(horizontal: false, vertical: true)
                                 }
                             }
 
-                            Divider().padding(.vertical, 4)
-
-                            toggleRow("Bringing a plus one", isOn: $plusOne,
-                                      identifier: "invitation-rsvp-plus-one-toggle")
-                            if plusOne {
-                                VStack(spacing: 8) {
-                                    TextField("Plus one's name", text: $plusOneName)
-                                        .textFieldStyle(.roundedBorder)
-                                        .accessibilityIdentifier("invitation-rsvp-plus-one-name")
-                                    TextField("Their meal preference", text: $plusOneMeal)
-                                        .textFieldStyle(.roundedBorder)
-                                        .accessibilityIdentifier("invitation-rsvp-plus-one-meal")
-                                }
-                                .accessibilityIdentifier("invitation-rsvp-plus-one-details")
-                            }
-
-                            Divider().padding(.vertical, 4)
-
-                            if adultsOnly {
-                                Text("With love, we kindly ask that this be an adults-only celebration.")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(WeddingIdentityPalette.muted)
-                                    .accessibilityIdentifier("invitation-rsvp-adults-only-note")
-                            } else {
-                                toggleRow("Children are attending", isOn: $kidsAttending,
-                                          identifier: "invitation-rsvp-kids-toggle")
-                                if kidsAttending {
-                                    HStack(spacing: 16) {
-                                        Text("−")
-                                            .font(.system(size: 20, weight: .bold))
-                                            .foregroundStyle(WeddingIdentityPalette.ink)
-                                            .padding(8)
-                                            .onTapGesture {
-                                                if kidsCount > 0 { kidsCount -= 1 }
-                                            }
-                                        Text("\(kidsCount)")
-                                            .font(.system(size: 15))
-                                            .foregroundStyle(WeddingIdentityPalette.ink)
-                                        Text("+")
-                                            .font(.system(size: 20, weight: .bold))
-                                            .foregroundStyle(WeddingIdentityPalette.ink)
-                                            .padding(8)
-                                            .onTapGesture {
-                                                kidsCount = min(kidsCount + 1, 20)
-                                            }
-                                    }
-                                    .accessibilityIdentifier("invitation-rsvp-kids-stepper")
-                                }
-                            }
-
-                            TextField("Dietary notes", text: $dietaryNotes, axis: .vertical)
-                                .textFieldStyle(.roundedBorder)
-                                .accessibilityIdentifier("invitation-rsvp-dietary-notes")
-                        }
-                        .accessibilityIdentifier("invitation-rsvp-attending-fields")
-                    }
-
-                    TextField("Message to the couple", text: $message, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityIdentifier("invitation-rsvp-message")
-
-                    if childrenNotAllowed {
-                        Text("This celebration is adults only, so children can't be added to your RSVP.")
-                            .font(.system(size: 12))
-                            .foregroundStyle(WewedColors.error)
-                            .onTapGesture(perform: onDismissChildrenNotice)
-                            .accessibilityIdentifier("invitation-rsvp-children-not-allowed")
-                    }
-
-                        if isSubmitting {
-                            HStack(spacing: 10) {
-                                ProgressView()
-                                    .tint(WeddingIdentityPalette.champagneDeep)
-                                Text("Recording your answer…")
+                            if !guestName.isEmpty {
+                                Text("For \(guestName)")
                                     .font(.system(size: 13))
                                     .foregroundStyle(WeddingIdentityPalette.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-                        } else {
-                            Button { onSubmit(buildUpdate()) } label: {
-                                WeddingPrimaryButtonLabel("Save RSVP", icon: "checkmark")
+
+                            HStack(spacing: 8) {
+                                choiceChip(
+                                    "Joyfully accept",
+                                    selected: accepting,
+                                    identifier: "invitation-rsvp-accept",
+                                    fillsWidth: true
+                                ) { accepting = true }
+                                choiceChip(
+                                    "Regretfully decline",
+                                    selected: !accepting,
+                                    identifier: "invitation-rsvp-decline",
+                                    fillsWidth: true
+                                ) { accepting = false }
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("invitation-rsvp-save")
+
+                            if accepting {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Meal preference")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(WeddingIdentityPalette.muted)
+
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 8) {
+                                            ForEach(liveRsvpMealOptions, id: \.value) { option in
+                                                choiceChip(
+                                                    option.label,
+                                                    selected: mealChoice == option.value,
+                                                    identifier: "invitation-rsvp-meal-\(option.value)"
+                                                ) {
+                                                    mealChoice = option.value
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Divider().padding(.vertical, 4)
+
+                                    toggleRow(
+                                        "Bringing a plus one",
+                                        isOn: $plusOne,
+                                        identifier: "invitation-rsvp-plus-one-toggle"
+                                    )
+                                    if plusOne {
+                                        VStack(spacing: 8) {
+                                            TextField("Plus one's name", text: $plusOneName)
+                                                .textFieldStyle(.roundedBorder)
+                                                .accessibilityIdentifier("invitation-rsvp-plus-one-name")
+                                            TextField("Their meal preference", text: $plusOneMeal)
+                                                .textFieldStyle(.roundedBorder)
+                                                .accessibilityIdentifier("invitation-rsvp-plus-one-meal")
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .accessibilityIdentifier("invitation-rsvp-plus-one-details")
+                                    }
+
+                                    Divider().padding(.vertical, 4)
+
+                                    if adultsOnly {
+                                        Text("With love, we kindly ask that this be an adults-only celebration.")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(WeddingIdentityPalette.muted)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .accessibilityIdentifier("invitation-rsvp-adults-only-note")
+                                    } else {
+                                        toggleRow(
+                                            "Children are attending",
+                                            isOn: $kidsAttending,
+                                            identifier: "invitation-rsvp-kids-toggle"
+                                        )
+                                        if kidsAttending {
+                                            HStack(spacing: 16) {
+                                                Button {
+                                                    if kidsCount > 0 { kidsCount -= 1 }
+                                                } label: {
+                                                    Text("−")
+                                                        .font(.system(size: 20, weight: .bold))
+                                                        .frame(width: 44, height: 44)
+                                                }
+                                                .buttonStyle(.plain)
+                                                .foregroundStyle(WeddingIdentityPalette.ink)
+
+                                                Text("\(kidsCount)")
+                                                    .font(.system(size: 15))
+                                                    .foregroundStyle(WeddingIdentityPalette.ink)
+
+                                                Button {
+                                                    kidsCount = min(kidsCount + 1, 20)
+                                                } label: {
+                                                    Text("+")
+                                                        .font(.system(size: 20, weight: .bold))
+                                                        .frame(width: 44, height: 44)
+                                                }
+                                                .buttonStyle(.plain)
+                                                .foregroundStyle(WeddingIdentityPalette.ink)
+                                            }
+                                            .accessibilityIdentifier("invitation-rsvp-kids-stepper")
+                                        }
+                                    }
+
+                                    TextField("Dietary notes", text: $dietaryNotes, axis: .vertical)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(maxWidth: .infinity)
+                                        .accessibilityIdentifier("invitation-rsvp-dietary-notes")
+                                }
+                                .frame(maxWidth: .infinity)
+                                .accessibilityIdentifier("invitation-rsvp-attending-fields")
+                            }
+
+                            TextField("Message to the couple", text: $message, axis: .vertical)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: .infinity)
+                                .accessibilityIdentifier("invitation-rsvp-message")
+
+                            if childrenNotAllowed {
+                                Text("This celebration is adults only, so children can't be added to your RSVP.")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(WewedColors.error)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .onTapGesture(perform: onDismissChildrenNotice)
+                                    .accessibilityIdentifier("invitation-rsvp-children-not-allowed")
+                            }
+
+                            if isSubmitting {
+                                HStack(spacing: 10) {
+                                    ProgressView()
+                                        .tint(WeddingIdentityPalette.champagneDeep)
+                                    Text("Recording your answer…")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(WeddingIdentityPalette.muted)
+                                }
+                                .frame(minHeight: 44)
+                            } else {
+                                Button { onSubmit(buildUpdate()) } label: {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "checkmark")
+                                        Text("Save RSVP")
+                                            .fontWeight(.semibold)
+                                    }
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity, minHeight: 50)
+                                    .background(WeddingIdentityPalette.champagneDeep)
+                                    .clipShape(RoundedRectangle(cornerRadius: 13))
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier("invitation-rsvp-save")
+                            }
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 22)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 22)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .frame(width: sheetWidth, height: sheetHeight)
+                .background(WeddingIdentityPalette.ivorySoft)
+                .clipShape(RoundedRectangle(cornerRadius: 28))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28)
+                        .stroke(WeddingIdentityPalette.champagne.opacity(0.42), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.14), radius: 16, x: 0, y: -3)
+                .padding(.bottom, 4)
             }
-            .frame(maxHeight: 720)
-            .background(WeddingIdentityPalette.ivorySoft)
-            .clipShape(RoundedRectangle(cornerRadius: 28))
-            .overlay(
-                RoundedRectangle(cornerRadius: 28)
-                    .stroke(WeddingIdentityPalette.champagne.opacity(0.42), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.14), radius: 16, x: 0, y: -3)
-            .padding(.horizontal, 8)
-            .padding(.bottom, 4)
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
         }
         .accessibilityIdentifier("invitation-rsvp-prompt")
     }
 
     private func choiceChip(
-        _ label: String, selected: Bool, identifier: String, action: @escaping () -> Void
+        _ label: String,
+        selected: Bool,
+        identifier: String,
+        fillsWidth: Bool = false,
+        action: @escaping () -> Void
     ) -> some View {
-        Text(label)
-            .font(.system(size: 13, weight: selected ? .semibold : .regular))
-            .foregroundStyle(selected ? WeddingIdentityPalette.forest : WeddingIdentityPalette.muted)
-            .padding(.vertical, 9)
-            .padding(.horizontal, 14)
-            .background(selected ? WeddingIdentityPalette.forestSoft : WeddingIdentityPalette.ivorySoft)
-            .clipShape(Capsule())
-            .overlay(
-                Capsule().stroke(
-                    selected
-                        ? WeddingIdentityPalette.forest.opacity(0.55)
-                        : WeddingIdentityPalette.hairline,
-                    lineWidth: 1
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 13, weight: selected ? .semibold : .regular))
+                .multilineTextAlignment(.center)
+                .foregroundStyle(
+                    selected ? WeddingIdentityPalette.forest : WeddingIdentityPalette.muted
                 )
-            )
-            .contentShape(Capsule())
-            .onTapGesture(perform: action)
-            .accessibilityIdentifier(identifier)
+                .padding(.horizontal, 12)
+                .frame(
+                    maxWidth: fillsWidth ? .infinity : nil,
+                    minHeight: 44
+                )
+                .background(
+                    selected
+                        ? WeddingIdentityPalette.forestSoft
+                        : WeddingIdentityPalette.ivorySoft
+                )
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().stroke(
+                        selected
+                            ? WeddingIdentityPalette.forest.opacity(0.55)
+                            : WeddingIdentityPalette.hairline,
+                        lineWidth: 1
+                    )
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
     }
 
     private func toggleRow(_ label: String, isOn: Binding<Bool>, identifier: String) -> some View {
@@ -653,7 +767,7 @@ private struct LiveRsvpFormView: View {
             Spacer()
             Toggle("", isOn: isOn)
                 .labelsHidden()
-                .tint(WewedColors.emerald)
+                .tint(WeddingIdentityPalette.forest)
         }
         .accessibilityIdentifier(identifier)
     }
@@ -680,10 +794,16 @@ public struct InvitationUnavailableView: View {
                     .font(.system(size: 14))
                     .foregroundStyle(WeddingIdentityPalette.muted)
                     .multilineTextAlignment(.center)
-                Button("Continue to Wewed", action: onRetry)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(WewedColors.emerald)
-                    .accessibilityIdentifier("invitation-unavailable-dismiss")
+                Button(action: onRetry) {
+                    Text("Continue to Wewed")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .background(WeddingIdentityPalette.champagneDeep)
+                        .clipShape(RoundedRectangle(cornerRadius: 13))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("invitation-unavailable-dismiss")
             }
             .padding(32)
         }
