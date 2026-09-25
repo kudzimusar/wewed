@@ -268,7 +268,7 @@ public struct LiveGuestShellView: View {
         }
     }
 
-    /// The day itself. Attending-only, because it presumes someone is coming.
+    /// Shared wedding-day information for answered Guests; venue-admission details stay attending-only.
     @ViewBuilder
     private var weddingDay: some View {
         Text("Wedding Day")
@@ -282,13 +282,17 @@ public struct LiveGuestShellView: View {
                     : "The day's plan is for guests who are joining on the day.",
                  "live-guest-day-locked")
         } else {
-            LiveGuestDayDataView(profile: profile, coordinator: coordinator).id(profile.guestId)
+            LiveGuestDayDataView(
+                profile: profile,
+                coordinator: coordinator,
+                capabilities: capabilities
+            ).id(profile.guestId)
             fact("When", Self.formatWeddingDate(profile.weddingDate), "live-guest-day-date")
             fact("Where", profile.venue ?? "", "live-guest-day-venue")
-            if let table = profile.tableName, !table.isEmpty {
+            if capabilities.contains(.seating), let table = profile.tableName, !table.isEmpty {
                 fact("Your table", table, "live-guest-day-table")
             }
-            if profile.checkedIn {
+            if capabilities.contains(.checkInState), profile.checkedIn {
                 fact("Arrived", "You're checked in.", "live-guest-checked-in")
             }
         }
@@ -426,6 +430,7 @@ private struct LiveIssuedGuestPassView: View {
 private struct LiveGuestDayDataView: View {
     let profile: LiveInvitationPresentation
     let coordinator: LiveGuestInvitationCoordinator
+    let capabilities: Set<GuestCapability>
     @State private var day: GuestWeddingDay?
     @State private var failed = false
     var body: some View {
@@ -435,14 +440,24 @@ private struct LiveGuestDayDataView: View {
                 ForEach(day.programme, id: \.id) { item in
                     Text("\(item.time) · \(item.title)").accessibilityIdentifier("guest-programme-\(item.id)")
                 }
-                Text("Announcements").accessibilityIdentifier("guest-day-announcements")
-                ForEach(day.announcements, id: \.id) { item in
-                    Text([item.title, item.body].compactMap { $0 }.joined(separator: "\n")).accessibilityIdentifier("guest-announcement-\(item.id)")
+                if capabilities.contains(.announcements) {
+                    Text("Announcements").accessibilityIdentifier("guest-day-announcements")
+                    ForEach(day.announcements, id: \.id) { item in
+                        Text([item.title, item.body].compactMap { $0 }.joined(separator: "\n"))
+                            .accessibilityIdentifier("guest-announcement-\(item.id)")
+                    }
                 }
-                Text("My Party").accessibilityIdentifier("guest-day-party")
-                ForEach(day.guest.household, id: \.attendeeKey) { Text($0.attendeeName) }
-                if let table = day.guest.tableName { Text(table).accessibilityIdentifier("guest-day-table") }
-                Text(day.guest.checkedIn ? "Checked in" : "Not yet checked in").accessibilityIdentifier("guest-day-check-in")
+                if capabilities.contains(.partyDetails) {
+                    Text("My Party").accessibilityIdentifier("guest-day-party")
+                    ForEach(day.guest.household, id: \.attendeeKey) { Text($0.attendeeName) }
+                }
+                if capabilities.contains(.seating), let table = day.guest.tableName {
+                    Text(table).accessibilityIdentifier("guest-day-table")
+                }
+                if capabilities.contains(.checkInState) {
+                    Text(day.guest.checkedIn ? "Checked in" : "Not yet checked in")
+                        .accessibilityIdentifier("guest-day-check-in")
+                }
             } else if failed { Text("We couldn't load the day's details. Please try again.").accessibilityIdentifier("guest-day-unavailable") }
             else { ProgressView() }
         }.task {
