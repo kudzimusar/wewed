@@ -4773,3 +4773,34 @@ If these five pass, close visual presentation and proceed immediately to the rel
 
 **Phase-13 status:** **NOT ACCEPTED — NM04 SOURCE/BUILD CLOSURE PASSED; FIVE-SCREEN iOS DEVICE VISUAL REGRESSION IS NEXT, FOLLOWED BY RELEASE-MODE LIVE PRODUCTION-DATA/PWA PARITY PROOF.**
 
+
+
+### D-065 — NM05 iOS responsive Guest shell source/build closure (2026-09-25)
+**MODERATOR REVIEW — NM04 DEVICE EVIDENCE EXPOSED A STRUCTURAL iOS RESPONSIVE-SHELL DEFECT; NM05 SOURCE/BUILD REMEDIATION IS QUALIFIED. DEVICE VISUAL CERTIFICATION REMAINS OPEN.**
+
+The NM04 five-screen LNM regression at native `3039439bd3e2911786849987fc37fc9f54ca8968` confirmed the RSVP and Couple Note containment fixes, but Guest Home still overflowed: the fourth countdown cell was off-screen and the third was clipped. Direct owner screenshots additionally showed the persistent Guest bottom navigation encroaching on the iPhone home-indicator safe area and dynamic Ivory invitation text visibly truncating. Therefore the LNM statement that the remaining non-Home surfaces had no visual regression is only partially accepted; the screenshots supersede that broad conclusion.
+
+Independent source review found the common cause: the live Guest presentation had reimplemented viewport sizing and bottom navigation instead of reusing the already-qualified Sanitized Shadow / RoleShell responsive contract. In particular, `LiveGuestShellView` measured a countdown `GeometryReader` under a `.scaledToFill()` hero whose intrinsic media proposal could widen the row, while the custom bottom `safeAreaInset` navigation duplicated behavior already handled correctly by the native `TabView`. The NM04 countdown unit test reconstructed an assumed row width numerically, so it did not prove the actual SwiftUI proposal chain.
+
+**NM05 continuation:**
+- base: `native-mobile/phase13-ios-guest-viewport-closure-nm04-20260925` at `3039439bd3e2911786849987fc37fc9f54ca8968`;
+- branch: `native-mobile/phase13-ios-responsive-shell-closure-nm05-20260925`;
+- qualified implementation SHA: `34b97e2389da38b15d60ad9de7a90a403d69c6c0`;
+- final branch tip after temporary workflow cleanup: `5bb9196aafd18cb3e69528a08eb7e8569855f562`;
+- qualification run: `36138739232`;
+- qualification job: `108083058321`;
+- result: Swift tests PASS; XcodeGen project generation PASS; iOS simulator application build PASS;
+- final tip differs from the qualified SHA only by deletion of `.github/workflows/nm05-temporary-ios-responsive-qualification.yml`.
+
+Permanent NM05 delta is iOS-only and limited to:
+- `apps/ios/Wewed/Views/Invitation/LiveGuestShellView.swift`;
+- `apps/ios/Wewed/Views/Invitation/LiveGuestInvitationView.swift`;
+- `apps/ios/Wewed/Views/Invitation/Ivory/IvoryFloralGoldNative.swift`;
+- `apps/ios/Wewed/Tests/GuestViewportClosureTests.swift`;
+- `apps/ios/Wewed/Tests/GuestPresentationConvergenceTests.swift`.
+
+NM05 reuses `WewedScreenContainer`, the bounded `wewedMedia` contract and native `TabView` safe-area behavior from the qualified Shadow/RoleShell structural authority; explicitly derives the live Guest content/hero/countdown widths from the physical viewport; removes the nested countdown row `GeometryReader`; constrains dynamic Ivory text to its authored regions; and updates regression contracts so tests exercise the same width chain the view consumes rather than a mocked row width. No Android, backend, Guest authority, RSVP authority, WW2 Pass authority or production state changed.
+
+**Next progressive unit:** LNM01 must run one narrow iOS responsive regression on the final NM05 SHA. It must verify Home, RSVP, Couple Note, Invitation closed, Invitation details, Pass, Wedding Day and More, with explicit attention to horizontal containment and the bottom native tab bar remaining fully above the home indicator. No product source changes are permitted during this certification. If the visual gate passes, only then proceed to the release-mode live `https://wewed.pro` data-parity probe.
+
+**Phase-13 status:** **NOT ACCEPTED — NM05 SOURCE/BUILD QUALIFIED; iOS DEVICE VISUAL CERTIFICATION IS NEXT. LIVE PRODUCTION-DATA/PWA PARITY REMAINS UNPROVEN.**
