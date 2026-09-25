@@ -483,6 +483,37 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
         XCTAssertEqual("Update RSVP", ivoryRsvpActionLabel(rsvp: ivoryRsvpState(from: declinedPres.rsvpStatus)))
     }
 
+    func testGuestPassActionGatesPendingAndOpensForBothAnsweredStates() {
+        var prompted = false
+        var navigated = false
+
+        let pending = LiveInvitationPresentation.from(makeSnapshot(attending: nil))
+        let pendingActions = resolveLiveInvitationActions(
+            presentation: pending,
+            onRsvpPrompt: { prompted = true },
+            onViewPass: { navigated = true }
+        )
+        XCTAssertTrue(ivoryRsvpState(from: pending.rsvpStatus).isPassLocked)
+        pendingActions.onViewPass?()
+        XCTAssertTrue(prompted, "pending Pass must open RSVP")
+        XCTAssertFalse(navigated, "pending Pass must not enter the persistent shell")
+
+        for attending in [true, false] {
+            prompted = false
+            navigated = false
+            let answered = LiveInvitationPresentation.from(makeSnapshot(attending: attending))
+            let actions = resolveLiveInvitationActions(
+                presentation: answered,
+                onRsvpPrompt: { prompted = true },
+                onViewPass: { navigated = true }
+            )
+            XCTAssertTrue(ivoryRsvpState(from: answered.rsvpStatus).offersPass)
+            actions.onViewPass?()
+            XCTAssertTrue(navigated, "answered Guest Pass must transition to Pass")
+            XCTAssertFalse(prompted, "answered Guest Pass must not reopen RSVP")
+        }
+    }
+
     /// Exercises the full mutation cycles through the existing Guest Session path:
     /// 1. pending -> accept -> refresh -> accepted presentation -> reopen -> change meal/message -> save -> same RSVP record updated
     /// 2. accepted -> reopen -> decline -> save -> refresh shows declined with dormant field preservation
