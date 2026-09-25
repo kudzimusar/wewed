@@ -760,7 +760,11 @@ public struct IvoryFloralGoldNative: View {
     ) -> some View {
         if let action {
             Button(action: action) {
-                Color.clear
+                Rectangle()
+                    // SwiftUI can deprioritize a fully clear control inside a ScrollView even when
+                    // Accessibility publishes the correct frame. A near-zero alpha fill remains
+                    // visually invisible while giving the native Button a concrete hit-test layer.
+                    .fill(Color.white.opacity(0.001))
                     .contentShape(Rectangle())
                     .frame(
                         width: w * IvoryGeometry.hitWidth / 100,
@@ -768,10 +772,12 @@ public struct IvoryFloralGoldNative: View {
                     )
             }
             .buttonStyle(.plain)
+            .contentShape(Rectangle())
             .position(
                 x: w * (IvoryGeometry.hitLeft + IvoryGeometry.hitWidth / 2) / 100,
                 y: h * (box[0] + box[1] / 2) / 100
             )
+            .zIndex(20)
             .accessibilityLabel(label)
             .accessibilityIdentifier(identifier)
         }
