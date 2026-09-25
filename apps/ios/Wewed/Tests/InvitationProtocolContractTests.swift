@@ -31,6 +31,19 @@ final class InvitationProtocolContractTests: XCTestCase {
         let entry: Entry
     }
 
+    private static func repositoryFile(_ path: String) throws -> URL {
+        var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        while dir.path != "/" {
+            let candidate = dir.appendingPathComponent(path)
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+            dir = dir.deletingLastPathComponent()
+        }
+        throw NSError(domain: "InvitationProtocolContractTests", code: 2,
+                      userInfo: [NSLocalizedDescriptionKey: "Repository file not found: \(path)"])
+    }
+
     private static func loadContract() throws -> Contract {
         var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         while dir.path != "/" {
@@ -130,6 +143,19 @@ final class InvitationProtocolContractTests: XCTestCase {
             "https://wewed.pro/invite/slug?rsvp=T"))
         XCTAssertFalse(InvitationEntryParser.isExplicitInvitationLaunch("wewed://pass"))
         XCTAssertFalse(InvitationEntryParser.isExplicitInvitationLaunch(nil))
+    }
+
+    /// The live admission path must remain same-Guest, attending-only, WW2 and public-key verified.
+    func testWeddingPassUsesCanonicalSameGuestWw2Authority() throws {
+        let url = try Self.repositoryFile(
+            "apps/ios/Wewed/Invitation/GuestSessionClient.swift"
+        )
+        let source = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(source.contains("snapshot.guestId == originGuestId, snapshot.attending == true"))
+        XCTAssertTrue(source.contains("path: \"/api/wedding-day/pass\""))
+        XCTAssertTrue(source.contains("data[\"guestId\"] as? String == originGuestId"))
+        XCTAssertTrue(source.contains("token.hasPrefix(\"WW2.\")"))
+        XCTAssertTrue(source.contains("TokenVerifier.verifyAsymmetric"))
     }
 
     /// No credential may reach a log line through string interpolation.
