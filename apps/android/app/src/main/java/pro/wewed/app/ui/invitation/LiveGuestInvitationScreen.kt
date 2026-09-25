@@ -342,7 +342,9 @@ fun resolveLiveInvitationActions(
     onOpenVenue = onOpenVenue,
     onGifts = onGifts,
     onNote = onNote,
-    onViewPass = if (presentation.attending != false) onViewPass else null,
+    // Pending stays inside Ivory: the locked Pass affordance opens RSVP instead of navigating.
+    // Once answered, both attending and declined Guests may enter the persistent Pass destination.
+    onViewPass = if (presentation.attending == null) onRsvpPrompt else onViewPass,
     onVisitCoupleSite = onVisitCoupleSite,
     onContinue = onContinue
 )
