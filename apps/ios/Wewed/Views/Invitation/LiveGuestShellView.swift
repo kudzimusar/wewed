@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 /// The Guest tabs, named to match the IA contract rather than reinvented.
@@ -126,42 +127,119 @@ public struct LiveGuestShellView: View {
         }
     }
 
-    /// The Guest's own wedding at a glance — useful rather than another onboarding page.
+    /// The Guest's own wedding at a glance — the qualified Wewed wedding identity language,
+    /// backed only by Guest-authorized session data.
     @ViewBuilder
     private var home: some View {
+        guestHero
+
         Button(action: onOpenInvitation) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("MY DIGITAL INVITATION").font(.caption)
-                Text(profile.coupleNames).font(.system(size: 24, design: .serif))
-                Text("View invitation →")
-            }.frame(maxWidth: .infinity, alignment: .leading).padding(20)
-                .background(WeddingIdentityPalette.champagne.opacity(0.3))
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-        }.buttonStyle(.plain).accessibilityIdentifier("guest-home-digital-invitation")
-        Text(profile.coupleNames)
-            .font(.system(size: 28, design: .serif))
-            .foregroundStyle(WeddingIdentityPalette.ink)
-            .accessibilityIdentifier("live-guest-couple")
-        Text(profile.guestName)
-            .font(.system(size: 16, weight: .medium))
-            .foregroundStyle(WeddingIdentityPalette.ink)
-            .accessibilityIdentifier("live-guest-name")
-        Text(Self.rsvpLabel(profile.attending))
-            .font(.system(size: 14))
-            .foregroundStyle(WewedColors.emerald)
-            .accessibilityIdentifier("live-guest-rsvp-status")
+            VStack(alignment: .leading, spacing: 7) {
+                Text("MY DIGITAL INVITATION")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                Text(profile.coupleNames)
+                    .font(.system(size: 24, design: .serif))
+                    .foregroundStyle(WeddingIdentityPalette.ink)
+                Text("Open your interactive invitation →")
+                    .font(.system(size: 14))
+                    .foregroundStyle(WewedColors.emerald)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+            .background(WeddingIdentityPalette.champagne.opacity(0.20))
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("guest-home-digital-invitation")
+
+        HStack(spacing: 10) {
+            fact("RSVP", Self.rsvpLabel(profile.attending), "live-guest-rsvp-status")
+            if capabilities.contains(.weddingPass) {
+                fact("Wedding Pass", "Ready in Pass", "live-guest-pass-hint")
+            }
+        }
 
         fact("When", Self.formatWeddingDate(profile.weddingDate), "live-guest-date")
         fact("Where", [profile.venue, profile.venueCityCountry.isEmpty ? nil : profile.venueCityCountry]
                 .compactMap { $0 }.joined(separator: " · "), "live-guest-venue")
 
-        // Seating is attending-only: it presumes someone is coming.
         if capabilities.contains(.seating), let table = profile.tableName, !table.isEmpty {
             fact("Your table", table, "live-guest-table")
         }
-        if capabilities.contains(.weddingPass) {
-            fact("Wedding Pass", "Available in the Pass tab", "live-guest-pass-hint")
+    }
+
+    private var guestHero: some View {
+        ZStack(alignment: .bottomLeading) {
+            WewedMediaImage(WewedAsset.heroWedding)
+                .scaledToFill()
+                .frame(maxWidth: .infinity)
+                .frame(height: 350)
+                .clipped()
+
+            LinearGradient(
+                colors: [.clear, Color.black.opacity(0.16), Color.black.opacity(0.82)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            VStack(alignment: .leading, spacing: 8) {
+                WeddingBrandMark()
+                Spacer()
+                Text(profile.coupleNames)
+                    .font(.system(size: 36, design: .serif))
+                    .italic()
+                    .foregroundStyle(.white)
+                    .accessibilityIdentifier("live-guest-couple")
+                Text("YOUR WEDDING INVITATION")
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(2.6)
+                    .foregroundStyle(.white.opacity(0.90))
+                Text(Self.formatWeddingDate(profile.weddingDate))
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.white)
+
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    if let countdown = Self.countdown(from: profile.weddingDate, now: context.date) {
+                        HStack(spacing: 6) {
+                            guestCountdownTile(countdown.days, "Days")
+                            guestCountdownTile(countdown.hours, "Hours")
+                            guestCountdownTile(countdown.minutes, "Mins")
+                            guestCountdownTile(countdown.seconds, "Secs")
+                        }
+                        .padding(.top, 3)
+                    }
+                }
+
+                Text("Welcome, \(profile.guestName)")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.white.opacity(0.94))
+                    .accessibilityIdentifier("live-guest-name")
+            }
+            .padding(17)
         }
+        .frame(maxWidth: .infinity)
+        .frame(height: 350)
+        .clipShape(RoundedRectangle(cornerRadius: 23))
+        .overlay(
+            RoundedRectangle(cornerRadius: 23)
+                .stroke(WeddingIdentityPalette.champagne.opacity(0.35), lineWidth: 1)
+        )
+        .accessibilityIdentifier("live-guest-hero")
+    }
+
+    private func guestCountdownTile(_ value: Int, _ label: String) -> some View {
+        VStack(spacing: 1) {
+            Text("\(value)")
+                .font(.system(size: 21, design: .serif))
+            Text(label)
+                .font(.system(size: 9))
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 7)
+        .background(Color.black.opacity(0.46))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     /// The pass, or an honest statement of why there isn't one.
@@ -296,6 +374,34 @@ public struct LiveGuestShellView: View {
         let months = ["January", "February", "March", "April", "May", "June",
                       "July", "August", "September", "October", "November", "December"]
         return "\(day) \(months[monthIndex - 1]) \(parts[0])"
+    }
+
+    private static func countdown(
+        from raw: String?,
+        now: Date
+    ) -> (days: Int, hours: Int, minutes: Int, seconds: Int)? {
+        guard let target = weddingInstant(raw) else { return nil }
+        var total = max(0, Int(target.timeIntervalSince(now)))
+        let days = total / 86_400
+        total %= 86_400
+        let hours = total / 3_600
+        total %= 3_600
+        let minutes = total / 60
+        let seconds = total % 60
+        return (days, hours, minutes, seconds)
+    }
+
+    private static func weddingInstant(_ raw: String?) -> Date? {
+        guard let raw, !raw.isEmpty else { return nil }
+        let iso = ISO8601DateFormatter()
+        if let value = iso.date(from: raw) { return value }
+        for format in ["yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm", "yyyy-MM-dd"] {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = format
+            if let value = formatter.date(from: raw) { return value }
+        }
+        return nil
     }
 }
 
