@@ -411,11 +411,33 @@ public struct IvoryFloralGoldNative: View {
                     secondaryColor: IvoryPalette.inkSoft
                 )
             }
-            region(IvoryGeometry.detailNote, w, h) {
-                Text("A special message from us")
-                    .font(IvoryTypography.body(size: w * 0.024))
-                    .foregroundStyle(IvoryPalette.inkSoft)
-                    .multilineTextAlignment(.center)
+            if let onNote = actions.onNote {
+                Button(action: onNote) {
+                    Text("A special message from us")
+                        .font(IvoryTypography.body(size: w * 0.024))
+                        .foregroundStyle(IvoryPalette.inkSoft)
+                        .multilineTextAlignment(.center)
+                        .frame(
+                            width: w * IvoryGeometry.hitWidth / 100,
+                            height: h * IvoryGeometry.hitNote[1] / 100
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .position(
+                    x: w * (IvoryGeometry.hitLeft + IvoryGeometry.hitWidth / 2) / 100,
+                    y: h * (IvoryGeometry.hitNote[0] + IvoryGeometry.hitNote[1] / 2) / 100
+                )
+                .zIndex(30)
+                .accessibilityLabel("A Note from Us")
+                .accessibilityIdentifier("invitation-cta-note")
+            } else {
+                region(IvoryGeometry.detailNote, w, h) {
+                    Text("A special message from us")
+                        .font(IvoryTypography.body(size: w * 0.024))
+                        .foregroundStyle(IvoryPalette.inkSoft)
+                        .multilineTextAlignment(.center)
+                }
             }
 
             // The details hits, at the approved coordinates. RSVP remains reachable
@@ -428,15 +450,6 @@ public struct IvoryFloralGoldNative: View {
                 actions.onOpenVenue)
             hit(IvoryGeometry.hitRegistry, w, h, "Gift / Contributions",
                 "invitation-cta-registry", actions.onGifts)
-            hit(
-                IvoryGeometry.hitNote,
-                w,
-                h,
-                "A Note from Us",
-                "invitation-cta-note",
-                actions.onNote
-            )
-
             VStack {
                 Spacer()
                 HStack(spacing: 8) {
@@ -483,19 +496,6 @@ public struct IvoryFloralGoldNative: View {
             .frame(width: w, height: h)
         }
         .frame(width: w, height: h)
-        .simultaneousGesture(
-            SpatialTapGesture().onEnded { tap in
-                guard let onNote = actions.onNote else { return }
-                let left = w * IvoryGeometry.hitLeft / 100
-                let top = h * IvoryGeometry.hitNote[0] / 100
-                let width = w * IvoryGeometry.hitWidth / 100
-                let height = h * IvoryGeometry.hitNote[1] / 100
-                let noteRect = CGRect(x: left, y: top, width: width, height: height)
-                if noteRect.contains(tap.location) {
-                    onNote()
-                }
-            }
-        )
         .overlay(AccessibilityMarker("invitation-interactive-details", label: "Wedding details"))
     }
 
