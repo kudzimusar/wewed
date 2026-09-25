@@ -1,0 +1,60 @@
+name: NM03 Temporary Native Qualification
+
+on:
+  push:
+    branches:
+      - native-mobile/phase13-final-guest-ui-composition-nm03-20260925
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nm03-native-qualification-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android unit + debug build
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android source qualification
+        working-directory: apps/android
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest assembleDebug --no-daemon --stacktrace
+
+  ios:
+    name: iOS Swift + application build
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 16.2
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          xcodebuild -version
+      - name: Swift tests
+        working-directory: apps/ios
+        run: swift test
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate app project
+        working-directory: apps/ios
+        run: xcodegen generate --spec project.yml
+      - name: Build iOS app target for simulator
+        working-directory: apps/ios
+        run: >-
+          xcodebuild
+          -project Wewed.xcodeproj
+          -scheme Wewed
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          build
