@@ -29,6 +29,17 @@ describe('smart invitation links', () => {
     expect(url).not.toContain('/w/charity-and-kudzie?')
   })
 
+  test('preserves the wedding-selected premium card style in personal links', () => {
+    const url = buildSmartInvitationUrl({
+      siteUrl: 'https://wewed.pro',
+      weddingSlug: 'sample-wedding',
+      token: 'private-token',
+      style: 'ivory-floral-gold',
+    })
+    expect(new URL(url).searchParams.get('card')).toBe('ivory-floral-gold')
+    expect(url).not.toContain('card=botanical')
+  })
+
   test('encodes wedding slugs and sources in continuation paths', () => {
     expect(
       buildInvitationContinuePath({
