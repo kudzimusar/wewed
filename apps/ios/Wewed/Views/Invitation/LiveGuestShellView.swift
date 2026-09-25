@@ -79,89 +79,73 @@ public struct LiveGuestShellView: View {
     }
 
     public var body: some View {
-        GeometryReader { viewport in
-            let contentWidth = max(0, viewport.size.width - 40)
-
-            ZStack {
-                WeddingIdentityPalette.ivory.ignoresSafeArea()
-                AccessibilityMarker("live-guest-shell", label: "Your wedding")
-
-                Group {
-                    if section == .invitation {
-                        invitationContent()
-                    } else if section == .pass && profile.attending == true {
-                        LiveIssuedGuestPassView(profile: profile, coordinator: coordinator)
-                            .id(profile.guestId)
-                    } else if section == .weddingDay {
-                        weddingDay
-                    } else if section == .more {
-                        guestProfile
-                    } else {
-                        ScrollView(.vertical, showsIndicators: false) {
-                            VStack(alignment: .leading, spacing: 16) {
-                                switch section {
-                                case .home: home
-                                case .pass: pass
-                                default: EmptyView()
-                                }
-                            }
-                            .frame(width: contentWidth, alignment: .leading)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 20)
-                        }
-                        .frame(width: viewport.size.width)
-                    }
+        TabView(selection: tabSelection) {
+            ForEach(GuestSection.allCases, id: \.self) { candidate in
+                WewedScreenContainer {
+                    guestDestination(candidate)
                 }
-                .frame(width: viewport.size.width)
-                .frame(maxHeight: .infinity)
-                .clipped()
+                .tabItem {
+                    Label(candidate.label, systemImage: candidate.icon)
+                        .accessibilityIdentifier("nav-guest-\(candidate.id)")
+                }
+                .tag(candidate)
             }
-            .frame(width: viewport.size.width, height: viewport.size.height)
-            .clipped()
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                guestBottomNavigation(viewportWidth: viewport.size.width)
-            }
+        }
+        .tint(WeddingIdentityPalette.champagneDeep)
+        .background(WeddingIdentityPalette.ivory)
+        .accessibilityIdentifier("live-guest-tab-view")
+        .overlay(alignment: .topLeading) {
+            AccessibilityMarker("live-guest-shell", label: "Your wedding")
         }
     }
 
-    private func guestBottomNavigation(viewportWidth: CGFloat) -> some View {
-        VStack(spacing: 0) {
-            Divider().foregroundStyle(WeddingIdentityPalette.hairline)
-            HStack(spacing: 0) {
-                ForEach(GuestSection.allCases, id: \.self) { candidate in
-                    Button {
-                        if candidate == .invitation { onOpenInvitation() }
-                        else { onSelect(candidate) }
-                    } label: {
-                        VStack(spacing: 4) {
-                            Image(systemName: candidate.icon)
-                                .font(.system(size: 17))
-                            Text(candidate.label)
-                                .font(.system(
-                                    size: 10,
-                                    weight: section == candidate ? .semibold : .regular
-                                ))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.82)
-                        }
-                        .foregroundStyle(
-                            section == candidate
-                                ? WeddingIdentityPalette.champagneDeep
-                                : WeddingIdentityPalette.muted
-                        )
-                        .frame(maxWidth: .infinity, minHeight: 56)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("nav-guest-\(candidate.id)")
-                    .accessibilityAddTraits(section == candidate ? .isSelected : [])
+    /// Native TabView owns the bottom safe area. Selection still delegates to the existing Guest
+    /// state machine rather than introducing local navigation authority.
+    private var tabSelection: Binding<GuestSection> {
+        Binding(
+            get: { section },
+            set: { requested in
+                if requested == .invitation {
+                    onOpenInvitation()
+                } else {
+                    onSelect(requested)
                 }
             }
-            .frame(width: viewportWidth)
-            .background(WeddingIdentityPalette.ivorySoft)
+        )
+    }
+
+    @ViewBuilder
+    private func guestDestination(_ candidate: GuestSection) -> some View {
+        switch candidate {
+        case .invitation:
+            invitationContent()
+
+        case .pass where profile.attending == true:
+            LiveIssuedGuestPassView(profile: profile, coordinator: coordinator)
+                .id(profile.guestId)
+
+        case .weddingDay:
+            weddingDay
+
+        case .more:
+            guestProfile
+
+        case .home:
+            ScrollView(.vertical, showsIndicators: false) {
+                home
+                    .wewedBoundedWidth(horizontalInset: 40)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 20)
+            }
+
+        case .pass:
+            ScrollView(.vertical, showsIndicators: false) {
+                pass
+                    .wewedBoundedWidth(horizontalInset: 40)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 20)
+            }
         }
-        .frame(width: viewportWidth)
-        .background(WeddingIdentityPalette.ivorySoft)
     }
 
     /// The Guest's own wedding at a glance — the qualified Wewed wedding identity language,
@@ -247,9 +231,7 @@ public struct LiveGuestShellView: View {
         ZStack(alignment: .bottomLeading) {
             WewedMediaImage(WewedAsset.heroWedding)
                 .scaledToFill()
-                .frame(maxWidth: .infinity)
-                .frame(height: 350)
-                .clipped()
+                .wewedMedia(height: 350, horizontalInset: 40)
 
             LinearGradient(
                 colors: [.clear, Color.black.opacity(0.16), Color.black.opacity(0.82)],
@@ -300,7 +282,7 @@ public struct LiveGuestShellView: View {
             }
             .padding(17)
         }
-        .frame(maxWidth: .infinity)
+        .wewedBoundedWidth(horizontalInset: 40)
         .frame(height: 350)
         .clipShape(RoundedRectangle(cornerRadius: 23))
         .overlay(
