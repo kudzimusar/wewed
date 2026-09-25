@@ -97,6 +97,64 @@ class GuestPresentationConvergenceTest {
     }
 
     @Test
+    fun nm03GuestTabsHaveDistinctResponsibilities() {
+        val source = repositoryFile(
+            "apps/android/app/src/main/java/pro/wewed/app/ui/invitation/LiveGuestShell.kt"
+        ).readText()
+
+        fun section(start: String, end: String): String =
+            source.substringAfter(start).substringBefore(end)
+
+        val home = section("private fun LiveGuestHome(", "private fun LiveGuestHero(")
+        assertTrue(home.contains("Directions to Venue"))
+        assertTrue(home.contains("guest-home-pass"))
+        assertTrue(home.contains("guest-home-digital-invitation"))
+        assertTrue(home.contains("guest-home-next-programme"))
+        assertTrue(home.contains("guest-home-announcement"))
+        listOf("\"Meal\"", "\"Dietary / access\"", "\"Your message\"", "\"Your table\"").forEach {
+            assertFalse("Home must not become Profile again via $it", home.contains(it))
+        }
+
+        val weddingDay = section("private fun LiveGuestWeddingDay(", "private fun LiveGuestMore(")
+        val programme = weddingDay.indexOf("GuestSectionHeading(\"Programme\"")
+        val venue = weddingDay.indexOf("GuestSectionHeading(\"Venue & directions\"")
+        val announcements = weddingDay.indexOf("GuestSectionHeading(\"Announcements\"")
+        val arrival = weddingDay.indexOf("GuestSectionHeading(\"Arrival\"")
+        assertTrue(programme >= 0 && venue > programme && announcements > venue && arrival > announcements)
+
+        val more = section("private fun LiveGuestMore(", "private fun GuestSectionHeading(")
+        listOf("Our Story", "Couple Website", "Gift & Contribution Info", "Help", "Privacy & Legal",
+            "My details", "This device").forEach {
+            assertTrue("More is missing $it", more.contains(it))
+        }
+        listOf("\"Meal\"", "\"Plus one\"", "\"Dietary / access\"", "\"Your message\"", "\"Table\"").forEach {
+            assertFalse("More must not lead with profile duplication via $it", more.contains(it))
+        }
+    }
+
+    @Test
+    fun nm03GuestActionsUseWewedPaletteAndNoAlternateAuthority() {
+        val invitation = repositoryFile(
+            "apps/android/app/src/main/java/pro/wewed/app/ui/invitation/LiveGuestInvitationScreen.kt"
+        ).readText()
+        val shell = repositoryFile(
+            "apps/android/app/src/main/java/pro/wewed/app/ui/invitation/LiveGuestShell.kt"
+        ).readText()
+
+        listOf(invitation, shell).forEach { source ->
+            assertFalse(source.contains("WewedColors.Emerald"))
+            assertFalse(source.contains("WeddingGraphState"))
+            assertFalse(source.contains("QRCodeWriter"))
+            assertFalse(source.contains("WeddingQRCodeView("))
+        }
+        assertTrue(invitation.contains("WeddingIdentityPalette.ChampagneDeep"))
+        assertTrue(shell.contains("WeddingIdentityPalette.ChampagneDeep"))
+        assertTrue(shell.contains("Directions to Venue"))
+        assertTrue(shell.contains("WeddingReferencePassScreen"))
+        assertTrue(shell.contains("Update RSVP in Invitation"))
+    }
+
+    @Test
     fun invitationReopensThroughLiveIvoryInsteadOfShadowOrWebview() {
         val shell = repositoryFile(
             "apps/android/app/src/main/java/pro/wewed/app/ui/invitation/GuestOnlyInvitationShell.kt"
