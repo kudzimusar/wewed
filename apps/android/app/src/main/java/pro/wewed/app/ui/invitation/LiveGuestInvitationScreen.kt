@@ -137,59 +137,78 @@ fun LiveGuestInvitationScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        NativeInvitationExperience(
-            style = presentation.invitationCardStyle,
-            data = presentation.toIvoryData(),
-            rsvp = ivoryRsvpStateFrom(status),
-            actions = resolveLiveInvitationActions(
-                presentation = presentation,
-                onRsvpPrompt = { requestRsvpEdit() },
-                onAddToCalendar = { addWeddingToCalendar(context, presentation) },
-                onOpenVenue = {
-                    val target = resolveLiveVenueDestination(presentation)
-                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target))) }
-                },
-                onGifts = { openCoupleSite(context, presentation.weddingSlug, "#registry") },
-                onNote = presentation.invitationCardMessage
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let { { showNote = true } },
-                onViewPass = onViewPass,
-                onVisitCoupleSite = { openCoupleSite(context, presentation.weddingSlug, null) },
-                onContinue = if (presentation.attending == null) null else onContinue
-            )
-        )
-
-        if (onBackToWedding != null) {
-            Surface(
-                onClick = onBackToWedding,
-                shape = RoundedCornerShape(999.dp),
-                color = WeddingIdentityPalette.IvorySoft.copy(alpha = 0.97f),
-                border = BorderStroke(1.dp, WeddingIdentityPalette.Champagne.copy(alpha = 0.70f)),
-                shadowElevation = 2.dp,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                    .heightIn(min = 48.dp)
-                    .testTag("invitation-back-to-wedding")
-            ) {
+        Column(
+            modifier = Modifier.fillMaxSize().background(WeddingIdentityPalette.Ivory)
+        ) {
+            if (onBackToWedding != null) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(WeddingIdentityPalette.Ivory)
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Filled.ArrowBack,
-                        contentDescription = null,
-                        tint = WeddingIdentityPalette.ChampagneDeep,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Text(
-                        "Back to My Wedding",
-                        color = WeddingIdentityPalette.ChampagneDeep,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    Surface(
+                        onClick = onBackToWedding,
+                        shape = RoundedCornerShape(999.dp),
+                        color = WeddingIdentityPalette.IvorySoft,
+                        border = BorderStroke(
+                            1.dp,
+                            WeddingIdentityPalette.Champagne.copy(alpha = 0.70f)
+                        ),
+                        shadowElevation = 2.dp,
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .testTag("invitation-back-to-wedding")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.ArrowBack,
+                                contentDescription = null,
+                                tint = WeddingIdentityPalette.ChampagneDeep,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                "Back to My Wedding",
+                                color = WeddingIdentityPalette.ChampagneDeep,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
                 }
+            }
+
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                NativeInvitationExperience(
+                    style = presentation.invitationCardStyle,
+                    data = presentation.toIvoryData(),
+                    rsvp = ivoryRsvpStateFrom(status),
+                    actions = resolveLiveInvitationActions(
+                        presentation = presentation,
+                        onRsvpPrompt = { requestRsvpEdit() },
+                        onAddToCalendar = { addWeddingToCalendar(context, presentation) },
+                        onOpenVenue = {
+                            val target = resolveLiveVenueDestination(presentation)
+                            runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+                            }
+                        },
+                        onGifts = { openCoupleSite(context, presentation.weddingSlug, "#registry") },
+                        onNote = presentation.invitationCardMessage
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let { { showNote = true } },
+                        onViewPass = onViewPass,
+                        onVisitCoupleSite = {
+                            openCoupleSite(context, presentation.weddingSlug, null)
+                        },
+                        onContinue = if (presentation.attending == null) null else onContinue
+                    )
+                )
             }
         }
 
