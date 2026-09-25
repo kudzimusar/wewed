@@ -4,10 +4,13 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,10 +31,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import kotlinx.coroutines.launch
 import pro.wewed.app.R
 import pro.wewed.app.models.InvitationPresentationState
+import pro.wewed.app.theme.WeddingIdentityPalette
 
 /**
  * Ivory Floral Gold, natively.
@@ -59,6 +66,13 @@ object IvoryGeometry {
 
     /** `.ivory-stage { max-width: 430px }` — the card keeps a card's size, even on a tablet. */
     const val MAX_STAGE_WIDTH_DP = 430f
+
+    /** Width is the scale authority on mobile; available height never shrinks the card. */
+    fun stageWidthForViewport(viewportWidthDp: Float): Float =
+        minOf(viewportWidthDp.coerceAtLeast(0f), MAX_STAGE_WIDTH_DP)
+
+    fun stageHeightForWidth(stageWidthDp: Float): Float =
+        stageWidthDp.coerceAtLeast(0f) / ASPECT
 
     /** `perspective: 1900px` on `.ivory-object`. */
     const val PERSPECTIVE_PX = 1900f
@@ -254,29 +268,32 @@ fun IvoryFloralGoldNative(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .background(IvoryPalette.Stage)
+            .background(WeddingIdentityPalette.Ivory)
             .testTag("invitation-trifold"),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.TopCenter
     ) {
-        // The stationery keeps its authored aspect and is centred, the way a physical card sits on
-        // a surface. It is never stretched to the viewport.
-        val availableW = maxWidth
-        val availableH = maxHeight
-        val stageWidth = minOf(
-            availableW,
-            availableH * IvoryGeometry.ASPECT,
-            IvoryGeometry.MAX_STAGE_WIDTH_DP.dp
-        )
-        val stageHeight = stageWidth / IvoryGeometry.ASPECT
+        // NM03 mobile geometry: width controls invitation scale. Height is derived from the
+        // authored aspect and the host scrolls vertically when the physical stationery is taller
+        // than the available application viewport (for example above the persistent tab bar).
+        val stageWidth = IvoryGeometry.stageWidthForViewport(maxWidth.value).dp
+        val stageHeight = IvoryGeometry.stageHeightForWidth(stageWidth.value).dp
         val cameraDistance = with(density) { IvoryGeometry.PERSPECTIVE_PX.dp.toPx() } /
             with(density) { 1.dp.toPx() }
 
         Box(
             modifier = Modifier
-                .width(stageWidth)
-                .height(stageHeight)
-                .clip(androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
+                .fillMaxSize()
+                .background(WeddingIdentityPalette.Ivory)
+                .verticalScroll(rememberScrollState()),
+            contentAlignment = Alignment.TopCenter
         ) {
+            Box(
+                modifier = Modifier
+                    .width(stageWidth)
+                    .height(stageHeight)
+                    .background(IvoryPalette.Stage)
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
+            ) {
             // --- The invitation face, beneath the doors ---
             if (view != InvitationPresentationState.DETAILS) {
                 Box(
@@ -564,58 +581,69 @@ fun IvoryFloralGoldNative(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
-                            .padding(bottom = stageHeight * 0.02f),
-                        horizontalArrangement = Arrangement.Center
+                            .padding(horizontal = 14.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            "View invitation",
-                            color = IvoryPalette.Gold,
-                            fontSize = (stageWidth.value * 0.026f).sp,
+                        OutlinedButton(
+                            onClick = { view = InvitationPresentationState.OPEN },
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(13.dp),
+                            border = BorderStroke(1.dp, WeddingIdentityPalette.ChampagneDeep),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = WeddingIdentityPalette.IvorySoft.copy(alpha = 0.96f),
+                                contentColor = WeddingIdentityPalette.ChampagneDeep
+                            ),
                             modifier = Modifier
-                                .clickable { view = InvitationPresentationState.OPEN }
-                                .padding(horizontal = 10.dp)
+                                .weight(1f)
+                                .heightIn(min = 48.dp)
                                 .testTag("invitation-back-to-invitation")
-                        )
+                        ) {
+                            Text(
+                                "View Invitation",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1
+                            )
+                        }
+
                         if (rsvp.offersPass && actions.onViewPass != null) {
                             val isPending = rsvp.isPassLocked
-                            Text(
-                                text = if (isPending) "Guest Pass (locked)" else "Guest Pass",
-                                color = if (isPending) IvoryPalette.InkSoft else IvoryPalette.Gold,
-                                fontSize = (stageWidth.value * 0.026f).sp,
+                            Button(
+                                onClick = { actions.onViewPass.invoke() },
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(13.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = WeddingIdentityPalette.ChampagneDeep,
+                                    contentColor = Color.White
+                                ),
                                 modifier = Modifier
-                                    .clickable { actions.onViewPass.invoke() }
-                                    .padding(horizontal = 10.dp)
+                                    .weight(1f)
+                                    .heightIn(min = 48.dp)
                                     .semantics {
                                         contentDescription = if (isPending) {
-                                            "Guest Pass (available after you confirm attendance)"
+                                            "Guest Pass. RSVP required."
                                         } else {
                                             "Guest Pass"
                                         }
                                     }
                                     .testTag("invitation-cta-pass")
-                            )
-                        }
-                        actions.onVisitCoupleSite?.let {
-                            Text(
-                                "Visit Couple Website",
-                                color = IvoryPalette.Gold,
-                                fontSize = (stageWidth.value * 0.026f).sp,
-                                modifier = Modifier
-                                    .clickable(onClick = it)
-                                    .padding(horizontal = 10.dp)
-                                    .testTag("invitation-cta-couple-site")
-                            )
-                        }
-                        actions.onContinue?.let {
-                            Text(
-                                "Continue",
-                                color = IvoryPalette.InkSoft,
-                                fontSize = (stageWidth.value * 0.026f).sp,
-                                modifier = Modifier
-                                    .clickable(onClick = it)
-                                    .padding(horizontal = 10.dp)
-                                    .testTag("invitation-continue")
-                            )
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        "Guest Pass",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1
+                                    )
+                                    if (isPending) {
+                                        Text(
+                                            "RSVP required",
+                                            fontSize = 9.sp,
+                                            color = Color.White.copy(alpha = 0.88f),
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -702,8 +730,9 @@ fun IvoryFloralGoldNative(
                 }
             }
 
-            if (view == InvitationPresentationState.OPENING) {
-                Box(modifier = Modifier.matchParentSize().testTag("invitation-opening"))
+                if (view == InvitationPresentationState.OPENING) {
+                    Box(modifier = Modifier.matchParentSize().testTag("invitation-opening"))
+                }
             }
         }
     }
