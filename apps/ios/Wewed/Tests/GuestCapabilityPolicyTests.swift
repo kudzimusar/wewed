@@ -8,14 +8,17 @@ import XCTest
 /// has not answered — not a stranger at the door.
 final class GuestCapabilityPolicyTests: XCTestCase {
 
-    /// A guest who has not answered still has a wedding, an invitation and a profile.
-    func testAPendingGuestMayEnterTheirOwnExperience() {
+    /// Pending is invitation-only: identity is known, but persistent Guest entry is not yet open.
+    func testAPendingGuestCannotEnterThePersistentExperience() {
         let pending = GuestCapabilityPolicy.capabilities(attending: nil)
-        for capability in [GuestCapability.home, .invitation, .weddingDetails, .venue,
-                           .coupleWebsite, .registry, .profile] {
+        for capability in [GuestCapability.invitation, .weddingDetails, .venue,
+                           .coupleWebsite, .registry] {
             XCTAssertTrue(pending.contains(capability),
-                          "\(capability) must be available while pending")
+                          "\(capability) must remain available from the invitation")
         }
+        XCTAssertFalse(pending.contains(.home))
+        XCTAssertFalse(pending.contains(.profile))
+        XCTAssertFalse(GuestCapabilityPolicy.mayEnterPersistentExperience(attending: nil))
     }
 
     /// And is asked the question, because they have not answered it.
@@ -27,6 +30,12 @@ final class GuestCapabilityPolicyTests: XCTestCase {
     /// But holds no admission credential: they have not said they are coming.
     func testAPendingGuestHasNoPass() {
         XCTAssertFalse(GuestCapabilityPolicy.allows(attending: nil, .weddingPass))
+    }
+
+    /// Any completed RSVP unlocks the persistent Guest application.
+    func testAnsweredGuestsMayEnterThePersistentExperience() {
+        XCTAssertTrue(GuestCapabilityPolicy.mayEnterPersistentExperience(attending: true))
+        XCTAssertTrue(GuestCapabilityPolicy.mayEnterPersistentExperience(attending: false))
     }
 
     /// Accepting is what unlocks the day itself.
