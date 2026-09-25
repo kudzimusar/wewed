@@ -772,7 +772,8 @@ private struct LiveRsvpFormView: View {
                                         .font(.system(size: 13))
                                         .foregroundStyle(WeddingIdentityPalette.muted)
                                 }
-                                .frame(width: contentWidth, minHeight: 44, alignment: .leading)
+                                .frame(width: contentWidth, alignment: .leading)
+                                .frame(minHeight: 44, alignment: .leading)
                             } else {
                                 Button { onSubmit(buildUpdate()) } label: {
                                     HStack(spacing: 8) {
@@ -781,7 +782,8 @@ private struct LiveRsvpFormView: View {
                                             .fontWeight(.semibold)
                                     }
                                     .foregroundStyle(.white)
-                                    .frame(width: contentWidth, minHeight: 50)
+                                    .frame(width: contentWidth)
+                                    .frame(minHeight: 50)
                                     .background(WeddingIdentityPalette.champagneDeep)
                                     .clipShape(RoundedRectangle(cornerRadius: 13))
                                 }
@@ -826,7 +828,8 @@ private struct LiveRsvpFormView: View {
                     selected ? WeddingIdentityPalette.forest : WeddingIdentityPalette.muted
                 )
                 .padding(.horizontal, 10)
-                .frame(width: fixedWidth, minHeight: 44)
+                .frame(width: fixedWidth)
+                .frame(minHeight: 44)
                 .background(
                     selected
                         ? WeddingIdentityPalette.forestSoft
