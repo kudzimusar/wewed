@@ -9,8 +9,9 @@ import Foundation
 public enum LiveGuestExperienceState: Equatable, Sendable {
     /// Checking whether this device still holds a valid Guest session.
     case restoring
-    /// The ceremonial entry: the configured digital invitation, shown first. Not a gate — `home`
-    /// is reachable without answering.
+    /// The ceremonial entry: the configured digital invitation, shown first. While RSVP is
+    /// pending this is the only Guest surface; `home` becomes reachable after an authoritative
+    /// RSVP response exists.
     case invitation(LiveInvitationPresentation)
     /// The persistent Guest experience: their wedding, their details, their pass if attending.
     case home(LiveInvitationPresentation)
