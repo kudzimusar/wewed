@@ -12,7 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +34,8 @@ import pro.wewed.app.invitation.*
 import pro.wewed.app.theme.WeddingBrandMark
 import pro.wewed.app.theme.WeddingIdentityPalette
 import pro.wewed.app.theme.WewedColors
+import pro.wewed.app.ui.roles.IACard
+import pro.wewed.app.ui.roles.IASectionList
 import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlin.math.max
@@ -69,50 +71,87 @@ fun LiveGuestShell(
         modifier = modifier.testTag("live-guest-shell"),
         containerColor = WeddingIdentityPalette.Ivory,
         bottomBar = {
-            NavigationBar(containerColor = WeddingIdentityPalette.Ivory) {
-                GuestSection.entries.forEach { candidate ->
-                    NavigationBarItem(
-                        selected = section == candidate,
-                        onClick = {
-                            if (candidate == GuestSection.INVITATION) onOpenInvitation()
-                            else onSelect(candidate)
-                        },
-                        icon = { Icon(when (candidate) {
-                            GuestSection.HOME -> Icons.Outlined.Home
-                            GuestSection.INVITATION -> Icons.Outlined.MailOutline
-                            GuestSection.PASS -> Icons.Outlined.QrCode
-                            GuestSection.WEDDING_DAY -> Icons.Outlined.Event
-                            GuestSection.MORE -> Icons.Outlined.PersonOutline
-                        }, contentDescription = null) },
-                        label = { Text(candidate.label, fontSize = 11.sp) },
-                        modifier = Modifier.testTag("nav-guest-${candidate.id}")
-                    )
+            Column(modifier = Modifier.background(WeddingIdentityPalette.IvorySoft)) {
+                HorizontalDivider(thickness = 1.dp, color = WeddingIdentityPalette.Hairline)
+                NavigationBar(
+                    containerColor = WeddingIdentityPalette.IvorySoft,
+                    tonalElevation = 0.dp
+                ) {
+                    GuestSection.entries.forEach { candidate ->
+                        NavigationBarItem(
+                            selected = section == candidate,
+                            onClick = {
+                                if (candidate == GuestSection.INVITATION) onOpenInvitation()
+                                else onSelect(candidate)
+                            },
+                            icon = {
+                                Icon(
+                                    when (candidate) {
+                                        GuestSection.HOME -> Icons.Filled.Home
+                                        GuestSection.INVITATION -> Icons.Filled.Email
+                                        GuestSection.PASS -> Icons.Filled.QrCode
+                                        GuestSection.WEDDING_DAY -> Icons.Filled.Event
+                                        GuestSection.MORE -> Icons.Filled.Person
+                                    },
+                                    contentDescription = candidate.label
+                                )
+                            },
+                            label = {
+                                Text(
+                                    candidate.label,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = WeddingIdentityPalette.ChampagneDeep,
+                                selectedTextColor = WeddingIdentityPalette.ChampagneDeep,
+                                indicatorColor = Color.Transparent,
+                                unselectedIconColor = WeddingIdentityPalette.Muted,
+                                unselectedTextColor = WeddingIdentityPalette.Muted
+                            ),
+                            modifier = Modifier.testTag("nav-guest-${candidate.id}")
+                        )
+                    }
                 }
             }
         }
     ) { padding ->
-        if (section == GuestSection.INVITATION) {
-            Box(Modifier.fillMaxSize().padding(padding)) { invitationContent() }
-            return@Scaffold
-        }
-        if (section == GuestSection.PASS && profile.attending == true) {
-            Box(Modifier.fillMaxSize().padding(padding)) { LiveIssuedGuestPass(profile, coordinator) }
-            return@Scaffold
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            when (section) {
-                GuestSection.HOME -> LiveGuestHome(profile, capabilities, onOpenInvitation)
-                GuestSection.INVITATION -> LiveGuestHome(profile, capabilities, onOpenInvitation)
-                GuestSection.PASS -> LiveGuestPass(profile, capabilities, onOpenInvitation)
-                GuestSection.WEDDING_DAY -> LiveGuestWeddingDay(profile, capabilities, coordinator)
-                GuestSection.MORE -> LiveGuestProfile(profile, onForgetWedding, onOpenInvitation, coordinator)
+        when {
+            section == GuestSection.INVITATION -> {
+                Box(Modifier.fillMaxSize().padding(padding)) { invitationContent() }
+            }
+            section == GuestSection.PASS && profile.attending == true -> {
+                Box(Modifier.fillMaxSize().padding(padding)) {
+                    LiveIssuedGuestPass(profile, coordinator)
+                }
+            }
+            section == GuestSection.WEDDING_DAY -> {
+                Box(Modifier.fillMaxSize().padding(padding)) {
+                    LiveGuestWeddingDay(profile, capabilities, coordinator)
+                }
+            }
+            section == GuestSection.MORE -> {
+                Box(Modifier.fillMaxSize().padding(padding)) {
+                    LiveGuestProfile(profile, onForgetWedding, onOpenInvitation, coordinator)
+                }
+            }
+            else -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .verticalScroll(rememberScrollState())
+                        .padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    when (section) {
+                        GuestSection.HOME -> LiveGuestHome(profile, capabilities, onOpenInvitation)
+                        GuestSection.PASS -> LiveGuestPass(profile, capabilities, onOpenInvitation)
+                        else -> Unit
+                    }
+                }
             }
         }
     }
@@ -397,16 +436,20 @@ private fun LiveGuestWeddingDay(
     capabilities: Set<GuestCapability>,
     coordinator: LiveGuestInvitationCoordinator
 ) {
-    Text("Wedding Day", fontFamily = FontFamily.Serif, fontSize = 22.sp,
-         color = WeddingIdentityPalette.Ink)
-
     if (GuestCapability.WEDDING_DAY_PROGRAMME !in capabilities) {
-        GuestFact(
-            "Not yet",
-            if (profile.attending == null) "Confirm your attendance to see the day's plan."
-            else "The day's plan is for guests who are joining on the day.",
-            "live-guest-day-locked"
-        )
+        IASectionList(
+            title = "Wedding Day",
+            subtitle = formatWeddingDate(profile.weddingDate)
+        ) {
+            IACard(
+                title = "Wedding Day details",
+                subtitle = if (profile.attending == null)
+                    "Confirm your attendance to see the day's plan."
+                else
+                    "The day's plan is for guests who are joining on the day.",
+                testTag = "live-guest-day-locked"
+            )
+        }
         return
     }
 
@@ -417,60 +460,112 @@ private fun LiveGuestWeddingDay(
         catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (_: Exception) { failed = true }
     }
-    if (failed) GuestFact("Unavailable", "We couldn't load the day's details. Please try again.", "guest-day-unavailable")
-    if (day == null && !failed) CircularProgressIndicator()
-    day?.let { data ->
-        val programme = data.optJSONArray("programme")
-        Text("Programme", modifier = Modifier.testTag("guest-day-programme"))
-        for (index in 0 until (programme?.length() ?: 0)) {
-            val item = programme!!.getJSONObject(index)
-            GuestFact(item.optString("time"), item.optString("title"), "guest-programme-${item.optString("id")}")
-        }
-        if (GuestCapability.ANNOUNCEMENTS in capabilities) {
-            Text("Announcements", modifier = Modifier.testTag("guest-day-announcements"))
-            val announcements = data.optJSONArray("announcements")
-            for (index in 0 until (announcements?.length() ?: 0)) {
-                val item = announcements!!.getJSONObject(index)
-                GuestFact(item.optString("title"), item.optString("body"), "guest-announcement-${item.optString("id")}")
-            }
-        }
-        val guest = data.getJSONObject("guest")
-        if (GuestCapability.PARTY_DETAILS in capabilities) {
-            val party = guest.optJSONArray("household")
-            Text("My Party", modifier = Modifier.testTag("guest-day-party"))
-            for (index in 0 until (party?.length() ?: 0)) {
-                Text(party!!.getJSONObject(index).optString("attendeeName"))
-            }
-        }
-        if (GuestCapability.SEATING in capabilities && !guest.isNull("tableName")) {
-            GuestFact("My Table", guest.getString("tableName"), "guest-day-table")
-        }
-        if (GuestCapability.CHECK_IN_STATE in capabilities) {
-            GuestFact(
-                "Admission",
-                if (guest.optBoolean("checkedIn")) "Checked in" else "Not yet checked in",
-                "guest-day-check-in"
-            )
-        }
-    }
 
-    GuestFact("When", formatWeddingDate(profile.weddingDate), "live-guest-day-date")
-    GuestFact("Where", profile.venue.orEmpty(), "live-guest-day-venue")
-    if (GuestCapability.SEATING in capabilities) {
-        profile.tableName?.takeIf { it.isNotBlank() }?.let {
-            GuestFact("Your table", it, "live-guest-day-table")
+    IASectionList(
+        title = "Wedding Day",
+        subtitle = listOf(
+            formatWeddingDate(profile.weddingDate),
+            profile.venue.orEmpty()
+        ).filter { it.isNotBlank() }.joinToString(" · ")
+    ) {
+        if (failed) {
+            IACard(
+                title = "Wedding Day unavailable",
+                subtitle = "We couldn't load the day's details. Please try again.",
+                testTag = "guest-day-unavailable"
+            )
+        } else if (day == null) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                CircularProgressIndicator(color = WeddingIdentityPalette.ChampagneDeep)
+            }
         }
-    }
-    if (GuestCapability.CHECK_IN_STATE in capabilities && profile.checkedIn) {
-        GuestFact("Arrived", "You're checked in.", "live-guest-checked-in")
+
+        day?.let { data ->
+            GuestSectionHeading("Programme", "guest-day-programme")
+            val programme = data.optJSONArray("programme")
+            for (index in 0 until (programme?.length() ?: 0)) {
+                val item = programme!!.getJSONObject(index)
+                IACard(
+                    title = item.optString("title"),
+                    trailing = item.optString("time").takeIf { it.isNotBlank() },
+                    testTag = "guest-programme-${item.optString("id")}"
+                )
+            }
+            if ((programme?.length() ?: 0) == 0) {
+                IACard("Programme", "No programme items have been published yet.")
+            }
+
+            if (GuestCapability.ANNOUNCEMENTS in capabilities) {
+                GuestSectionHeading("Announcements", "guest-day-announcements")
+                val announcements = data.optJSONArray("announcements")
+                for (index in 0 until (announcements?.length() ?: 0)) {
+                    val item = announcements!!.getJSONObject(index)
+                    IACard(
+                        title = item.optString("title"),
+                        subtitle = item.optString("body"),
+                        testTag = "guest-announcement-${item.optString("id")}"
+                    )
+                }
+                if ((announcements?.length() ?: 0) == 0) {
+                    IACard("No announcements", "The wedding team has not posted an update.")
+                }
+            }
+
+            val guest = data.getJSONObject("guest")
+            if (GuestCapability.PARTY_DETAILS in capabilities) {
+                GuestSectionHeading("My Party", "guest-day-party")
+                val party = guest.optJSONArray("household")
+                for (index in 0 until (party?.length() ?: 0)) {
+                    val member = party!!.getJSONObject(index)
+                    IACard(
+                        title = member.optString("attendeeName"),
+                        subtitle = "Your wedding party",
+                        testTag = "guest-party-member-$index"
+                    )
+                }
+            }
+
+            GuestSectionHeading("Wedding details", "guest-day-details")
+            IACard(
+                title = "Date",
+                subtitle = formatWeddingDate(profile.weddingDate),
+                testTag = "live-guest-day-date"
+            )
+            IACard(
+                title = "Venue",
+                subtitle = listOfNotNull(
+                    profile.venue,
+                    profile.venueCityCountry.takeIf { it.isNotBlank() }
+                ).joinToString(" · "),
+                testTag = "live-guest-day-venue"
+            )
+            if (GuestCapability.SEATING in capabilities && !guest.isNull("tableName")) {
+                IACard(
+                    title = "My Table",
+                    subtitle = guest.getString("tableName"),
+                    testTag = "guest-day-table"
+                )
+            }
+            if (GuestCapability.CHECK_IN_STATE in capabilities) {
+                IACard(
+                    title = "Admission",
+                    subtitle = if (guest.optBoolean("checkedIn")) "Checked in" else "Not yet checked in",
+                    status = if (guest.optBoolean("checkedIn")) "Arrived" else "Wedding-day status",
+                    testTag = "guest-day-check-in"
+                )
+            }
+        }
     }
 }
 
 /**
  * The Guest's own profile.
  *
- * Everything here is theirs and already known to the wedding. There is deliberately no "create an
- * account", "set a password" or "complete your profile" wall: the invitation was the onboarding.
+ * Everything here is theirs and already known to the wedding. Presentation reuses the approved
+ * Wewed IA cards; authority remains the live Guest Session and guest-scoped published content.
  */
 @Composable
 private fun LiveGuestProfile(
@@ -486,45 +581,83 @@ private fun LiveGuestProfile(
         catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (_: Exception) { }
     }
-    TextButton(onClick = onOpenInvitation, modifier = Modifier.testTag("guest-profile-digital-invitation")) {
-        Text("View my Digital Invitation")
-    }
-    Text("Your details", fontFamily = FontFamily.Serif, fontSize = 22.sp,
-         color = WeddingIdentityPalette.Ink,
-         modifier = Modifier.testTag("live-guest-profile"))
 
-    GuestFact("Name", profile.guestName, "live-guest-profile-name")
-    GuestFact("Wedding", profile.coupleNames, "live-guest-profile-wedding")
-    GuestFact("RSVP", rsvpLabel(profile.attending), "live-guest-profile-rsvp")
-    profile.mealChoice?.let { GuestFact("Meal", it, "live-guest-profile-meal") }
-    if (profile.plusOne) {
-        GuestFact("Plus one", profile.plusOneName ?: "Yes", "live-guest-profile-plus-one")
+    IASectionList(
+        title = "My details",
+        subtitle = profile.coupleNames
+    ) {
+        IACard(
+            title = "My Digital Invitation",
+            subtitle = "Open the Ivory invitation and update your RSVP.",
+            trailing = "Open",
+            testTag = "guest-profile-digital-invitation",
+            onClick = onOpenInvitation
+        )
+        IACard("Name", profile.guestName, testTag = "live-guest-profile-name")
+        IACard("Wedding", profile.coupleNames, testTag = "live-guest-profile-wedding")
+        IACard(
+            "RSVP",
+            rsvpLabel(profile.attending),
+            status = if (profile.attending == true) "Attending" else if (profile.attending == false) "Not attending" else "Pending",
+            testTag = "live-guest-profile-rsvp"
+        )
+        profile.mealChoice?.takeIf { it.isNotBlank() }?.let {
+            IACard("Meal", it, testTag = "live-guest-profile-meal")
+        }
+        if (profile.plusOne) {
+            IACard("Plus one", profile.plusOneName ?: "Yes", testTag = "live-guest-profile-plus-one")
+        }
+        if (profile.kidsAttending) {
+            IACard(
+                "Children",
+                profile.kidsCount?.toString() ?: "Yes",
+                testTag = "live-guest-profile-kids"
+            )
+        }
+        profile.dietaryNotes?.takeIf { it.isNotBlank() }?.let {
+            IACard("Dietary / access", it, testTag = "live-guest-profile-dietary")
+        }
+        profile.message?.takeIf { it.isNotBlank() }?.let {
+            IACard("Your message", it, testTag = "live-guest-profile-message")
+        }
+        profile.tableName?.takeIf { it.isNotBlank() }?.let {
+            IACard("Table", it, testTag = "live-guest-profile-table")
+        }
+        if (story.isNotBlank()) {
+            IACard("Our Story", story, testTag = "guest-published-story")
+        }
+        IACard(
+            title = "Couple Website",
+            subtitle = "Open the couple's public wedding site.",
+            trailing = "Open",
+            testTag = "guest-profile-couple-site",
+            onClick = {
+                context.startActivity(
+                    Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse("https://wewed.pro/w/${Uri.encode(profile.weddingSlug)}")
+                    )
+                )
+            }
+        )
+        IACard(
+            title = "Forget this wedding on this device",
+            subtitle = "Removes this Guest relationship from this device. It does not affect your RSVP.",
+            testTag = "live-guest-forget-wedding",
+            onClick = onForgetWedding
+        )
     }
-    if (profile.kidsAttending) {
-        GuestFact("Children", profile.kidsCount?.toString() ?: "Yes", "live-guest-profile-kids")
-    }
-    profile.dietaryNotes?.let { GuestFact("Dietary / access", it, "live-guest-profile-dietary") }
-    profile.message?.let { GuestFact("Your message", it, "live-guest-profile-message") }
-    profile.tableName?.takeIf { it.isNotBlank() }
-        ?.let { GuestFact("Table", it, "live-guest-profile-table") }
+}
 
-    if (story.isNotBlank()) GuestFact("Our Story", story, "guest-published-story")
-    TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wewed.pro/w/${Uri.encode(profile.weddingSlug)}"))) }) {
-        Text("Back to Wewed Couple Site")
-    }
-    Spacer(Modifier.height(8.dp))
-
-    // Guest access is device-persistent, so there has to be a way to remove it. Deliberately not
-    // called Sign Out: it ends a wedding relationship on this device, not a Wewed account.
+@Composable
+private fun GuestSectionHeading(title: String, tag: String) {
     Text(
-        "Forget this wedding on this device",
-        fontSize = 14.sp,
+        title,
+        fontFamily = FontFamily.Serif,
+        fontSize = 17.sp,
         fontWeight = FontWeight.SemiBold,
-        color = WewedColors.Gold,
-        modifier = Modifier
-            .clickable(onClick = onForgetWedding)
-            .padding(vertical = 10.dp)
-            .testTag("live-guest-forget-wedding")
+        color = WeddingIdentityPalette.Ink,
+        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp).testTag(tag)
     )
 }
 
@@ -536,17 +669,21 @@ private fun GuestFact(
     modifier: Modifier = Modifier
 ) {
     if (value.isBlank()) return
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(WeddingIdentityPalette.Ivory)
-            .padding(vertical = 6.dp)
-            .testTag(tag)
+    Surface(
+        modifier = modifier.fillMaxWidth().testTag(tag),
+        shape = RoundedCornerShape(12.dp),
+        color = WeddingIdentityPalette.IvorySoft,
+        border = BorderStroke(1.dp, WeddingIdentityPalette.Hairline)
     ) {
-        Text(label.uppercase(), fontSize = 10.sp, letterSpacing = 1.4.sp,
-             color = WeddingIdentityPalette.Muted)
-        Text(value, fontSize = 15.sp, color = WeddingIdentityPalette.Ink)
+        Column(modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp)) {
+            Text(
+                label.uppercase(),
+                fontSize = 10.sp,
+                letterSpacing = 1.4.sp,
+                color = WeddingIdentityPalette.Muted
+            )
+            Text(value, fontSize = 15.sp, color = WeddingIdentityPalette.Ink)
+        }
     }
 }
 
