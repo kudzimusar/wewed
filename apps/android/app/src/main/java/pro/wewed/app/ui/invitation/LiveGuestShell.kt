@@ -75,6 +75,7 @@ fun LiveGuestShell(
             Column(modifier = Modifier.background(WeddingIdentityPalette.IvorySoft)) {
                 HorizontalDivider(thickness = 1.dp, color = WeddingIdentityPalette.Hairline)
                 NavigationBar(
+                    modifier = Modifier.fillMaxWidth(),
                     containerColor = WeddingIdentityPalette.IvorySoft,
                     tonalElevation = 0.dp
                 ) {
@@ -496,6 +497,8 @@ private fun LiveGuestWeddingDay(
     capabilities: Set<GuestCapability>,
     coordinator: LiveGuestInvitationCoordinator
 ) {
+    val context = LocalContext.current
+
     if (GuestCapability.WEDDING_DAY_PROGRAMME !in capabilities) {
         IASectionList(
             title = "Wedding Day",
@@ -516,9 +519,14 @@ private fun LiveGuestWeddingDay(
     var day by remember(profile.guestId) { mutableStateOf<org.json.JSONObject?>(null) }
     var failed by remember(profile.guestId) { mutableStateOf(false) }
     LaunchedEffect(profile.guestId) {
-        try { day = coordinator.weddingDay(profile.guestId) }
-        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-        catch (_: Exception) { failed = true }
+        try {
+            day = coordinator.weddingDay(profile.guestId)
+            failed = false
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            failed = true
+        }
     }
 
     IASectionList(
@@ -550,13 +558,28 @@ private fun LiveGuestWeddingDay(
                 val item = programme!!.getJSONObject(index)
                 IACard(
                     title = item.optString("title"),
+                    subtitle = item.optString("location").takeIf { it.isNotBlank() },
                     trailing = item.optString("time").takeIf { it.isNotBlank() },
-                    testTag = "guest-programme-${item.optString("id")}"
+                    testTag = "guest-programme-\${item.optString("id")}"
                 )
             }
             if ((programme?.length() ?: 0) == 0) {
                 IACard("Programme", "No programme items have been published yet.")
             }
+
+            GuestSectionHeading("Venue & directions", "guest-day-venue-section")
+            IACard(
+                title = profile.venue?.takeIf { it.isNotBlank() } ?: "Wedding venue",
+                subtitle = profile.venueCityCountry.takeIf { it.isNotBlank() },
+                trailing = "Directions",
+                testTag = "live-guest-day-venue",
+                onClick = {
+                    val target = resolveLiveVenueDestination(profile)
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
+                    }
+                }
+            )
 
             if (GuestCapability.ANNOUNCEMENTS in capabilities) {
                 GuestSectionHeading("Announcements", "guest-day-announcements")
@@ -564,9 +587,9 @@ private fun LiveGuestWeddingDay(
                 for (index in 0 until (announcements?.length() ?: 0)) {
                     val item = announcements!!.getJSONObject(index)
                     IACard(
-                        title = item.optString("title"),
+                        title = item.optString("title").ifBlank { "Wedding update" },
                         subtitle = item.optString("body"),
-                        testTag = "guest-announcement-${item.optString("id")}"
+                        testTag = "guest-announcement-\${item.optString("id")}"
                     )
                 }
                 if ((announcements?.length() ?: 0) == 0) {
@@ -575,33 +598,7 @@ private fun LiveGuestWeddingDay(
             }
 
             val guest = data.getJSONObject("guest")
-            if (GuestCapability.PARTY_DETAILS in capabilities) {
-                GuestSectionHeading("My Party", "guest-day-party")
-                val party = guest.optJSONArray("household")
-                for (index in 0 until (party?.length() ?: 0)) {
-                    val member = party!!.getJSONObject(index)
-                    IACard(
-                        title = member.optString("attendeeName"),
-                        subtitle = "Your wedding party",
-                        testTag = "guest-party-member-$index"
-                    )
-                }
-            }
-
-            GuestSectionHeading("Wedding details", "guest-day-details")
-            IACard(
-                title = "Date",
-                subtitle = formatWeddingDate(profile.weddingDate),
-                testTag = "live-guest-day-date"
-            )
-            IACard(
-                title = "Venue",
-                subtitle = listOfNotNull(
-                    profile.venue,
-                    profile.venueCityCountry.takeIf { it.isNotBlank() }
-                ).joinToString(" · "),
-                testTag = "live-guest-day-venue"
-            )
+            GuestSectionHeading("Arrival", "guest-day-arrival")
             if (GuestCapability.SEATING in capabilities && !guest.isNull("tableName")) {
                 IACard(
                     title = "My Table",
@@ -617,75 +614,58 @@ private fun LiveGuestWeddingDay(
                     testTag = "guest-day-check-in"
                 )
             }
+
+            if (GuestCapability.PARTY_DETAILS in capabilities) {
+                val party = guest.optJSONArray("household")
+                if ((party?.length() ?: 0) > 0) {
+                    GuestSectionHeading("My Party", "guest-day-party")
+                    for (index in 0 until party!!.length()) {
+                        val member = party.getJSONObject(index)
+                        IACard(
+                            title = member.optString("attendeeName"),
+                            subtitle = "Your wedding party",
+                            testTag = "guest-party-member-\$index"
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 /**
- * The Guest's own profile.
- *
- * Everything here is theirs and already known to the wedding. Presentation reuses the approved
- * Wewed IA cards; authority remains the live Guest Session and guest-scoped published content.
+ * Wedding extras and device relationship. Personal details are deliberately subordinate so More
+ * does not duplicate Home, Invitation or Wedding Day.
  */
 @Composable
-private fun LiveGuestProfile(
+private fun LiveGuestMore(
     profile: LiveInvitationPresentation,
     onForgetWedding: () -> Unit,
-    onOpenInvitation: () -> Unit,
     coordinator: LiveGuestInvitationCoordinator
 ) {
     val context = LocalContext.current
     var story by remember(profile.guestId) { mutableStateOf("") }
+
     LaunchedEffect(profile.guestId) {
         try { story = coordinator.publishedStory(profile.weddingSlug) }
         catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-        catch (_: Exception) { }
+        catch (_: Exception) { story = "" }
     }
 
     IASectionList(
-        title = "My details",
-        subtitle = profile.coupleNames
+        title = "More",
+        subtitle = "Wedding extras, help and this device"
     ) {
-        IACard(
-            title = "My Digital Invitation",
-            subtitle = "Open the Ivory invitation and update your RSVP.",
-            trailing = "Open",
-            testTag = "guest-profile-digital-invitation",
-            onClick = onOpenInvitation
-        )
-        IACard("Name", profile.guestName, testTag = "live-guest-profile-name")
-        IACard("Wedding", profile.coupleNames, testTag = "live-guest-profile-wedding")
-        IACard(
-            "RSVP",
-            rsvpLabel(profile.attending),
-            status = if (profile.attending == true) "Attending" else if (profile.attending == false) "Not attending" else "Pending",
-            testTag = "live-guest-profile-rsvp"
-        )
-        profile.mealChoice?.takeIf { it.isNotBlank() }?.let {
-            IACard("Meal", it, testTag = "live-guest-profile-meal")
-        }
-        if (profile.plusOne) {
-            IACard("Plus one", profile.plusOneName ?: "Yes", testTag = "live-guest-profile-plus-one")
-        }
-        if (profile.kidsAttending) {
+        if (story.isNotBlank()) {
+            GuestSectionHeading("Our Story", "guest-more-story")
             IACard(
-                "Children",
-                profile.kidsCount?.toString() ?: "Yes",
-                testTag = "live-guest-profile-kids"
+                title = "Our Story",
+                subtitle = story,
+                testTag = "guest-published-story"
             )
         }
-        profile.dietaryNotes?.takeIf { it.isNotBlank() }?.let {
-            IACard("Dietary / access", it, testTag = "live-guest-profile-dietary")
-        }
-        profile.message?.takeIf { it.isNotBlank() }?.let {
-            IACard("Your message", it, testTag = "live-guest-profile-message")
-        }
-        profile.tableName?.takeIf { it.isNotBlank() }?.let {
-            IACard("Table", it, testTag = "live-guest-profile-table")
-        }
-        if (story.isNotBlank()) {
-            IACard("Our Story", story, testTag = "guest-published-story")
-        }
+
+        GuestSectionHeading("Explore", "guest-more-explore")
         IACard(
             title = "Couple Website",
             subtitle = "Open the couple's public wedding site.",
@@ -695,11 +675,54 @@ private fun LiveGuestProfile(
                 context.startActivity(
                     Intent(
                         Intent.ACTION_VIEW,
-                        Uri.parse("https://wewed.pro/w/${Uri.encode(profile.weddingSlug)}")
+                        Uri.parse("https://wewed.pro/w/\${Uri.encode(profile.weddingSlug)}")
                     )
                 )
             }
         )
+        IACard(
+            title = "Gift & Contribution Info",
+            subtitle = "View the couple's published registry and contribution information.",
+            trailing = "Open",
+            testTag = "guest-more-gifts",
+            onClick = {
+                context.startActivity(
+                    Intent(
+                        Intent.ACTION_VIEW,
+                        Uri.parse("https://wewed.pro/w/\${Uri.encode(profile.weddingSlug)}#registry")
+                    )
+                )
+            }
+        )
+        IACard(
+            title = "Help",
+            subtitle = "Open Wewed help and support.",
+            trailing = "Open",
+            testTag = "guest-more-help",
+            onClick = {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wewed.pro/help")))
+            }
+        )
+        IACard(
+            title = "Privacy & Legal",
+            subtitle = "Review Wewed privacy and legal information.",
+            trailing = "Open",
+            testTag = "guest-more-privacy",
+            onClick = {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wewed.pro/legal")))
+            }
+        )
+
+        GuestSectionHeading("My details", "guest-more-my-details")
+        IACard("Name", profile.guestName, testTag = "live-guest-profile-name")
+        IACard(
+            "RSVP",
+            rsvpLabel(profile.attending),
+            status = if (profile.attending == true) "Attending" else "Not attending",
+            testTag = "live-guest-profile-rsvp"
+        )
+
+        GuestSectionHeading("This device", "guest-more-device")
         IACard(
             title = "Forget this wedding on this device",
             subtitle = "Removes this Guest relationship from this device. It does not affect your RSVP.",
