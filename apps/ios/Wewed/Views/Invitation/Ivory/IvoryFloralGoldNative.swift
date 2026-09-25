@@ -428,7 +428,14 @@ public struct IvoryFloralGoldNative: View {
                 actions.onOpenVenue)
             hit(IvoryGeometry.hitRegistry, w, h, "Gift / Contributions",
                 "invitation-cta-registry", actions.onGifts)
-            hit(IvoryGeometry.hitNote, w, h, "A Note from Us", "invitation-cta-note", actions.onNote)
+            gestureHit(
+                IvoryGeometry.hitNote,
+                w,
+                h,
+                "A Note from Us",
+                "invitation-cta-note",
+                actions.onNote
+            )
 
             VStack {
                 Spacer()
@@ -780,6 +787,41 @@ public struct IvoryFloralGoldNative: View {
             .zIndex(20)
             .accessibilityLabel(label)
             .accessibilityIdentifier(identifier)
+        }
+    }
+
+    /// The Note card sits lowest in the scrollable details artwork. On iOS the surrounding
+    /// ScrollView can win the normal Button gesture even though Accessibility reports the correct
+    /// frame. A high-priority TapGesture on the same approved hit box makes a real finger tap
+    /// deterministic without changing the card geometry or the note's authority.
+    @ViewBuilder
+    private func gestureHit(
+        _ box: [CGFloat],
+        _ w: CGFloat,
+        _ h: CGFloat,
+        _ label: String,
+        _ identifier: String,
+        _ action: (() -> Void)?
+    ) -> some View {
+        if let action {
+            Rectangle()
+                .fill(Color.white.opacity(0.001))
+                .contentShape(Rectangle())
+                .frame(
+                    width: w * IvoryGeometry.hitWidth / 100,
+                    height: h * box[1] / 100
+                )
+                .position(
+                    x: w * (IvoryGeometry.hitLeft + IvoryGeometry.hitWidth / 2) / 100,
+                    y: h * (box[0] + box[1] / 2) / 100
+                )
+                .zIndex(25)
+                .highPriorityGesture(
+                    TapGesture().onEnded { action() }
+                )
+                .accessibilityLabel(label)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier(identifier)
         }
     }
 
