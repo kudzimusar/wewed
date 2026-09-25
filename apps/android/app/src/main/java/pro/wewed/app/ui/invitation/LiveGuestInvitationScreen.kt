@@ -143,11 +143,7 @@ fun LiveGuestInvitationScreen(
                 onRsvpPrompt = { requestRsvpEdit() },
                 onAddToCalendar = { addWeddingToCalendar(context, presentation) },
                 onOpenVenue = {
-                    val target = presentation.venueMapUrl?.takeIf { it.isNotBlank() }
-                        ?: ("geo:0,0?q=" + Uri.encode(
-                            listOfNotNull(presentation.venue, presentation.venueCityCountry)
-                                .joinToString(", ")
-                        ))
+                    val target = resolveLiveVenueDestination(presentation)
                     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target))) }
                 },
                 onGifts = { openCoupleSite(context, presentation.weddingSlug, "#registry") },
@@ -326,6 +322,15 @@ private fun LiveInvitationPresentation.toIvoryData(): IvoryInvitationData {
  * RSVP editing remains accessible across all states (PENDING, ACCEPTED, DECLINED) so guests
  * can update meal choice, plus-one, children, notes, or change attendance at any time.
  */
+fun resolveLiveVenueDestination(presentation: LiveInvitationPresentation): String {
+    presentation.venueMapUrl?.takeIf { it.isNotBlank() }?.let { return it }
+    val query = listOfNotNull(
+        presentation.venue?.takeIf { it.isNotBlank() },
+        presentation.venueCityCountry.takeIf { it.isNotBlank() }
+    ).joinToString(", ")
+    return "geo:0,0?q=" + Uri.encode(query)
+}
+
 fun resolveLiveInvitationActions(
     presentation: LiveInvitationPresentation,
     onRsvpPrompt: () -> Unit,
