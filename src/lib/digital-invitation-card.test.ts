@@ -52,8 +52,9 @@ describe('digital invitation card delivery', () => {
       weddingTitle: 'Aurora & Blake',
       invitationUrl: url,
     })
-    expect(message).toContain('private digital wedding card')
+    expect(message).toContain('private digital wedding invitation and RSVP')
     expect(message).toContain(url)
+    expect(message).toContain('This invitation is personal to you.')
     expect(message).toContain('Please do not forward it.')
   })
 
@@ -80,6 +81,8 @@ describe('digital invitation card delivery', () => {
     expect(route).toContain('buildSmartInvitationUrl')
     expect(route).toContain('weddingSlug: wedding.slug')
     expect(route).toContain('token: guest.rsvp.token')
+    expect(route).toContain('const style = normalizeInvitationCardStyle(wedding.invitationCardStyle)')
+    expect(route).toContain('style,')
     expect(route).toContain('buildDigitalInvitationMessage')
     expect(route).toContain('Card Style,Digital Invitation URL,Share Message')
     expect(route).toContain("action: 'wedding.invitation_card_updated'")
