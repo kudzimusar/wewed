@@ -390,7 +390,7 @@ private fun LiveGuestPass(
     }
 }
 
-/** The day itself. Attending-only, because it presumes someone is coming. */
+/** Shared wedding-day information for answered Guests; venue-admission details stay attending-only. */
 @Composable
 private fun LiveGuestWeddingDay(
     profile: LiveInvitationPresentation,
@@ -426,26 +426,42 @@ private fun LiveGuestWeddingDay(
             val item = programme!!.getJSONObject(index)
             GuestFact(item.optString("time"), item.optString("title"), "guest-programme-${item.optString("id")}")
         }
-        Text("Announcements", modifier = Modifier.testTag("guest-day-announcements"))
-        val announcements = data.optJSONArray("announcements")
-        for (index in 0 until (announcements?.length() ?: 0)) {
-            val item = announcements!!.getJSONObject(index)
-            GuestFact(item.optString("title"), item.optString("body"), "guest-announcement-${item.optString("id")}")
+        if (GuestCapability.ANNOUNCEMENTS in capabilities) {
+            Text("Announcements", modifier = Modifier.testTag("guest-day-announcements"))
+            val announcements = data.optJSONArray("announcements")
+            for (index in 0 until (announcements?.length() ?: 0)) {
+                val item = announcements!!.getJSONObject(index)
+                GuestFact(item.optString("title"), item.optString("body"), "guest-announcement-${item.optString("id")}")
+            }
         }
         val guest = data.getJSONObject("guest")
-        val party = guest.optJSONArray("household")
-        Text("My Party", modifier = Modifier.testTag("guest-day-party"))
-        for (index in 0 until (party?.length() ?: 0)) Text(party!!.getJSONObject(index).optString("attendeeName"))
-        if (!guest.isNull("tableName")) GuestFact("My Table", guest.getString("tableName"), "guest-day-table")
-        GuestFact("Admission", if (guest.optBoolean("checkedIn")) "Checked in" else "Not yet checked in", "guest-day-check-in")
+        if (GuestCapability.PARTY_DETAILS in capabilities) {
+            val party = guest.optJSONArray("household")
+            Text("My Party", modifier = Modifier.testTag("guest-day-party"))
+            for (index in 0 until (party?.length() ?: 0)) {
+                Text(party!!.getJSONObject(index).optString("attendeeName"))
+            }
+        }
+        if (GuestCapability.SEATING in capabilities && !guest.isNull("tableName")) {
+            GuestFact("My Table", guest.getString("tableName"), "guest-day-table")
+        }
+        if (GuestCapability.CHECK_IN_STATE in capabilities) {
+            GuestFact(
+                "Admission",
+                if (guest.optBoolean("checkedIn")) "Checked in" else "Not yet checked in",
+                "guest-day-check-in"
+            )
+        }
     }
 
     GuestFact("When", formatWeddingDate(profile.weddingDate), "live-guest-day-date")
     GuestFact("Where", profile.venue.orEmpty(), "live-guest-day-venue")
-    profile.tableName?.takeIf { it.isNotBlank() }?.let {
-        GuestFact("Your table", it, "live-guest-day-table")
+    if (GuestCapability.SEATING in capabilities) {
+        profile.tableName?.takeIf { it.isNotBlank() }?.let {
+            GuestFact("Your table", it, "live-guest-day-table")
+        }
     }
-    if (profile.checkedIn) {
+    if (GuestCapability.CHECK_IN_STATE in capabilities && profile.checkedIn) {
         GuestFact("Arrived", "You're checked in.", "live-guest-checked-in")
     }
 }
