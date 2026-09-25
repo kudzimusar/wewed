@@ -38,6 +38,17 @@ jobs:
       - name: Build app
         working-directory: apps/ios
         run: |
+          # CI-only visual fixture transport. These edits stay in the runner working copy and are
+          # never committed to product source.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("Wewed/AppTarget/WewedMainApp.swift")
+          s = p.read_text()
+          s = s.replace('url.host == "127.0.0.1"', 'url.scheme == "http"')
+          p.write_text(s)
+          PY
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity dict" Wewed/AppTarget/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" Wewed/AppTarget/Info.plist || true
           xcodegen generate --spec project.yml
           xcodebuild \
             -project Wewed.xcodeproj \
@@ -147,7 +158,7 @@ jobs:
                   else:
                       self.reply(404, {"success":False})
 
-          ThreadingHTTPServer(("127.0.0.1", 8765), H).serve_forever()
+          ThreadingHTTPServer(("0.0.0.0", 8765), H).serve_forever()
           PY
           python3 "$RUNNER_TEMP/nm05_stub.py" >"$RUNNER_TEMP/nm05-stub.log" 2>&1 &
           echo $! > "$RUNNER_TEMP/nm05-stub.pid"
@@ -163,7 +174,10 @@ jobs:
           RUNTIME="$(xcrun simctl list runtimes -j | python3 -c 'import json,sys; d=json.load(sys.stdin); a=[x for x in d["runtimes"] if x.get("isAvailable") and "iOS" in x["identifier"]]; print(a[-1]["identifier"])')"
           DEVICE="$(xcrun simctl list devicetypes -j | python3 -c 'import json,sys; d=json.load(sys.stdin); a=d["devicetypes"]; x=next((v for v in a if v["name"]=="iPhone 16 Pro"),None) or next(v for v in a if "iPhone" in v["name"]); print(x["identifier"])')"
           UDID="$(xcrun simctl create NM05-iPhone "$DEVICE" "$RUNTIME")"
+          HOST_IP="$(ipconfig getifaddr en0 || ipconfig getifaddr en1)"
+          test -n "$HOST_IP"
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          echo "host_ip=$HOST_IP" >> "$GITHUB_OUTPUT"
           xcrun simctl boot "$UDID"
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" "$RUNNER_TEMP/nm05-derived/Build/Products/Debug-iphonesimulator/Wewed.app"
@@ -172,7 +186,7 @@ jobs:
         run: |
           UDID="${{ steps.sim.outputs.udid }}"
           (
-            SIMCTL_CHILD_WEWED_GUEST_UI_ORIGIN="http://127.0.0.1:8765" \
+            SIMCTL_CHILD_WEWED_GUEST_UI_ORIGIN="http://${{ steps.sim.outputs.host_ip }}:8765" \
             SIMCTL_CHILD_WEWED_GUEST_UI_LINK="https://wewed.pro/invite/nm05-demo?rsvp=nm05demo" \
             xcrun simctl launch "$UDID" pro.wewed.app.dev
           ) >"$RUNNER_TEMP/nm05-launch.log" 2>&1 &
