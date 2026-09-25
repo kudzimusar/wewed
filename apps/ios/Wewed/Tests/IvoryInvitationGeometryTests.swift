@@ -174,9 +174,11 @@ final class IvoryInvitationGeometryTests: XCTestCase {
         XCTAssertEqual("Update RSVP", ivoryRsvpActionLabel(rsvp: ivoryRsvpState(from: .declined)))
     }
 
-    /// A declined guest keeps the invitation and never gets a pass; pending has a locked pass affordance; attending offers pass.
-    func testADeclinedGuestNeverGetsAPass() {
-        XCTAssertFalse(ivoryRsvpState(from: .declined).offersPass)
+    /// The Pass CTA is the Guest-app gateway after any RSVP answer; only pending remains locked.
+    func testAnsweredGuestsGetThePassGatewayWhilePendingRemainsLocked() {
+        let declined = ivoryRsvpState(from: .declined)
+        XCTAssertTrue(declined.offersPass)
+        XCTAssertFalse(declined.isPassLocked)
         XCTAssertTrue(ivoryRsvpState(from: .pending).offersPass)
         XCTAssertTrue(ivoryRsvpState(from: .pending).isPassLocked)
         XCTAssertTrue(ivoryRsvpState(from: .attending).offersPass)
