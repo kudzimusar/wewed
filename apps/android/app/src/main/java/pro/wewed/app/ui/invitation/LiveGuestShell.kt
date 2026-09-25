@@ -34,8 +34,8 @@ import pro.wewed.app.theme.WewedColors
  * and the full repository. Those are exactly the production surfaces this slice is not authorized
  * to switch on, so the live shell is built from the guest-authorized session alone.
  *
- * The Guest reaches this without answering anything. RSVP decides what is *in* here, not whether
- * they may be here.
+ * This shell is reachable only after RSVP completion. Attending and declined Guests both retain
+ * the persistent experience; venue admission remains attending-only.
  */
 @Composable
 fun LiveGuestShell(
@@ -97,7 +97,7 @@ fun LiveGuestShell(
             when (section) {
                 GuestSection.HOME -> LiveGuestHome(profile, capabilities, onOpenInvitation)
                 GuestSection.INVITATION -> LiveGuestHome(profile, capabilities, onOpenInvitation)
-                GuestSection.PASS -> LiveGuestPass(profile, capabilities)
+                GuestSection.PASS -> LiveGuestPass(profile, capabilities, onOpenInvitation)
                 GuestSection.WEDDING_DAY -> LiveGuestWeddingDay(profile, capabilities, coordinator)
                 GuestSection.MORE -> LiveGuestProfile(profile, onForgetWedding, onOpenInvitation, coordinator)
             }
@@ -178,7 +178,8 @@ private fun LiveGuestHome(
 @Composable
 private fun LiveGuestPass(
     profile: LiveInvitationPresentation,
-    capabilities: Set<GuestCapability>
+    capabilities: Set<GuestCapability>,
+    onOpenInvitation: () -> Unit
 ) {
     Text("Wedding Pass", fontFamily = FontFamily.Serif, fontSize = 22.sp,
          color = WeddingIdentityPalette.Ink)
@@ -191,12 +192,19 @@ private fun LiveGuestPass(
                 "live-guest-pass-pending"
             )
 
-        GuestCapability.WEDDING_PASS !in capabilities ->
+        GuestCapability.WEDDING_PASS !in capabilities -> {
             GuestFact(
-                "No admission",
-                "You let the couple know you can't make it, so there's no pass to issue.",
+                "No venue admission pass is currently issued",
+                "Your invitation remains active. If your plans change, return to your invitation and update your RSVP.",
                 "live-guest-pass-declined"
             )
+            TextButton(
+                onClick = onOpenInvitation,
+                modifier = Modifier.testTag("live-guest-pass-change-rsvp")
+            ) {
+                Text("Update RSVP in Invitation")
+            }
+        }
 
         else ->
             // Attending, but the credential itself comes from the Wedding Day issuer, which is not
