@@ -4,12 +4,16 @@ import UIKit
 #endif
 
 
-/// Presentation-only width rules for the three NM04 iPhone viewport closures.
+/// Presentation-only width rules for live Guest phone surfaces.
 ///
 /// These helpers deliberately know nothing about Guest identity, RSVP authority, Ivory state or
 /// Wedding Pass authority. They turn a physical SwiftUI proposal into concrete child widths so
-/// intrinsic content can never enlarge the RSVP/note surfaces beyond the phone.
+/// intrinsic content can never enlarge the shell, invitation, RSVP or note beyond the phone.
+/// The shell constants mirror the responsive contract already qualified by Sanitized Shadow.
 enum GuestViewportGeometry {
+    static let shellHorizontalInset: CGFloat = 20
+    static let heroInternalPadding: CGFloat = 17
+
     static let rsvpOuterInset: CGFloat = 8
     static let rsvpInternalPadding: CGFloat = 20
     static let rsvpAttendanceSpacing: CGFloat = 8
@@ -20,6 +24,14 @@ enum GuestViewportGeometry {
 
     static let countdownInterTileSpacing: CGFloat = 6
     static let countdownTileCount: CGFloat = 4
+
+    static func shellContentWidth(viewportWidth: CGFloat) -> CGFloat {
+        max(0, viewportWidth - (shellHorizontalInset * 2))
+    }
+
+    static func countdownRowWidth(heroWidth: CGFloat) -> CGFloat {
+        max(0, heroWidth - (heroInternalPadding * 2))
+    }
 
     static func rsvpSheetWidth(viewportWidth: CGFloat) -> CGFloat {
         max(0, viewportWidth - (rsvpOuterInset * 2))
@@ -158,7 +170,10 @@ public struct LiveGuestInvitationView: View {
     }
 
     public var body: some View {
-        ZStack {
+        // The live invitation can be shown before the persistent Guest shell exists, so it needs
+        // the same explicit responsive container as every qualified Shadow role destination.
+        WewedScreenContainer {
+            ZStack {
             NativeInvitationExperience(
                 style: presentation.invitationCardStyle,
                 data: presentation.ivoryData,
@@ -204,33 +219,34 @@ public struct LiveGuestInvitationView: View {
                 noteFromTheCouple(note)
             }
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if let onBackToWedding {
-                HStack {
-                    Button(action: onBackToWedding) {
-                        HStack(spacing: 7) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 12, weight: .bold))
-                            Text("Back to My Wedding")
-                                .font(.system(size: 13, weight: .semibold))
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if let onBackToWedding {
+                    HStack {
+                        Button(action: onBackToWedding) {
+                            HStack(spacing: 7) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 12, weight: .bold))
+                                Text("Back to My Wedding")
+                                    .font(.system(size: 13, weight: .semibold))
+                            }
+                            .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 44)
+                            .background(WeddingIdentityPalette.ivorySoft)
+                            .overlay(
+                                Capsule()
+                                    .stroke(WeddingIdentityPalette.champagne.opacity(0.70), lineWidth: 1)
+                            )
+                            .clipShape(Capsule())
                         }
-                        .foregroundStyle(WeddingIdentityPalette.champagneDeep)
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 44)
-                        .background(WeddingIdentityPalette.ivorySoft)
-                        .overlay(
-                            Capsule()
-                                .stroke(WeddingIdentityPalette.champagne.opacity(0.70), lineWidth: 1)
-                        )
-                        .clipShape(Capsule())
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("invitation-back-to-wedding")
+                        Spacer(minLength: 0)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("invitation-back-to-wedding")
-                    Spacer(minLength: 0)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(WeddingIdentityPalette.ivory.opacity(0.98))
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(WeddingIdentityPalette.ivory.opacity(0.98))
             }
         }
     }
