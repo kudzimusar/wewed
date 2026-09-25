@@ -132,6 +132,22 @@ final class GuestResponsiveRootClosureTests: XCTestCase {
         XCTAssertTrue(invitation.contains("rsvpDeadlineLabel: rsvpDeadline"))
     }
 
+    func testIvoryDetailHotspotsUseNativeButtonsForReliableActivation() throws {
+        let ivory = try Self.source(
+            "apps/ios/Wewed/Views/Invitation/Ivory/IvoryFloralGoldNative.swift"
+        )
+        let hitStart = try XCTUnwrap(ivory.range(of: "private func hit("))
+        let openDoors = try XCTUnwrap(
+            ivory.range(of: "private func openDoors()", range: hitStart.upperBound..<ivory.endIndex)
+        )
+        let hit = String(ivory[hitStart.lowerBound..<openDoors.lowerBound])
+
+        XCTAssertTrue(hit.contains("Button(action: action)"))
+        XCTAssertTrue(hit.contains(".buttonStyle(.plain)"))
+        XCTAssertTrue(hit.contains(".accessibilityIdentifier(identifier)"))
+        XCTAssertFalse(hit.contains(".onTapGesture(perform: action)"))
+    }
+
     func testAllFiveGuestDestinationsRemainPresent() {
         XCTAssertEqual(
             GuestSection.allCases.map(\.label),
