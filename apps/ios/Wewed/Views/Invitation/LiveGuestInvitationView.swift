@@ -357,7 +357,7 @@ public func resolveLiveInvitationActions(
         // Once answered, both attending and declined Guests may enter the persistent Pass destination.
         onViewPass: presentation.attending == nil ? onRsvpPrompt : onViewPass,
         onVisitCoupleSite: onVisitCoupleSite,
-        onContinue: onContinue
+        onContinue: presentation.attending == nil ? nil : onContinue
     )
 }
 
