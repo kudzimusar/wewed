@@ -58,6 +58,56 @@ class IvoryInvitationGeometryTest {
         )
     }
 
+    @Test
+    fun mobileStageScaleIsDrivenByViewportWidthNotAvailableHeight() {
+        listOf(360f, 375f, 393f, 402f, 430f, 480f).forEach { viewport ->
+            assertEquals(
+                minOf(viewport, IvoryGeometry.MAX_STAGE_WIDTH_DP),
+                IvoryGeometry.stageWidthForViewport(viewport),
+                0.001f
+            )
+        }
+
+        val width = IvoryGeometry.stageWidthForViewport(375f)
+        assertEquals(width / IvoryGeometry.ASPECT, IvoryGeometry.stageHeightForWidth(width), 0.001f)
+    }
+
+    @Test
+    fun mobileRendererUsesWarmHostAndVerticalOverflowInsteadOfHeightShrink() {
+        var root: File? = contractFile().parentFile?.parentFile?.parentFile
+        while (root != null && !File(root, "apps/android/app/build.gradle.kts").isFile) {
+            root = root.parentFile
+        }
+        val source = File(
+            root,
+            "apps/android/app/src/main/java/pro/wewed/app/ui/invitation/ivory/IvoryFloralGoldNative.kt"
+        ).readText()
+
+        assertTrue(source.contains("background(WeddingIdentityPalette.Ivory)"))
+        assertTrue(source.contains("verticalScroll(rememberScrollState())"))
+        assertFalse(source.contains("availableH * IvoryGeometry.ASPECT"))
+        assertFalse(source.contains("maxHeight * IvoryGeometry.ASPECT"))
+    }
+
+    @Test
+    fun finalGatewayContainsOnlyViewInvitationAndGuestPass() {
+        var root: File? = contractFile().parentFile?.parentFile?.parentFile
+        while (root != null && !File(root, "apps/android/app/build.gradle.kts").isFile) {
+            root = root.parentFile
+        }
+        val source = File(
+            root,
+            "apps/android/app/src/main/java/pro/wewed/app/ui/invitation/ivory/IvoryFloralGoldNative.kt"
+        ).readText()
+
+        assertTrue(source.contains("\"View Invitation\""))
+        assertTrue(source.contains("\"Guest Pass\""))
+        assertTrue(source.contains("\"RSVP required\""))
+        assertTrue(source.contains("heightIn(min = 48.dp)"))
+        assertFalse(source.contains("\"Visit Couple Website\""))
+        assertFalse(source.contains("\"Continue\""))
+    }
+
     /** Every text region sits where the web puts it, to the tenth of a percent. */
     @Test
     fun regionBoxesMatchTheContract() {
