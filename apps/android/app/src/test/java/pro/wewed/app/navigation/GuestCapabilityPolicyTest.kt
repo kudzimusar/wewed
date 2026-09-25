@@ -14,19 +14,20 @@ import pro.wewed.app.invitation.GuestCapabilityPolicy
  */
 class GuestCapabilityPolicyTest {
 
-    /** A guest who has not answered still has a wedding, an invitation and a profile. */
+    /** Pending is invitation-only: identity is known, but persistent Guest entry is not yet open. */
     @Test
-    fun aPendingGuestMayEnterTheirOwnExperience() {
+    fun aPendingGuestCannotEnterThePersistentExperience() {
         val pending = GuestCapabilityPolicy.capabilities(null)
         listOf(
-            GuestCapability.HOME,
             GuestCapability.INVITATION,
             GuestCapability.WEDDING_DETAILS,
             GuestCapability.VENUE,
             GuestCapability.COUPLE_WEBSITE,
-            GuestCapability.REGISTRY,
-            GuestCapability.PROFILE
-        ).forEach { assertTrue("$it must be available while pending", it in pending) }
+            GuestCapability.REGISTRY
+        ).forEach { assertTrue("$it must remain available from the invitation", it in pending) }
+        assertFalse(GuestCapability.HOME in pending)
+        assertFalse(GuestCapability.PROFILE in pending)
+        assertFalse(GuestCapabilityPolicy.mayEnterPersistentExperience(null))
     }
 
     /** And is asked the question, because they have not answered it. */
@@ -40,6 +41,13 @@ class GuestCapabilityPolicyTest {
     @Test
     fun aPendingGuestHasNoPass() {
         assertFalse(GuestCapabilityPolicy.allows(null, GuestCapability.WEDDING_PASS))
+    }
+
+    /** Any completed RSVP unlocks the persistent Guest application. */
+    @Test
+    fun answeredGuestsMayEnterThePersistentExperience() {
+        assertTrue(GuestCapabilityPolicy.mayEnterPersistentExperience(true))
+        assertTrue(GuestCapabilityPolicy.mayEnterPersistentExperience(false))
     }
 
     /** Accepting is what unlocks the day itself. */
