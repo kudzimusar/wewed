@@ -393,6 +393,15 @@ jobs:
           YAML
           cd "$GITHUB_WORKSPACE/artifacts/phase13/nm05-ios-ui-overflow-closure-20260925"
           "$HOME/.maestro/bin/maestro" --device "${{ steps.sim.outputs.udid }}" test "$RUNNER_TEMP/nm05.yaml"
+          for name in 01_home 02_rsvp 03_couple_note 04_invitation_closed 05_invitation_details 06_pass 07_wedding_day 08_more; do
+            src="$(find "$HOME/.maestro/tests" -type f -name "$name.png" -print | tail -1)"
+            if [ -z "$src" ]; then
+              echo "Missing Maestro screenshot: $name.png"
+              find "$HOME/.maestro/tests" -type f -name '*.png' -print
+              exit 1
+            fi
+            cp "$src" "./$name.png"
+          done
           test "$(find . -maxdepth 1 -name '*.png' | wc -l | tr -d ' ')" -eq 8
 
       - name: Upload screenshots
