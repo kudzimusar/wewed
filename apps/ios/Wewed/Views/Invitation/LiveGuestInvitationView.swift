@@ -167,12 +167,7 @@ public struct LiveGuestInvitationView: View {
     }
 
     private var venueDestination: String {
-        if let map = presentation.venueMapUrl, !map.isEmpty { return map }
-        let query = [presentation.venue, presentation.venueCityCountry]
-            .compactMap { $0?.isEmpty == false ? $0 : nil }
-            .joined(separator: ", ")
-            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
-        return "http://maps.apple.com/?q=\(query)"
+        resolveLiveVenueDestination(presentation: presentation)
     }
 
     /// Hands the wedding to the phone's calendar.
@@ -332,6 +327,15 @@ public struct LiveGuestInvitationView: View {
 ///
 /// RSVP editing remains accessible across all states (pending, accepted, declined) so guests
 /// can update meal choice, plus-one, children, notes, or change attendance at any time.
+public func resolveLiveVenueDestination(presentation: LiveInvitationPresentation) -> String {
+    if let map = presentation.venueMapUrl, !map.isEmpty { return map }
+    let query = [presentation.venue, presentation.venueCityCountry]
+        .compactMap { $0?.isEmpty == false ? $0 : nil }
+        .joined(separator: ", ")
+        .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+    return "http://maps.apple.com/?q=\(query)"
+}
+
 public func resolveLiveInvitationActions(
     presentation: LiveInvitationPresentation,
     onRsvpPrompt: @escaping () -> Void,
