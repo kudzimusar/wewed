@@ -411,24 +411,32 @@ public struct IvoryFloralGoldNative: View {
                     secondaryColor: IvoryPalette.inkSoft
                 )
             }
+            // Unlike the invisible hit overlays, the Note is itself authored visible content.
+            // Make the content inside the approved Region the native Button so one geometry object
+            // owns layout, hit testing, and Accessibility. This avoids a second positioned hotspot
+            // competing with the surrounding ScrollView at the bottom of the details surface.
             region(IvoryGeometry.detailNote, w, h) {
-                Text("A special message from us")
-                    .font(IvoryTypography.body(size: w * 0.024))
-                    .foregroundStyle(IvoryPalette.inkSoft)
-                    .multilineTextAlignment(.center)
+                if let onNote = actions.onNote {
+                    Button(action: onNote) {
+                        Text("A special message from us")
+                            .font(IvoryTypography.body(size: w * 0.024))
+                            .foregroundStyle(IvoryPalette.inkSoft)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .background(Color.white.opacity(0.001))
+                    .accessibilityLabel("A Note from Us")
+                    .accessibilityIdentifier("invitation-cta-note")
+                } else {
+                    Text("A special message from us")
+                        .font(IvoryTypography.body(size: w * 0.024))
+                        .foregroundStyle(IvoryPalette.inkSoft)
+                        .multilineTextAlignment(.center)
+                }
             }
-
-            // All five authored details actions use the same native Button hit layer. This avoids
-            // SwiftUI publishing a visible Note label whose accessibility tap resolves to a
-            // non-activating child while the other near-transparent hotspots continue to work.
-            hit(
-                IvoryGeometry.hitNote,
-                w,
-                h,
-                "A Note from Us",
-                "invitation-cta-note",
-                actions.onNote
-            )
 
             // The details hits, at the approved coordinates. RSVP remains reachable
             // across pending, accepted, and declined states so guests can update choices.
