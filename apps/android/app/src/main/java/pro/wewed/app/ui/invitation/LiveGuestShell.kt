@@ -89,10 +89,10 @@ fun LiveGuestShell(
                                 Icon(
                                     when (candidate) {
                                         GuestSection.HOME -> Icons.Filled.Home
-                                        GuestSection.INVITATION -> Icons.Filled.Email
+                                        GuestSection.INVITATION -> Icons.Filled.MailOutline
                                         GuestSection.PASS -> Icons.Filled.QrCode
-                                        GuestSection.WEDDING_DAY -> Icons.Filled.Event
-                                        GuestSection.MORE -> Icons.Filled.Person
+                                        GuestSection.WEDDING_DAY -> Icons.Filled.Celebration
+                                        GuestSection.MORE -> Icons.Filled.ManageAccounts
                                     },
                                     contentDescription = candidate.label
                                 )
