@@ -384,17 +384,18 @@ public struct LiveGuestShellView: View {
     @ViewBuilder
     private func fact(_ label: String, _ value: String, _ identifier: String) -> some View {
         if !value.isEmpty {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label.uppercased())
-                    .font(.system(size: 10))
-                    .tracking(1.4)
-                    .foregroundStyle(WeddingIdentityPalette.muted)
-                Text(value)
-                    .font(.system(size: 15))
-                    .foregroundStyle(WeddingIdentityPalette.ink)
+            WeddingSectionCard {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(label.uppercased())
+                        .font(.system(size: 10))
+                        .tracking(1.4)
+                        .foregroundStyle(WeddingIdentityPalette.muted)
+                    Text(value)
+                        .font(.system(size: 15))
+                        .foregroundStyle(WeddingIdentityPalette.ink)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 6)
             .accessibilityIdentifier(identifier)
         }
     }
