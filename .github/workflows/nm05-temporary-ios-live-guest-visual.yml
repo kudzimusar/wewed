@@ -213,7 +213,7 @@ jobs:
           UDID="${{ steps.simulator.outputs.udid }}"
           SIMCTL_CHILD_WEWED_GUEST_UI_ORIGIN="http://127.0.0.1:8765" \
           SIMCTL_CHILD_WEWED_GUEST_UI_LINK="https://wewed.pro/invite/nm05-demo?rsvp=nm05-private-token" \
-          xcrun simctl launch --terminate-running "$UDID" pro.wewed.app.dev
+          xcrun simctl launch "$UDID" pro.wewed.app.dev
           sleep 4
 
       - name: Capture eight live Guest screens with Maestro
