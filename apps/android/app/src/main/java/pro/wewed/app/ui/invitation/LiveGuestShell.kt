@@ -135,7 +135,7 @@ fun LiveGuestShell(
             }
             section == GuestSection.MORE -> {
                 Box(Modifier.fillMaxSize().padding(padding)) {
-                    LiveGuestProfile(profile, onForgetWedding, onOpenInvitation, coordinator)
+                    LiveGuestMore(profile, onForgetWedding, coordinator)
                 }
             }
             else -> {
@@ -148,7 +148,13 @@ fun LiveGuestShell(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     when (section) {
-                        GuestSection.HOME -> LiveGuestHome(profile, capabilities, onOpenInvitation)
+                        GuestSection.HOME -> LiveGuestHome(
+                            profile = profile,
+                            capabilities = capabilities,
+                            coordinator = coordinator,
+                            onOpenInvitation = onOpenInvitation,
+                            onOpenPass = { onSelect(GuestSection.PASS) }
+                        )
                         GuestSection.PASS -> LiveGuestPass(profile, capabilities, onOpenInvitation)
                         else -> Unit
                     }
@@ -177,73 +183,91 @@ enum class GuestSection(val id: String, val label: String) {
 private fun LiveGuestHome(
     profile: LiveInvitationPresentation,
     capabilities: Set<GuestCapability>,
-    onOpenInvitation: () -> Unit
+    coordinator: LiveGuestInvitationCoordinator,
+    onOpenInvitation: () -> Unit,
+    onOpenPass: () -> Unit
 ) {
+    val context = LocalContext.current
+    var day by remember(profile.guestId) { mutableStateOf<org.json.JSONObject?>(null) }
+
+    LaunchedEffect(profile.guestId, capabilities) {
+        if (GuestCapability.WEDDING_DAY_PROGRAMME in capabilities) {
+            try { day = coordinator.weddingDay(profile.guestId) }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { day = null }
+        } else {
+            day = null
+        }
+    }
+
     LiveGuestHero(profile)
 
-    Card(
-        onClick = onOpenInvitation,
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = WeddingIdentityPalette.Champagne.copy(alpha = 0.20f)
+    Button(
+        onClick = {
+            val target = resolveLiveVenueDestination(profile)
+            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target))) }
+        },
+        colors = ButtonDefaults.buttonColors(
+            containerColor = WeddingIdentityPalette.ChampagneDeep,
+            contentColor = Color.White
         ),
+        shape = RoundedCornerShape(15.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("guest-home-digital-invitation")
+            .heightIn(min = 54.dp)
+            .testTag("guest-home-directions")
     ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text(
-                "MY DIGITAL INVITATION",
-                style = MaterialTheme.typography.labelMedium,
-                color = WeddingIdentityPalette.ChampagneDeep
-            )
-            Text(
-                profile.coupleNames,
-                fontFamily = FontFamily.Serif,
-                fontSize = 22.sp,
-                color = WeddingIdentityPalette.Ink
-            )
-            Text(
-                "Open your interactive invitation →",
-                fontSize = 14.sp,
-                color = WewedColors.Emerald
-            )
-        }
+        Icon(Icons.Filled.Directions, contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(9.dp))
+        Text("Directions to Venue", fontWeight = FontWeight.SemiBold)
     }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        GuestFact(
-            "RSVP",
-            rsvpLabel(profile.attending),
-            "live-guest-rsvp-status",
-            modifier = Modifier.weight(1f)
-        )
-        if (GuestCapability.WEDDING_PASS in capabilities) {
-            GuestFact(
-                "Wedding Pass",
-                "Ready in Pass",
-                "live-guest-pass-hint",
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
-
-    GuestFact("When", formatWeddingDate(profile.weddingDate), "live-guest-date")
-    GuestFact(
-        "Where",
-        listOfNotNull(profile.venue, profile.venueCityCountry.takeIf { it.isNotBlank() })
-            .joinToString(" · "),
-        "live-guest-venue"
+    IACard(
+        title = "Wedding Pass",
+        subtitle = if (profile.attending == true)
+            "Your admission pass is ready."
+        else
+            "No venue admission pass is currently issued.",
+        trailing = if (profile.attending == true) "Ready" else "No admission",
+        status = if (profile.attending == true) "Attending" else null,
+        testTag = "guest-home-pass",
+        onClick = onOpenPass
     )
 
-    if (GuestCapability.SEATING in capabilities) {
-        profile.tableName?.takeIf { it.isNotBlank() }?.let {
-            GuestFact("Your table", it, "live-guest-table")
+    IACard(
+        title = "My Digital Invitation",
+        subtitle = "Reopen your personalised Ivory invitation.",
+        trailing = "Open",
+        testTag = "guest-home-digital-invitation",
+        onClick = onOpenInvitation
+    )
+
+    day?.optJSONArray("programme")
+        ?.takeIf { it.length() > 0 }
+        ?.optJSONObject(0)
+        ?.let { item ->
+            IACard(
+                title = item.optString("title").ifBlank { "Wedding Day" },
+                subtitle = listOf(
+                    item.optString("time"),
+                    item.optString("location")
+                ).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { null },
+                trailing = "Next",
+                testTag = "guest-home-next-programme"
+            )
         }
-    }
+
+    day?.optJSONArray("announcements")
+        ?.takeIf { GuestCapability.ANNOUNCEMENTS in capabilities && it.length() > 0 }
+        ?.optJSONObject(0)
+        ?.let { announcement ->
+            IACard(
+                title = announcement.optString("title").ifBlank { "Wedding update" },
+                subtitle = announcement.optString("body").takeIf { it.isNotBlank() },
+                status = "Announcement",
+                testTag = "guest-home-announcement"
+            )
+        }
 }
 
 @Composable
@@ -394,39 +418,74 @@ private fun LiveGuestPass(
     capabilities: Set<GuestCapability>,
     onOpenInvitation: () -> Unit
 ) {
-    Text("Wedding Pass", fontFamily = FontFamily.Serif, fontSize = 22.sp,
-         color = WeddingIdentityPalette.Ink)
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            "Wedding Pass",
+            fontFamily = FontFamily.Serif,
+            fontSize = 24.sp,
+            color = WeddingIdentityPalette.Ink
+        )
 
-    when {
-        GuestCapability.WEDDING_PASS !in capabilities && profile.attending == null ->
-            GuestFact(
-                "Not yet",
-                "Available after you confirm attendance.",
-                "live-guest-pass-pending"
-            )
-
-        GuestCapability.WEDDING_PASS !in capabilities -> {
-            GuestFact(
-                "No venue admission pass is currently issued",
-                "Your invitation remains active. If your plans change, return to your invitation and update your RSVP.",
-                "live-guest-pass-declined"
-            )
-            TextButton(
-                onClick = onOpenInvitation,
-                modifier = Modifier.testTag("live-guest-pass-change-rsvp")
-            ) {
-                Text("Update RSVP in Invitation")
+        when {
+            GuestCapability.WEDDING_PASS !in capabilities && profile.attending == null -> {
+                IACard(
+                    title = "RSVP required",
+                    subtitle = "Confirm your attendance from your invitation before a venue pass can be issued.",
+                    status = "Locked",
+                    testTag = "live-guest-pass-pending",
+                    onClick = onOpenInvitation
+                )
             }
-        }
 
-        else ->
-            // Attending, but the credential itself comes from the Wedding Day issuer, which is not
-            // reachable in production yet. Saying so is better than rendering an empty QR frame.
-            GuestFact(
-                "Coming soon",
-                "Your pass will appear here once the couple's wedding-day check-in is live.",
-                "live-guest-pass-unavailable"
+            GuestCapability.WEDDING_PASS !in capabilities -> {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = WeddingIdentityPalette.IvorySoft,
+                    border = BorderStroke(1.dp, WeddingIdentityPalette.Champagne.copy(alpha = 0.45f)),
+                    modifier = Modifier.fillMaxWidth().testTag("live-guest-pass-declined")
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        WeddingBrandMark()
+                        Text(
+                            "No venue admission pass",
+                            fontFamily = FontFamily.Serif,
+                            fontSize = 21.sp,
+                            color = WeddingIdentityPalette.Ink
+                        )
+                        Text(
+                            "Your invitation remains active. If your plans change, update your RSVP and Wewed will refresh your admission status.",
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp,
+                            color = WeddingIdentityPalette.Muted
+                        )
+                        OutlinedButton(
+                            onClick = onOpenInvitation,
+                            border = BorderStroke(1.dp, WeddingIdentityPalette.ChampagneDeep),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = WeddingIdentityPalette.ChampagneDeep
+                            ),
+                            shape = RoundedCornerShape(13.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .testTag("live-guest-pass-change-rsvp")
+                        ) {
+                            Text("Update RSVP in Invitation", fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+
+            else -> IACard(
+                title = "Wedding Pass",
+                subtitle = "Loading your verified admission credential.",
+                status = "Preparing",
+                testTag = "live-guest-pass-unavailable"
             )
+        }
     }
 }
 
