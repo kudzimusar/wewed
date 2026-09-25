@@ -4656,3 +4656,49 @@ NM02 is accepted only as a source/build remediation. LNM01 must restart runtime 
 
 **Phase-13 status:** **NOT ACCEPTED — NM02 PRESENTATION CONVERGENCE IS SOURCE/BUILD QUALIFIED; DUAL-PLATFORM TRUE-NATIVE VISUAL/RUNTIME CERTIFICATION, REAL PLANNER-GENERATED DATA ACCEPTANCE, PRODUCTION CONFIG/PROMOTION AND STORE/APP-LINK PROOF REMAIN.**
 
+### D-062 — Phase 13 NM03 final Guest UI composition source closure (2026-09-25)
+**MODERATOR REVIEW — NM03 ACCEPTED FOR NARROW DUAL-PLATFORM VISUAL DEVICE GATE. SOURCE/BUILD QUALIFIED; VISUAL DEVICE CERTIFICATION REMAINS OPEN.**
+
+NM03 continued exactly from NM02 and closed the source-level composition defects exposed by direct review of the prior LNM screenshots.
+
+**Authoritative native state:**
+- source: `native-mobile/phase13-guest-presentation-convergence-nm02-20260925` at `fb7899f8a2cff4329163080e85efbae652bae403`;
+- continuation: `native-mobile/phase13-final-guest-ui-composition-nm03-20260925`;
+- source/CI-qualified implementation: `3aebc686799c7a075c0bf4c6bb136e217a7533aa`;
+- final clean HEAD: `d388b00804360230ee6a1e6ee952ca22e5890a6f`;
+- backend remained read-only at `55cadd944564cd717fe255aca2fed34230857238`;
+- production `main` remains `ba4b08f8bca2d5cd5826e1ef1d2701d9049dd887`.
+
+**Independent moderator verification:**
+- final branch tip is exactly `d388b00804360230ee6a1e6ee952ca22e5890a6f`;
+- the branch is 22 commits ahead of NM02 and changes only the six intended Guest presentation source files, four targeted Guest presentation/geometry tests, and the NM03 receipt;
+- GitHub Actions run `36111595203` completed SUCCESS at `3aebc686799c7a075c0bf4c6bb136e217a7533aa`;
+  - Android job `107996428709`: unit tests + debug application assembly PASS;
+  - iOS job `107996428958`: Swift tests + generated simulator application build PASS;
+- the final head differs from the qualified implementation only by removal of the temporary qualification workflow and addition of the permanent NM03 receipt;
+- no backend, production, signing, store, AASA, assetlinks or WW2-key changes were introduced.
+
+**Source closure confirmed:**
+- Ivory mobile geometry is width-authoritative with vertical overflow instead of height-driven width shrink;
+- exposed Invitation host surface is Wewed Ivory rather than a dark application gutter;
+- iOS Live Guest root, RSVP, Couple Note and bottom navigation are explicitly constrained to the viewport;
+- Ivory details gateway contains only `View Invitation` and `Guest Pass` as practical touch targets;
+- accidental system-blue Guest actions are removed from changed Guest surfaces;
+- Home now owns immediate orientation/actions: hero, directions, Pass, Invitation and limited Wedding Day highlights;
+- Pass owns admission and keeps the canonical `WeddingReferencePassScreen/View`;
+- Wedding Day is programme/venue/announcement/arrival oriented;
+- More is extras/help/legal/device relationship with personal details subordinate;
+- the five-tab IA remains exactly `Home | Invitation | Pass | Wedding Day | More`;
+- no Couple/Planner `WeddingGraphState`, WebView, duplicate QR renderer or alternate credential authority appears in the changed live Guest path.
+
+**Governance correction:**
+The earlier LNM runtime exercise remains useful functional evidence, but its visual-certification conclusion is superseded by direct moderator screenshot review. NM03 therefore reopens only the presentation gate, not the already-proven identity/RSVP/WW2 architecture.
+
+**Next progressive unit — narrow device visual acceptance only:**
+LNM must use native `d388b00804360230ee6a1e6ee952ca22e5890a6f` with backend `55cadd944564cd717fe255aca2fed34230857238` and capture exactly seven principal surfaces on Android and seven on iOS:
+`Home`, `Invitation`, `Pass`, `Wedding Day`, `More`, `RSVP`, `Couple Note`.
+
+This gate is intentionally visual-first. Do not rerun the full Pending/Attending/Declined/identity-replacement suite until the fourteen screenshots have been reviewed and accepted. Any black Invitation gutter, horizontal clipping, off-screen navigation, default blue action, weak/tiny gateway CTA, duplicated page purpose, noncanonical Pass, or Guest-authority leak is a FAIL and must return to the moderator.
+
+**Phase-13 status:** **NOT ACCEPTED — NM03 SOURCE/BUILD CLOSURE PASSED; NARROW 14-SCREEN DUAL-PLATFORM VISUAL ACCEPTANCE IS NEXT, FOLLOWED ONLY THEN BY FINAL END-TO-END NATIVE CERTIFICATION AND REAL PLANNER-GENERATED DATA ACCEPTANCE.**
+
