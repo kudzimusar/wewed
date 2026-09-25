@@ -112,11 +112,11 @@ final class GuestViewportClosureTests: XCTestCase {
         XCTAssertFalse(note.contains("ScrollView(.horizontal"))
     }
 
-    func testCountdownAlwaysPartitionsExactlyFourEqualCells() {
-        for viewport in phoneWidths {
-            // LiveGuestShell reserves 20pt outer content padding on each side and the hero reserves
-            // another 17pt on each side before the countdown row receives its proposal.
-            let rowWidth = viewport - 40 - 34
+    func testCountdownPartitionsAnyBoundedParentWidthIntoFourEqualCells() {
+        // NM05 no longer pretends to derive the SwiftUI proposal from guessed outer padding.
+        // The shared WewedScreenContainer contract proves the parent is bounded; this pure helper
+        // only proves that whatever bounded width the row actually receives is divided exactly.
+        for rowWidth: CGFloat in [260, 280, 300, 320, 350] {
             let tile = GuestViewportGeometry.countdownTileWidth(rowWidth: rowWidth)
             let reconstructed =
                 tile * GuestViewportGeometry.countdownTileCount +
