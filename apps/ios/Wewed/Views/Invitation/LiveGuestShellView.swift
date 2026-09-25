@@ -558,6 +558,7 @@ private struct LiveIssuedGuestPassView: View {
 }
 
 private struct LiveGuestDayDataView: View {
+    @Environment(\.openURL) private var openURL
     let profile: LiveInvitationPresentation
     let coordinator: LiveGuestInvitationCoordinator
     let capabilities: Set<GuestCapability>
@@ -594,11 +595,24 @@ private struct LiveGuestDayDataView: View {
                     ForEach(day.programme, id: \.id) { item in
                         IACard(
                             item.title,
+                            item.location,
                             trailing: item.time,
                             testId: "guest-programme-\(item.id)"
                         )
                     }
                 }
+
+                GuestPresentationSectionHeading(
+                    "Venue & directions",
+                    identifier: "guest-day-venue-section"
+                )
+                IACard(
+                    profile.venue?.isEmpty == false ? profile.venue! : "Wedding venue",
+                    profile.venueCityCountry.isEmpty ? nil : profile.venueCityCountry,
+                    trailing: "Directions",
+                    testId: "live-guest-day-venue",
+                    onTap: openVenue
+                )
 
                 if capabilities.contains(.announcements) {
                     GuestPresentationSectionHeading(
@@ -618,33 +632,7 @@ private struct LiveGuestDayDataView: View {
                     }
                 }
 
-                if capabilities.contains(.partyDetails) {
-                    GuestPresentationSectionHeading("My Party", identifier: "guest-day-party")
-                    ForEach(day.guest.household, id: \.attendeeKey) { member in
-                        IACard(
-                            member.attendeeName,
-                            "Your wedding party",
-                            testId: "guest-party-member-\(member.attendeeKey)"
-                        )
-                    }
-                }
-
-                GuestPresentationSectionHeading(
-                    "Wedding details",
-                    identifier: "guest-day-details"
-                )
-                IACard(
-                    "Date",
-                    LiveGuestShellView.formatWeddingDate(profile.weddingDate),
-                    testId: "live-guest-day-date"
-                )
-                IACard(
-                    "Venue",
-                    [profile.venue, profile.venueCityCountry.isEmpty ? nil : profile.venueCityCountry]
-                        .compactMap { $0 }
-                        .joined(separator: " · "),
-                    testId: "live-guest-day-venue"
-                )
+                GuestPresentationSectionHeading("Arrival", identifier: "guest-day-arrival")
                 if capabilities.contains(.seating), let table = day.guest.tableName {
                     IACard("My Table", table, testId: "guest-day-table")
                 }
@@ -655,6 +643,20 @@ private struct LiveGuestDayDataView: View {
                         status: day.guest.checkedIn ? "Arrived" : "Wedding-day status",
                         testId: "guest-day-check-in"
                     )
+                }
+
+                if capabilities.contains(.partyDetails), !day.guest.household.isEmpty {
+                    GuestPresentationSectionHeading(
+                        "My Party",
+                        identifier: "guest-day-party"
+                    )
+                    ForEach(day.guest.household, id: \.attendeeKey) { member in
+                        IACard(
+                            member.attendeeName,
+                            "Your wedding party",
+                            testId: "guest-party-member-\(member.attendeeKey)"
+                        )
+                    }
                 }
             }
         }
@@ -667,6 +669,12 @@ private struct LiveGuestDayDataView: View {
                 failed = true
             }
         }
+    }
+
+    private func openVenue() {
+        let destination = resolveLiveVenueDestination(presentation: profile)
+        guard let url = URL(string: destination) else { return }
+        openURL(url)
     }
 }
 
