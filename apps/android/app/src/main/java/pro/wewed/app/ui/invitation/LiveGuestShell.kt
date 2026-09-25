@@ -560,7 +560,7 @@ private fun LiveGuestWeddingDay(
                     title = item.optString("title"),
                     subtitle = item.optString("location").takeIf { it.isNotBlank() },
                     trailing = item.optString("time").takeIf { it.isNotBlank() },
-                    testTag = "guest-programme-\${item.optString("id")}"
+                    testTag = "guest-programme-${item.optString("id")}"
                 )
             }
             if ((programme?.length() ?: 0) == 0) {
@@ -589,7 +589,7 @@ private fun LiveGuestWeddingDay(
                     IACard(
                         title = item.optString("title").ifBlank { "Wedding update" },
                         subtitle = item.optString("body"),
-                        testTag = "guest-announcement-\${item.optString("id")}"
+                        testTag = "guest-announcement-${item.optString("id")}"
                     )
                 }
                 if ((announcements?.length() ?: 0) == 0) {
@@ -675,7 +675,7 @@ private fun LiveGuestMore(
                 context.startActivity(
                     Intent(
                         Intent.ACTION_VIEW,
-                        Uri.parse("https://wewed.pro/w/\${Uri.encode(profile.weddingSlug)}")
+                        Uri.parse("https://wewed.pro/w/${Uri.encode(profile.weddingSlug)}")
                     )
                 )
             }
@@ -689,7 +689,7 @@ private fun LiveGuestMore(
                 context.startActivity(
                     Intent(
                         Intent.ACTION_VIEW,
-                        Uri.parse("https://wewed.pro/w/\${Uri.encode(profile.weddingSlug)}#registry")
+                        Uri.parse("https://wewed.pro/w/${Uri.encode(profile.weddingSlug)}#registry")
                     )
                 )
             }
