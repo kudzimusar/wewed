@@ -4527,3 +4527,86 @@ After that evidence is reviewed, the moderator may decide whether this narrow pa
 
 **Phase-13 status:** **NOT ACCEPTED — REAL GUEST INVITATION ENTRY + WEB/NATIVE WW2 PASS AUTHORITY CONVERGENCE ARE QUALIFIED; LOCAL VISUAL PASS-STATE UAT, OWNER-CONTROLLED PRODUCTION PROMOTION/KEYS, TRUE LIVE AUTHORITY UAT, AND FINAL STORE/APP-LINK DISTRIBUTION PROOF REMAIN.**
 
+### D-060 — Phase 13 NM01 Digital Invitation → RSVP → Guest Pass convergence moderator closure (2026-09-25)
+**MODERATOR REVIEW/CLOSURE — NM01 CORE IMPLEMENTATION ACCEPTED AFTER PATCHING CROSS-BRANCH GAPS; EXACT BACKEND CONTRACTS, ANDROID UNIT TESTS AND IOS SWIFT TESTS ARE GREEN. LOCAL TRUE-NATIVE JOURNEY UAT REMAINS REQUIRED BEFORE THIS SLICE CAN BE ACCEPTED FOR PRODUCTION PROMOTION.**
+
+NM01 implemented the requested convergence on narrow continuation branches, preserving the established native Ivory and Wedding Pass renderers rather than introducing replacements.
+
+**NM01 submitted heads before moderator review:**
+- backend: `backend/phase13-digital-invitation-convergence-nm01-20260925` at `7938ac3bf3c07c2f3403269236249be3354ed4a7`;
+- native: `native-mobile/phase13-digital-invitation-convergence-nm01-20260925` at `a447429932418560fdc71204f450358012357619`.
+
+**Core NM01 work independently confirmed:**
+- Android Guest Session request-path diagnostic logging that could expose one-time handoff credentials was removed; iOS contains no corresponding print/logger path;
+- pending RSVP is a real navigation gate: pending Guests remain in the invitation ceremony, ordinary relaunch returns them to Invitation, and pending Pass affordance invokes RSVP rather than the persistent shell;
+- after an authoritative RSVP answer, Guest Pass is the transition into the persistent Guest experience;
+- attending Guests enter Pass and continue through `/api/wedding-day/pass`, same-`guestId` checks, `WW2.` token validation and asymmetric verification into the existing `WeddingReferencePass`;
+- declined Guests may enter the persistent Guest experience but receive no venue-admission QR and are given a route back to Invitation to change RSVP;
+- `IvoryFloralGoldNative`, `NativeInvitationExperience` and `WeddingReferencePass` remain the canonical presentation path;
+- Guest Home was upgraded using the existing Wewed reference visual language without enabling Couple planner/budget/vendor/full-guest authority;
+- venue actions prefer the authoritative `venueMapUrl`, with a native geo fallback only if absent;
+- invitation style remains wedding-authoritative; public personal links reflect normalized saved `Wedding.invitationCardStyle` while stale edited `card=` input cannot override the Wedding record;
+- iOS stale “coming soon” language was removed; no App Store URL was invented because no authoritative repository/config destination was available.
+
+**Moderator defects discovered and patched before local handoff:**
+
+1. **Secondary Android browser fallback was missing when secure native handoff was enabled.**
+   The finalized product hierarchy explicitly permits browser continuation as a secondary option. The Android handoff surface now retains Wewed/Google Play as primary while also exposing `Continue in browser instead`. When deferred handoff is disabled, the existing automatic secure browser continuation remains.
+
+2. **The backend mobile-entry regression file was malformed.**
+   `src/lib/personal-invitation-mobile-entry.test.ts` had a broken describe/test terminator. It was repaired and extended to pin Android secondary fallback, iOS non-invented-store fallback, secure credential removal, Wedding-authoritative style resolution and WW2 web Pass authority.
+
+3. **Declined Guest capability policy was too restrictive.**
+   The finalized product requirement is that a declined invited Guest may still benefit from the persistent Guest experience; only venue admission must be withheld. Android/iOS capability policy now allows shared Wedding Day programme/announcements (and safe party information) after either RSVP answer, while `WEDDING_PASS`, seating and check-in state remain attending-only.
+
+4. **Exact backend/native branches were disconnected on Wedding Day transport.**
+   Native clients call `GET /api/wedding-day/guest`, but the NM01 backend continuation line did not contain that route. A guest-session-scoped route was added on the exact backend branch. It returns the current Guest’s own household/table/check-in representation and the wedding’s `ProgrammeItem` data; this backend line has no separate announcement authority, so `announcements: []` is returned rather than fabricating notices. The route does not require attendance and therefore supports declined invited Guests’ shared Wedding Day access.
+
+5. **Two pre-existing tests encoded superseded product semantics.**
+   Android and iOS Ivory geometry tests still asserted that a declined Guest must not see a Pass CTA. That contradicted the finalized rule: the Pass CTA is the post-RSVP gateway for both outcomes, while only attending receives a QR. Those tests now assert that answered Guests have the Pass gateway and pending remains locked.
+   Android venue-fallback testing also called Android `Uri.encode` in a plain JVM unit test; the fallback was made platform-neutral using standard URL encoding, preserving the authoritative configured-map URL path.
+
+**Independent moderator qualification:**
+- backend temporary qualification run `36091207271`: **SUCCESS** at exact qualification head `60602ea0bb6e1af162b2a33c87e3fcb00d010b54`;
+  - invitation-card contracts: PASS;
+  - invitation-link contracts: PASS;
+  - repaired personal mobile-entry contracts: PASS;
+  - scoped TypeScript rejection for changed surfaces: PASS.
+- first native qualification attempt exposed only a CI setup error (invalid pinned `setup-java` action SHA), then a subsequent exact-head run exposed two genuine stale-test/testability issues described above; neither was hidden.
+- final native moderator qualification run `36091617040`: **SUCCESS** at exact product+workflow head `c5f06a3de78816ace7156ccb1e78e16de5d1a9c0`;
+  - Android `./gradlew testDebugUnitTest --no-daemon`: PASS;
+  - iOS `swift test`: PASS.
+- temporary moderator workflows were removed after qualification.
+
+**Final clean continuation heads:**
+- backend: `55cadd944564cd717fe255aca2fed34230857238`;
+- native: `0b6ecea642fd117c89370f424f10a0f60a84f5d1`.
+
+The final clean heads differ from the green qualification heads only by removal of the temporary moderator workflow files.
+
+**Authoritative RSVP/admission state contract now pinned:**
+- pending: invitation only; RSVP required; persistent Guest shell blocked;
+- attending: Guest Pass CTA → persistent shell on Pass → verified WW2 `WeddingReferencePass`;
+- declined: Guest Pass CTA → persistent Guest shell on Pass → no QR, polite no-admission state, Invitation remains available for RSVP changes; shared Wedding Day details remain available while seating/check-in/admission stay withheld.
+
+**Production/config boundary:**
+- production `main` remains `ba4b08f8bca2d5cd5826e1ef1d2701d9049dd887`;
+- no production deployment/merge occurred;
+- no Charity & Kudzie production record was changed;
+- therefore a production wedding still saved as `botanical` will continue generating `card=botanical` until an owner-authorized production configuration change sets its `Wedding.invitationCardStyle` to `ivory-floral-gold`;
+- no production assetlinks/AASA, signing, WW2 production key, Play/App Store release or database mutation occurred.
+
+**Next progressive unit — LNM01 local qualification only:**
+Use backend `55cadd944564cd717fe255aca2fed34230857238` and native `0b6ecea642fd117c89370f424f10a0f60a84f5d1` with disposable local fixtures/keys. Do not redesign or patch architecture unless the moderator explicitly returns a defect.
+Required evidence:
+1. Android native pending → splash → Ivory first → RSVP required; Home blocked; locked Pass opens RSVP.
+2. Android native attending → save RSVP → Guest Pass → persistent Pass → existing WW2 WeddingReferencePass for the same Guest.
+3. Android native declined → save decline → Guest Pass → no QR + update-RSVP guidance; Wedding Day shared programme visible; seating/check-in absent.
+4. Repeat the same three-state semantics on iOS, including true native foreground/bundle proof.
+5. Verify Invitation reopens the same interactive Ivory card and Venue uses the exact configured `venueMapUrl`; verify Calendar, Note, registry/contribution destination and Couple Website against authoritative fixture values.
+6. Relaunch: pending returns Invitation; answered Guests return persistent Guest Home; Guest A→B replacement cannot leak identity.
+7. Visually inspect rich Guest Home on both platforms and confirm Couple-only planner information is absent.
+8. Do not modify production assetlinks/AASA or production data to make UAT routing easier.
+
+**Phase-13 status:** **NOT ACCEPTED — NM01 CONVERGENCE IS CODE/UNIT QUALIFIED AFTER MODERATOR CLOSURE; TRUE DUAL-PLATFORM LOCAL NATIVE UAT, OWNER-CONTROLLED PRODUCTION CONFIG/PROMOTION, AND FINAL STORE/APP-LINK DISTRIBUTION PROOF REMAIN.**
+
