@@ -16,8 +16,9 @@ sealed interface LiveGuestExperienceState {
     /**
      * The ceremonial entry: the configured digital invitation, shown first.
      *
-     * Reached by opening a private link, and again whenever the Guest chooses Invitation. It is
-     * not a gate — [LiveGuestExperienceState.Home] is reachable without answering.
+     * Reached by opening a private link, and again whenever the Guest chooses Invitation. While
+     * RSVP is pending this is the only reachable Guest surface; [LiveGuestExperienceState.Home]
+     * becomes reachable only after an authoritative RSVP response exists.
      */
     data class Invitation(val presentation: LiveInvitationPresentation) : LiveGuestExperienceState
 
