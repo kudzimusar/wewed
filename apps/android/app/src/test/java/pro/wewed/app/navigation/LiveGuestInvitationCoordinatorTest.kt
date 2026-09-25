@@ -601,7 +601,7 @@ class LiveGuestInvitationCoordinatorTest {
             resolveLiveVenueDestination(configured)
         )
 
-        val fallback = configured.copyPresentationForVenueTest(venueMapUrl = null)
+        val fallback = configured.copy(venueMapUrl = null)
         assertTrue(resolveLiveVenueDestination(fallback).startsWith("geo:0,0?q="))
         assertTrue(resolveLiveVenueDestination(fallback).contains("Imba"))
     }
