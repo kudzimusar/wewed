@@ -158,6 +158,29 @@ final class InvitationProtocolContractTests: XCTestCase {
         XCTAssertTrue(source.contains("TokenVerifier.verifyAsymmetric"))
     }
 
+    /// Guest Session transport must stay silent because request paths may carry opaque handoffs.
+    func testGuestSessionTransportHasNoCredentialBearingLogging() throws {
+        let url = try Self.repositoryFile("apps/ios/Wewed/Invitation/GuestSessionClient.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        for forbidden in ["print(", "NSLog(", "Logger(", "os_log("] {
+            XCTAssertFalse(source.contains(forbidden), "Guest Session transport must not log via \(forbidden)")
+        }
+    }
+
+    /// Guest Home may reuse Wewed wedding visuals, never Couple planning repositories.
+    func testGuestHomeReusesWeddingIdentityWithoutCoupleOnlyData() throws {
+        let url = try Self.repositoryFile(
+            "apps/ios/Wewed/Views/Invitation/LiveGuestShellView.swift"
+        )
+        let source = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertTrue(source.contains("WeddingBrandMark()"))
+        XCTAssertTrue(source.contains("WewedAsset.heroWedding"))
+        XCTAssertTrue(source.contains("guest-home-digital-invitation"))
+        for forbidden in ["scopedRepository()", "getBudget()", "getTasks()", "getGuests()", "getVendors()", "selectedTab = .plan"] {
+            XCTAssertFalse(source.contains(forbidden), "Guest shell must not cross into Couple planner data via \(forbidden)")
+        }
+    }
+
     /// No credential may reach a log line through string interpolation.
     func testCredentialsAreRedactedInDescriptions() {
         let invitation = InvitationEntry.privateInvitation(weddingSlug: "slug",
