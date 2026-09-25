@@ -14,6 +14,16 @@ describe('personal invitation mobile entry', () => {
     )
   })
 
+  test('iOS fallback does not invent an App Store destination or claim the app is coming soon', () => {
+    const handoff = source('src/components/wedding/invitation-app-handoff.tsx')
+
+    expect(handoff).toContain('A direct App Store handoff is not configured for this invitation yet.')
+    expect(handoff).toContain('Continue in browser')
+    expect(handoff).not.toContain('Wewed for iPhone is coming soon')
+    expect(handoff).not.toContain('APP_STORE_BADGE')
+    expect(handoff).not.toContain('apps.apple.com/')
+  })
+
   test('browser continuation revalidates the pending invitation and enters invitation mode without a raw RSVP credential', () => {
     const continuation = source('src/app/invite/[slug]/continue/route.ts')
 
