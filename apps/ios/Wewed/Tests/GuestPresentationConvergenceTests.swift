@@ -93,6 +93,84 @@ final class GuestPresentationConvergenceTests: XCTestCase {
         }
     }
 
+    func testNM03GuestTabsHaveDistinctResponsibilities() throws {
+        let url = try Self.repositoryFile(
+            "apps/ios/Wewed/Views/Invitation/LiveGuestShellView.swift"
+        )
+        let source = try String(contentsOf: url, encoding: .utf8)
+
+        func section(_ start: String, _ end: String) -> String {
+            guard let startRange = source.range(of: start),
+                  let endRange = source.range(of: end, range: startRange.upperBound..<source.endIndex)
+            else { return "" }
+            return String(source[startRange.upperBound..<endRange.lowerBound])
+        }
+
+        let home = section("private var home: some View", "private func openVenue()")
+        XCTAssertTrue(home.contains("Directions to Venue"))
+        XCTAssertTrue(home.contains("guest-home-pass"))
+        XCTAssertTrue(home.contains("guest-home-digital-invitation"))
+        XCTAssertTrue(home.contains("guest-home-next-programme"))
+        XCTAssertTrue(home.contains("guest-home-announcement"))
+        for forbidden in ["\"Meal\"", "\"Dietary / access\"", "\"Your message\"", "\"Your table\""] {
+            XCTAssertFalse(home.contains(forbidden), "Home must not become Profile again via \(forbidden)")
+        }
+
+        let more = section("private var guestProfile: some View", "private var encodedWeddingSlug")
+        for expected in ["Our Story", "Couple Website", "Gift & Contribution Info", "Help",
+                         "Privacy & Legal", "My details", "This device"] {
+            XCTAssertTrue(more.contains(expected), "More is missing \(expected)")
+        }
+        for forbidden in ["\"Meal\"", "\"Plus one\"", "\"Dietary / access\"", "\"Your message\"", "\"Table\""] {
+            XCTAssertFalse(more.contains(forbidden), "More must not duplicate profile via \(forbidden)")
+        }
+
+        let day = section("private struct LiveGuestDayDataView: View", "private struct GuestPresentationSectionHeading")
+        let programme = day.range(of: "GuestPresentationSectionHeading(\"Programme\"")
+        let venue = day.range(of: "GuestPresentationSectionHeading(\n                    \"Venue & directions\"")
+        let announcements = day.range(of: "GuestPresentationSectionHeading(\n                        \"Announcements\"")
+        let arrival = day.range(of: "GuestPresentationSectionHeading(\"Arrival\"")
+        XCTAssertNotNil(programme)
+        XCTAssertNotNil(venue)
+        XCTAssertNotNil(announcements)
+        XCTAssertNotNil(arrival)
+        if let programme, let venue, let announcements, let arrival {
+            XCTAssertLessThan(programme.lowerBound, venue.lowerBound)
+            XCTAssertLessThan(venue.lowerBound, announcements.lowerBound)
+            XCTAssertLessThan(announcements.lowerBound, arrival.lowerBound)
+        }
+    }
+
+    func testNM03GuestActionsUseWewedPaletteAndNoAlternateAuthority() throws {
+        let invitation = try String(
+            contentsOf: Self.repositoryFile(
+                "apps/ios/Wewed/Views/Invitation/LiveGuestInvitationView.swift"
+            ),
+            encoding: .utf8
+        )
+        let shell = try String(
+            contentsOf: Self.repositoryFile(
+                "apps/ios/Wewed/Views/Invitation/LiveGuestShellView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        for source in [invitation, shell] {
+            XCTAssertFalse(source.contains("WewedColors.emerald"))
+            XCTAssertFalse(source.contains(".foregroundStyle(.blue)"))
+            XCTAssertFalse(source.contains(".foregroundColor(.blue)"))
+            XCTAssertFalse(source.contains("WeddingGraphState"))
+            XCTAssertFalse(source.contains("WeddingQRCodeView("))
+            XCTAssertFalse(source.contains("QRCodeGenerator("))
+        }
+        XCTAssertTrue(invitation.contains("WeddingIdentityPalette.champagneDeep"))
+        XCTAssertTrue(invitation.contains(".buttonStyle(.plain)"))
+        XCTAssertTrue(shell.contains("Directions to Venue"))
+        XCTAssertTrue(shell.contains("WeddingReferencePassView(pass: pass, showScanner: false)"))
+        XCTAssertTrue(shell.contains("Update RSVP in Invitation"))
+        XCTAssertTrue(shell.contains("safeAreaInset(edge: .bottom"))
+    }
+
     func testInvitationReopensThroughLiveIvoryInsteadOfShadowOrWebview() throws {
         let shell = try String(
             contentsOf: Self.repositoryFile(
