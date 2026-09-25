@@ -252,7 +252,7 @@ private fun LiveGuestHome(
                 subtitle = listOf(
                     item.optString("time"),
                     item.optString("location")
-                ).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { null },
+                ).filter { it.isNotBlank() }.joinToString(" · ").takeIf { it.isNotBlank() },
                 trailing = "Next",
                 testTag = "guest-home-next-programme"
             )
