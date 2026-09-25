@@ -4702,3 +4702,33 @@ This gate is intentionally visual-first. Do not rerun the full Pending/Attending
 
 **Phase-13 status:** **NOT ACCEPTED — NM03 SOURCE/BUILD CLOSURE PASSED; NARROW 14-SCREEN DUAL-PLATFORM VISUAL ACCEPTANCE IS NEXT, FOLLOWED ONLY THEN BY FINAL END-TO-END NATIVE CERTIFICATION AND REAL PLANNER-GENERATED DATA ACCEPTANCE.**
 
+### D-063 — NM03 device visual failure + live-authority activation finding (2026-09-25)
+**MODERATOR REVIEW — GUEST INVITATION IS VISUALLY CLOSE ON ANDROID, BLOCKED ON IOS, AND LIVE-PRODUCTION DATA PARITY HAS NOT YET BEEN CERTIFIED.**
+
+LNM01 executed the NM03 14-surface gate at native `d388b00804360230ee6a1e6ee952ca22e5890a6f` with backend authority `55cadd944564cd717fe255aca2fed34230857238`. Android passed all seven requested visual surfaces. iOS failed RSVP and Couple Note with P1 horizontal overflow and Home with a P2 countdown-row overflow. The moderator accepts the failure classification; the prior NM03 source/CI qualification remains valid but device visual certification remains open.
+
+**Important qualification correction:** the LNM01 screenshots were not a production-live-data test. The local run explicitly started the local qualification server on port 8787 and launched Android with a debug `wewed_guest_base_url` override; iOS was launched with `WEWED_GUEST_UI_ORIGIN=http://127.0.0.1:8787`. Therefore names, venue, programme, pass and RSVP state in that run prove client rendering against the qualification fixture, not alignment with the live PostgreSQL data behind `wewed.pro`.
+
+**Native source authority finding:** the release Guest path is nevertheless designed for live production authority, not hardcoded wedding records:
+- Android `GuestInvitationBootstrap.PRODUCTION_BASE_URL` is `https://wewed.pro`; release builds ignore the debug guest-base-url override.
+- iOS `GuestInvitationBootstrap.productionBaseURL` is `https://wewed.pro`; the localhost origin override exists only under `#if DEBUG`.
+- Guest identity/card data is loaded from `/api/weddings/{slug}/guest-session`;
+- Wedding Day is loaded from `/api/wedding-day/guest`;
+- admission is loaded from `/api/wedding-day/pass` and verified as WW2;
+- RSVP writes return to the Guest Session authority.
+The current Guest screens use presentation values such as `coupleNames`, `guestName`, date, venue, table and RSVP state from those responses; the Charity & Kudzie/Chipo fixture values are not the intended release authority.
+
+**Production activation gap:** repository state does not yet prove that the full backend contract used by the native branch is live on production. The authoritative backend continuation `55cadd94...` is 199 commits ahead of production baseline `ba4b08f8...`. At that production baseline, `/api/weddings/[slug]/guest-session` exists, but `/api/wedding-day/guest`, `/api/wedding-day/pass`, `src/lib/wedding-day.ts` and the shared `guest-rsvp-mutation.ts` do not exist. Those are additions on the Phase-13 backend line. Therefore local qualification proves the new native client contract but does not prove current `wewed.pro` can satisfy the complete Pass/Wedding Day contract. Do not claim live native/desktop parity until a release-mode client is exercised against the actual production origin after the required backend activation is deliberately staged.
+
+**Desktop/native propagation rule:** changes made in the desktop Planner/PWA will reflect automatically in native only when both surfaces read the same persisted authority field. Current Guest live projection covers wedding title/monogram/tagline/date/venue/map/city/country/invitation style/message/RSVP deadline/children policy, guest identity/table/RSVP fields, programme and WW2 pass. It does not mean every PWA visual/content choice is automatically mirrored: the native Home hero currently uses a packaged `hero_wedding` asset, native palette is Wewed-controlled, and Wedding Day announcements currently return an empty list because there is no separate announcement authority on this backend line. Production-live parity must therefore be certified field-by-field rather than assumed from visual similarity.
+
+**Broader native implication:** the iOS overflow is Guest-specific in the current evidence and does not prove other roles have the same UI defect. However, the production-activation concern is broader: the Phase-13 backend line also adds multiple `/api/native/... ` role endpoints that are absent from the stated production baseline. Other-role production authority must be activated/certified separately; this must not block closing the Guest invitation slice.
+
+**Next progressive unit:** NM04 must be a narrow iOS Guest viewport remediation only, fixing:
+1. RSVP sheet horizontal containment;
+2. Couple Note wrapping/dismissal containment;
+3. Home four-tile countdown containment.
+It must not redesign Android or broaden Guest IA. After NM04 source/CI qualification, LNM reruns only the three failed iOS surfaces plus one regression screenshot each for iOS Invitation and Pass. If those pass, the next gate is a **release-mode production-data parity probe** using one real authorized Guest and `https://wewed.pro`, without debug origin overrides. That probe must compare native vs PWA values for guest identity, couple/title, date, venue/map, invitation style/message, RSVP state, table, programme and Pass availability. If the production origin lacks the required Phase-13 APIs, stop and create a minimal production-activation closure; do not silently fall back to the qualification fixture.
+
+**Phase-13 status:** **NOT ACCEPTED — ANDROID VISUAL GATE PASSED; IOS NM04 REMEDIATION REQUIRED; LIVE PRODUCTION DATA/PWA PARITY REMAINS UNPROVEN AND IS THE NEXT AUTHORITY GATE AFTER IOS VISUAL CLOSURE.**
+
