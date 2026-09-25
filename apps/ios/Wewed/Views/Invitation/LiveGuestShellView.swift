@@ -14,11 +14,11 @@ public enum GuestSection: String, CaseIterable, Sendable {
 
     var icon: String {
         switch self {
-        case .home: return "house"
-        case .invitation: return "envelope"
+        case .home: return "house.fill"
+        case .invitation: return "envelope.fill"
         case .pass: return "qrcode"
-        case .weddingDay: return "calendar"
-        case .more: return "person.crop.circle"
+        case .weddingDay: return "sparkles"
+        case .more: return "person.crop.circle.fill"
         }
     }
 
@@ -44,6 +44,7 @@ public enum GuestSection: String, CaseIterable, Sendable {
 /// This shell is reachable only after RSVP completion. Attending and declined Guests both retain
 /// the persistent experience; venue admission remains attending-only.
 public struct LiveGuestShellView: View {
+    @Environment(\.openURL) private var openURL
     @State private var story = ""
     private let coordinator: LiveGuestInvitationCoordinator
     private let profile: LiveInvitationPresentation
@@ -85,44 +86,58 @@ public struct LiveGuestShellView: View {
                 if section == .invitation {
                     invitationContent()
                 } else if section == .pass && profile.attending == true {
-                    LiveIssuedGuestPassView(profile: profile, coordinator: coordinator).id(profile.guestId)
+                    LiveIssuedGuestPassView(profile: profile, coordinator: coordinator)
+                        .id(profile.guestId)
+                } else if section == .weddingDay {
+                    weddingDay
+                } else if section == .more {
+                    guestProfile
                 } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        switch section {
-                        case .home, .invitation: home
-                        case .pass: pass
-                        case .weddingDay: weddingDay
-                        case .more: guestProfile
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            switch section {
+                            case .home: home
+                            case .pass: pass
+                            default: EmptyView()
+                            }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(20)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(20)
                 }
 
-                }
-                Divider()
-                HStack {
+                Divider().foregroundStyle(WeddingIdentityPalette.hairline)
+                HStack(spacing: 0) {
                     ForEach(GuestSection.allCases, id: \.self) { candidate in
                         Button {
                             if candidate == .invitation { onOpenInvitation() }
                             else { onSelect(candidate) }
                         } label: {
                             VStack(spacing: 4) {
-                            Image(systemName: candidate.icon)
-                            Text(candidate.label)
-                                .font(.system(size: 11))
-                                .foregroundStyle(section == candidate
-                                                 ? WewedColors.emerald
-                                                 : WeddingIdentityPalette.muted)
-                                .frame(maxWidth: .infinity)
+                                Image(systemName: candidate.icon)
+                                    .font(.system(size: 17))
+                                Text(candidate.label)
+                                    .font(.system(
+                                        size: 11,
+                                        weight: section == candidate ? .semibold : .regular
+                                    ))
+                                    .lineLimit(1)
                             }
+                            .foregroundStyle(
+                                section == candidate
+                                    ? WeddingIdentityPalette.champagneDeep
+                                    : WeddingIdentityPalette.muted
+                            )
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 56)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                         .accessibilityIdentifier("nav-guest-\(candidate.id)")
                         .accessibilityAddTraits(section == candidate ? .isSelected : [])
                     }
                 }
-                .padding(.vertical, 10)
+                .background(WeddingIdentityPalette.ivorySoft)
             }
         }
     }
@@ -271,76 +286,99 @@ public struct LiveGuestShellView: View {
     /// Shared wedding-day information for answered Guests; venue-admission details stay attending-only.
     @ViewBuilder
     private var weddingDay: some View {
-        Text("Wedding Day")
-            .font(.system(size: 22, design: .serif))
-            .foregroundStyle(WeddingIdentityPalette.ink)
-
         if !capabilities.contains(.weddingDayProgramme) {
-            fact("Not yet",
-                 profile.attending == nil
-                    ? "Confirm your attendance to see the day's plan."
-                    : "The day's plan is for guests who are joining on the day.",
-                 "live-guest-day-locked")
+            IASectionList("Wedding Day", Self.formatWeddingDate(profile.weddingDate)) {
+                IACard(
+                    "Wedding Day details",
+                    profile.attending == nil
+                        ? "Confirm your attendance to see the day's plan."
+                        : "The day's plan is for guests who are joining on the day.",
+                    testId: "live-guest-day-locked"
+                )
+            }
         } else {
             LiveGuestDayDataView(
                 profile: profile,
                 coordinator: coordinator,
                 capabilities: capabilities
-            ).id(profile.guestId)
-            fact("When", Self.formatWeddingDate(profile.weddingDate), "live-guest-day-date")
-            fact("Where", profile.venue ?? "", "live-guest-day-venue")
-            if capabilities.contains(.seating), let table = profile.tableName, !table.isEmpty {
-                fact("Your table", table, "live-guest-day-table")
-            }
-            if capabilities.contains(.checkInState), profile.checkedIn {
-                fact("Arrived", "You're checked in.", "live-guest-checked-in")
-            }
+            )
+            .id(profile.guestId)
         }
     }
 
-    /// The Guest's own profile. No "create an account" wall: the invitation was the onboarding.
+    /// The Guest's own profile. Presentation reuses approved Wewed IA cards while authority
+    /// remains the live Guest Session and guest-scoped published wedding content.
     @ViewBuilder
     private var guestProfile: some View {
-        Button("View my Digital Invitation", action: onOpenInvitation)
-            .accessibilityIdentifier("guest-profile-digital-invitation")
-        Text("Your details")
-            .font(.system(size: 22, design: .serif))
-            .foregroundStyle(WeddingIdentityPalette.ink)
-            .accessibilityIdentifier("live-guest-profile")
-
-        fact("Name", profile.guestName, "live-guest-profile-name")
-        fact("Wedding", profile.coupleNames, "live-guest-profile-wedding")
-        fact("RSVP", Self.rsvpLabel(profile.attending), "live-guest-profile-rsvp")
-        if let meal = profile.mealChoice { fact("Meal", meal, "live-guest-profile-meal") }
-        if profile.plusOne {
-            fact("Plus one", profile.plusOneName ?? "Yes", "live-guest-profile-plus-one")
+        IASectionList("My details", profile.coupleNames) {
+            IACard(
+                "My Digital Invitation",
+                "Open the Ivory invitation and update your RSVP.",
+                trailing: "Open",
+                testId: "guest-profile-digital-invitation",
+                onTap: onOpenInvitation
+            )
+            IACard("Name", profile.guestName, testId: "live-guest-profile-name")
+            IACard("Wedding", profile.coupleNames, testId: "live-guest-profile-wedding")
+            IACard(
+                "RSVP",
+                Self.rsvpLabel(profile.attending),
+                status: profile.attending == true
+                    ? "Attending"
+                    : profile.attending == false ? "Not attending" : "Pending",
+                testId: "live-guest-profile-rsvp"
+            )
+            if let meal = profile.mealChoice, !meal.isEmpty {
+                IACard("Meal", meal, testId: "live-guest-profile-meal")
+            }
+            if profile.plusOne {
+                IACard(
+                    "Plus one",
+                    profile.plusOneName ?? "Yes",
+                    testId: "live-guest-profile-plus-one"
+                )
+            }
+            if profile.kidsAttending {
+                IACard(
+                    "Children",
+                    profile.kidsCount.map(String.init) ?? "Yes",
+                    testId: "live-guest-profile-kids"
+                )
+            }
+            if let dietary = profile.dietaryNotes, !dietary.isEmpty {
+                IACard("Dietary / access", dietary, testId: "live-guest-profile-dietary")
+            }
+            if let message = profile.message, !message.isEmpty {
+                IACard("Your message", message, testId: "live-guest-profile-message")
+            }
+            if let table = profile.tableName, !table.isEmpty {
+                IACard("Table", table, testId: "live-guest-profile-table")
+            }
+            if !story.isEmpty {
+                IACard("Our Story", story, testId: "guest-published-story")
+            }
+            IACard(
+                "Couple Website",
+                "Open the couple's public wedding site.",
+                trailing: "Open",
+                testId: "guest-profile-couple-site",
+                onTap: {
+                    guard let slug = profile.weddingSlug.addingPercentEncoding(
+                        withAllowedCharacters: .alphanumerics
+                    ), let url = URL(string: "https://wewed.pro/w/\(slug)") else { return }
+                    openURL(url)
+                }
+            )
+            IACard(
+                "Forget this wedding on this device",
+                "Removes this Guest relationship from this device. It does not affect your RSVP.",
+                testId: "live-guest-forget-wedding",
+                onTap: onForgetWedding
+            )
         }
-        if profile.kidsAttending {
-            fact("Children", profile.kidsCount.map(String.init) ?? "Yes", "live-guest-profile-kids")
+        .task(id: profile.guestId) {
+            story = (try? await coordinator.publishedStory(slug: profile.weddingSlug)) ?? ""
         }
-        if let dietary = profile.dietaryNotes {
-            fact("Dietary / access", dietary, "live-guest-profile-dietary")
-        }
-        if let message = profile.message {
-            fact("Your message", message, "live-guest-profile-message")
-        }
-        if let table = profile.tableName, !table.isEmpty {
-            fact("Table", table, "live-guest-profile-table")
-        }
-
-        // Guest access is device-persistent, so there has to be a way to remove it. Deliberately
-        // not called Sign Out: it ends a wedding relationship on this device, not a Wewed account.
-        if !story.isEmpty { Text(story).accessibilityIdentifier("guest-published-story") }
-        if let slug = profile.weddingSlug.addingPercentEncoding(withAllowedCharacters: .alphanumerics),
-           let url = URL(string: "https://wewed.pro/w/\(slug)") {
-            Link("Back to Wewed Couple Site", destination: url)
-        }
-        Button("Forget this wedding on this device", action: onForgetWedding)
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(WewedColors.gold)
-            .padding(.vertical, 10)
-            .accessibilityIdentifier("live-guest-forget-wedding")
-            .task(id: profile.guestId) { story = (try? await coordinator.publishedStory(slug: profile.weddingSlug)) ?? "" }
     }
 
     @ViewBuilder
@@ -433,37 +471,128 @@ private struct LiveGuestDayDataView: View {
     let capabilities: Set<GuestCapability>
     @State private var day: GuestWeddingDay?
     @State private var failed = false
+
     var body: some View {
-        Group {
-            if let day {
-                Text("Programme").accessibilityIdentifier("guest-day-programme")
-                ForEach(day.programme, id: \.id) { item in
-                    Text("\(item.time) · \(item.title)").accessibilityIdentifier("guest-programme-\(item.id)")
+        IASectionList(
+            "Wedding Day",
+            [LiveGuestShellView.formatWeddingDate(profile.weddingDate), profile.venue ?? ""]
+                .filter { !$0.isEmpty }
+                .joined(separator: " · ")
+        ) {
+            if failed {
+                IACard(
+                    "Wedding Day unavailable",
+                    "We couldn't load the day's details. Please try again.",
+                    testId: "guest-day-unavailable"
+                )
+            } else if day == nil {
+                HStack {
+                    Spacer()
+                    ProgressView().tint(WeddingIdentityPalette.champagneDeep)
+                    Spacer()
                 }
-                if capabilities.contains(.announcements) {
-                    Text("Announcements").accessibilityIdentifier("guest-day-announcements")
-                    ForEach(day.announcements, id: \.id) { item in
-                        Text([item.title, item.body].compactMap { $0 }.joined(separator: "\n"))
-                            .accessibilityIdentifier("guest-announcement-\(item.id)")
+                .padding(.vertical, 24)
+            }
+
+            if let day {
+                GuestPresentationSectionHeading("Programme", identifier: "guest-day-programme")
+                if day.programme.isEmpty {
+                    IACard("Programme", "No programme items have been published yet.")
+                } else {
+                    ForEach(day.programme, id: \.id) { item in
+                        IACard(
+                            item.title,
+                            trailing: item.time,
+                            testId: "guest-programme-\(item.id)"
+                        )
                     }
                 }
-                if capabilities.contains(.partyDetails) {
-                    Text("My Party").accessibilityIdentifier("guest-day-party")
-                    ForEach(day.guest.household, id: \.attendeeKey) { Text($0.attendeeName) }
+
+                if capabilities.contains(.announcements) {
+                    GuestPresentationSectionHeading(
+                        "Announcements",
+                        identifier: "guest-day-announcements"
+                    )
+                    if day.announcements.isEmpty {
+                        IACard("No announcements", "The wedding team has not posted an update.")
+                    } else {
+                        ForEach(day.announcements, id: \.id) { item in
+                            IACard(
+                                item.title ?? "Wedding update",
+                                item.body,
+                                testId: "guest-announcement-\(item.id)"
+                            )
+                        }
+                    }
                 }
+
+                if capabilities.contains(.partyDetails) {
+                    GuestPresentationSectionHeading("My Party", identifier: "guest-day-party")
+                    ForEach(day.guest.household, id: \.attendeeKey) { member in
+                        IACard(
+                            member.attendeeName,
+                            "Your wedding party",
+                            testId: "guest-party-member-\(member.attendeeKey)"
+                        )
+                    }
+                }
+
+                GuestPresentationSectionHeading(
+                    "Wedding details",
+                    identifier: "guest-day-details"
+                )
+                IACard(
+                    "Date",
+                    LiveGuestShellView.formatWeddingDate(profile.weddingDate),
+                    testId: "live-guest-day-date"
+                )
+                IACard(
+                    "Venue",
+                    [profile.venue, profile.venueCityCountry.isEmpty ? nil : profile.venueCityCountry]
+                        .compactMap { $0 }
+                        .joined(separator: " · "),
+                    testId: "live-guest-day-venue"
+                )
                 if capabilities.contains(.seating), let table = day.guest.tableName {
-                    Text(table).accessibilityIdentifier("guest-day-table")
+                    IACard("My Table", table, testId: "guest-day-table")
                 }
                 if capabilities.contains(.checkInState) {
-                    Text(day.guest.checkedIn ? "Checked in" : "Not yet checked in")
-                        .accessibilityIdentifier("guest-day-check-in")
+                    IACard(
+                        "Admission",
+                        day.guest.checkedIn ? "Checked in" : "Not yet checked in",
+                        status: day.guest.checkedIn ? "Arrived" : "Wedding-day status",
+                        testId: "guest-day-check-in"
+                    )
                 }
-            } else if failed { Text("We couldn't load the day's details. Please try again.").accessibilityIdentifier("guest-day-unavailable") }
-            else { ProgressView() }
-        }.task {
-            do { day = try await coordinator.weddingDay(guestId: profile.guestId) }
-            catch is CancellationError { }
-            catch { failed = true }
+            }
         }
+        .task(id: profile.guestId) {
+            do {
+                day = try await coordinator.weddingDay(guestId: profile.guestId)
+                failed = false
+            } catch is CancellationError {
+            } catch {
+                failed = true
+            }
+        }
+    }
+}
+
+private struct GuestPresentationSectionHeading: View {
+    let title: String
+    let identifier: String
+
+    init(_ title: String, identifier: String) {
+        self.title = title
+        self.identifier = identifier
+    }
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 17, weight: .semibold, design: .serif))
+            .foregroundStyle(WeddingIdentityPalette.ink)
+            .padding(.top, 8)
+            .padding(.bottom, 2)
+            .accessibilityIdentifier(identifier)
     }
 }
