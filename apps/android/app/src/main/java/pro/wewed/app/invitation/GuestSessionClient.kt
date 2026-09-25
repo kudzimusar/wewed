@@ -447,8 +447,10 @@ class GuestSessionClient(
         return try {
             perform(method, path, body, withSession, followRedirects)
         } catch (error: java.io.IOException) {
+            android.util.Log.e("Wewed", "GuestSessionClient IOException on $method $path", error)
             Response(status = -1, body = null, issuedSession = null)
         } catch (error: SecurityException) {
+            android.util.Log.e("Wewed", "GuestSessionClient SecurityException on $method $path", error)
             Response(status = -1, body = null, issuedSession = null)
         }
     }

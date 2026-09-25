@@ -342,7 +342,7 @@ fun resolveLiveInvitationActions(
     onOpenVenue = onOpenVenue,
     onGifts = onGifts,
     onNote = onNote,
-    onViewPass = if (presentation.attending == true) onViewPass else null,
+    onViewPass = if (presentation.attending != false) onViewPass else null,
     onVisitCoupleSite = onVisitCoupleSite,
     onContinue = onContinue
 )

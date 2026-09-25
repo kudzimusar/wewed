@@ -349,7 +349,7 @@ public func resolveLiveInvitationActions(
         onOpenVenue: onOpenVenue,
         onGifts: onGifts,
         onNote: onNote,
-        onViewPass: presentation.attending == true ? onViewPass : nil,
+        onViewPass: presentation.attending != false ? onViewPass : nil,
         onVisitCoupleSite: onVisitCoupleSite,
         onContinue: onContinue
     )

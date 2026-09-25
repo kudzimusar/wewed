@@ -50,7 +50,10 @@ object GuestInvitationBootstrap {
         context: Context,
         baseUrl: String = PRODUCTION_BASE_URL
     ): LiveGuestInvitationCoordinator {
-        coordinator?.let { return it }
+        val current = coordinator
+        if (current != null && activeBaseUrl == baseUrl) {
+            return current
+        }
         activeBaseUrl = baseUrl
         val secure = AndroidKeystoreSecureStorage(context.applicationContext)
         storage = secure
