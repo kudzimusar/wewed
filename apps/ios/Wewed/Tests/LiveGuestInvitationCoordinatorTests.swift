@@ -492,7 +492,8 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
         let pendingActions = resolveLiveInvitationActions(
             presentation: pending,
             onRsvpPrompt: { prompted = true },
-            onViewPass: { navigated = true }
+            onViewPass: { navigated = true },
+            onContinue: { navigated = true }
         )
         XCTAssertTrue(ivoryRsvpState(from: pending.rsvpStatus).isPassLocked)
         XCTAssertNil(pendingActions.onContinue, "pending invitation must not expose a Continue transition")
@@ -507,7 +508,8 @@ final class LiveGuestInvitationCoordinatorTests: XCTestCase {
             let actions = resolveLiveInvitationActions(
                 presentation: answered,
                 onRsvpPrompt: { prompted = true },
-                onViewPass: { navigated = true }
+                onViewPass: { navigated = true },
+                onContinue: { navigated = true }
             )
             XCTAssertTrue(ivoryRsvpState(from: answered.rsvpStatus).offersPass)
             XCTAssertNotNil(actions.onContinue, "answered invitation may expose Continue")
