@@ -1,4 +1,5 @@
 import XCTest
+import CoreGraphics
 @testable import WewedKit
 
 /// NM04 protects only the three device-observed iOS viewport defects.
@@ -67,7 +68,8 @@ final class GuestViewportClosureTests: XCTestCase {
         XCTAssertTrue(rsvp.contains("frame(width: contentWidth)"))
         XCTAssertTrue(rsvp.contains("fixedWidth: attendanceChoiceWidth"))
         XCTAssertTrue(rsvp.contains("invitation-rsvp-meal-carousel"))
-        XCTAssertTrue(rsvp.contains("frame(width: contentWidth, minHeight: 50)"))
+        XCTAssertTrue(rsvp.contains(".frame(width: contentWidth)"))
+        XCTAssertTrue(rsvp.contains(".frame(minHeight: 50)"))
         XCTAssertFalse(rsvp.contains("ScrollView([.horizontal, .vertical]"))
     }
 
