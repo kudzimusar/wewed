@@ -181,9 +181,9 @@ public func ivoryRsvpState(from status: RSVPStatus) -> IvoryRsvpState {
         return IvoryRsvpState(answer: .awaiting, statusLabel: nil, offersPass: true)
     case .attending:
         return IvoryRsvpState(answer: .attending, statusLabel: "RSVP confirmed", offersPass: true)
-    // A declined guest keeps the invitation and the wedding's public content, but never a pass.
+    // A declined guest may enter the Guest app and its Pass destination, but receives no QR.
     case .declined:
         return IvoryRsvpState(answer: .declined,
-                              statusLabel: "Response recorded — not attending", offersPass: false)
+                              statusLabel: "Response recorded — not attending", offersPass: true)
     }
 }
