@@ -46,6 +46,7 @@ public enum GuestSection: String, CaseIterable, Sendable {
 public struct LiveGuestShellView: View {
     @Environment(\.openURL) private var openURL
     @State private var story = ""
+    @State private var homeDay: GuestWeddingDay?
     private let coordinator: LiveGuestInvitationCoordinator
     private let profile: LiveInvitationPresentation
     private let onOpenInvitation: () -> Void
@@ -78,110 +79,167 @@ public struct LiveGuestShellView: View {
     }
 
     public var body: some View {
-        ZStack {
-            WeddingIdentityPalette.ivory.ignoresSafeArea()
-            AccessibilityMarker("live-guest-shell", label: "Your wedding")
+        GeometryReader { viewport in
+            let contentWidth = max(0, viewport.size.width - 40)
 
-            VStack(spacing: 0) {
-                if section == .invitation {
-                    invitationContent()
-                } else if section == .pass && profile.attending == true {
-                    LiveIssuedGuestPassView(profile: profile, coordinator: coordinator)
-                        .id(profile.guestId)
-                } else if section == .weddingDay {
-                    weddingDay
-                } else if section == .more {
-                    guestProfile
-                } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            switch section {
-                            case .home: home
-                            case .pass: pass
-                            default: EmptyView()
+            ZStack {
+                WeddingIdentityPalette.ivory.ignoresSafeArea()
+                AccessibilityMarker("live-guest-shell", label: "Your wedding")
+
+                Group {
+                    if section == .invitation {
+                        invitationContent()
+                    } else if section == .pass && profile.attending == true {
+                        LiveIssuedGuestPassView(profile: profile, coordinator: coordinator)
+                            .id(profile.guestId)
+                    } else if section == .weddingDay {
+                        weddingDay
+                    } else if section == .more {
+                        guestProfile
+                    } else {
+                        ScrollView(.vertical, showsIndicators: false) {
+                            VStack(alignment: .leading, spacing: 16) {
+                                switch section {
+                                case .home: home
+                                case .pass: pass
+                                default: EmptyView()
+                                }
                             }
+                            .frame(width: contentWidth, alignment: .leading)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 20)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(20)
+                        .frame(width: viewport.size.width)
                     }
                 }
-
-                Divider().foregroundStyle(WeddingIdentityPalette.hairline)
-                HStack(spacing: 0) {
-                    ForEach(GuestSection.allCases, id: \.self) { candidate in
-                        Button {
-                            if candidate == .invitation { onOpenInvitation() }
-                            else { onSelect(candidate) }
-                        } label: {
-                            VStack(spacing: 4) {
-                                Image(systemName: candidate.icon)
-                                    .font(.system(size: 17))
-                                Text(candidate.label)
-                                    .font(.system(
-                                        size: 11,
-                                        weight: section == candidate ? .semibold : .regular
-                                    ))
-                                    .lineLimit(1)
-                            }
-                            .foregroundStyle(
-                                section == candidate
-                                    ? WeddingIdentityPalette.champagneDeep
-                                    : WeddingIdentityPalette.muted
-                            )
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: 56)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("nav-guest-\(candidate.id)")
-                        .accessibilityAddTraits(section == candidate ? .isSelected : [])
-                    }
-                }
-                .background(WeddingIdentityPalette.ivorySoft)
+                .frame(width: viewport.size.width, maxHeight: .infinity)
+                .clipped()
+            }
+            .frame(width: viewport.size.width, height: viewport.size.height)
+            .clipped()
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                guestBottomNavigation(viewportWidth: viewport.size.width)
             }
         }
+    }
+
+    private func guestBottomNavigation(viewportWidth: CGFloat) -> some View {
+        VStack(spacing: 0) {
+            Divider().foregroundStyle(WeddingIdentityPalette.hairline)
+            HStack(spacing: 0) {
+                ForEach(GuestSection.allCases, id: \.self) { candidate in
+                    Button {
+                        if candidate == .invitation { onOpenInvitation() }
+                        else { onSelect(candidate) }
+                    } label: {
+                        VStack(spacing: 4) {
+                            Image(systemName: candidate.icon)
+                                .font(.system(size: 17))
+                            Text(candidate.label)
+                                .font(.system(
+                                    size: 10,
+                                    weight: section == candidate ? .semibold : .regular
+                                ))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.82)
+                        }
+                        .foregroundStyle(
+                            section == candidate
+                                ? WeddingIdentityPalette.champagneDeep
+                                : WeddingIdentityPalette.muted
+                        )
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("nav-guest-\(candidate.id)")
+                    .accessibilityAddTraits(section == candidate ? .isSelected : [])
+                }
+            }
+            .frame(width: viewportWidth)
+            .background(WeddingIdentityPalette.ivorySoft)
+        }
+        .frame(width: viewportWidth)
+        .background(WeddingIdentityPalette.ivorySoft)
     }
 
     /// The Guest's own wedding at a glance — the qualified Wewed wedding identity language,
     /// backed only by Guest-authorized session data.
     @ViewBuilder
     private var home: some View {
-        guestHero
+        VStack(alignment: .leading, spacing: 12) {
+            guestHero
 
-        Button(action: onOpenInvitation) {
-            VStack(alignment: .leading, spacing: 7) {
-                Text("MY DIGITAL INVITATION")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(WeddingIdentityPalette.champagneDeep)
-                Text(profile.coupleNames)
-                    .font(.system(size: 24, design: .serif))
-                    .foregroundStyle(WeddingIdentityPalette.ink)
-                Text("Open your interactive invitation →")
-                    .font(.system(size: 14))
-                    .foregroundStyle(WewedColors.emerald)
+            Button {
+                openVenue()
+            } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: "location.fill")
+                    Text("Directions to Venue")
+                        .fontWeight(.semibold)
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, minHeight: 54)
+                .background(WeddingIdentityPalette.champagneDeep)
+                .clipShape(RoundedRectangle(cornerRadius: 15))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(20)
-            .background(WeddingIdentityPalette.champagne.opacity(0.20))
-            .clipShape(RoundedRectangle(cornerRadius: 18))
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("guest-home-digital-invitation")
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("guest-home-directions")
 
-        HStack(spacing: 10) {
-            fact("RSVP", Self.rsvpLabel(profile.attending), "live-guest-rsvp-status")
-            if capabilities.contains(.weddingPass) {
-                fact("Wedding Pass", "Ready in Pass", "live-guest-pass-hint")
+            IACard(
+                "Wedding Pass",
+                profile.attending == true
+                    ? "Your admission pass is ready."
+                    : "No venue admission pass is currently issued.",
+                trailing: profile.attending == true ? "Ready" : "No admission",
+                status: profile.attending == true ? "Attending" : nil,
+                testId: "guest-home-pass",
+                onTap: { onSelect(.pass) }
+            )
+
+            IACard(
+                "My Digital Invitation",
+                "Reopen your personalised Ivory invitation.",
+                trailing: "Open",
+                testId: "guest-home-digital-invitation",
+                onTap: onOpenInvitation
+            )
+
+            if let next = homeDay?.programme.first {
+                IACard(
+                    next.title,
+                    [next.time, next.location].compactMap { value in
+                        guard let value, !value.isEmpty else { return nil }
+                        return value
+                    }.joined(separator: " · "),
+                    trailing: "Next",
+                    testId: "guest-home-next-programme"
+                )
+            }
+
+            if capabilities.contains(.announcements),
+               let announcement = homeDay?.announcements.first {
+                IACard(
+                    announcement.title ?? "Wedding update",
+                    announcement.body,
+                    status: "Announcement",
+                    testId: "guest-home-announcement"
+                )
             }
         }
-
-        fact("When", Self.formatWeddingDate(profile.weddingDate), "live-guest-date")
-        fact("Where", [profile.venue, profile.venueCityCountry.isEmpty ? nil : profile.venueCityCountry]
-                .compactMap { $0 }.joined(separator: " · "), "live-guest-venue")
-
-        if capabilities.contains(.seating), let table = profile.tableName, !table.isEmpty {
-            fact("Your table", table, "live-guest-table")
+        .task(id: profile.guestId) {
+            guard capabilities.contains(.weddingDayProgramme) else {
+                homeDay = nil
+                return
+            }
+            homeDay = try? await coordinator.weddingDay(guestId: profile.guestId)
         }
+    }
+
+    private func openVenue() {
+        let destination = resolveLiveVenueDestination(presentation: profile)
+        guard let url = URL(string: destination) else { return }
+        openURL(url)
     }
 
     private var guestHero: some View {
@@ -257,29 +315,65 @@ public struct LiveGuestShellView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    /// The pass, or an honest statement of why there isn't one.
+    /// Admission only. Attending Guests render the canonical WeddingReferencePass above; this
+    /// branch is the invitation-preserving no-admission state for declined/pending contexts.
     @ViewBuilder
     private var pass: some View {
-        Text("Wedding Pass")
-            .font(.system(size: 22, design: .serif))
-            .foregroundStyle(WeddingIdentityPalette.ink)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Wedding Pass")
+                .font(.system(size: 24, design: .serif))
+                .foregroundStyle(WeddingIdentityPalette.ink)
 
-        if !capabilities.contains(.weddingPass) {
-            if profile.attending == nil {
-                fact("Not yet", "Available after you confirm attendance.", "live-guest-pass-pending")
+            if !capabilities.contains(.weddingPass) {
+                if profile.attending == nil {
+                    IACard(
+                        "RSVP required",
+                        "Confirm your attendance from your invitation before a venue pass can be issued.",
+                        status: "Locked",
+                        testId: "live-guest-pass-pending",
+                        onTap: onOpenInvitation
+                    )
+                } else {
+                    WeddingSectionCard {
+                        VStack(alignment: .leading, spacing: 10) {
+                            WeddingBrandMark()
+                            Text("No venue admission pass")
+                                .font(.system(size: 21, design: .serif))
+                                .foregroundStyle(WeddingIdentityPalette.ink)
+                            Text(
+                                "Your invitation remains active. If your plans change, update your RSVP and Wewed will refresh your admission status."
+                            )
+                            .font(.system(size: 14))
+                            .foregroundStyle(WeddingIdentityPalette.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                            Button(action: onOpenInvitation) {
+                                Text("Update RSVP in Invitation")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                                    .frame(maxWidth: .infinity, minHeight: 44)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 13)
+                                            .stroke(
+                                                WeddingIdentityPalette.champagneDeep,
+                                                lineWidth: 1
+                                            )
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("live-guest-pass-change-rsvp")
+                        }
+                    }
+                    .accessibilityIdentifier("live-guest-pass-declined")
+                }
             } else {
-                fact("No venue admission pass is currently issued",
-                     "Your invitation remains active. If your plans change, return to your invitation and update your RSVP.",
-                     "live-guest-pass-declined")
-                Button("Update RSVP in Invitation", action: onOpenInvitation)
-                    .accessibilityIdentifier("live-guest-pass-change-rsvp")
+                IACard(
+                    "Wedding Pass",
+                    "Loading your verified admission credential.",
+                    status: "Preparing",
+                    testId: "live-guest-pass-unavailable"
+                )
             }
-        } else {
-            // Attending, but the credential comes from the Wedding Day issuer, which is not
-            // reachable in production yet. Saying so beats rendering an empty QR frame.
-            fact("Coming soon",
-                 "Your pass will appear here once the couple's wedding-day check-in is live.",
-                 "live-guest-pass-unavailable")
         }
     }
 
@@ -306,69 +400,56 @@ public struct LiveGuestShellView: View {
         }
     }
 
-    /// The Guest's own profile. Presentation reuses approved Wewed IA cards while authority
-    /// remains the live Guest Session and guest-scoped published wedding content.
+    /// Wedding extras and device relationship. Personal details are deliberately subordinate so
+    /// More does not duplicate Home, Invitation or Wedding Day.
     @ViewBuilder
     private var guestProfile: some View {
-        IASectionList("My details", profile.coupleNames) {
-            IACard(
-                "My Digital Invitation",
-                "Open the Ivory invitation and update your RSVP.",
-                trailing: "Open",
-                testId: "guest-profile-digital-invitation",
-                onTap: onOpenInvitation
-            )
-            IACard("Name", profile.guestName, testId: "live-guest-profile-name")
-            IACard("Wedding", profile.coupleNames, testId: "live-guest-profile-wedding")
-            IACard(
-                "RSVP",
-                Self.rsvpLabel(profile.attending),
-                status: profile.attending == true
-                    ? "Attending"
-                    : profile.attending == false ? "Not attending" : "Pending",
-                testId: "live-guest-profile-rsvp"
-            )
-            if let meal = profile.mealChoice, !meal.isEmpty {
-                IACard("Meal", meal, testId: "live-guest-profile-meal")
-            }
-            if profile.plusOne {
-                IACard(
-                    "Plus one",
-                    profile.plusOneName ?? "Yes",
-                    testId: "live-guest-profile-plus-one"
-                )
-            }
-            if profile.kidsAttending {
-                IACard(
-                    "Children",
-                    profile.kidsCount.map(String.init) ?? "Yes",
-                    testId: "live-guest-profile-kids"
-                )
-            }
-            if let dietary = profile.dietaryNotes, !dietary.isEmpty {
-                IACard("Dietary / access", dietary, testId: "live-guest-profile-dietary")
-            }
-            if let message = profile.message, !message.isEmpty {
-                IACard("Your message", message, testId: "live-guest-profile-message")
-            }
-            if let table = profile.tableName, !table.isEmpty {
-                IACard("Table", table, testId: "live-guest-profile-table")
-            }
+        IASectionList("More", "Wedding extras, help and this device") {
             if !story.isEmpty {
+                GuestPresentationSectionHeading("Our Story", identifier: "guest-more-story")
                 IACard("Our Story", story, testId: "guest-published-story")
             }
+
+            GuestPresentationSectionHeading("Explore", identifier: "guest-more-explore")
             IACard(
                 "Couple Website",
                 "Open the couple's public wedding site.",
                 trailing: "Open",
                 testId: "guest-profile-couple-site",
-                onTap: {
-                    guard let slug = profile.weddingSlug.addingPercentEncoding(
-                        withAllowedCharacters: .alphanumerics
-                    ), let url = URL(string: "https://wewed.pro/w/\(slug)") else { return }
-                    openURL(url)
-                }
+                onTap: { openGuestWebPath("/w/\(encodedWeddingSlug)") }
             )
+            IACard(
+                "Gift & Contribution Info",
+                "View the couple's published registry and contribution information.",
+                trailing: "Open",
+                testId: "guest-more-gifts",
+                onTap: { openGuestWebPath("/w/\(encodedWeddingSlug)#registry") }
+            )
+            IACard(
+                "Help",
+                "Open Wewed help and support.",
+                trailing: "Open",
+                testId: "guest-more-help",
+                onTap: { openGuestWebPath("/help") }
+            )
+            IACard(
+                "Privacy & Legal",
+                "Review Wewed privacy and legal information.",
+                trailing: "Open",
+                testId: "guest-more-privacy",
+                onTap: { openGuestWebPath("/legal") }
+            )
+
+            GuestPresentationSectionHeading("My details", identifier: "guest-more-my-details")
+            IACard("Name", profile.guestName, testId: "live-guest-profile-name")
+            IACard(
+                "RSVP",
+                Self.rsvpLabel(profile.attending),
+                status: profile.attending == true ? "Attending" : "Not attending",
+                testId: "live-guest-profile-rsvp"
+            )
+
+            GuestPresentationSectionHeading("This device", identifier: "guest-more-device")
             IACard(
                 "Forget this wedding on this device",
                 "Removes this Guest relationship from this device. It does not affect your RSVP.",
@@ -379,6 +460,16 @@ public struct LiveGuestShellView: View {
         .task(id: profile.guestId) {
             story = (try? await coordinator.publishedStory(slug: profile.weddingSlug)) ?? ""
         }
+    }
+
+    private var encodedWeddingSlug: String {
+        profile.weddingSlug.addingPercentEncoding(withAllowedCharacters: .alphanumerics)
+            ?? profile.weddingSlug
+    }
+
+    private func openGuestWebPath(_ path: String) {
+        guard let url = URL(string: "https://wewed.pro\(path)") else { return }
+        openURL(url)
     }
 
     @ViewBuilder
