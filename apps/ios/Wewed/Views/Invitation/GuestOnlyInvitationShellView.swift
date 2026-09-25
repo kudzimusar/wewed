@@ -103,10 +103,19 @@ public struct GuestOnlyInvitationShellView: View {
             if let initialURL { handle(initialURL); return }
             state = .exchanging
             let restored = await coordinator.restoreRememberedGuest()
-            // A restored session opens on Home; only an explicit link earns the ceremony.
-            if case .presenting = restored,
-               !GuestCeremonialEntry.opensOnInvitation(isExplicitInvitationArrival: false) {
-                selectedDestination = .home; ceremonial = false
+            // An answered remembered Guest opens on Home. A pending Guest must return to the
+            // invitation and complete RSVP before any persistent Guest destination is reachable.
+            if case let .presenting(snapshot) = restored {
+                let profile = LiveInvitationPresentation.from(snapshot)
+                if GuestCapabilityPolicy.mayEnterPersistentExperience(attending: profile.attending),
+                   !GuestCeremonialEntry.opensOnInvitation(isExplicitInvitationArrival: false) {
+                    selectedDestination = .home
+                    ceremonial = false
+                } else {
+                    selectedDestination = .invitation
+                    returnDestination = .home
+                    ceremonial = true
+                }
             }
             state = restored
         }
@@ -132,15 +141,28 @@ public struct GuestOnlyInvitationShellView: View {
         switch state {
         case let .presenting(snapshot):
             let profile = LiveInvitationPresentation.from(snapshot)
-            if ceremonial {
+            let mayEnterPersistentExperience =
+                GuestCapabilityPolicy.mayEnterPersistentExperience(attending: profile.attending)
+            if !mayEnterPersistentExperience || ceremonial {
                 LiveGuestInvitationView(
                     presentation: profile,
                     coordinator: coordinator,
                     onRefreshed: { state = $0 },
-                    // The dead end this replaces: Continue used to do nothing, which is why a
-                    // guest could open their invitation and then have nowhere to go.
-                    onContinue: { selectedDestination = .home; ceremonial = false },
-                    onViewPass: { selectedDestination = .pass; ceremonial = false }
+                    // RSVP completion alone does not auto-enter Home. The invitation remains the
+                    // front door until the Guest Pass transition is chosen; both answered states
+                    // land on Pass, where only an attending Guest can receive a WW2 QR.
+                    onContinue: {
+                        if mayEnterPersistentExperience {
+                            selectedDestination = .pass
+                            ceremonial = false
+                        }
+                    },
+                    onViewPass: {
+                        if mayEnterPersistentExperience {
+                            selectedDestination = .pass
+                            ceremonial = false
+                        }
+                    }
                 )
             } else {
                 LiveGuestShellView(
