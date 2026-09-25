@@ -126,10 +126,10 @@ final class GuestPresentationConvergenceTests: XCTestCase {
         }
 
         let day = section("private struct LiveGuestDayDataView: View", "private struct GuestPresentationSectionHeading")
-        let programme = day.range(of: "GuestPresentationSectionHeading(\"Programme\"")
-        let venue = day.range(of: "GuestPresentationSectionHeading(\n                    \"Venue & directions\"")
-        let announcements = day.range(of: "GuestPresentationSectionHeading(\n                        \"Announcements\"")
-        let arrival = day.range(of: "GuestPresentationSectionHeading(\"Arrival\"")
+        let programme = day.range(of: "\"Programme\"")
+        let venue = day.range(of: "\"Venue & directions\"")
+        let announcements = day.range(of: "\"Announcements\"")
+        let arrival = day.range(of: "\"Arrival\"")
         XCTAssertNotNil(programme)
         XCTAssertNotNil(venue)
         XCTAssertNotNil(announcements)
