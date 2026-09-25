@@ -147,10 +147,12 @@ class IvoryInvitationGeometryTest {
         assertEquals("Update RSVP", ivoryRsvpActionLabel(ivoryRsvpStateFrom(RSVPStatus.DECLINED)))
     }
 
-    /** A declined guest keeps the invitation and never gets a pass; pending has a locked pass affordance; attending offers pass. */
+    /** The Pass CTA is the Guest-app gateway after any RSVP answer; only pending remains locked. */
     @Test
-    fun aDeclinedGuestNeverGetsAPass() {
-        assertFalse(ivoryRsvpStateFrom(RSVPStatus.DECLINED).offersPass)
+    fun answeredGuestsGetThePassGatewayWhilePendingRemainsLocked() {
+        val declined = ivoryRsvpStateFrom(RSVPStatus.DECLINED)
+        assertTrue(declined.offersPass)
+        assertFalse(declined.isPassLocked)
         assertTrue(ivoryRsvpStateFrom(RSVPStatus.PENDING).offersPass)
         assertTrue(ivoryRsvpStateFrom(RSVPStatus.PENDING).isPassLocked)
         assertTrue(ivoryRsvpStateFrom(RSVPStatus.ATTENDING).offersPass)
