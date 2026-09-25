@@ -227,7 +227,7 @@ public struct LiveGuestShellView: View {
                 )
             }
         }
-        .task(id: profile.guestId) {
+        .task(id: "\(profile.guestId)|\(String(describing: profile.attending))") {
             guard capabilities.contains(.weddingDayProgramme) else {
                 homeDay = nil
                 return
