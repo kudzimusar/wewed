@@ -50,16 +50,26 @@ class GuestCapabilityPolicyTest {
         assertTrue(GuestCapabilityPolicy.mayEnterPersistentExperience(false))
     }
 
-    /** Accepting is what unlocks the day itself. */
+    /** Both answered states may see the shared wedding-day information. */
     @Test
-    fun anAttendingGuestGainsTheDayCapabilities() {
+    fun answeredGuestsCanSeeSharedWeddingDayDetails() {
+        listOf(true, false).forEach { attending ->
+            val capabilities = GuestCapabilityPolicy.capabilities(attending)
+            listOf(
+                GuestCapability.PARTY_DETAILS,
+                GuestCapability.WEDDING_DAY_PROGRAMME,
+                GuestCapability.ANNOUNCEMENTS
+            ).forEach { assertTrue("$it must remain available to invited guests", it in capabilities) }
+        }
+    }
+
+    /** Attending alone unlocks venue-admission and attendance operations. */
+    @Test
+    fun anAttendingGuestGainsAdmissionCapabilities() {
         val attending = GuestCapabilityPolicy.capabilities(true)
         listOf(
             GuestCapability.WEDDING_PASS,
-            GuestCapability.PARTY_DETAILS,
             GuestCapability.SEATING,
-            GuestCapability.WEDDING_DAY_PROGRAMME,
-            GuestCapability.ANNOUNCEMENTS,
             GuestCapability.CHECK_IN_STATE
         ).forEach { assertTrue("$it must follow from attending", it in attending) }
     }
@@ -88,17 +98,18 @@ class GuestCapabilityPolicyTest {
         assertTrue(GuestCapability.COUPLE_WEBSITE in declined)
     }
 
-    /** What they do not get is admission, or anything that presumes it. */
+    /** Declining removes venue-admission operations, not the benefit of remaining an invited Guest. */
     @Test
-    fun aDeclinedGuestReceivesNoAdmission() {
+    fun aDeclinedGuestReceivesNoVenueAdmission() {
         listOf(
             GuestCapability.WEDDING_PASS,
             GuestCapability.SEATING,
-            GuestCapability.CHECK_IN_STATE,
-            GuestCapability.WEDDING_DAY_PROGRAMME
+            GuestCapability.CHECK_IN_STATE
         ).forEach {
             assertFalse("$it must not follow a decline", GuestCapabilityPolicy.allows(false, it))
         }
+        assertTrue(GuestCapabilityPolicy.allows(false, GuestCapability.WEDDING_DAY_PROGRAMME))
+        assertTrue(GuestCapabilityPolicy.allows(false, GuestCapability.ANNOUNCEMENTS))
     }
 
     /** The pass is the one capability that separates attending from every other state. */
