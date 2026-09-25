@@ -273,28 +273,39 @@ jobs:
           DEVICE="$(xcrun simctl list devicetypes -j | python3 -c 'import json,sys; d=json.load(sys.stdin); a=d["devicetypes"]; x=next((v for v in a if v["name"]=="iPhone 16 Pro"),None) or next(v for v in a if "iPhone" in v["name"]); print(x["identifier"])')"
           UDID="$(xcrun simctl create NM05-iPhone "$DEVICE" "$RUNTIME")"
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+          # On hosted macOS runners CoreSimulator can remain headless until Simulator.app is
+          # activated. Launch the UI host first, then request the specific device boot.
+          open -a Simulator --args -CurrentDeviceUDID "$UDID" || true
+          sleep 4
           xcrun simctl boot "$UDID" || true
 
           python3 - "$UDID" <<'PY'
           import subprocess, sys, time
           udid = sys.argv[1]
-
-          def wait_for_boot(label):
-              print(f"Waiting for simulator boot ({label})...", flush=True)
-              subprocess.run(
-                  ["xcrun", "simctl", "bootstatus", udid, "-b"],
+          deadline = time.time() + 120
+          while time.time() < deadline:
+              state = subprocess.run(
+                  ["xcrun", "simctl", "list", "devices", "-j"],
+                  capture_output=True,
+                  text=True,
                   check=True,
-                  timeout=150,
+              ).stdout
+              if f'"udid" : "{udid}"' in state and '"state" : "Booted"' in state:
+                  print("Simulator reports Booted", flush=True)
+                  break
+              probe = subprocess.run(
+                  ["xcrun", "simctl", "spawn", udid, "launchctl", "print", "system"],
+                  stdout=subprocess.DEVNULL,
+                  stderr=subprocess.DEVNULL,
               )
-
-          try:
-              wait_for_boot("attempt 1")
-          except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
-              print(f"First boot attempt failed: {error}", flush=True)
-              subprocess.run(["xcrun", "simctl", "shutdown", udid], check=False)
+              if probe.returncode == 0:
+                  print("Simulator launchd is responsive", flush=True)
+                  break
               time.sleep(3)
-              subprocess.run(["xcrun", "simctl", "boot", udid], check=False)
-              wait_for_boot("attempt 2")
+          else:
+              subprocess.run(["xcrun", "simctl", "list", "devices"], check=False)
+              raise SystemExit("Simulator did not become responsive within 120 seconds")
           PY
 
           xcrun simctl install "$UDID" "$RUNNER_TEMP/nm05-derived/Build/Products/Debug-iphonesimulator/Wewed.app"
