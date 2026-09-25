@@ -25,6 +25,15 @@ public enum IvoryGeometry {
     public static let aspect: CGFloat = 9.0 / 19.5
     /// `.ivory-stage { max-width: 430px }` — the card keeps a card's size, even on an iPad.
     public static let maxStageWidth: CGFloat = 430
+
+    /// NM03 mobile geometry: viewport width is the only scaling authority.
+    public static func stageWidth(forViewport viewportWidth: CGFloat) -> CGFloat {
+        min(max(viewportWidth, 0), maxStageWidth)
+    }
+
+    public static func stageHeight(forWidth stageWidth: CGFloat) -> CGFloat {
+        max(stageWidth, 0) / aspect
+    }
     /// `perspective: 1900px` on `.ivory-object`.
     public static let perspective: CGFloat = 1900
     /// The approved opening duration.
@@ -199,35 +208,45 @@ public struct IvoryFloralGoldNative: View {
 
     public var body: some View {
         GeometryReader { proxy in
-            // The stationery keeps its authored aspect and is centred, the way a physical card
-            // sits on a surface. It is never stretched to the viewport.
-            let stageWidth = min(proxy.size.width,
-                                 proxy.size.height * IvoryGeometry.aspect,
-                                 IvoryGeometry.maxStageWidth)
-            let stageHeight = stageWidth / IvoryGeometry.aspect
+            // NM03 mobile geometry: width controls scale. The physical stationery keeps the
+            // authored aspect and the warm Ivory host scrolls vertically when the card is taller
+            // than the available application viewport. The persistent tab bar therefore never
+            // forces the card to become a narrow black-guttered strip.
+            let stageWidth = IvoryGeometry.stageWidth(forViewport: proxy.size.width)
+            let stageHeight = IvoryGeometry.stageHeight(forWidth: stageWidth)
 
             ZStack {
-                IvoryPalette.stage.ignoresSafeArea()
+                WeddingIdentityPalette.ivory
 
-                // The stage marks itself with a leaf element rather than an identifier on the
-                // container. `.accessibilityIdentifier` is inherited in SwiftUI: on the container
-                // it overwrote every descendant's identifier, so the doors, the seal and the
-                // couple's own names all reported as `ivory-card-stage` and none could be asserted.
                 AccessibilityMarker("invitation-trifold", label: "Your invitation")
 
-                ZStack {
-                    if view != .details { openFace(stageWidth, stageHeight) }
-                    if view == .details { detailsFace(stageWidth, stageHeight) }
-                    if view == .closed || view == .opening { doors(stageWidth, stageHeight) }
-                    if view == .opening {
-                        AccessibilityMarker("invitation-opening", label: "Your invitation, opening")
+                ScrollView(.vertical, showsIndicators: false) {
+                    HStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        ZStack {
+                            IvoryPalette.stage
+                            if view != .details { openFace(stageWidth, stageHeight) }
+                            if view == .details { detailsFace(stageWidth, stageHeight) }
+                            if view == .closed || view == .opening { doors(stageWidth, stageHeight) }
+                            if view == .opening {
+                                AccessibilityMarker(
+                                    "invitation-opening",
+                                    label: "Your invitation, opening"
+                                )
+                            }
+                        }
+                        .frame(width: stageWidth, height: stageHeight)
+                        .clipped()
+                        Spacer(minLength: 0)
                     }
+                    .frame(width: proxy.size.width)
                 }
-                .frame(width: stageWidth, height: stageHeight)
-                .clipped()
+                .frame(width: proxy.size.width, height: proxy.size.height)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
         }
+        .background(WeddingIdentityPalette.ivory)
         .onChange(of: view) { _, next in onStateChanged(next) }
     }
 
@@ -428,35 +447,46 @@ public struct IvoryFloralGoldNative: View {
 
             VStack {
                 Spacer()
-                HStack(spacing: 20) {
-                    Button("View invitation") { view = .open }
-                        .font(IvoryTypography.body(size: w * 0.026))
-                        .foregroundStyle(IvoryPalette.gold)
-                        .accessibilityIdentifier("invitation-back-to-invitation")
+                HStack(spacing: 8) {
+                    Button { view = .open } label: {
+                        Text("View Invitation")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(WeddingIdentityPalette.ivorySoft.opacity(0.96))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 13)
+                                    .stroke(WeddingIdentityPalette.champagneDeep, lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 13))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("invitation-back-to-invitation")
+
                     if rsvp.offersPass, let onViewPass = actions.onViewPass {
                         let isPending = rsvp.isPassLocked
                         Button(action: onViewPass) {
-                            Text(isPending ? "Guest Pass (locked)" : "Guest Pass")
-                                .font(IvoryTypography.body(size: w * 0.026))
-                                .foregroundStyle(isPending ? IvoryPalette.inkSoft : IvoryPalette.gold)
+                            VStack(spacing: 1) {
+                                Text("Guest Pass")
+                                    .font(.system(size: 12, weight: .semibold))
+                                if isPending {
+                                    Text("RSVP required")
+                                        .font(.system(size: 9, weight: .medium))
+                                        .opacity(0.88)
+                                }
+                            }
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(WeddingIdentityPalette.champagneDeep)
+                            .clipShape(RoundedRectangle(cornerRadius: 13))
                         }
-                        .accessibilityLabel(isPending ? "Guest Pass (available after you confirm attendance)" : "Guest Pass")
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(isPending ? "Guest Pass. RSVP required." : "Guest Pass")
                         .accessibilityIdentifier("invitation-cta-pass")
                     }
-                    if let onVisitCoupleSite = actions.onVisitCoupleSite {
-                        Button("Visit Couple Website", action: onVisitCoupleSite)
-                            .font(IvoryTypography.body(size: w * 0.026))
-                            .foregroundStyle(IvoryPalette.gold)
-                            .accessibilityIdentifier("invitation-cta-couple-site")
-                    }
-                    if let onContinue = actions.onContinue {
-                        Button("Continue", action: onContinue)
-                            .font(IvoryTypography.body(size: w * 0.026))
-                            .foregroundStyle(IvoryPalette.inkSoft)
-                            .accessibilityIdentifier("invitation-continue")
-                    }
                 }
-                .padding(.bottom, h * 0.02)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 14)
             }
             .frame(width: w, height: h)
         }
