@@ -2,10 +2,11 @@ import XCTest
 import CoreGraphics
 @testable import WewedKit
 
-/// NM04 protects only the three device-observed iOS viewport defects.
+/// NM05 protects the live Guest shell with the same responsive contract already qualified by
+/// Sanitized Shadow, while preserving NM04's RSVP and Couple Note closures.
 ///
-/// These tests deliberately assert geometry and source composition, not screenshot perfection.
-/// Device visual acceptance remains the next LNM gate.
+/// These tests assert the width chain and source composition. Device visual acceptance remains a
+/// separate LNM gate because SwiftUI proposal behavior and safe-area rendering must still be seen.
 final class GuestViewportClosureTests: XCTestCase {
     private let phoneWidths: [CGFloat] = [360, 375, 393, 402, 430]
 
@@ -21,6 +22,93 @@ final class GuestViewportClosureTests: XCTestCase {
             code: 1,
             userInfo: [NSLocalizedDescriptionKey: "Repository file not found: \(path)"]
         )
+    }
+
+    func testGuestShellAndCountdownWidthChainFitsRepresentativeIPhones() {
+        for viewport in phoneWidths {
+            let content = GuestViewportGeometry.shellContentWidth(viewportWidth: viewport)
+            let row = GuestViewportGeometry.countdownRowWidth(heroWidth: content)
+            let tile = GuestViewportGeometry.countdownTileWidth(rowWidth: row)
+            let reconstructed =
+                tile * GuestViewportGeometry.countdownTileCount +
+                GuestViewportGeometry.countdownInterTileSpacing *
+                    (GuestViewportGeometry.countdownTileCount - 1)
+
+            XCTAssertEqual(
+                content + GuestViewportGeometry.shellHorizontalInset * 2,
+                viewport,
+                accuracy: 0.001
+            )
+            XCTAssertEqual(
+                row + GuestViewportGeometry.heroInternalPadding * 2,
+                content,
+                accuracy: 0.001
+            )
+            XCTAssertEqual(reconstructed, row, accuracy: 0.001)
+            XCTAssertLessThanOrEqual(row, content)
+            XCTAssertLessThanOrEqual(content, viewport)
+            XCTAssertGreaterThan(tile, 0)
+        }
+    }
+
+    func testLiveGuestShellReusesShadowResponsiveContainerAndNativeTabBar() throws {
+        let source = try String(
+            contentsOf: Self.repositoryFile(
+                "apps/ios/Wewed/Views/Invitation/LiveGuestShellView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("WewedScreenContainer {"))
+        XCTAssertTrue(source.contains("TabView(selection: tabSelection)"))
+        XCTAssertTrue(source.contains(".tabItem {"))
+        XCTAssertTrue(source.contains("Label(candidate.label, systemImage: candidate.icon)"))
+        XCTAssertTrue(source.contains("GuestViewportGeometry.shellContentWidth"))
+        XCTAssertFalse(source.contains("private func guestBottomNavigation"))
+        XCTAssertFalse(source.contains(".safeAreaInset(edge: .bottom"))
+    }
+
+    func testGuestHeroUsesBoundedShadowMediaContractAndNoNestedRowGeometryReader() throws {
+        let source = try String(
+            contentsOf: Self.repositoryFile(
+                "apps/ios/Wewed/Views/Invitation/LiveGuestShellView.swift"
+            ),
+            encoding: .utf8
+        )
+        let heroStart = try XCTUnwrap(source.range(of: "private func guestHero(width: CGFloat)"))
+        let passStart = try XCTUnwrap(
+            source.range(of: "/// Admission only", range: heroStart.upperBound..<source.endIndex)
+        )
+        let hero = String(source[heroStart.lowerBound..<passStart.lowerBound])
+
+        XCTAssertTrue(hero.contains("GuestViewportGeometry.countdownRowWidth(heroWidth: width)"))
+        XCTAssertTrue(hero.contains(".wewedMedia("))
+        XCTAssertTrue(hero.contains("GuestViewportGeometry.shellHorizontalInset * 2"))
+        XCTAssertTrue(hero.contains("GuestViewportGeometry.countdownTileWidth(rowWidth: rowWidth)"))
+        XCTAssertTrue(hero.contains("guestCountdownTile(countdown.days, \"Days\", width: tileWidth)"))
+        XCTAssertTrue(hero.contains("guestCountdownTile(countdown.hours, \"Hours\", width: tileWidth)"))
+        XCTAssertTrue(hero.contains("guestCountdownTile(countdown.minutes, \"Mins\", width: tileWidth)"))
+        XCTAssertTrue(hero.contains("guestCountdownTile(countdown.seconds, \"Secs\", width: tileWidth)"))
+        XCTAssertTrue(hero.contains(".frame(width: rowWidth, alignment: .leading)"))
+        XCTAssertTrue(hero.contains(".frame(width: width, height: 350)"))
+        XCTAssertFalse(hero.contains("GeometryReader { rowProxy in"))
+    }
+
+    func testStandaloneInvitationAlsoPublishesBoundedViewport() throws {
+        let source = try String(
+            contentsOf: Self.repositoryFile(
+                "apps/ios/Wewed/Views/Invitation/LiveGuestInvitationView.swift"
+            ),
+            encoding: .utf8
+        )
+        let bodyStart = try XCTUnwrap(source.range(of: "public var body: some View"))
+        let venueStart = try XCTUnwrap(
+            source.range(of: "private var venueDestination", range: bodyStart.upperBound..<source.endIndex)
+        )
+        let body = String(source[bodyStart.lowerBound..<venueStart.lowerBound])
+
+        XCTAssertTrue(body.contains("WewedScreenContainer {"))
+        XCTAssertTrue(body.contains("NativeInvitationExperience("))
     }
 
     func testRsvpWidthChainFitsRepresentativeIPhones() {
@@ -112,42 +200,17 @@ final class GuestViewportClosureTests: XCTestCase {
         XCTAssertFalse(note.contains("ScrollView(.horizontal"))
     }
 
-    func testCountdownAlwaysPartitionsExactlyFourEqualCells() {
-        for viewport in phoneWidths {
-            // LiveGuestShell reserves 20pt outer content padding on each side and the hero reserves
-            // another 17pt on each side before the countdown row receives its proposal.
-            let rowWidth = viewport - 40 - 34
-            let tile = GuestViewportGeometry.countdownTileWidth(rowWidth: rowWidth)
-            let reconstructed =
-                tile * GuestViewportGeometry.countdownTileCount +
-                GuestViewportGeometry.countdownInterTileSpacing *
-                    (GuestViewportGeometry.countdownTileCount - 1)
-
-            XCTAssertEqual(reconstructed, rowWidth, accuracy: 0.001)
-            XCTAssertGreaterThan(tile, 0)
-        }
-    }
-
-    func testCountdownSourcePinsDaysHoursMinsSecsToMeasuredEqualWidths() throws {
+    func testIvoryDynamicTextScalesInsideAuthoredRegions() throws {
         let source = try String(
             contentsOf: Self.repositoryFile(
-                "apps/ios/Wewed/Views/Invitation/LiveGuestShellView.swift"
+                "apps/ios/Wewed/Views/Invitation/Ivory/IvoryFloralGoldNative.swift"
             ),
             encoding: .utf8
         )
-        let heroStart = try XCTUnwrap(source.range(of: "private var guestHero"))
-        let passStart = try XCTUnwrap(
-            source.range(of: "/// Admission only", range: heroStart.upperBound..<source.endIndex)
-        )
-        let hero = String(source[heroStart.lowerBound..<passStart.lowerBound])
 
-        XCTAssertTrue(hero.contains("GeometryReader { rowProxy in"))
-        XCTAssertTrue(hero.contains("GuestViewportGeometry.countdownTileWidth"))
-        XCTAssertTrue(hero.contains("guestCountdownTile(countdown.days, \"Days\", width: tileWidth)"))
-        XCTAssertTrue(hero.contains("guestCountdownTile(countdown.hours, \"Hours\", width: tileWidth)"))
-        XCTAssertTrue(hero.contains("guestCountdownTile(countdown.minutes, \"Mins\", width: tileWidth)"))
-        XCTAssertTrue(hero.contains("guestCountdownTile(countdown.seconds, \"Secs\", width: tileWidth)"))
-        XCTAssertTrue(hero.contains(".frame(width: width)"))
-        XCTAssertFalse(hero.contains("guestCountdownTile(_ value: Int, _ label: String)"))
+        XCTAssertTrue(source.contains(".minimumScaleFactor(0.52)"))
+        XCTAssertTrue(source.contains(".minimumScaleFactor(0.50)"))
+        XCTAssertTrue(source.contains(".minimumScaleFactor(0.65)"))
+        XCTAssertTrue(source.contains(".minimumScaleFactor(0.70)"))
     }
 }
