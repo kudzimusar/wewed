@@ -72,4 +72,16 @@ describe('personal invitation mobile entry', () => {
     expect(route).toContain('publicKeyDerBase64: passKey.publicKeyDerBase64')
     expect(route).toContain('token: credential.token')
   })
+
+  test('answered invited guests have a Guest Session wedding-day transport independent of admission QR eligibility', () => {
+    const route = source('src/app/api/wedding-day/guest/route.ts')
+
+    expect(route).toContain('readWeddingDayGuestContext(request)')
+    expect(route).toContain('FROM public."ProgrammeItem"')
+    expect(route).toContain("attendeeKey: 'primary'")
+    expect(route).toContain('announcements: []')
+    expect(route).not.toContain('ATTENDANCE_REQUIRED')
+    expect(route).not.toContain('ATTENDANCE_DECLINED')
+  })
+
 })
