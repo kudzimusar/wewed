@@ -266,6 +266,9 @@ public struct IvoryFloralGoldNative: View {
                     .font(IvoryTypography.script(size: w * 0.112))
                     .foregroundStyle(IvoryPalette.ink)
                     .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.60)
+                    .allowsTightening(true)
             }
             .accessibilityIdentifier("invitation-couple-names")
 
@@ -337,6 +340,9 @@ public struct IvoryFloralGoldNative: View {
                         // `.ivory-tagline { font-family: IvoryScript }`.
                         .font(IvoryTypography.script(size: w * 0.050))
                         .foregroundStyle(IvoryPalette.gold)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.52)
+                        .allowsTightening(true)
                 }
             }
 
@@ -348,6 +354,9 @@ public struct IvoryFloralGoldNative: View {
                         Text("Especially for \(guest)")
                             .font(IvoryTypography.body(size: w * 0.022))
                             .foregroundStyle(IvoryPalette.ink)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.70)
+                            .allowsTightening(true)
                     }
                     if let deadline = data.rsvpDeadlineLabel {
                         Text("RSVP by \(deadline)")
@@ -402,6 +411,9 @@ public struct IvoryFloralGoldNative: View {
                 Text(data.coupleNames)
                     .font(IvoryTypography.body(size: w * 0.030))
                     .foregroundStyle(IvoryPalette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+                    .allowsTightening(true)
             }
             // The artwork's own sample copy is erased in these regions; leaving them empty showed
             // the erasure as a smudge where the couple's words belong.
@@ -411,18 +423,27 @@ public struct IvoryFloralGoldNative: View {
                         .font(IvoryTypography.script(size: w * 0.052))
                         .foregroundStyle(IvoryPalette.gold)
                         .multilineTextAlignment(.center)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.50)
+                        .allowsTightening(true)
                 }
             }
             region(IvoryGeometry.detailVenue, w, h) {
                 VStack(spacing: 1) {
                     Text(data.venue).font(IvoryTypography.body(size: w * 0.024))
                         .foregroundStyle(IvoryPalette.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.70)
                     if let address = data.venueAddress, !address.isEmpty {
                         Text(address).font(IvoryTypography.body(size: w * 0.022))
                             .foregroundStyle(IvoryPalette.inkSoft)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.70)
                     }
                     Text(data.venueCityCountry).font(IvoryTypography.body(size: w * 0.022))
                         .foregroundStyle(IvoryPalette.inkSoft)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.70)
                 }
                 .multilineTextAlignment(.center)
             }
