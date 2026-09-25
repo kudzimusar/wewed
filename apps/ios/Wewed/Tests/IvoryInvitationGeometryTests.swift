@@ -78,6 +78,58 @@ final class IvoryInvitationGeometryTests: XCTestCase {
         XCTAssertEqual(Double(IvoryGeometry.maxStageWidth), g.maxStageWidthPx, accuracy: 0.01)
     }
 
+    func testMobileStageScaleIsDrivenByViewportWidthNotAvailableHeight() {
+        for viewport in [360.0, 375.0, 393.0, 402.0, 430.0, 480.0] {
+            XCTAssertEqual(
+                IvoryGeometry.stageWidth(forViewport: viewport),
+                min(viewport, IvoryGeometry.maxStageWidth),
+                accuracy: 0.001
+            )
+        }
+
+        let width = IvoryGeometry.stageWidth(forViewport: 375)
+        XCTAssertEqual(
+            IvoryGeometry.stageHeight(forWidth: width),
+            width / IvoryGeometry.aspect,
+            accuracy: 0.001
+        )
+    }
+
+    func testMobileRendererUsesWarmHostAndVerticalOverflowInsteadOfHeightShrink() throws {
+        var root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        while root.path != "/",
+              !FileManager.default.fileExists(atPath: root.appendingPathComponent("apps/ios/Package.swift").path) {
+            root = root.deletingLastPathComponent()
+        }
+        let renderer = root.appendingPathComponent(
+            "apps/ios/Wewed/Views/Invitation/Ivory/IvoryFloralGoldNative.swift"
+        )
+        let source = try String(contentsOf: renderer, encoding: .utf8)
+
+        XCTAssertTrue(source.contains("WeddingIdentityPalette.ivory"))
+        XCTAssertTrue(source.contains("ScrollView(.vertical"))
+        XCTAssertFalse(source.contains("proxy.size.height * IvoryGeometry.aspect"))
+    }
+
+    func testFinalGatewayContainsOnlyViewInvitationAndGuestPass() throws {
+        var root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        while root.path != "/",
+              !FileManager.default.fileExists(atPath: root.appendingPathComponent("apps/ios/Package.swift").path) {
+            root = root.deletingLastPathComponent()
+        }
+        let renderer = root.appendingPathComponent(
+            "apps/ios/Wewed/Views/Invitation/Ivory/IvoryFloralGoldNative.swift"
+        )
+        let source = try String(contentsOf: renderer, encoding: .utf8)
+
+        XCTAssertTrue(source.contains("\"View Invitation\""))
+        XCTAssertTrue(source.contains("\"Guest Pass\""))
+        XCTAssertTrue(source.contains("\"RSVP required\""))
+        XCTAssertTrue(source.contains("minHeight: 44"))
+        XCTAssertFalse(source.contains("\"Visit Couple Website\""))
+        XCTAssertFalse(source.contains("\"Continue\""))
+    }
+
     /// Every text region sits where the web puts it, to the tenth of a percent.
     func testRegionBoxesMatchTheContract() throws {
         let expected: [String: [CGFloat]] = [
