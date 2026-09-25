@@ -495,6 +495,69 @@ class LiveGuestInvitationCoordinatorTest {
         assertEquals("Update RSVP", ivoryRsvpActionLabel(ivoryRsvpStateFrom(declinedPres.rsvpStatus)))
     }
 
+    @Test
+    fun guestPassActionGatesPendingAndOpensForBothAnsweredStates() {
+        val base = GuestInvitationSnapshot(
+            weddingSlug = "charity-and-kudzie",
+            title = "Charity & Kudzie",
+            monogram = "C&K",
+            tagline = null,
+            date = "2026-12-23T14:00:00",
+            venue = "Imba Manor",
+            venueMapUrl = "https://maps.example/imba",
+            venueCity = "Harare",
+            venueCountry = "Zimbabwe",
+            invitationCardStyle = "ivory-floral-gold",
+            invitationCardMessage = null,
+            rsvpDeadline = null,
+            childrenPolicy = "welcome",
+            guestId = "guest_live",
+            guestName = "Live Guest",
+            email = null,
+            tableNumber = null,
+            tableName = null,
+            attending = null,
+            mealChoice = null,
+            plusOne = false,
+            plusOneName = null,
+            plusOneMeal = null,
+            kidsAttending = false,
+            kidsCount = null,
+            dietaryNotes = null,
+            message = null,
+            checkedIn = false,
+            checkedInAt = null
+        )
+
+        var prompted = false
+        var navigated = false
+        val pending = LiveInvitationPresentation.from(base)
+        val pendingActions = resolveLiveInvitationActions(
+            pending,
+            onRsvpPrompt = { prompted = true },
+            onViewPass = { navigated = true }
+        )
+        assertTrue(ivoryRsvpStateFrom(pending.rsvpStatus).isPassLocked)
+        pendingActions.onViewPass!!.invoke()
+        assertTrue("pending Pass must open RSVP", prompted)
+        assertFalse("pending Pass must not enter the persistent shell", navigated)
+
+        listOf(true, false).forEach { attending ->
+            prompted = false
+            navigated = false
+            val answered = LiveInvitationPresentation.from(base.copy(attending = attending))
+            val actions = resolveLiveInvitationActions(
+                answered,
+                onRsvpPrompt = { prompted = true },
+                onViewPass = { navigated = true }
+            )
+            assertTrue("answered Guest Pass must remain available", ivoryRsvpStateFrom(answered.rsvpStatus).offersPass)
+            actions.onViewPass!!.invoke()
+            assertTrue("answered Guest Pass must transition to Pass", navigated)
+            assertFalse("answered Guest Pass must not reopen RSVP", prompted)
+        }
+    }
+
     /**
      * Exercises the full mutation cycles through the existing Guest Session path:
      * 1. pending -> accept -> refresh -> accepted presentation -> reopen -> change meal/message -> save -> same RSVP record updated
