@@ -91,15 +91,40 @@ fun GuestOnlyInvitationShell(
     when (val current = state) {
         is LiveInvitationState.Presenting -> {
             val profile = LiveInvitationPresentation.from(current.snapshot)
-            if (navigation.ceremonial) {
+            val mayEnterPersistentExperience =
+                GuestCapabilityPolicy.mayEnterPersistentExperience(profile.attending)
+
+            // A remembered pending Guest must return to the invitation, not Home. Keeping the
+            // ceremonial flag set through the authoritative RSVP refresh also prevents the shell
+            // from appearing automatically before the Guest Pass transition is chosen.
+            LaunchedEffect(profile.guestId, profile.attending) {
+                if (!mayEnterPersistentExperience && !navigation.ceremonial) {
+                    navigation = GuestNavigation(
+                        selected = GuestSection.INVITATION,
+                        returnTo = GuestSection.HOME,
+                        ceremonial = true
+                    )
+                }
+            }
+
+            if (!mayEnterPersistentExperience || navigation.ceremonial) {
                 LiveGuestInvitationScreen(
                     presentation = profile,
                     coordinator = coordinator,
                     onRefreshed = { state = it },
-                    // The dead end this replaces: Continue used to do nothing, which is why a
-                    // guest could open their invitation and then have nowhere to go.
-                    onContinue = { navigation = navigation.select(GuestSection.HOME) },
-                    onViewPass = { navigation = navigation.select(GuestSection.PASS) }
+                    // RSVP completion alone does not auto-enter Home. The invitation remains the
+                    // front door until the Guest Pass transition is chosen; both answered states
+                    // land on Pass, where only an attending Guest can receive a WW2 QR.
+                    onContinue = {
+                        if (mayEnterPersistentExperience) {
+                            navigation = navigation.select(GuestSection.PASS)
+                        }
+                    },
+                    onViewPass = {
+                        if (mayEnterPersistentExperience) {
+                            navigation = navigation.select(GuestSection.PASS)
+                        }
+                    }
                 )
             } else {
                 LiveGuestShell(
