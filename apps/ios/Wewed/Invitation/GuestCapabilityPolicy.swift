@@ -3,7 +3,7 @@ import Foundation
 /// What an invited Guest may reach. One name per capability, so views ask rather than decide.
 public enum GuestCapability: String, CaseIterable, Sendable {
     case home, invitation, rsvp, weddingDetails, venue, coupleWebsite, registry, profile
-    /// Attending only: an admission credential is not issued to anyone else.
+    /// Shared wedding detail capabilities coexist with attendance-specific admission state.
     case weddingPass, partyDetails, seating, weddingDayProgramme, announcements, checkInState
 }
 
@@ -11,8 +11,8 @@ public enum GuestCapability: String, CaseIterable, Sendable {
 ///
 /// The invitation establishes identity; RSVP completion gates the persistent Guest experience.
 /// A pending Guest remains inside the invitation ceremony and its wedding-authorized actions.
-/// Attending and declined Guests may both enter the persistent shell; only attending Guests gain
-/// admission and Wedding Day capabilities.
+/// Attending and declined Guests may both enter the persistent shell and see the wedding's shared
+/// programme/announcements. Only attending Guests gain venue admission, seating and check-in state.
 ///
 /// A pure function on purpose. Scattering `attending == true` checks through views is how a
 /// declined guest ends up holding an admission credential in one place and not another.
@@ -26,11 +26,12 @@ public enum GuestCapabilityPolicy {
     /// Persistent Guest application capabilities shared by attending and declined Guests.
     private static let persistent: Set<GuestCapability> = [
         .home, .invitation, .weddingDetails, .venue, .coupleWebsite, .registry, .profile,
+        .partyDetails, .weddingDayProgramme, .announcements,
     ]
 
-    /// Everything that follows from actually coming.
+    /// Capabilities that presume physical attendance at the venue.
     private static let attendingOnly: Set<GuestCapability> = [
-        .weddingPass, .partyDetails, .seating, .weddingDayProgramme, .announcements, .checkInState,
+        .weddingPass, .seating, .checkInState,
     ]
 
     /// - Parameter attending: nil when the guest has not answered; true attending; false declined.
