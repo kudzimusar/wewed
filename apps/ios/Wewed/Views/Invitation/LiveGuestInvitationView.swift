@@ -3,6 +3,56 @@ import SwiftUI
 import UIKit
 #endif
 
+
+/// Presentation-only width rules for the three NM04 iPhone viewport closures.
+///
+/// These helpers deliberately know nothing about Guest identity, RSVP authority, Ivory state or
+/// Wedding Pass authority. They turn a physical SwiftUI proposal into concrete child widths so
+/// intrinsic content can never enlarge the RSVP/note surfaces beyond the phone.
+enum GuestViewportGeometry {
+    static let rsvpOuterInset: CGFloat = 8
+    static let rsvpInternalPadding: CGFloat = 20
+    static let rsvpAttendanceSpacing: CGFloat = 8
+
+    static let noteOuterInset: CGFloat = 16
+    static let noteInternalPadding: CGFloat = 20
+    static let noteMaximumWidth: CGFloat = 420
+
+    static let countdownInterTileSpacing: CGFloat = 6
+    static let countdownTileCount: CGFloat = 4
+
+    static func rsvpSheetWidth(viewportWidth: CGFloat) -> CGFloat {
+        max(0, viewportWidth - (rsvpOuterInset * 2))
+    }
+
+    static func rsvpContentWidth(viewportWidth: CGFloat) -> CGFloat {
+        max(0, rsvpSheetWidth(viewportWidth: viewportWidth) - (rsvpInternalPadding * 2))
+    }
+
+    static func rsvpAttendanceChoiceWidth(viewportWidth: CGFloat) -> CGFloat {
+        max(
+            0,
+            (rsvpContentWidth(viewportWidth: viewportWidth) - rsvpAttendanceSpacing) / 2
+        )
+    }
+
+    static func noteSurfaceWidth(viewportWidth: CGFloat) -> CGFloat {
+        min(
+            max(0, viewportWidth - (noteOuterInset * 2)),
+            noteMaximumWidth
+        )
+    }
+
+    static func noteTextWidth(viewportWidth: CGFloat) -> CGFloat {
+        max(0, noteSurfaceWidth(viewportWidth: viewportWidth) - (noteInternalPadding * 2))
+    }
+
+    static func countdownTileWidth(rowWidth: CGFloat) -> CGFloat {
+        let totalSpacing = countdownInterTileSpacing * (countdownTileCount - 1)
+        return max(0, (rowWidth - totalSpacing) / countdownTileCount)
+    }
+}
+
 /// The guest's invitation, rendered from the live guest session.
 ///
 /// The distinction from `GuestInvitationJourneyView` is where the data and the RSVP write come
@@ -234,9 +284,12 @@ public struct LiveGuestInvitationView: View {
     /// alternative is putting words in their mouth.
     private func noteFromTheCouple(_ note: String) -> some View {
         GeometryReader { proxy in
-            let horizontalInset: CGFloat = 16
-            let availableWidth = max(0, proxy.size.width - horizontalInset * 2)
-            let sheetWidth = min(availableWidth, 420)
+            let surfaceWidth = GuestViewportGeometry.noteSurfaceWidth(
+                viewportWidth: proxy.size.width
+            )
+            let textWidth = GuestViewportGeometry.noteTextWidth(
+                viewportWidth: proxy.size.width
+            )
 
             ZStack {
                 Color.black.opacity(0.40)
@@ -245,6 +298,7 @@ public struct LiveGuestInvitationView: View {
 
                 ZStack {
                     WeddingFloralBackground(opacity: 0.075)
+
                     VStack(spacing: 14) {
                         HStack {
                             Spacer(minLength: 0)
@@ -266,29 +320,39 @@ public struct LiveGuestInvitationView: View {
                             .accessibilityLabel("Close note")
                             .accessibilityIdentifier("invitation-note-dismiss")
                         }
+                        .frame(width: textWidth)
 
                         WeddingBrandMark()
                         Text("A note from us")
                             .font(.system(size: 22, design: .serif))
                             .foregroundStyle(WeddingIdentityPalette.ink)
+                            .multilineTextAlignment(.center)
+                            .frame(width: textWidth)
+
                         Rectangle()
                             .fill(WeddingIdentityPalette.champagne.opacity(0.70))
-                            .frame(width: 64, height: 1)
+                            .frame(width: min(64, textWidth), height: 1)
+
                         Text(note)
                             .font(.system(size: 16, design: .serif))
                             .foregroundStyle(WeddingIdentityPalette.ink)
                             .multilineTextAlignment(.center)
                             .lineSpacing(5)
+                            .frame(width: textWidth, alignment: .center)
                             .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity)
+                            .accessibilityIdentifier("invitation-note-message")
+
                         Text("Your invitation remains behind this note.")
                             .font(.system(size: 11))
                             .foregroundStyle(WeddingIdentityPalette.muted)
+                            .multilineTextAlignment(.center)
+                            .frame(width: textWidth)
                     }
-                    .padding(.horizontal, 20)
+                    .frame(width: textWidth)
+                    .padding(.horizontal, GuestViewportGeometry.noteInternalPadding)
                     .padding(.vertical, 18)
                 }
-                .frame(width: sheetWidth)
+                .frame(width: surfaceWidth)
                 .background(WeddingIdentityPalette.ivorySoft)
                 .clipShape(RoundedRectangle(cornerRadius: 24))
                 .overlay(
