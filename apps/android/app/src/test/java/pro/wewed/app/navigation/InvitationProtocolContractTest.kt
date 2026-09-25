@@ -30,6 +30,16 @@ class InvitationProtocolContractTest {
         throw IllegalStateException("Invitation protocol contract not found")
     }
 
+    private fun repositoryFile(path: String): File {
+        var dir: File? = File(System.getProperty("user.dir") ?: ".").absoluteFile
+        while (dir != null) {
+            val candidate = File(dir, path)
+            if (candidate.isFile) return candidate
+            dir = dir.parentFile
+        }
+        throw IllegalStateException("Repository file not found: $path")
+    }
+
     /** A handoff that is 43 base64url characters, as the server issues. */
     private val validHandoff = "A".repeat(43)
 
@@ -179,6 +189,17 @@ class InvitationProtocolContractTest {
         )
         assertFalse(InvitationEntryParser.isExplicitInvitationLaunch("wewed://pass"))
         assertFalse(InvitationEntryParser.isExplicitInvitationLaunch(null))
+    }
+
+    /** Request paths can contain /invite/resume?h=<secret>, so transport logging stays path-free. */
+    @Test
+    fun guestSessionTransportNeverLogsCredentialBearingRequestPaths() {
+        val source = repositoryFile(
+            "apps/android/app/src/main/java/pro/wewed/app/invitation/GuestSessionClient.kt"
+        ).readText()
+        assertFalse(source.contains("android.util.Log"))
+        assertFalse(source.contains("Log.e("))
+        assertFalse(source.contains("\$method \$path"))
     }
 
     /** No credential may reach a log line through a default toString. */
