@@ -202,6 +202,19 @@ class InvitationProtocolContractTest {
         assertFalse(source.contains("\$method \$path"))
     }
 
+    /** The live admission path must remain same-Guest, attending-only, WW2 and public-key verified. */
+    @Test
+    fun weddingPassUsesCanonicalSameGuestWw2Authority() {
+        val source = repositoryFile(
+            "apps/android/app/src/main/java/pro/wewed/app/invitation/GuestSessionClient.kt"
+        ).readText()
+        assertTrue(source.contains("snapshot.guestId != originGuestId || snapshot.attending != true"))
+        assertTrue(source.contains("guestData(\"/api/wedding-day/pass\")"))
+        assertTrue(source.contains("data.optString(\"guestId\") != originGuestId"))
+        assertTrue(source.contains("token.startsWith(\"WW2.\")"))
+        assertTrue(source.contains("TokenVerifier.verifyAsymmetric"))
+    }
+
     /** No credential may reach a log line through a default toString. */
     @Test
     fun credentialsAreRedactedInDescriptions() {
