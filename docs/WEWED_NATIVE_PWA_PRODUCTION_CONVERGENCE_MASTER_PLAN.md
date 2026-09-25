@@ -4610,3 +4610,49 @@ Required evidence:
 
 **Phase-13 status:** **NOT ACCEPTED — NM01 CONVERGENCE IS CODE/UNIT QUALIFIED AFTER MODERATOR CLOSURE; TRUE DUAL-PLATFORM LOCAL NATIVE UAT, OWNER-CONTROLLED PRODUCTION CONFIG/PROMOTION, AND FINAL STORE/APP-LINK DISTRIBUTION PROOF REMAIN.**
 
+### D-061 — Phase 13 NM02 native Guest presentation convergence source closure (2026-09-25)
+**MODERATOR REVIEW — NM02 PRESENTATION CONVERGENCE ACCEPTED FOR LOCAL RUNTIME UAT. SOURCE/BUILD QUALIFIED; DEVICE PRESENTATION NOT YET CERTIFIED.**
+
+NM02 continued from the clean NM01 native head and remediated the visual divergence that LNM01 exposed between the premium Ivory/Pass experience and the simplified Live Guest shell.
+
+**Baseline and final state:**
+- source: `native-mobile/phase13-digital-invitation-convergence-nm01-20260925` at `0b6ecea642fd117c89370f424f10a0f60a84f5d1`;
+- continuation: `native-mobile/phase13-guest-presentation-convergence-nm02-20260925`;
+- final clean HEAD: `fb7899f8a2cff4329163080e85efbae652bae403`;
+- backend remained read-only at `55cadd944564cd717fe255aca2fed34230857238`;
+- production `main` remains untouched at `ba4b08f8bca2d5cd5826e1ef1d2701d9049dd887`.
+
+**Independent moderator verification:**
+- remote branch tip matches the reported clean HEAD;
+- the branch is exactly 14 commits ahead of NM01 and touches only seven permanent files;
+- no backend, production, AASA/assetlinks, signing, store or WW2 authority code changed;
+- the qualified implementation head `ff0258ce4a78e3a8e586e2e42ad02c3f846232ab` differs from the final clean head only by removal of the temporary qualification workflow and addition of the convergence receipt;
+- GitHub Actions run `36098079361` completed successfully at the qualified implementation head;
+  - Android job `107954492459`: `./gradlew testDebugUnitTest assembleDebug --no-daemon --stacktrace` — PASS;
+  - iOS job `107954492287`: `swift test` — PASS, 446 tests executed, 14 skipped, 0 failures.
+
+**Presentation convergence confirmed in source:**
+- RSVP retains the full live Guest mutation contract but is now rendered in the Ivory/champagne/floral stationery language rather than as a generic application form;
+- the couple note remains bound only to `invitationCardMessage` and now uses the same invitation stationery treatment;
+- Guest Home retains the qualified wedding hero/countdown/guest-safe data pattern;
+- attending Pass still renders the existing `WeddingReferencePassScreen/View` using the real verified WW2 credential; no alternate QR/token renderer was introduced;
+- Wedding Day now consumes the existing guest-scoped authority through Wewed `IASectionList` / `IACard` presentation rather than plain developer rows;
+- More/Profile likewise uses the qualified Wewed card/palette system;
+- bottom navigation remains exactly `Home | Invitation | Pass | Wedding Day | More` while adopting the approved role-shell palette/icon treatment;
+- the changed Live Guest files do not bind `WeddingGraphState`, Couple repository accessors, Budget, Tasks, Vendors, full Guest-list authority, WebViews or duplicate QR generators.
+
+**Canonical frozen components remain unchanged from NM01 by blob comparison:**
+- Android/iOS `NativeInvitationExperience`;
+- Android/iOS `IvoryFloralGoldNative`;
+- Android `WeddingReferencePassScreen`;
+- iOS `WeddingReferencePassView`;
+- Android/iOS Guest Session clients.
+
+**Receipt:**
+- `docs/PHASE13_NM02_GUEST_PRESENTATION_CONVERGENCE_RECEIPT_20260925.md`.
+
+**Remaining gate:**
+NM02 is accepted only as a source/build remediation. LNM01 must restart runtime qualification from the NM02 head and explicitly prove that the new RSVP, note, Guest Home, Pass wrapper, Wedding Day, More/Profile and bottom navigation now visually read as one Wewed product on both Android and iOS while preserving the already-proven identity/RSVP/WW2 behavior.
+
+**Phase-13 status:** **NOT ACCEPTED — NM02 PRESENTATION CONVERGENCE IS SOURCE/BUILD QUALIFIED; DUAL-PLATFORM TRUE-NATIVE VISUAL/RUNTIME CERTIFICATION, REAL PLANNER-GENERATED DATA ACCEPTANCE, PRODUCTION CONFIG/PROMOTION AND STORE/APP-LINK PROOF REMAIN.**
+
