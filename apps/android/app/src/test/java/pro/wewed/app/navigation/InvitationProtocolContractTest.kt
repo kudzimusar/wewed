@@ -215,6 +215,20 @@ class InvitationProtocolContractTest {
         assertTrue(source.contains("TokenVerifier.verifyAsymmetric"))
     }
 
+    /** Guest Home may reuse Wewed wedding visuals, never Couple planning repositories. */
+    @Test
+    fun guestHomeReusesWeddingIdentityWithoutCoupleOnlyData() {
+        val source = repositoryFile(
+            "apps/android/app/src/main/java/pro/wewed/app/ui/invitation/LiveGuestShell.kt"
+        ).readText()
+        assertTrue(source.contains("WeddingBrandMark()"))
+        assertTrue(source.contains("R.drawable.hero_wedding"))
+        assertTrue(source.contains("guest-home-digital-invitation"))
+        listOf("scopedRepository(", "getBudget(", "getTasks(", "getGuests(", "getVendors(", "AppTab.PLAN").forEach {
+            assertFalse("Guest shell must not cross into Couple planner data via $it", source.contains(it))
+        }
+    }
+
     /** No credential may reach a log line through a default toString. */
     @Test
     fun credentialsAreRedactedInDescriptions() {
