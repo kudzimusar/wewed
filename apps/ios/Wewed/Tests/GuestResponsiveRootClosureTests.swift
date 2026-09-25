@@ -143,6 +143,19 @@ final class GuestResponsiveRootClosureTests: XCTestCase {
         XCTAssertFalse(ivory.contains(".highPriorityGesture("))
     }
 
+    func testCoupleNoteHitBoxAlsoRoutesPhysicalTapsThroughDetailsCoordinateSpace() throws {
+        let ivory = try Self.source(
+            "apps/ios/Wewed/Views/Invitation/Ivory/IvoryFloralGoldNative.swift"
+        )
+
+        XCTAssertTrue(ivory.contains("SpatialTapGesture().onEnded"))
+        XCTAssertTrue(ivory.contains("let noteRect = CGRect("))
+        XCTAssertTrue(ivory.contains("IvoryGeometry.hitNote[0]"))
+        XCTAssertTrue(ivory.contains("IvoryGeometry.hitNote[1]"))
+        XCTAssertTrue(ivory.contains("if noteRect.contains(tap.location)"))
+        XCTAssertTrue(ivory.contains("onNote()"))
+    }
+
     func testIvoryDetailHotspotsUseNativeButtonsForReliableActivation() throws {
         let ivory = try Self.source(
             "apps/ios/Wewed/Views/Invitation/Ivory/IvoryFloralGoldNative.swift"
