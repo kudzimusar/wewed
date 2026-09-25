@@ -11,7 +11,7 @@ enum class GuestCapability {
     REGISTRY,
     PROFILE,
 
-    /** Attending only: an admission credential is not issued to anyone else. */
+    /** Venue admission and attendance-specific operational state. */
     WEDDING_PASS,
     PARTY_DETAILS,
     SEATING,
@@ -25,8 +25,8 @@ enum class GuestCapability {
  *
  * The invitation establishes identity; RSVP completion gates the persistent Guest experience.
  * A pending Guest remains inside the invitation ceremony and its wedding-authorized actions.
- * Attending and declined Guests may both enter the persistent shell; only attending Guests gain
- * admission and Wedding Day capabilities.
+ * Attending and declined Guests may both enter the persistent shell and see the wedding's shared
+ * programme/announcements. Only attending Guests gain venue admission, seating and check-in state.
  *
  * A pure function on purpose. Scattering `attending == true` checks through views is how a
  * declined guest ends up holding an admission credential in one place and not another.
@@ -50,16 +50,16 @@ object GuestCapabilityPolicy {
         GuestCapability.VENUE,
         GuestCapability.COUPLE_WEBSITE,
         GuestCapability.REGISTRY,
-        GuestCapability.PROFILE
+        GuestCapability.PROFILE,
+        GuestCapability.PARTY_DETAILS,
+        GuestCapability.WEDDING_DAY_PROGRAMME,
+        GuestCapability.ANNOUNCEMENTS
     )
 
-    /** Everything that follows from actually coming. */
+    /** Capabilities that presume physical attendance at the venue. */
     private val ATTENDING_ONLY = setOf(
         GuestCapability.WEDDING_PASS,
-        GuestCapability.PARTY_DETAILS,
         GuestCapability.SEATING,
-        GuestCapability.WEDDING_DAY_PROGRAMME,
-        GuestCapability.ANNOUNCEMENTS,
         GuestCapability.CHECK_IN_STATE
     )
 
