@@ -483,6 +483,19 @@ public struct IvoryFloralGoldNative: View {
             .frame(width: w, height: h)
         }
         .frame(width: w, height: h)
+        .simultaneousGesture(
+            SpatialTapGesture().onEnded { tap in
+                guard let onNote = actions.onNote else { return }
+                let left = w * IvoryGeometry.hitLeft / 100
+                let top = h * IvoryGeometry.hitNote[0] / 100
+                let width = w * IvoryGeometry.hitWidth / 100
+                let height = h * IvoryGeometry.hitNote[1] / 100
+                let noteRect = CGRect(x: left, y: top, width: width, height: height)
+                if noteRect.contains(tap.location) {
+                    onNote()
+                }
+            }
+        )
         .overlay(AccessibilityMarker("invitation-interactive-details", label: "Wedding details"))
     }
 
