@@ -351,7 +351,7 @@ fun resolveLiveInvitationActions(
     // Once answered, both attending and declined Guests may enter the persistent Pass destination.
     onViewPass = if (presentation.attending == null) onRsvpPrompt else onViewPass,
     onVisitCoupleSite = onVisitCoupleSite,
-    onContinue = onContinue
+    onContinue = if (presentation.attending == null) null else onContinue
 )
 
 /** The 5 meal options the PWA's own premium RSVP dialog offers (`mealChoice` is otherwise free text). */
