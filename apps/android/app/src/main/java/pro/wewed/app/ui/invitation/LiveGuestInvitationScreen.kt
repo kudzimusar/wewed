@@ -156,7 +156,7 @@ fun LiveGuestInvitationScreen(
                     ?.let { { showNote = true } },
                 onViewPass = onViewPass,
                 onVisitCoupleSite = { openCoupleSite(context, presentation.weddingSlug, null) },
-                onContinue = onContinue
+                onContinue = if (presentation.attending == null) null else onContinue
             )
         )
 
@@ -335,7 +335,7 @@ fun resolveLiveInvitationActions(
     onNote: (() -> Unit)? = null,
     onViewPass: (() -> Unit)? = null,
     onVisitCoupleSite: () -> Unit = {},
-    onContinue: () -> Unit = {}
+    onContinue: (() -> Unit)? = null
 ): IvoryActions = IvoryActions(
     onRsvp = onRsvpPrompt,
     onAddToCalendar = onAddToCalendar,
