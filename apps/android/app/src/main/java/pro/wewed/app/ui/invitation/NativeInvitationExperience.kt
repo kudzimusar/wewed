@@ -193,10 +193,10 @@ fun ivoryRsvpStateFrom(status: RSVPStatus): IvoryRsvpState = when (status) {
         statusLabel = "RSVP confirmed",
         offersPass = true
     )
-    // A declined guest keeps the invitation and the wedding's public content, but never a pass.
+    // A declined guest may enter the Guest app and its Pass destination, but receives no QR.
     RSVPStatus.DECLINED -> IvoryRsvpState(
         answer = IvoryRsvpAnswer.DECLINED,
         statusLabel = "Response recorded — not attending",
-        offersPass = false
+        offersPass = true
     )
 }
