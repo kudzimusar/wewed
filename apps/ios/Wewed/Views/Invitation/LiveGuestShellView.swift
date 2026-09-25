@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 /// The Guest tabs, named to match the IA contract rather than reinvented.
-public enum GuestSection: String, CaseIterable, Sendable {
+public enum GuestSection: String, CaseIterable, Hashable, Sendable {
     case home, invitation, pass, weddingDay, more
 
     var id: String {
