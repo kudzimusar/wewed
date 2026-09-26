@@ -95,7 +95,10 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
     try {
       const repair = await fetch('/api/planner/guests/invitations', { method: 'POST' })
       const repairPayload = await repair.json()
-      if (!repair.ok || !repairPayload.success) throw new Error(repairPayload.error || 'Unable to prepare invitations.')
+      // A read-only Preview refuses the token backfill (423 PREVIEW_WRITE_BLOCKED). That is not a
+      // failure to load: continue with the read-only view instead of hiding the whole studio.
+      const previewReadOnly = repair.status === 423 && repairPayload.code === 'PREVIEW_WRITE_BLOCKED'
+      if (!previewReadOnly && (!repair.ok || !repairPayload.success)) throw new Error(repairPayload.error || 'Unable to prepare invitations.')
       const response = await fetch('/api/planner/guests/invitations', { cache: 'no-store' })
       const payload = await response.json()
       if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to load invitations.')
