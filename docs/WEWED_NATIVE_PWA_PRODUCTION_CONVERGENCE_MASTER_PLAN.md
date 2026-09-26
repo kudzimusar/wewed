@@ -4804,3 +4804,53 @@ NM05 reuses `WewedScreenContainer`, the bounded `wewedMedia` contract and native
 **Next progressive unit:** LNM01 must run one narrow iOS responsive regression on the final NM05 SHA. It must verify Home, RSVP, Couple Note, Invitation closed, Invitation details, Pass, Wedding Day and More, with explicit attention to horizontal containment and the bottom native tab bar remaining fully above the home indicator. No product source changes are permitted during this certification. If the visual gate passes, only then proceed to the release-mode live `https://wewed.pro` data-parity probe.
 
 **Phase-13 status:** **NOT ACCEPTED — NM05 SOURCE/BUILD QUALIFIED; iOS DEVICE VISUAL CERTIFICATION IS NEXT. LIVE PRODUCTION-DATA/PWA PARITY REMAINS UNPROVEN.**
+
+
+### D-066 — NM05 independent visual result + NM05M1 canonical Pass closure (2026-09-26)
+**MODERATOR REVIEW — INDEPENDENT NM05 AGENT WORK ACCEPTED FOR VISUAL GATE; LNM01 PASSED 7/8 iOS SURFACES AND FOUND ONE P1 CANONICAL PASS CONTAINMENT DEFECT. MODERATOR CLOSURE PATCH SOURCE/BUILD QUALIFIED; NARROW PASS DEVICE RE-CERTIFICATION REMAINS OPEN.**
+
+The independently implemented NM05 branch supersedes the earlier moderator-authored experimental NM05 line as the accepted implementation candidate:
+- branch: `native-mobile/phase13-ios-ui-overflow-closure-nm05-agent-20260925`;
+- final independent-agent SHA: `baf92c05c96764b6a67d5751cda6ac825a6107a5`;
+- qualified product-source SHA: `ce0a21f7c36e2f0aa20b72adf3f0aa1b888a361e`;
+- qualification run: `36205991671`;
+- result: 467 tests executed, 14 skipped, 0 failures; Swift build PASS; XcodeGen PASS; iOS simulator app build PASS.
+
+LNM01 independently certified that branch on iPhone 18 Pro / iOS 27.0 and produced all eight requested screenshots. Seven surfaces passed:
+1. Home — all four countdown cells visible;
+2. RSVP;
+3. Couple Note;
+4. Invitation Closed;
+5. Invitation Details, including full `Forever & Always • 14 August 2027` without UI ellipsis;
+6. Wedding Day;
+7. More.
+
+The only failure was `IOS-PASS-01`, P1, on the canonical Wedding Pass. The Pass card content was visibly shifted right and clipped: couple name, guest name, table, date, Guest Details button and monogram lost right-edge content, while the QR was displaced toward the right boundary. Therefore Phase-13 iOS visual certification did not pass.
+
+Independent moderator source review confirmed that `WeddingReferencePassView.passCard` still placed the resizable, fill-scaled `ornamentFrame` as a sizing sibling in the root Pass-card `ZStack`. Clipping occurred after layout and therefore could hide the oversized ornament while leaving the Pass content visibly displaced. This was an ordinary repository presentation defect and was patched directly under the moderator closure rule.
+
+**NM05M1 moderator closure:**
+- base: `baf92c05c96764b6a67d5751cda6ac825a6107a5`;
+- branch: `native-mobile/phase13-ios-pass-card-closure-nm05m1-20260926`;
+- Pass source patch: `80e6eeaf222cd72051cb90f13e7543414c34a3f8`;
+- regression-test patch: `dce16f21cca8413d1899c527b37be71cdb6fafee`;
+- qualified implementation with temporary workflow: `be9816e108f6e25505c2f26fcbcf7b96bfd6b454`;
+- final clean branch tip with workflow removed and receipt added: `0f476de06c5eb750421122ee5f802c7803489bf5`;
+- qualification run: `36211013691`;
+- qualification job: `108317359399`;
+- result: 468 tests executed, 14 skipped, 0 failures; Swift build PASS; XcodeGen PASS; iOS simulator app build `BUILD SUCCEEDED`.
+
+The moderator closure changes only:
+- `apps/ios/Wewed/Views/Pass/WeddingReferencePassView.swift`;
+- `apps/ios/Wewed/Tests/GuestResponsiveRootClosureTests.swift`;
+- `docs/PHASE13_NM05M1_IOS_PASS_CARD_CLOSURE_RECEIPT_20260926.md`.
+
+The Pass content is now the card sizing authority. The decorative ornament is rendered in a background `GeometryReader` after the card receives a concrete size, receives exactly that width/height, and is clipped there. Dynamic Pass text is given centered wrapping/compression behavior. The canonical `WeddingQRCodeView`, Guest Session authority, RSVP authority, WW2 credential authority, backend, Android and production state remain unchanged.
+
+The qualified implementation differs from the final branch only by deletion of the temporary NM05M1 workflow and addition of the permanent receipt.
+
+**Next progressive unit:** LNM01 must rerun a narrow independent iOS regression against exact final SHA `0f476de06c5eb750421122ee5f802c7803489bf5`. Capture the canonical Pass plus one Home shell-regression sentinel. Pass must prove couple title, guest name, table, date, Guest Details button and monogram are fully visible, QR is centered with safe margins, the card remains within the 393pt viewport, and native TabView remains above the home indicator. Home must retain all four countdown cells and correct bottom safe-area behavior. No source edits are permitted during certification.
+
+If that narrow re-certification passes, iOS Guest visual presentation may be closed and the next authority gate is the already-planned release-mode live `https://wewed.pro` production-data/PWA parity probe.
+
+**Phase-13 status:** **NOT ACCEPTED — NM05M1 PASS SOURCE/BUILD CLOSURE QUALIFIED; NARROW PASS + HOME iOS DEVICE RE-CERTIFICATION IS NEXT. LIVE PRODUCTION-DATA/PWA PARITY REMAINS UNPROVEN.**
