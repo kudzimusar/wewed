@@ -15,6 +15,36 @@ import {
 
 type ChildrenPolicy = 'welcome' | 'adults_only'
 
+/**
+ * The approved Wewed digital invitation (INV-CANON01). Its catalogue tile is the approved CLOSED
+ * artwork itself — the ornate ivory/gold floral doors, the seal, "A special invitation awaits" and
+ * "Tap to open" (public/invitation-art/ivory/closed-master.webp, cropped from the original approved
+ * session PNG per manifest.json) — never the generic DigitalInvitationCard thumbnail, which renders
+ * a flat approximation. The interactive preview uses IvoryFloralGoldTriFold via
+ * PremiumInvitationExperience (CLOSED → OPENING → OPEN → DETAILS).
+ */
+export const CANONICAL_INVITATION_STYLE: InvitationCardStyle = 'ivory-floral-gold'
+export const CANONICAL_INVITATION_CLOSED_ART = '/invitation-art/ivory/closed-master.webp'
+
+function CanonicalIvoryTile() {
+  return (
+    <div
+      data-testid="invitation-style-canonical-closed"
+      data-artwork="approved-closed"
+      className="relative mx-auto flex aspect-[4/5] w-full items-center justify-center overflow-hidden rounded-[1.25rem] border border-[#d6b77c]/50 bg-[#f4ecdc] shadow-xl"
+    >
+      {/* Exact approved pixels (no next/image re-encoding). */}
+      <img
+        src={CANONICAL_INVITATION_CLOSED_ART}
+        alt="Ivory Floral Gold — ornate ivory and gold floral doors: A special invitation awaits, tap to open"
+        className="h-full w-auto object-contain"
+        loading="lazy"
+        decoding="async"
+      />
+    </div>
+  )
+}
+
 export function PremiumInvitationStudio({
   data,
   style,
@@ -89,7 +119,11 @@ export function PremiumInvitationStudio({
                 onClick={() => onStyleChange(theme.id)}
                 className={`group rounded-2xl border p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold ${style === theme.id ? 'border-gold bg-white shadow-md ring-2 ring-gold/25' : 'border-gold/15 bg-white/55 hover:border-gold/45 hover:bg-white'}`}
               >
-                <DigitalInvitationCard data={{ ...data, guestName: null, message: null, rsvpDeadline: null }} style={theme.id} compact />
+                {theme.id === CANONICAL_INVITATION_STYLE ? (
+                  <CanonicalIvoryTile />
+                ) : (
+                  <DigitalInvitationCard data={{ ...data, guestName: null, message: null, rsvpDeadline: null }} style={theme.id} compact />
+                )}
                 <span className="mt-2 block truncate px-1 text-[11px] font-semibold text-espresso">{theme.name}</span>
                 <span className="mt-0.5 block px-1 pb-1 text-[9px] uppercase tracking-[0.12em] text-espresso/40">{theme.motion.replaceAll('-', ' ')}</span>
               </button>
