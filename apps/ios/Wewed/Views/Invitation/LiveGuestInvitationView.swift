@@ -158,8 +158,9 @@ public struct LiveGuestInvitationView: View {
     }
 
     public var body: some View {
-        ZStack {
-            NativeInvitationExperience(
+        WewedScreenContainer {
+            ZStack {
+                NativeInvitationExperience(
                 style: presentation.invitationCardStyle,
                 data: presentation.ivoryData,
                 rsvp: ivoryRsvpState(from: presentation.rsvpStatus),
@@ -200,8 +201,9 @@ public struct LiveGuestInvitationView: View {
             if reopenRequired { reopenRequiredView }
             if staleOrReplacedGuest { staleOrReplacedGuestView }
             if refreshUnavailable { refreshUnavailableView }
-            if showNote, let note = presentation.invitationCardMessage, !note.isEmpty {
-                noteFromTheCouple(note)
+                if showNote, let note = presentation.invitationCardMessage, !note.isEmpty {
+                    noteFromTheCouple(note)
+                }
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
