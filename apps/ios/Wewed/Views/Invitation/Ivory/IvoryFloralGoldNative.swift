@@ -66,6 +66,48 @@ public enum IvoryGeometry {
     public static let hitNote: [CGFloat] = [72.4, 8]
 }
 
+/// NM06 physical-width closure for the authored invitation stage.
+///
+/// The renderer may receive a wider local SwiftUI proposal (for example after a host modifier),
+/// but it must never treat that as permission to exceed the width published by the screen
+/// container. The stage is a child of this resolved viewport; artwork, Regions and footer actions
+/// are children of the stage.
+enum IvoryViewportGeometry {
+    static let detailFooterInset: CGFloat = 14
+    static let detailFooterSpacing: CGFloat = 8
+
+    static func boundedViewportWidth(
+        proposedWidth: CGFloat,
+        publishedWidth: CGFloat?
+    ) -> CGFloat {
+        let proposal = max(proposedWidth, 0)
+        guard let publishedWidth else { return proposal }
+        return min(proposal, max(publishedWidth, 0))
+    }
+
+    static func stageWidth(
+        proposedWidth: CGFloat,
+        publishedWidth: CGFloat?
+    ) -> CGFloat {
+        IvoryGeometry.stageWidth(
+            forViewport: boundedViewportWidth(
+                proposedWidth: proposedWidth,
+                publishedWidth: publishedWidth
+            )
+        )
+    }
+
+    static func detailFooterContentWidth(stageWidth: CGFloat) -> CGFloat {
+        max(0, stageWidth - detailFooterInset * 2)
+    }
+
+    static func detailFooterButtonWidth(stageWidth: CGFloat, includesPass: Bool) -> CGFloat {
+        let content = detailFooterContentWidth(stageWidth: stageWidth)
+        guard includesPass else { return content }
+        return max(0, (content - detailFooterSpacing) / 2)
+    }
+}
+
 /// Everything the invitation renders. Resolved from the wedding graph, never hard-coded.
 public struct IvoryInvitationData: Equatable {
     public let coupleNames: String
@@ -179,6 +221,8 @@ public enum IvoryPalette {
 ///   stationery and still opens it, because the object and its ceremony are the product — only the
 ///   motion is reduced.
 public struct IvoryFloralGoldNative: View {
+    @Environment(\.wewedContentWidth) private var publishedContentWidth
+
     private let data: IvoryInvitationData
     private let rsvp: IvoryRsvpState
     private let actions: IvoryActions
@@ -208,11 +252,17 @@ public struct IvoryFloralGoldNative: View {
 
     public var body: some View {
         GeometryReader { proxy in
-            // NM03 mobile geometry: width controls scale. The physical stationery keeps the
-            // authored aspect and the warm Ivory host scrolls vertically when the card is taller
-            // than the available application viewport. The persistent tab bar therefore never
-            // forces the card to become a narrow black-guttered strip.
-            let stageWidth = IvoryGeometry.stageWidth(forViewport: proxy.size.width)
+            // NM06: the screen container owns physical width. A local GeometryReader proposal is
+            // allowed to be smaller, never larger. This makes first ceremonial entry and the
+            // reopened persistent Invitation tab resolve through the same width authority.
+            let viewportWidth = IvoryViewportGeometry.boundedViewportWidth(
+                proposedWidth: proxy.size.width,
+                publishedWidth: publishedContentWidth
+            )
+            let stageWidth = IvoryViewportGeometry.stageWidth(
+                proposedWidth: proxy.size.width,
+                publishedWidth: publishedContentWidth
+            )
             let stageHeight = IvoryGeometry.stageHeight(forWidth: stageWidth)
 
             ZStack {
@@ -239,11 +289,11 @@ public struct IvoryFloralGoldNative: View {
                         .clipped()
                         Spacer(minLength: 0)
                     }
-                    .frame(width: proxy.size.width)
+                    .frame(width: viewportWidth)
                 }
-                .frame(width: proxy.size.width, height: proxy.size.height)
+                .frame(width: viewportWidth, height: proxy.size.height)
             }
-            .frame(width: proxy.size.width, height: proxy.size.height)
+            .frame(width: viewportWidth, height: proxy.size.height)
             .clipped()
         }
         .background(WeddingIdentityPalette.ivory)
@@ -450,7 +500,8 @@ public struct IvoryFloralGoldNative: View {
                 "invitation-cta-registry", actions.onGifts)
             VStack {
                 Spacer()
-                HStack(spacing: 8) {
+                let footerWidth = IvoryViewportGeometry.detailFooterContentWidth(stageWidth: w)
+                HStack(spacing: IvoryViewportGeometry.detailFooterSpacing) {
                     Button { view = .open } label: {
                         Text("View Invitation")
                             .font(.system(size: 12, weight: .semibold))
@@ -488,8 +539,9 @@ public struct IvoryFloralGoldNative: View {
                         .accessibilityIdentifier("invitation-cta-pass")
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.bottom, 14)
+                .frame(width: footerWidth)
+                .padding(.horizontal, IvoryViewportGeometry.detailFooterInset)
+                .padding(.bottom, IvoryViewportGeometry.detailFooterInset)
             }
             .frame(width: w, height: h)
         }
