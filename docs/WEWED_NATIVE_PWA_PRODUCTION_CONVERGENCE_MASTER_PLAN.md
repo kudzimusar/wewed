@@ -5205,3 +5205,30 @@ Therefore:
 
 Revised sequence:
 `QRO02B1 -> QRO02C -> final independent QRO02B certification -> QRO03`.
+
+
+### D-076 — Canonical Ivory closed-card reference must precede further visual invitation UAT (2026-09-27)
+**OWNER/MODERATOR CORRECTION.**
+
+The dedicated Ivory Floral Gold closed-card implementation already exists on web and native, but the web Invitation Studio's Premium Collection does not surface that implementation as the Ivory style's visual reference.
+
+Root cause:
+- `src/components/wedding/invitation-experience/ivory-floral-gold-trifold.tsx` contains the real four-state Ivory experience, including `data-testid="invitation-closed-cover"`, left/right door artwork, approved opening motion and details surface;
+- `PremiumInvitationExperience` correctly routes `style === 'ivory-floral-gold'` to `IvoryFloralGoldTriFold`;
+- however, `PremiumInvitationStudio` renders every style-library tile through the generic `DigitalInvitationCard ... compact`;
+- therefore the Ivory library tile is a generic flat card, not the canonical closed Ivory stationery;
+- Charity & Kudzie's live saved style is additionally still `botanical`, so the real Guest path selects the generic Botanical renderer.
+
+This created an authority/presentation ambiguity: the approved Ivory renderer existed, but the planner-facing style selector visually canonized a generic approximation instead of the actual closed card.
+
+Decision:
+1. no further real visual invitation UAT is accepted until the web Invitation Studio surfaces the actual closed Ivory Floral Gold renderer as the Ivory selection/preview reference;
+2. the canonical closed state must be the same approved stationery object already used by native `IvoryFloralGoldNative` / web `IvoryFloralGoldTriFold`;
+3. the generic `DigitalInvitationCard` may remain for the other style thumbnails, but Ivory must use the dedicated closed-card renderer or an exact non-interactive preview of it;
+4. the canonical visual contract is:
+   `closed -> opening -> open -> details`;
+5. only after this canonical-reference closure is accepted may QRO02C switch Charity & Kudzie's live saved style to `ivory-floral-gold` and run the first real visible Guest UAT;
+6. Botanical/Garden Romance remains a legacy live configuration, not the canonical invitation target.
+
+Revised sequence:
+`QRO02B1 transport/lifecycle closure -> INV-CANON web/native canonical Ivory reference closure -> QRO02C live Charity & Kudzie style convergence -> final four-client Ivory certification -> QRO03`.
