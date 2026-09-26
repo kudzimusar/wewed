@@ -1,0 +1,63 @@
+{
+  "contract": "wewed.parity.v1",
+  "description": "Shared wewed.parity.v1 record shape and digest vectors. src/lib/parity/wewed-parity-v1.ts is the checker; iOS NativeParityRecord and Android NativeParityRecord must emit exactly these fields and these digests.",
+  "textDigest": "sha256(lowercase(collapseWhitespace(trim(NFC(text))))) as lowercase hex; empty -> null",
+  "passDigest": "sha256(exact WeddingPassCredential.token UTF-8 bytes) as lowercase hex; the raw token is never recorded",
+  "fields": [
+    "contract",
+    "label",
+    "role",
+    "client",
+    "baseUrl",
+    "commitSha",
+    "accessUserId",
+    "grantId",
+    "membershipRole",
+    "permissions",
+    "weddingId",
+    "coupleId",
+    "weddingDate",
+    "weddingTitleDigest",
+    "coupleNamesDigest",
+    "venueDigest",
+    "businessAccountId",
+    "vendorId",
+    "serviceEngagementId",
+    "guestId",
+    "guestNameDigest",
+    "rsvpStatus",
+    "partySize",
+    "tableId",
+    "mealChoice",
+    "invitationStyle",
+    "invitationMessageDigest",
+    "passAvailability",
+    "passSerial",
+    "passDigest",
+    "gateGrantId",
+    "gateId",
+    "capabilities"
+  ],
+  "textDigestVectors": [
+    {
+      "input": "  Synthetic   &  Wedding ",
+      "digest": "c160af5e7904fa25a3c45303c720d81373b4ff67ae4249d58327e90af304ad58"
+    },
+    {
+      "input": "Café Étoile",
+      "digest": "2c40e693861309c9ebbd0031d6fb9010b6e13d1d608ab89c62167ce5ed6f20f6"
+    },
+    {
+      "input": "Synthetic Guest",
+      "digest": "e184c55335dd5b1970dbca99f18c0b7747dc950ce39804f4af607a7e896645a8"
+    },
+    {
+      "input": "Ivory\tHall\n",
+      "digest": "2b1d7fa2f2d7cba1b4506715190dfc63f08f14b52839ed2be2ef44c7955fa27f"
+    }
+  ],
+  "passDigestVector": {
+    "input": "WW2.synthetic.vector",
+    "digest": "c4b1167cb4458950d4a531e9f80c7085b248e48d486d21d932d22bb797f19a39"
+  }
+}

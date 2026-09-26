@@ -49,7 +49,14 @@ data class GuestInvitationSnapshot(
     val dietaryNotes: String?,
     val message: String?,
     val checkedIn: Boolean,
-    val checkedInAt: String?
+    val checkedInAt: String?,
+    /**
+     * Live-parity identity (QRO 01 §15): the server's wedding and seating-table identifiers and its
+     * canonical party size. Identifiers only — never displayed and never client authority.
+     */
+    val weddingId: String? = null,
+    val seatingTableId: String? = null,
+    val partySize: Int? = null
 )
 
 /**
@@ -338,7 +345,10 @@ class GuestSessionClient(
             dietaryNotes = rsvp.optStringOrNull("dietaryNotes"),
             message = rsvp.optStringOrNull("message"),
             checkedIn = rsvp.optBoolean("checkedIn"),
-            checkedInAt = rsvp.optStringOrNull("checkedInAt")
+            checkedInAt = rsvp.optStringOrNull("checkedInAt"),
+            weddingId = wedding.optStringOrNull("id"),
+            seatingTableId = guest.optStringOrNull("seatingTableId"),
+            partySize = if (rsvp.has("partySize") && !rsvp.isNull("partySize")) rsvp.optInt("partySize") else null
         )
     }
 
@@ -430,8 +440,10 @@ class GuestSessionClient(
         pro.wewed.app.models.WeddingPass(token = token, weddingId = data.getString("weddingId"),
             coupleNames = snapshot.title, weddingDate = snapshot.date.orEmpty(), venueName = snapshot.venue.orEmpty(),
             venueAddress = listOfNotNull(snapshot.venueCity, snapshot.venueCountry).joinToString(", "),
-            guestName = snapshot.guestName, partySize = 1 + (if (snapshot.plusOne) 1 else 0) + (if (snapshot.kidsAttending) snapshot.kidsCount ?: 0 else 0),
-            tableNumber = snapshot.tableNumber, tableName = snapshot.tableName, qrPayload = token)
+            // The server's canonical household; the local expansion only covers an older server.
+            guestName = snapshot.guestName, partySize = snapshot.partySize ?: (1 + (if (snapshot.plusOne) 1 else 0) + (if (snapshot.kidsAttending) snapshot.kidsCount ?: 0 else 0)),
+            tableNumber = snapshot.tableNumber, tableName = snapshot.tableName, qrPayload = token,
+            passSerial = data.optString("passSerial").takeIf { it.isNotBlank() })
     }
 
     private fun guestData(path: String): JSONObject {

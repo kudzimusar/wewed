@@ -75,6 +75,12 @@ class MainActivity : ComponentActivity() {
             return
         }
         val guestBaseUrl = (guestOrigin as pro.wewed.app.state.NativePreviewOriginValidation.Accepted).origin
+        // DEBUG productionPreview only; configure() refuses anything else.
+        pro.wewed.app.invitation.NativeParityExporter.configure(
+            label = intent?.getStringExtra(EXTRA_PARITY_EXPORT_LABEL),
+            commitSha = intent?.getStringExtra(EXTRA_PARITY_COMMIT_SHA),
+            allowPassRetrieval = intent?.getStringExtra(EXTRA_PARITY_ALLOW_PASS_GET) == "1"
+        )
         // Guest identity remains independent of account identity. In production an explicit
         // invitation or a remembered Guest relationship outranks account bootstrap, preserving the
         // accepted Phase-4 entry contract even though Phase 5 now enables the account workspace.
@@ -250,5 +256,10 @@ class MainActivity : ComponentActivity() {
          */
         const val EXTRA_PREVIEW_ORIGIN = "wewed_preview_origin"
         const val EXTRA_PREVIEW_PROTECTION_BYPASS = "wewed_preview_protection_bypass"
+
+        /** DEBUG productionPreview parity export (see NativeParityExporter). Ignored otherwise. */
+        const val EXTRA_PARITY_EXPORT_LABEL = "wewed_parity_export_label"
+        const val EXTRA_PARITY_COMMIT_SHA = "wewed_parity_commit_sha"
+        const val EXTRA_PARITY_ALLOW_PASS_GET = "wewed_parity_allow_pass_get"
     }
 }

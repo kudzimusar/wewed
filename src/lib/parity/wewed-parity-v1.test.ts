@@ -188,3 +188,15 @@ describe('wewed.parity.v1 checker', () => {
     expect(passTokenDigest('x')).toMatch(/^[0-9a-f]{64}$/)
   })
 })
+
+import { readFileSync } from 'node:fs'
+import { WEWED_PARITY_FIELDS } from '@/lib/parity/wewed-parity-v1'
+
+test('the shared cross-language contract file mirrors the checker exactly', () => {
+  const shared = JSON.parse(readFileSync('mobile/contracts/wewed-parity-v1.json', 'utf8'))
+  expect(shared.fields).toEqual([...WEWED_PARITY_FIELDS])
+  for (const vector of shared.textDigestVectors) expect(parityTextDigest(vector.input)).toBe(vector.digest)
+  expect(passTokenDigest(shared.passDigestVector.input)).toBe(shared.passDigestVector.digest)
+  expect(Object.keys(emptyParityRecord({ label: 'G', role: 'guest', client: 'ios', baseUrl: 'http://127.0.0.1:1', commitSha: 'abcdef1' })))
+    .toEqual([...WEWED_PARITY_FIELDS])
+})

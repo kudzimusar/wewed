@@ -25,6 +25,7 @@ import {
   loadWeddingAccessRecord,
   resolveGuestSessionForWedding,
 } from '@/lib/wedding-public-access'
+import { guestPartySize } from '@/lib/guest-record-authority'
 
 interface Params {
   params: Promise<{ slug: string }>
@@ -110,6 +111,12 @@ export async function GET(request: NextRequest, { params }: Params) {
         plusOneMeal: guest.plusOneMeal,
         kidsAttending: childrenPolicy === 'adults_only' ? false : guest.kidsAttending,
         kidsCount: guest.kidsCount,
+        // The canonical Gate household (shared guestPartySize); clients display it, never derive it.
+        partySize: guestPartySize({
+          plusOne: guest.plusOne,
+          kidsAttending: childrenPolicy === 'adults_only' ? false : guest.kidsAttending,
+          kidsCount: guest.kidsCount,
+        }),
         dietaryNotes: guest.dietaryNotes,
         message: guest.message,
         checkedIn: guest.checkedIn,

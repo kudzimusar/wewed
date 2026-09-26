@@ -22,10 +22,20 @@ import { createHash } from 'node:crypto'
 
 export const WEWED_PARITY_CONTRACT = 'wewed.parity.v1'
 
-export const PARITY_CLIENTS = ['backend', 'desktop', 'ios', 'android'] as const
+/**
+ * `desktop` — the browser/PWA transport; `native-api` — the exact HTTP transport the iOS and
+ * Android apps call, exercised directly by the collector; `ios` / `android` — records exported by
+ * the apps themselves from what they parsed and render; `backend` — a read-only database capture.
+ */
+export const PARITY_CLIENTS = ['backend', 'desktop', 'native-api', 'ios', 'android'] as const
 export type ParityClient = (typeof PARITY_CLIENTS)[number]
 
-export const PARITY_ROLES = ['guest', 'couple', 'planner', 'coordinator', 'vendor', 'gate', 'admin'] as const
+/**
+ * `guest` — the invitation-bound Guest's own view. `guest_record` — the account-side record of that
+ * Guest as a Couple/Planner/Coordinator surface shows it (label e.g. `G-VIA-P`); it carries the
+ * Guest's identity, RSVP and party, never the viewer's account identity.
+ */
+export const PARITY_ROLES = ['guest', 'guest_record', 'couple', 'planner', 'coordinator', 'vendor', 'gate', 'admin'] as const
 export type ParityRole = (typeof PARITY_ROLES)[number]
 
 export const PARITY_RSVP_STATUSES = ['pending', 'attending', 'declined'] as const
@@ -160,6 +170,7 @@ const ID_FIELDS: Field[] = [
 const REQUIRED_BY_ROLE: Record<ParityRole, Field[]> = {
   guest: ['weddingId', 'weddingDate', 'weddingTitleDigest', 'guestId', 'guestNameDigest', 'rsvpStatus',
     'partySize', 'invitationStyle', 'passAvailability'],
+  guest_record: ['weddingId', 'guestId', 'guestNameDigest', 'rsvpStatus', 'partySize'],
   couple: ['accessUserId', 'grantId', 'membershipRole', 'permissions', 'weddingId', 'coupleId', 'weddingDate'],
   planner: ['accessUserId', 'grantId', 'membershipRole', 'permissions', 'weddingId', 'coupleId', 'weddingDate'],
   coordinator: ['accessUserId', 'grantId', 'membershipRole', 'permissions', 'weddingId', 'coupleId', 'weddingDate'],
@@ -184,7 +195,8 @@ const DISPLAY_TO_ID: Array<[Field, Field]> = [
   ['guestNameDigest', 'guestId'],
 ]
 
-const ALL_FIELDS: Field[] = [
+/** Every record field, in contract order (mirrored by mobile/contracts/wewed-parity-v1.json). */
+export const WEWED_PARITY_FIELDS: readonly string[] = [
   'contract', 'label', 'role', 'client', 'baseUrl', 'commitSha', ...COMPARED_FIELDS.filter((f) => f !== 'role'),
 ]
 
@@ -234,8 +246,8 @@ function validateRecord(raw: unknown, index: number): { record?: WewedParityReco
     })
     return { failures }
   }
-  for (const key of Object.keys(r)) if (!ALL_FIELDS.includes(key as Field)) fail(`unknown field "${key}"`, key)
-  for (const key of ALL_FIELDS) if (!(key in r)) fail(`missing field "${key}" (use null when inapplicable)`, key)
+  for (const key of Object.keys(r)) if (!WEWED_PARITY_FIELDS.includes(key)) fail(`unknown field "${key}"`, key)
+  for (const key of WEWED_PARITY_FIELDS) if (!(key in r)) fail(`missing field "${key}" (use null when inapplicable)`, key)
   if (r.contract !== WEWED_PARITY_CONTRACT) fail(`contract must be ${WEWED_PARITY_CONTRACT}`, 'contract')
   if (typeof r.label !== 'string' || !/^[A-Z][A-Z0-9_-]{0,15}$/.test(r.label)) fail('label must be an anonymized code like G or CA', 'label')
   if (!PARITY_ROLES.includes(r.role as ParityRole)) fail('invalid role', 'role')
@@ -263,7 +275,7 @@ function validateRecord(raw: unknown, index: number): { record?: WewedParityReco
   for (const f of ['membershipRole', 'mealChoice', 'invitationStyle'] as Field[]) {
     if (r[f] !== null && typeof r[f] !== 'string') fail(`${f} must be a string or null`, f)
   }
-  if (r.role === 'guest' && (r.accessUserId !== null || r.grantId !== null)) {
+  if ((r.role === 'guest' || r.role === 'guest_record') && (r.accessUserId !== null || r.grantId !== null)) {
     fail('a Guest is invitation-bound and never carries an account identity or workspace grant', 'grantId')
   }
   return failures.length ? { failures } : { record: r as unknown as WewedParityRecordV1, failures }

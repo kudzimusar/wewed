@@ -35,6 +35,20 @@ export function workspaceKindForMembershipRole(role: string): WeddingWorkspaceKi
   }
 }
 
+/** The inverse: the WeddingMembership.role a native wedding workspace grant was derived from. */
+export function membershipRoleForWorkspaceKind(kind: string): 'owner' | 'planner' | 'coordinator' | null {
+  switch (kind) {
+    case 'couple':
+      return 'owner'
+    case 'planner':
+      return 'planner'
+    case 'coordinator':
+      return 'coordinator'
+    default:
+      return null
+  }
+}
+
 export type MembershipGrantRefusal = 'membership_not_active' | 'wedding_access_not_governed' | 'viewer_relationship'
 
 export type MembershipGrantDecision =

@@ -93,6 +93,7 @@ public struct GuestOnlyInvitationShellView: View {
             }
         }
         .onOpenURL(perform: handle)
+        .nativeParityExport(state: state, coordinator: coordinator)
         .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
             if let url = activity.webpageURL { handle(url) }
         }

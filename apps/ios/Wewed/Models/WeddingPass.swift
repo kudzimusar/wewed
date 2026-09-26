@@ -36,6 +36,9 @@ public struct WeddingPass: Identifiable, Codable, Equatable, Sendable {
     public let seatNumber: String?
     public let currentStage: PassStage
     public let qrPayload: String
+    /// The server's credential serial (an index, never admission proof). `id` is the token itself,
+    /// so parity evidence must use this, never `id`.
+    public var passSerial: String? = nil
 
     public init(
         token: String,

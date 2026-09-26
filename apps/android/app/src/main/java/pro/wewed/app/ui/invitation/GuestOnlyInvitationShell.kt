@@ -56,6 +56,13 @@ fun GuestOnlyInvitationShell(
         }
     }
 
+    // DEBUG productionPreview only (no-op otherwise): export this Guest's wewed.parity.v1 record.
+    val parityContext = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(state) {
+        val presenting = state as? LiveInvitationState.Presenting ?: return@LaunchedEffect
+        NativeParityExporter.exportGuestIfRequested(parityContext, presenting.snapshot, coordinator)
+    }
+
     // The branded opening belongs to the real guest path too. The exchange runs underneath it, so
     // the splash costs nothing, and after it the first wedding UI is the configured invitation —
     // never Home, a login or a workspace.

@@ -39,6 +39,12 @@ public struct GuestInvitationSnapshot: Equatable, Sendable {
     public let message: String?
     public let checkedIn: Bool
     public let checkedInAt: String?
+    /// Live-parity identity (QRO 01 §15): the server's wedding and seating-table identifiers and
+    /// its canonical party size. Identifiers only — never displayed, never used as authority by the
+    /// client; they let a parity record prove the same wedding/table instead of matching labels.
+    public var weddingId: String? = nil
+    public var seatingTableId: String? = nil
+    public var partySize: Int? = nil
 }
 
 /// Master plan WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01, Phase 9 — Digital Invitation + RSVP
@@ -405,7 +411,10 @@ public actor GuestSessionClient {
             dietaryNotes: text(rsvp, "dietaryNotes"),
             message: text(rsvp, "message"),
             checkedIn: rsvp["checkedIn"] as? Bool ?? false,
-            checkedInAt: text(rsvp, "checkedInAt")
+            checkedInAt: text(rsvp, "checkedInAt"),
+            weddingId: text(wedding, "id"),
+            seatingTableId: text(guest, "seatingTableId"),
+            partySize: rsvp["partySize"] as? Int
         )
     }
 
@@ -505,12 +514,15 @@ public actor GuestSessionClient {
               let key = data["publicKeyDerBase64"] as? String,
               case .success = TokenVerifier.verifyAsymmetric(token: token, publicKeyDerBase64: key)
         else { throw GuestSessionError.transport(status: response.status) }
-        return WeddingPass(token: token, weddingId: weddingId, coupleNames: snapshot.title,
+        var pass = WeddingPass(token: token, weddingId: weddingId, coupleNames: snapshot.title,
             weddingDate: snapshot.date ?? "", venueName: snapshot.venue ?? "",
             venueAddress: [snapshot.venueCity, snapshot.venueCountry].compactMap { $0 }.joined(separator: ", "),
             guestName: snapshot.guestName,
-            partySize: 1 + (snapshot.plusOne ? 1 : 0) + (snapshot.kidsAttending ? snapshot.kidsCount ?? 0 : 0),
+            // The server's canonical household; the local expansion only covers an older server.
+            partySize: snapshot.partySize ?? (1 + (snapshot.plusOne ? 1 : 0) + (snapshot.kidsAttending ? snapshot.kidsCount ?? 0 : 0)),
             tableNumber: snapshot.tableNumber, tableName: snapshot.tableName, qrPayload: token)
+        pass.passSerial = data["passSerial"] as? String
+        return pass
     }
 
     private struct Response {
