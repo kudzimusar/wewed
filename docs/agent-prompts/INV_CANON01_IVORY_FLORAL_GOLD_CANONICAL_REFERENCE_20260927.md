@@ -1,49 +1,103 @@
-# INV-CANON01 — Ivory Floral Gold Canonical Reference Closure
+# INV-CANON01 — Approved Native Digital Invitation Canonical Reference Closure
 
 ## Repository
 `kudzimusar/wewed`
 
+## Critical visual correction
+
+The canonical invitation is **NOT** the flat generic web catalogue tile labelled:
+
+`Ivory Floral Gold / TRI FOLD`
+
+The canonical invitation is the previously approved native digital invitation whose CLOSED state is the ornate ivory-and-gold floral stationery with:
+- sculpted/embossed ivory floral doors;
+- champagne/gold edging and botanical detail;
+- central circular monogram/seal;
+- the text **“A SPECIAL INVITATION AWAITS”**;
+- the interaction cue **“Tap to open”**.
+
+Repository evidence for this approved object:
+- canonical approved closed reference:
+  `public/invitation-art/ivory/reference/closed.png`
+- normalized/shipped artwork:
+  `public/invitation-art/ivory/closed-master.webp`
+  `public/invitation-art/ivory/closed-surface.webp`
+  `public/invitation-art/ivory/left-door.webp`
+  `public/invitation-art/ivory/right-door.webp`
+- artwork provenance is recorded in:
+  `public/invitation-art/ivory/manifest.json`
+  where the closed source is identified as **“Original approved session PNG”**.
+- Android native renderer:
+  `apps/android/app/src/main/java/pro/wewed/app/ui/invitation/ivory/IvoryFloralGoldNative.kt`
+- iOS native renderer:
+  `apps/ios/Wewed/Views/Invitation/Ivory/IvoryFloralGoldNative.swift`
+
+The flat web Premium Collection thumbnail is only a generic style-library representation. It is **not** acceptable as the canonical digital invitation.
+
 ## Purpose
-Establish the **actual closed Ivory Floral Gold stationery** as the one canonical invitation reference across the Planner/Couple web studio and native apps before any further real visual invitation UAT.
+
+Establish the approved native digital invitation artwork/state machine above as the one canonical invitation reference across web, iOS and Android before any further real visual invitation UAT.
 
 ## Root cause to close
-The dedicated Ivory implementation already exists:
-- web: `src/components/wedding/invitation-experience/ivory-floral-gold-trifold.tsx`
-- Android: `apps/android/app/src/main/java/pro/wewed/app/ui/invitation/ivory/IvoryFloralGoldNative.kt`
-- iOS: the corresponding native Ivory renderer on the accepted integration lineage.
 
-But the web Premium Collection currently renders every library tile through:
-`DigitalInvitationCard(... compact)`
+Two different concepts were conflated:
 
-That generic thumbnail visually substitutes a flat card for Ivory instead of showing the real closed tri-fold object.
+1. a generic web catalogue/style tile;
+2. the approved interactive native invitation object.
+
+The web Premium Collection currently renders the Ivory catalogue tile through generic `DigitalInvitationCard(... compact)`, while the approved invitation exists separately through the Ivory artwork engine and native renderers.
+
+The product must canonize the approved invitation object, not the generic catalogue tile.
 
 ## Mission
-1. Make the Ivory Floral Gold tile/selection in the web Invitation Studio use an exact closed-state preview of `IvoryFloralGoldTriFold`, not the generic compact card.
-2. Ensure the interactive Ivory preview starts in the true `closed` state.
+
+1. Make the approved native invitation CLOSED reference the visual authority for the corresponding web studio selection/preview.
+2. The web preview must use the same approved artwork/state contract, not recreate the flat catalogue tile at larger size.
 3. Preserve the approved state machine:
-   `closed -> opening -> open -> details`.
-4. Prove Android and iOS dedicated Ivory renderers still implement that same object/state contract.
-5. Do not change Charity & Kudzie live saved style in this unit.
-6. Do not visually qualify Botanical/Garden Romance.
-7. Add regression tests so Ivory cannot silently fall back to the generic thumbnail/renderer.
+   `CLOSED -> OPENING -> OPEN -> DETAILS`.
+4. Confirm Android and iOS use the approved native artwork/renderers.
+5. Add tests that fail if the approved invitation is replaced by `DigitalInvitationCard` / generic motion.
+6. Do not change Charity & Kudzie live saved style in this unit.
+7. Do not visually qualify Botanical/Garden Romance.
+
+## Canonical CLOSED acceptance
+
+The closed-state proof must visually and structurally match:
+`public/invitation-art/ivory/reference/closed.png`
+
+Required characteristics:
+- full-height invitation object;
+- embossed/sculpted floral ivory stationery;
+- gold/champagne botanical edging;
+- centre circular monogram/seal;
+- “A SPECIAL INVITATION AWAITS”;
+- “Tap to open”;
+- left/right opening doors;
+- no flat generic couple/date/venue catalogue card substituted for this state.
 
 ## Web acceptance
-- Premium Collection Ivory tile visibly represents the closed Ivory stationery.
-- Selecting Ivory shows the dedicated `IvoryFloralGoldTriFold`.
-- `data-invitation-style="ivory-floral-gold"`.
-- `data-testid="invitation-trifold"`.
-- `data-testid="invitation-closed-cover"` exists before opening.
-- left/right door artwork is present.
-- opening leads to the approved open state, then details.
-- no generic `DigitalInvitationCard` is used as the Ivory canonical preview.
+
+- The web studio must clearly distinguish a catalogue thumbnail from the canonical invitation preview.
+- Selecting the corresponding invitation must render the approved closed artwork object.
+- Canonical preview exposes the real state machine and approved artwork.
+- No generic `DigitalInvitationCard` or `GenericMotionCard` may be accepted as the canonical CLOSED state.
+- If a thumbnail remains for browsing, it must not be used as proof of invitation equivalence.
 
 ## Native acceptance
-- Android dispatch for `ivory-floral-gold` remains `IVORY_CUSTOM -> IvoryFloralGoldNative`.
-- iOS dispatch remains `.ivoryCustom -> IvoryFloralGoldNative`.
-- no generic-motion fallback for Ivory.
-- closed/opening/open/details semantics remain aligned.
+
+Android:
+`approved style -> IVORY_CUSTOM -> IvoryFloralGoldNative`
+
+iOS:
+`approved style -> .ivoryCustom -> IvoryFloralGoldNative`
+
+Both must preserve:
+`CLOSED -> OPENING -> OPEN -> DETAILS`
+
+and use the approved invitation artwork assets/reference.
 
 ## Safety
+
 No Charity & Kudzie business-data write.
 No invitation token rotation.
 No production deploy.
@@ -52,4 +106,5 @@ No Wedding Day/WW2 change.
 No RSVP mutation.
 
 ## Completion
-`INV-CANON01 IVORY FLORAL GOLD CANONICAL REFERENCE ESTABLISHED — WEB STUDIO + IOS + ANDROID SHARE THE APPROVED CLOSED/OPENING/OPEN/DETAILS CONTRACT — RETURNING TO MODERATOR FOR QRO02C RELEASE.`
+
+`INV-CANON01 APPROVED NATIVE DIGITAL INVITATION CANONIZED — ORNATE IVORY/GOLD CLOSED REFERENCE + OPENING/OPEN/DETAILS CONTRACT PROVEN ACROSS WEB/IOS/ANDROID — RETURNING TO MODERATOR FOR QRO02C RELEASE.`
