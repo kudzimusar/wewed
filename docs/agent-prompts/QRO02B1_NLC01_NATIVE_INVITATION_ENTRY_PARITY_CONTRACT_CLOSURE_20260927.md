@@ -394,24 +394,25 @@ Required iOS:
 - simulator build;
 - DEBUG productionPreview build;
 - unsigned Release build or the existing accepted Release compile lane;
-- targeted real invitation open against the allowlisted Preview on a dedicated simulator containing only the intended test build.
+- targeted real Preview Guest-session transport proof on a dedicated simulator containing only the intended test build, with legacy Botanical visual rendering not used as acceptance evidence. Full real visual Guest UAT is deferred until QRO02C has changed the saved style to `ivory-floral-gold`.
 
 Required Android:
 - `testDebugUnitTest`;
 - `assembleDebug`;
 - `assembleUat` or the current accepted UAT compile lane;
-- targeted real invitation open against the same allowlisted Preview on a dedicated emulator/device containing only the intended test build.
+- targeted real Preview Guest-session transport proof on a dedicated emulator/device containing only the intended test build, with legacy Botanical visual rendering not used as acceptance evidence. Full real visual Guest UAT is deferred until QRO02C has changed the saved style to `ivory-floral-gold`.
 
-For both real native probes:
+For both real native transport probes:
 - record exact source SHA;
 - bundle/application ID;
 - Preview origin;
 - device/simulator identity;
 - sanitized runtime evidence;
 - verify Preview received the expected Guest-session request;
+- do not use Botanical visual output as acceptance evidence;
 - verify production received **zero** invitation-exchange requests from the qualification window.
 
-Do not claim final four-client parity certification; that belongs to the next independent QRO02B re-certification unit.
+Do not claim final four-client parity certification. The first real visual Charity & Kudzie native Guest test happens after QRO02C has changed the live saved style to `ivory-floral-gold`.
 
 ---
 
