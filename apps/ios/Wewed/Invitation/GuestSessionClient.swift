@@ -231,9 +231,9 @@ public actor GuestSessionClient {
     private static let storedSlug = "wewed.guest.session.slug"
 
     private var entryGeneration = 0
-    private let baseUrl: URL
+    let baseUrl: URL
     private let storage: SecureStorageProtocol
-    private let session: URLSession
+    let session: URLSession
 
     public init(baseUrl: URL, storage: SecureStorageProtocol, session: URLSession? = nil) {
         self.baseUrl = baseUrl
@@ -246,7 +246,8 @@ public actor GuestSessionClient {
             // its own cookie jar would create a second, invisible copy of the session.
             configuration.httpCookieAcceptPolicy = .never
             configuration.httpShouldSetCookies = false
-            self.session = URLSession(configuration: configuration)
+            // A DEBUG Preview lane adds its protection-bypass header; production is unchanged.
+            self.session = URLSession(configuration: NativeServerOrigin.active.sessionConfiguration(configuration))
         }
     }
 
@@ -581,7 +582,7 @@ public actor GuestSessionClient {
         } else {
             guard let components = URLComponents(string: raw) else { return nil }
             if let host = components.host?.lowercased(),
-               host != "wewed.pro", host != "www.wewed.pro" { return nil }
+               !NativeServerOrigin.isWeddingHost(host) { return nil }
             path = components.path
         }
         let segments = path.split(separator: "?")[0]

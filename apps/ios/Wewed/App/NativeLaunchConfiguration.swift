@@ -3,11 +3,31 @@ import Foundation
 public struct NativeLaunchConfiguration: Equatable, Sendable {
     public let environment: NativeDataEnvironment
     public let baseURL: URL?
+    /// The server the real production clients use. Always `.production` outside DEBUG.
+    public let lane: NativeServerLane
+    /// Set when a DEBUG `production_preview` launch named no, or an unapproved, origin. The app
+    /// must then build nothing: it never silently falls back to https://wewed.pro, because a
+    /// qualifier believing they are on Preview would otherwise act on live production data.
+    public let previewOriginRejection: NativePreviewOriginRejection?
 
-    public init(environment: NativeDataEnvironment, baseURL: URL? = nil) {
+    public init(
+        environment: NativeDataEnvironment,
+        baseURL: URL? = nil,
+        lane: NativeServerLane = .production,
+        previewOriginRejection: NativePreviewOriginRejection? = nil
+    ) {
         self.environment = environment
         self.baseURL = baseURL
+        self.lane = lane
+        self.previewOriginRejection = previewOriginRejection
     }
+
+    /// The Release/production launch: https://wewed.pro, and nothing else.
+    public static let production = NativeLaunchConfiguration(
+        environment: .production,
+        baseURL: NativeServerOrigin.production,
+        lane: .production
+    )
 
     /// Whether this binary is a development build.
     public static var isDebugBuildDefault: Bool {
@@ -27,7 +47,7 @@ public struct NativeLaunchConfiguration: Equatable, Sendable {
         // and launch argument are qualification inputs; honouring them in a release build left the
         // store-identity check in the repository factory as the only barrier between a launch
         // input and a Shadow runtime (master plan §8.10).
-        guard isDebugBuild else { return NativeLaunchConfiguration(environment: .production) }
+        guard isDebugBuild else { return .production }
         let environmentValue = environment["WEWED_NATIVE_ENV"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -47,7 +67,32 @@ public struct NativeLaunchConfiguration: Equatable, Sendable {
         case "production_read_verify", "production-read-verify":
             dataEnvironment = .productionReadVerify
         case "production":
-            dataEnvironment = .production
+            // Real production authority at the one production origin. The Shadow base URL input
+            // never applies to production.
+            return .production
+        case "production_preview", "production-preview":
+            // DEBUG qualification lane: the exact production clients and authority rules, against
+            // one allowlisted Preview origin. Not Shadow, not Fixture, never a persona.
+            let rawOrigin = environment["WEWED_PREVIEW_ORIGIN"]
+                ?? launchArgumentValue(named: "wewed_preview_origin", arguments: arguments)
+            switch NativeServerOrigin.validatePreviewOrigin(rawOrigin) {
+            case let .success(origin):
+                // The bypass secret is read from the environment only (never a launch argument,
+                // never compiled in) and is redacted in every textual representation.
+                let bypass = NativePreviewProtectionBypass(environment["WEWED_PREVIEW_PROTECTION_BYPASS"])
+                return NativeLaunchConfiguration(
+                    environment: .production,
+                    baseURL: origin,
+                    lane: .productionPreview(origin: origin, protectionBypass: bypass)
+                )
+            case let .failure(rejection):
+                return NativeLaunchConfiguration(
+                    environment: .production,
+                    baseURL: nil,
+                    lane: .production,
+                    previewOriginRejection: rejection
+                )
+            }
         case "fixture":
             dataEnvironment = .fixture
         default:

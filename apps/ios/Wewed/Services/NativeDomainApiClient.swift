@@ -65,14 +65,14 @@ extension Dictionary where Key == String, Value == Any {
 }
 
 public struct NativeDomainApiClient: Sendable {
-    private let baseURL: URL
-    private let session: URLSession
+    let baseURL: URL
+    let session: URLSession
     private let onSessionInvalid: @Sendable () -> Void
     private let onGrantRevoked: @Sendable (String) -> Void
 
     public init(
         baseURL: URL,
-        session: URLSession = .shared,
+        session: URLSession = NativeServerOrigin.urlSession,
         onSessionInvalid: @escaping @Sendable () -> Void = {},
         onGrantRevoked: @escaping @Sendable (String) -> Void = { _ in }
     ) {

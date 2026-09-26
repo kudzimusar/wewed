@@ -181,7 +181,9 @@ final class ProductionAuthorityFailClosedTests: XCTestCase {
             )
             for config in [fromEnv, fromArgs] {
                 XCTAssertEqual(config.environment, .production, "release + '\(raw)'")
-                XCTAssertNil(config.baseURL)
+                // Release is pinned to the one production origin (never nil: a nil origin left the
+                // production domain clients permanently unbound), and never a launch-supplied URL.
+                XCTAssertEqual(config.baseURL, URL(string: "https://wewed.pro"))
                 XCTAssertFalse(config.environment.allowsDevelopmentPersonaSwitching)
             }
         }

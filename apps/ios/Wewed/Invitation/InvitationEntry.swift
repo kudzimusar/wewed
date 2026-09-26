@@ -80,7 +80,7 @@ public enum InvitationEntryParser {
         switch scheme {
         case "https":
             let host = components.host?.lowercased()
-            guard host == "wewed.pro" || host == "www.wewed.pro" else { return nil }
+            guard NativeServerOrigin.isWeddingHost(host) else { return nil }
         case "wewed":
             if let host = components.host, !host.isEmpty { segments.insert(host, at: 0) }
         default:

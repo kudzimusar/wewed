@@ -6,6 +6,7 @@ import org.json.JSONObject
 import pro.wewed.app.models.WeddingPassAvailability
 import pro.wewed.app.models.WeddingPassAvailabilityState
 import pro.wewed.app.services.SecureStorage
+import pro.wewed.app.state.NativeServerOrigin
 import java.io.BufferedReader
 import java.net.HttpURLConnection
 import java.net.URL
@@ -274,7 +275,7 @@ class GuestSessionClient(
             else -> runCatching {
                 val uri = java.net.URI(raw)
                 val host = uri.host?.lowercase()
-                if (host != null && host != "wewed.pro" && host != "www.wewed.pro") return null
+                if (host != null && !NativeServerOrigin.isWeddingHost(host)) return null
                 uri.path.orEmpty()
             }.getOrNull() ?: return null
         }
@@ -502,8 +503,13 @@ class GuestSessionClient(
         withSession: Boolean,
         followRedirects: Boolean
     ): Response {
-        val connection = URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection
+        val requestUrl = baseUrl.trimEnd('/') + path
+        val connection = URL(requestUrl).openConnection() as HttpURLConnection
         try {
+            // A DEBUG Preview lane adds its protection-bypass header for its own origin only.
+            NativeServerOrigin.active.additionalHeaders(requestUrl).forEach { (key, value) ->
+                connection.setRequestProperty(key, value)
+            }
             connection.requestMethod = method
             connection.instanceFollowRedirects = followRedirects
             connection.connectTimeout = 15_000

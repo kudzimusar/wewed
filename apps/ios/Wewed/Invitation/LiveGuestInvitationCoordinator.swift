@@ -72,7 +72,7 @@ public actor LiveGuestInvitationCoordinator {
     public func weddingDay(guestId: String) async throws -> GuestWeddingDay { try await client.loadWeddingDay(originGuestId: guestId) }
     public func weddingPass(guestId: String) async throws -> WeddingPass { try await client.loadWeddingPass(originGuestId: guestId) }
 
-    private let client: GuestSessionClient
+    let client: GuestSessionClient
 
     /// The wedding of the card currently presented — the presentation, not the stored session.
     /// Set only when a card is actually presented; cleared the moment a new entry begins.

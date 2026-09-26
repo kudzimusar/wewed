@@ -225,7 +225,9 @@ class ProductionAuthorityFailClosedTest {
                 isDebugBuild = false
             )
             assertEquals("release + '$raw'", NativeDataEnvironment.PRODUCTION, config.environment)
-            assertNull(config.baseUrl)
+            // Release is pinned to the one production origin (never null: a null origin left the
+            // production domain clients permanently unbound), never a launch-supplied URL.
+            assertEquals("https://wewed.pro", config.baseUrl)
             assertFalse(config.environment.allowsDevelopmentPersonaSwitching)
         }
     }

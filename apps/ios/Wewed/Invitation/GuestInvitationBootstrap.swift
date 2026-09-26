@@ -19,18 +19,25 @@ import Foundation
 /// mean a second copy of the credential.
 public enum GuestInvitationBootstrap {
 
-    /// The production origin. The guest journey has exactly one home.
-    public static let productionBaseURL = URL(string: "https://wewed.pro")!
+    /// The production origin. A Release guest journey has exactly one home.
+    public static let productionBaseURL = NativeServerOrigin.production
+
+    /// Keychain service of the Guest session for the active server lane. A DEBUG Preview lane keeps
+    /// its Guest credential apart from the production one.
+    static var guestSessionService: String {
+        NativeServerOrigin.active.keychainService("pro.wewed.app.guest-session")
+    }
 
     private static let lock = NSLock()
     nonisolated(unsafe) private static var shared: LiveGuestInvitationCoordinator?
 
     /// The live coordinator, created once.
     ///
-    /// - Parameter baseURL: overridable only so tests can point at a stub. It defaults to
-    ///   production because a guest's invitation is not a configurable destination.
+    /// - Parameter baseURL: overridable only so tests can point at a stub. It defaults to the
+    ///   launch lane's origin — always https://wewed.pro in Release — because a guest's invitation
+    ///   is not a configurable destination.
     public static func coordinator(
-        baseURL: URL = productionBaseURL,
+        baseURL: URL? = nil,
         storage: SecureStorageProtocol? = nil
     ) -> LiveGuestInvitationCoordinator {
         lock.lock()
@@ -38,10 +45,10 @@ public enum GuestInvitationBootstrap {
         if let shared { return shared }
         let created = LiveGuestInvitationCoordinator(
             client: GuestSessionClient(
-                baseUrl: baseURL,
+                baseUrl: baseURL ?? NativeServerOrigin.active.origin,
                 // Keychain, not memory: a guest session that does not survive a launch would ask
                 // the guest to open their invitation again every time.
-                storage: storage ?? KeychainSecureStorage()
+                storage: storage ?? KeychainSecureStorage(service: guestSessionService)
             )
         )
         shared = created
@@ -50,7 +57,7 @@ public enum GuestInvitationBootstrap {
 
     /// Whether this device already holds a remembered Guest session.
     public static func hasGuestSession() -> Bool {
-        KeychainSecureStorage().get(key: "wewed.guest.session") != nil
+        KeychainSecureStorage(service: guestSessionService).get(key: "wewed.guest.session") != nil
     }
 
     /// Test seam. Never called by the app.

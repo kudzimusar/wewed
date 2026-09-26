@@ -51,7 +51,7 @@ object NativeDeepLinkParser {
             when (scheme) {
                 "https" -> {
                     val host = uri.host?.lowercase()
-                    if (host != "wewed.pro" && host != "www.wewed.pro") {
+                    if (!pro.wewed.app.state.NativeServerOrigin.isWeddingHost(host)) {
                         return@runCatching null
                     }
                 }

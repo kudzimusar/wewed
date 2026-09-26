@@ -101,10 +101,10 @@ public enum ProductionAuthorityFetch: Equatable {
 }
 
 public struct ProductionAuthorityClient: Sendable {
-    private let baseURL: URL
-    private let session: URLSession
+    let baseURL: URL
+    let session: URLSession
 
-    public init(baseURL: URL, session: URLSession = .shared) {
+    public init(baseURL: URL, session: URLSession = NativeServerOrigin.urlSession) {
         self.baseURL = baseURL
         self.session = session
     }

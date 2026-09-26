@@ -4,9 +4,24 @@ import pro.wewed.app.models.NativeDataEnvironment
 
 data class NativeLaunchConfiguration(
     val environment: NativeDataEnvironment,
-    val baseUrl: String? = null
+    val baseUrl: String? = null,
+    /** The server the real production clients use. Always [NativeServerLane.Production] in release. */
+    val lane: NativeServerLane = NativeServerLane.Production,
+    /**
+     * Set when a DEBUG `production_preview` launch named no, or an unapproved, origin. The app then
+     * builds nothing: it never silently falls back to https://wewed.pro, because a qualifier who
+     * believes they are on Preview would otherwise act on live production data.
+     */
+    val previewOriginRejection: NativePreviewOriginRejection? = null
 ) {
     companion object {
+        /** The release/production launch: https://wewed.pro, and nothing else. */
+        val PRODUCTION = NativeLaunchConfiguration(
+            environment = NativeDataEnvironment.PRODUCTION,
+            baseUrl = NativeServerOrigin.PRODUCTION,
+            lane = NativeServerLane.Production
+        )
+
         /**
          * Which data environment a launch opens.
          *
@@ -32,14 +47,40 @@ data class NativeLaunchConfiguration(
         fun resolve(
             rawEnvironment: String?,
             shadowBaseUrl: String?,
-            isDebugBuild: Boolean = true
+            isDebugBuild: Boolean = true,
+            previewOrigin: String? = null,
+            previewProtectionBypass: String? = null
         ): NativeLaunchConfiguration {
             // A release binary is Production, whatever it is launched with. The environment extra
             // is a qualification input, and MainActivity is exported: honouring it in a release
             // build left the Play identity check in the repository factory as the only thing
             // between an arbitrary intent and a Shadow runtime (master plan §8.10).
             if (!isDebugBuild) {
-                return NativeLaunchConfiguration(environment = NativeDataEnvironment.PRODUCTION)
+                return PRODUCTION
+            }
+            when (rawEnvironment?.trim()?.lowercase()) {
+                // Real production authority at the one production origin; the Shadow base URL
+                // input never applies to production.
+                "production" -> return PRODUCTION
+                // DEBUG qualification lane: the exact production clients and authority rules
+                // against one allowlisted Preview origin. Not Shadow, not Fixture, never a persona.
+                "production_preview", "production-preview" ->
+                    return when (val validation = NativeServerOrigin.validatePreviewOrigin(previewOrigin)) {
+                        is NativePreviewOriginValidation.Accepted -> NativeLaunchConfiguration(
+                            environment = NativeDataEnvironment.PRODUCTION,
+                            baseUrl = validation.origin,
+                            lane = NativeServerLane.ProductionPreview(
+                                origin = validation.origin,
+                                protectionBypass = NativePreviewProtectionBypass.of(previewProtectionBypass)
+                            )
+                        )
+                        is NativePreviewOriginValidation.Rejected -> NativeLaunchConfiguration(
+                            environment = NativeDataEnvironment.PRODUCTION,
+                            baseUrl = null,
+                            lane = NativeServerLane.Production,
+                            previewOriginRejection = validation.reason
+                        )
+                    }
             }
             val environment = when (rawEnvironment?.trim()?.lowercase()) {
                 "private_real_shadow", "private-real-shadow", "private_shadow", "private" ->
@@ -48,7 +89,6 @@ data class NativeLaunchConfiguration(
                 "shadow" -> NativeDataEnvironment.SHADOW
                 "production_read_verify", "production-read-verify" ->
                     NativeDataEnvironment.PRODUCTION_READ_VERIFY
-                "production" -> NativeDataEnvironment.PRODUCTION
                 "fixture" -> NativeDataEnvironment.FIXTURE
                 else -> NativeDataEnvironment.SANITIZED_SHADOW
             }

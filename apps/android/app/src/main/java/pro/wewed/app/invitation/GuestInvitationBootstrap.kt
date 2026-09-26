@@ -25,8 +25,15 @@ import pro.wewed.app.services.SecureStorage
  */
 object GuestInvitationBootstrap {
 
-    /** The production origin. The guest journey has exactly one home. */
-    const val PRODUCTION_BASE_URL = "https://wewed.pro"
+    /** The production origin. A release guest journey has exactly one home. */
+    const val PRODUCTION_BASE_URL = pro.wewed.app.state.NativeServerOrigin.PRODUCTION
+
+    /** Guest credential storage for the active lane; a DEBUG Preview lane keeps its own. */
+    internal val guestStorageName: String
+        get() = pro.wewed.app.state.NativeServerOrigin.active.storageName("wewed_secure_session")
+
+    private fun guestStorage(context: Context) =
+        AndroidKeystoreSecureStorage(context.applicationContext, preferencesName = guestStorageName)
 
     @Volatile
     private var coordinator: LiveGuestInvitationCoordinator? = null
@@ -42,20 +49,21 @@ object GuestInvitationBootstrap {
     /**
      * The live coordinator, created once.
      *
-     * @param baseUrl overridable only so tests can point at a stub. It defaults to production
-     *   because a guest's invitation is not a configurable destination.
+     * @param baseUrl overridable only so tests can point at a stub. It defaults to the launch
+     *   lane's origin — always https://wewed.pro in a release build — because a guest's invitation
+     *   is not a configurable destination.
      */
     @Synchronized
     fun coordinator(
         context: Context,
-        baseUrl: String = PRODUCTION_BASE_URL
+        baseUrl: String = pro.wewed.app.state.NativeServerOrigin.active.origin
     ): LiveGuestInvitationCoordinator {
         val current = coordinator
         if (current != null && activeBaseUrl == baseUrl) {
             return current
         }
         activeBaseUrl = baseUrl
-        val secure = AndroidKeystoreSecureStorage(context.applicationContext)
+        val secure = guestStorage(context)
         storage = secure
         return LiveGuestInvitationCoordinator(
             GuestSessionClient(baseUrl = baseUrl, secureStorage = secure)
@@ -64,8 +72,7 @@ object GuestInvitationBootstrap {
 
     /** Whether this device already holds a guest session, without constructing anything live. */
     fun hasGuestSession(context: Context): Boolean =
-        AndroidKeystoreSecureStorage(context.applicationContext)
-            .get("wewed.guest.session") != null
+        guestStorage(context).get("wewed.guest.session") != null
 
     /**
      * Ends the Guest relationship on this device.
@@ -75,7 +82,7 @@ object GuestInvitationBootstrap {
      */
     @Synchronized
     fun forgetGuest(context: Context) {
-        AndroidKeystoreSecureStorage(context.applicationContext).apply {
+        guestStorage(context).apply {
             delete("wewed.guest.session")
             delete("wewed.guest.session.slug")
         }

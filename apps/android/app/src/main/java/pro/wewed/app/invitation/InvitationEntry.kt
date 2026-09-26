@@ -102,7 +102,7 @@ object InvitationEntryParser {
             when (scheme) {
                 "https" -> {
                     val host = uri.host?.lowercase()
-                    if (host != "wewed.pro" && host != "www.wewed.pro") return@runCatching null
+                    if (!pro.wewed.app.state.NativeServerOrigin.isWeddingHost(host)) return@runCatching null
                 }
                 "wewed" -> uri.host?.takeIf { it.isNotBlank() }?.let { segments.add(0, it) }
                 else -> return@runCatching null

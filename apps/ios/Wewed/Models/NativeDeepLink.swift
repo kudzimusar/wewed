@@ -54,7 +54,7 @@ public enum NativeDeepLinkParser {
 
         if scheme == "https" {
             guard let host = components.host?.lowercased(),
-                  host == "wewed.pro" || host == "www.wewed.pro" else {
+                  NativeServerOrigin.isWeddingHost(host) else {
                 return nil
             }
         } else if scheme == "wewed" {

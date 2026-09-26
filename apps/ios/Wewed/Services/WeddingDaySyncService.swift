@@ -129,7 +129,7 @@ public actor WeddingDaySyncService {
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
 
-    public init(session: URLSession = .shared) {
+    public init(session: URLSession = NativeServerOrigin.urlSession) {
         self.session = session
     }
 

@@ -53,8 +53,13 @@ class UrlConnectionWeddingDayTransport(private val baseUrl: String) : WeddingDay
         headers: Map<String, String>,
         body: String?
     ): WeddingDayHttpResponse = withContext(Dispatchers.IO) {
-        val connection = URL(baseUrl.trimEnd('/') + "/" + path.trimStart('/')).openConnection() as HttpURLConnection
+        val requestUrl = baseUrl.trimEnd('/') + "/" + path.trimStart('/')
+        val connection = URL(requestUrl).openConnection() as HttpURLConnection
         try {
+            // A DEBUG Preview lane adds its protection-bypass header for its own origin only.
+            pro.wewed.app.state.NativeServerOrigin.active.additionalHeaders(requestUrl).forEach { (key, value) ->
+                connection.setRequestProperty(key, value)
+            }
             connection.requestMethod = method
             connection.connectTimeout = 15_000
             connection.readTimeout = 15_000

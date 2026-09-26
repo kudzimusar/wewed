@@ -44,8 +44,37 @@ class MainActivity : ComponentActivity() {
         val launch = NativeLaunchConfiguration.resolve(
             rawEnvironment = intent.getStringExtra(EXTRA_NATIVE_ENV),
             shadowBaseUrl = intent.getStringExtra(EXTRA_SHADOW_BASE_URL),
-            isDebugBuild = BuildConfig.DEBUG
+            isDebugBuild = BuildConfig.DEBUG,
+            previewOrigin = intent.getStringExtra(EXTRA_PREVIEW_ORIGIN),
+            previewProtectionBypass = intent.getStringExtra(EXTRA_PREVIEW_PROTECTION_BYPASS)
         )
+        // One server for every real client in this process, chosen before any client exists.
+        // A release build is always https://wewed.pro.
+        pro.wewed.app.state.NativeServerOrigin.activate(launch.lane)
+        val guestOrigin = pro.wewed.app.state.NativeServerOrigin.guestOrigin(
+            isDebugBuild = BuildConfig.DEBUG,
+            override = intent?.getStringExtra(EXTRA_GUEST_BASE_URL),
+            lane = launch.lane
+        )
+        val rejection = launch.previewOriginRejection
+            ?: (guestOrigin as? pro.wewed.app.state.NativePreviewOriginValidation.Rejected)?.reason
+        if (rejection != null) {
+            // Fail closed before any account, Guest or domain client exists: nothing can reach
+            // any server, least of all production.
+            setContent {
+                WewedTheme {
+                    Box(modifier = Modifier.semantics { testTagsAsResourceId = true }) {
+                        NativeEnvironmentUnavailableScreen(
+                            environmentName = "Production Preview",
+                            reason = "The qualification origin is not approved ($rejection). " +
+                                "Use an https wewed-*-11-11.vercel.app Preview deployment."
+                        )
+                    }
+                }
+            }
+            return
+        }
+        val guestBaseUrl = (guestOrigin as pro.wewed.app.state.NativePreviewOriginValidation.Accepted).origin
         // Guest identity remains independent of account identity. In production an explicit
         // invitation or a remembered Guest relationship outranks account bootstrap, preserving the
         // accepted Phase-4 entry contract even though Phase 5 now enables the account workspace.
@@ -67,12 +96,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 coordinator = GuestInvitationBootstrap.coordinator(
                                     context = applicationContext,
-                                    baseUrl = if (BuildConfig.DEBUG) {
-                                        intent?.getStringExtra(EXTRA_GUEST_BASE_URL)
-                                            ?: GuestInvitationBootstrap.PRODUCTION_BASE_URL
-                                    } else {
-                                        GuestInvitationBootstrap.PRODUCTION_BASE_URL
-                                    }
+                                    baseUrl = guestBaseUrl
                                 )
                             )
                         }
@@ -119,16 +143,10 @@ class MainActivity : ComponentActivity() {
                                 },
                                 coordinator = GuestInvitationBootstrap.coordinator(
                                     context = applicationContext,
-                                    // Debug builds only, and never read in a release binary: this
-                                    // is how the guest-only shell can be driven end to end against
-                                    // a stub instead of production. A release build has no way to
-                                    // be pointed anywhere but wewed.pro.
-                                    baseUrl = if (BuildConfig.DEBUG) {
-                                        intent?.getStringExtra(EXTRA_GUEST_BASE_URL)
-                                            ?: GuestInvitationBootstrap.PRODUCTION_BASE_URL
-                                    } else {
-                                        GuestInvitationBootstrap.PRODUCTION_BASE_URL
-                                    }
+                                    // The launch lane's origin (always wewed.pro in a release
+                                    // build); a DEBUG stub override only via the qualification
+                                    // allowlist (NativeServerOrigin.guestOrigin).
+                                    baseUrl = guestBaseUrl
                                 )
                             )
                         }
@@ -161,11 +179,11 @@ class MainActivity : ComponentActivity() {
             SessionViewModel(
                 storage = AndroidKeystoreSecureStorage(
                     applicationContext,
-                    preferencesName = "wewed_secure_account_session"
+                    preferencesName = launch.lane.storageName("wewed_secure_account_session")
                 ),
                 environment = launch.environment,
                 authorityClient = ProductionAuthorityClient(
-                    UrlConnectionWeddingDayTransport(GuestInvitationBootstrap.PRODUCTION_BASE_URL)
+                    UrlConnectionWeddingDayTransport(launch.lane.origin)
                 )
             )
         } else {
@@ -224,5 +242,13 @@ class MainActivity : ComponentActivity() {
          * invitation somewhere other than Wewed.
          */
         const val EXTRA_GUEST_BASE_URL = "wewed_guest_base_url"
+
+        /**
+         * DEBUG qualification only (`wewed_native_env=production_preview`): the allowlisted Preview
+         * origin every real client uses, and the Vercel protection-bypass secret for it. A release
+         * build ignores both. The secret is never logged (its toString is redacted).
+         */
+        const val EXTRA_PREVIEW_ORIGIN = "wewed_preview_origin"
+        const val EXTRA_PREVIEW_PROTECTION_BYPASS = "wewed_preview_protection_bypass"
     }
 }

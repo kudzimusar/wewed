@@ -466,7 +466,7 @@ public struct LiveGuestShellView: View {
     }
 
     private func openGuestWebPath(_ path: String) {
-        guard let url = URL(string: "https://wewed.pro\(path)") else { return }
+        guard let url = URL(string: path, relativeTo: NativeServerOrigin.active.origin)?.absoluteURL else { return }
         openURL(url)
     }
 
