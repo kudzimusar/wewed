@@ -1,0 +1,134 @@
+name: NM06 Visual Self Check
+
+on:
+  push:
+    branches:
+      - native-mobile/phase13-ios-invitation-pass-closure-nm06-20260926
+    paths:
+      - '.github/workflows/nm06-visual-self-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  visual:
+    name: iOS 393pt Guest visual evidence
+    runs-on: macos-14
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Select Xcode 16.2
+        run: |
+          set -euo pipefail
+          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Add qualification-only screenshot XCTest
+        shell: bash
+        run: |
+          cat > apps/ios/GuestProfileUITests/NM06VisualSelfCheckTests.swift <<'SWIFT'
+          import XCTest
+
+          final class NM06VisualSelfCheckTests: XCTestCase {
+              private var app: XCUIApplication!
+
+              override func setUp() {
+                  continueAfterFailure = false
+                  app = XCUIApplication()
+                  app.launchEnvironment["WEWED_GUEST_UI_ORIGIN"] = "http://127.0.0.1:8768"
+                  app.launchEnvironment["WEWED_GUEST_UI_LINK"] = "https://wewed.pro/invite/guest-ui?rsvp=attending"
+              }
+
+              private func element(_ id: String) -> XCUIElement {
+                  app.descendants(matching: .any).matching(identifier: id).firstMatch
+              }
+
+              private func tap(_ id: String) {
+                  let target = element(id)
+                  XCTAssertTrue(target.waitForExistence(timeout: 20), id)
+                  target.tap()
+              }
+
+              private func shot(_ name: String) {
+                  let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+                  attachment.name = name
+                  attachment.lifetime = .keepAlways
+                  add(attachment)
+              }
+
+              func testNM06VisualEvidence() {
+                  app.launch()
+
+                  XCTAssertTrue(element("invitation-open-button").waitForExistence(timeout: 20))
+                  shot("02_invitation_closed")
+
+                  tap("invitation-open-button")
+                  tap("invitation-details-button")
+                  XCTAssertTrue(element("invitation-cta-rsvp").waitForExistence(timeout: 20))
+                  shot("03_invitation_details")
+
+                  tap("invitation-cta-pass")
+                  XCTAssertTrue(element("wedding-pass-qr").waitForExistence(timeout: 20))
+                  shot("04_pass")
+
+                  tap("nav-guest-home")
+                  XCTAssertTrue(element("guest-home-digital-invitation").waitForExistence(timeout: 20))
+                  shot("01_home_sentinel")
+
+                  tap("nav-guest-invitation")
+                  XCTAssertTrue(element("invitation-open-button").waitForExistence(timeout: 20))
+                  shot("05_invitation_reopened")
+              }
+          }
+          SWIFT
+
+      - name: Generate native iOS project
+        working-directory: apps/ios
+        run: xcodegen generate --spec project.yml
+
+      - name: Create 393pt iPhone simulator
+        id: simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime="$(xcrun simctl list runtimes --json | python3 -c 'import json,sys; r=[x for x in json.load(sys.stdin)["runtimes"] if x.get("isAvailable") and x["identifier"].startswith("com.apple.CoreSimulator.SimRuntime.iOS-")]; print(r[-1]["identifier"])')"
+          udid="$(xcrun simctl create 'NM06 iPhone 15 Pro' 'iPhone 15 Pro' "$runtime")"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl status_bar "$udid" override --time 9:41 --batteryState charged --batteryLevel 100
+
+      - name: Run visual XCTest and capture attachments
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/native-mobile/guest-profile-ui-server.py >/tmp/nm06-guest-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          cd apps/ios
+          rm -rf /tmp/NM06Visual.xcresult /tmp/nm06-screenshots
+          xcodebuild test \
+            -project Wewed.xcodeproj \
+            -scheme Wewed \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.udid }}" \
+            -only-testing:GuestProfileUITests/NM06VisualSelfCheckTests/testNM06VisualEvidence \
+            -resultBundlePath /tmp/NM06Visual.xcresult
+          mkdir -p /tmp/nm06-screenshots
+          xcrun xcresulttool export attachments \
+            --path /tmp/NM06Visual.xcresult \
+            --output-path /tmp/nm06-screenshots
+          find /tmp/nm06-screenshots -maxdepth 2 -type f -print
+
+      - name: Upload NM06 screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: nm06-visual-self-check
+          path: /tmp/nm06-screenshots
+          if-no-files-found: error
+          retention-days: 7
