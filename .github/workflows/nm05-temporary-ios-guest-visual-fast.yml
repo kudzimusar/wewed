@@ -352,7 +352,11 @@ jobs:
               timeout: 5000
           - takeScreenshot: 02_rsvp
           - tapOn:
-              point: "50%,5%"
+              point: "50%,10%"
+          - extendedWaitUntil:
+              notVisible:
+                id: "invitation-rsvp-prompt"
+              timeout: 5000
           - extendedWaitUntil:
               visible:
                 id: "invitation-cta-note"
