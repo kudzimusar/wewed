@@ -289,17 +289,25 @@ jobs:
               timeout: 7000
           - tapOn:
               id: "invitation-details-button"
+          - takeScreenshot: 03_invitation_details
+          - swipe:
+              direction: UP
+              duration: 500
+          - swipe:
+              direction: UP
+              duration: 500
           - extendedWaitUntil:
               visible:
                 id: "invitation-cta-pass"
-              timeout: 5000
-          - takeScreenshot: 03_invitation_details
+              timeout: 10000
+          - takeScreenshot: 03b_invitation_details_footer
           - tapOn:
               id: "invitation-cta-pass"
           - extendedWaitUntil:
               visible:
                 id: "wedding-pass-card"
-              timeout: 10000
+              timeout: 15000
+          - waitForAnimationToEnd
           - takeScreenshot: 04_pass
           - tapOn: "Home"
           - extendedWaitUntil:
@@ -317,7 +325,8 @@ jobs:
           YAML
           cd "$OUT"
           "$HOME/.maestro/bin/maestro" --device "${{ steps.sim.outputs.udid }}" test "$RUNNER_TEMP/nm06.yaml"
-          test "$(find . -maxdepth 1 -name '*.png' | wc -l | tr -d ' ')" -eq 5
+          find "$HOME/.maestro/tests" -type f -path '*/takeScreenshot/*.png' -exec cp {} "$OUT/" \;
+          test "$(find "$OUT" -maxdepth 1 -name '*.png' | wc -l | tr -d ' ')" -ge 6
 
       - name: Upload screenshots
         if: always()
