@@ -262,29 +262,23 @@ export async function PUT(request: NextRequest, { params }: Params) {
   return response
 }
 
-export async function PATCH(request: NextRequest, { params }: Params) {
-  const { slug } = await params
-  const { wedding, guest } = await currentGuest(request, slug)
-  if (!wedding || !guest) {
-    return noStore(
-      NextResponse.json({ success: false, error: 'Guest access is not active.' }, { status: 401 }),
-    )
-  }
-
-  const blocked = previewWriteError(wedding.id)
-  if (blocked) return blocked
-
-  const updated = await db.rSVP.update({
-    where: { token: guest.rsvpToken },
-    data: { checkedIn: true, checkedInAt: guest.checkedInAt ?? new Date() },
-    select: { checkedIn: true, checkedInAt: true },
-  })
-
-  const response = noStore(NextResponse.json({ success: true, rsvp: updated }))
-  if (readWeddingGuestSession(request)?.version === 1) setWeddingGuestSessionCookie(response, {
-    weddingId: wedding.id, guestId: guest.id, rsvpToken: guest.rsvpToken, weddingDate: wedding.date,
-  })
-  return response
+// A Guest Session is invitation/RSVP identity, never venue-admission authority (QR-P0-01). This
+// method used to let any holder of a Guest Session mark their own RSVP as checked in. Admission is
+// recorded only by an authorized Gate operator presenting the exact scanned WW2 credential
+// (`POST /api/native/gate/wedding-day/check-in` → `WeddingCheckIn`), or by the permission-gated
+// planner event-day operation. The handler stays explicit so older cached clients receive a
+// stable, non-mutating refusal; it deliberately performs no database access at all.
+export async function PATCH() {
+  return noStore(
+    NextResponse.json(
+      {
+        success: false,
+        code: 'GUEST_SESSION_NOT_ADMISSION_AUTHORITY',
+        error: 'Arrival is confirmed by the wedding team at the entrance, not from the invitation.',
+      },
+      { status: 405, headers: { Allow: 'GET, POST, PUT, DELETE' } },
+    ),
+  )
 }
 
 export async function DELETE(request: NextRequest, { params }: Params) {
