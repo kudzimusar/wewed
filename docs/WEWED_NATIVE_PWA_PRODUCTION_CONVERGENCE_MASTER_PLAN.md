@@ -5232,3 +5232,35 @@ Decision:
 
 Revised sequence:
 `QRO02B1 transport/lifecycle closure -> INV-CANON web/native canonical Ivory reference closure -> QRO02C live Charity & Kudzie style convergence -> final four-client Ivory certification -> QRO03`.
+
+
+### D-077 — Canonical card identity correction: approved native floral stationery, not generic web tile (2026-09-27)
+**OWNER CORRECTION / MODERATOR ACCEPTANCE.**
+
+The visual target was previously described too loosely as “Ivory Floral Gold closed card,” which created ambiguity between:
+- the generic flat web Premium Collection tile labelled `Ivory Floral Gold / TRI FOLD`; and
+- the actual approved native digital invitation.
+
+The first is **not** the canonical digital invitation.
+
+The canonical approved invitation is the ornate ivory-and-gold floral stationery previously qualified on native:
+- embossed/sculpted floral doors;
+- champagne/gold edging;
+- circular centre monogram/seal;
+- “A SPECIAL INVITATION AWAITS”;
+- “Tap to open”;
+- CLOSED -> OPENING -> OPEN -> DETAILS.
+
+Repository canonical reference:
+`public/invitation-art/ivory/reference/closed.png`
+
+Artwork provenance:
+`public/invitation-art/ivory/manifest.json` records the CLOSED reference source as **“Original approved session PNG.”**
+
+Native renderers:
+- Android `apps/android/app/src/main/java/pro/wewed/app/ui/invitation/ivory/IvoryFloralGoldNative.kt`
+- iOS `apps/ios/Wewed/Views/Invitation/Ivory/IvoryFloralGoldNative.swift`
+
+The generic web `DigitalInvitationCard(... compact)` tile must not be used as parity/canonical evidence for this invitation.
+
+INV-CANON01 has been corrected accordingly. All later invitation convergence and UAT must target the approved native floral stationery object, not merely a style name or flat catalogue card.
