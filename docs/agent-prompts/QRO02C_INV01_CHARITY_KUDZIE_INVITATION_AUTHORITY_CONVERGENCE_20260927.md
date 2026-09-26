@@ -130,3 +130,24 @@ Success:
 
 Failure:
 `QRO02C INVITATION AUTHORITY CONVERGENCE NOT PROVEN — <exact reason> — RETURNING TO MODERATOR.`
+
+
+## First real visible native UAT after convergence
+
+Owner direction: do not visually qualify the known-wrong Botanical/Garden Romance state.
+
+After the controlled change to `ivory-floral-gold`, this unit owns the **first real visible Charity & Kudzie native invitation UAT**.
+
+Using the same existing Guest credential, prove on both iOS and Android:
+
+`Wewed splash -> Ivory Floral Gold closed invitation -> approved opening motion -> personalised invitation -> RSVP/details surface`.
+
+Required visual assertions:
+- dedicated native Ivory renderer is used, not GenericMotion/Botanical;
+- no raw ISO date formatting appears in the Guest-facing card;
+- couple/guest/venue/date presentation matches the approved Ivory design contract;
+- RSVP remains first-class and immediately reachable;
+- Wedding Pass remains visibly separate and locked/unavailable according to current activation state;
+- no ordinary Home/workspace appears before the invitation on an explicit Guest link.
+
+Any Botanical/Garden Romance rendering after the saved style is changed is a hard regression and must be returned to the moderator rather than accepted.
