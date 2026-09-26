@@ -14,6 +14,7 @@ import {
   SeatingTargetError,
 } from '@/lib/planner-seating-transaction'
 import { requireWeddingPermission } from '@/lib/wedding-access'
+import { guestPartySize, guestRsvpStatus } from '@/lib/guest-record-authority'
 
 const GUEST_ROLES = ['guest', 'bridal_party', 'family', 'officiant', 'vip'] as const
 const GUEST_SIDES = ['bride', 'groom', 'family', 'neutral'] as const
@@ -64,6 +65,9 @@ function formatGuest(g: {
     seatingTableId: g.seatingTableId,
     seatingTableName: g.seatingTable?.name ?? null,
     weddingId: g.weddingId,
+    // Shared Guest-record projection: identical to the native guest list and the Guest session.
+    rsvpStatus: guestRsvpStatus(g.rsvp?.attending),
+    partySize: guestPartySize(g.rsvp),
     createdAt: g.createdAt.toISOString(),
     updatedAt: g.updatedAt.toISOString(),
     rsvp: g.rsvp

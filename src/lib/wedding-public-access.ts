@@ -18,6 +18,7 @@ import {
   verifyWeddingSharedInvitationSessionToken,
   type WeddingSharedInvitationSession,
 } from '@/lib/wedding-shared-invitation-session'
+import { guestSeatingIdentity } from '@/lib/guest-record-authority'
 
 export type WeddingPrivacy = 'public' | 'link_only' | 'private'
 type WeddingDatabase = typeof import('@/lib/db').db
@@ -230,8 +231,7 @@ export async function resolveGuestSessionForWedding(
     name: rsvp.guest.name,
     email: rsvp.guest.email,
     tableNumber: rsvp.guest.tableNumber,
-    tableName: rsvp.guest.seatingTable?.weddingId === wedding.id ? rsvp.guest.seatingTable.name : null,
-    seatingTableId: rsvp.guest.seatingTable?.weddingId === wedding.id ? rsvp.guest.seatingTable.id : null,
+    ...guestSeatingIdentity(rsvp.guest.seatingTable, wedding.id),
     rsvpToken: rsvp.token,
     attending: rsvp.attending,
     mealChoice: rsvp.mealChoice,
