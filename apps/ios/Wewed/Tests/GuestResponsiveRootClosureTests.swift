@@ -166,6 +166,35 @@ final class GuestResponsiveRootClosureTests: XCTestCase {
         XCTAssertFalse(hit.contains(".onTapGesture(perform: action)"))
     }
 
+    func testCanonicalPassDecorationCannotOwnCardWidth() throws {
+        let pass = try Self.source(
+            "apps/ios/Wewed/Views/Pass/WeddingReferencePassView.swift"
+        )
+        let start = try XCTUnwrap(pass.range(of: "private func passCard(_ pass: WeddingPass)"))
+        let end = try XCTUnwrap(
+            pass.range(of: "private func preparePass()", range: start.upperBound..<pass.endIndex)
+        )
+        let card = String(pass[start.lowerBound..<end.lowerBound])
+
+        // IOS-PASS-01: ornamentFrame used to be a sizing sibling in the root ZStack. It is now
+        // measured only after the card's content has established a concrete width/height.
+        XCTAssertFalse(
+            card.contains(
+                "ZStack {\n            WewedMediaImage(WewedAsset.ornamentFrame)"
+            )
+        )
+        XCTAssertTrue(card.contains(".frame(maxWidth: .infinity)"))
+        XCTAssertTrue(card.contains(".background {"))
+        XCTAssertTrue(card.contains("GeometryReader { cardProxy in"))
+        XCTAssertTrue(
+            card.contains(
+                ".frame(width: cardProxy.size.width, height: cardProxy.size.height)"
+            )
+        )
+        XCTAssertTrue(card.contains(".clipped()"))
+        XCTAssertTrue(card.contains("WeddingQRCodeView(payload: pass.qrPayload, size: 146)"))
+    }
+
     func testAllFiveGuestDestinationsRemainPresent() {
         XCTAssertEqual(
             GuestSection.allCases.map(\.label),
