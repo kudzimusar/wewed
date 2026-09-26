@@ -115,4 +115,10 @@ describe('INV-CANON01 — Planner/Couple studio shows the approved invitation', 
     const manager = source('src/components/wedding/invitation-manager.tsx')
     expect(manager).toContain("repair.status === 423 && repairPayload.code === 'PREVIEW_WRITE_BLOCKED'")
   })
+
+  test('the RSVP dialog cannot let a stale card query override the saved wedding style', () => {
+    const dialog = source('src/components/wedding/invitation-rsvp-dialog.tsx')
+    expect(dialog).toContain('normalizeInvitationCardStyle(data.wedding.invitationCardStyle)')
+    expect(dialog).not.toContain('requestedStyle || data.wedding.invitationCardStyle')
+  })
 })
