@@ -1,0 +1,96 @@
+name: Wedding Pass convergence
+
+# Focused regression gate for the canonical WW2 Wedding Pass authority: exact-token Gate
+# admission, RSVP ↔ Pass lifecycle, Guest/Planner availability parity, Couple/Planner metadata
+# and exact-token view, and Guest Session non-admission (QR-P0-01). Uses disposable CI-only keys
+# and a throwaway PostgreSQL service; it never touches production data or production keys.
+
+on:
+  pull_request:
+    paths:
+      - 'src/lib/wedding-day*.ts'
+      - 'src/lib/wedding-pass-*.ts'
+      - 'src/lib/guest-rsvp-mutation.ts'
+      - 'src/lib/global-qr-convergence.integration.test.ts'
+      - 'src/lib/import-engine/guest-worksheet-apply.ts'
+      - 'src/app/api/wedding-day/**'
+      - 'src/app/api/native/gate/wedding-day/**'
+      - 'src/app/api/planner/wedding-passes/**'
+      - 'src/app/api/weddings/[[]slug]/guest-session/**'
+      - 'prisma/migrations/2026092*/**'
+      - '.github/workflows/wedding-pass-convergence-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wedding-pass-convergence-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  convergence:
+    name: Wedding Pass authority convergence
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wewed
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
+      AUTHORITY_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
+      WEWED_SESSION_SECRET: ci-session-secret-not-for-production
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: bunx prisma generate --schema prisma/schema.prisma
+
+      - name: Apply migrations to clean PostgreSQL database
+        run: bunx prisma migrate deploy --schema prisma/schema.prisma
+
+      # Each integration file runs in its own process: Bun's module mocks are process-global.
+      - name: Wedding Pass state vocabulary and token-containment contracts
+        run: bun test src/lib/wedding-pass-availability.test.ts
+
+      - name: Global Wedding Pass / QR convergence contract
+        run: bun test src/lib/global-qr-convergence.integration.test.ts
+
+      - name: WW2 domain authority
+        run: bun test src/lib/wedding-day.integration.test.ts
+
+      - name: WW2 route handlers
+        run: bun test src/lib/wedding-day-routes.integration.test.ts
+
+      - name: WW2 activation rehearsal
+        run: bun test src/lib/wedding-day-activation-rehearsal.integration.test.ts
+
+      - name: Guest RSVP convergence
+        run: bun test src/lib/guest-rsvp-convergence.integration.test.ts
+
+      - name: Guest Session is not admission authority (source contract)
+        run: bun test src/lib/unified-navigation-privacy.test.ts
