@@ -407,11 +407,31 @@ describeDb('Phase 11B Wedding Day / WW2 activation & readiness rehearsal', () =>
   test('stage 8: check-in records operator identity and deduplicates retransmitted offline events', async () => {
     const clientEventId = `rehearsal-evt-${randomUUID().slice(0, 8)}`
 
+    // A0. A serial-only replay (legacy queue shape) is never admission proof.
+    const serialOnlyReq = new NextRequest(`http://localhost/api/native/gate/wedding-day/check-in?grantId=${GRANT_ID}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        passSerial: issuedPass.passSerial,
+        attendeeKeys: ['primary'],
+        clientEventId: `${clientEventId}-serial-only`,
+        deviceId: 'gate-terminal-01',
+      }),
+    })
+    serialOnlyReq.headers.set('Authorization', `Bearer ${operatorBearerToken}`)
+    const serialOnlyRes = await postCheckInRoute(serialOnlyReq)
+    expect(serialOnlyRes.status).toBe(400)
+    expect((await serialOnlyRes.json()).code).toBe('SERIAL_ONLY_ADMISSION_UNSUPPORTED')
+    const afterSerialOnly = await db.$queryRawUnsafe<any[]>(
+      `SELECT id FROM public."WeddingCheckIn" WHERE "weddingId" = $1 AND "guestId" = $2`,
+      WEDDING_ID, GUEST_ID,
+    )
+    expect(afterSerialOnly).toHaveLength(0)
+
     // A. Admitting primary guest attendee
     const checkInReq1 = new NextRequest(`http://localhost/api/native/gate/wedding-day/check-in?grantId=${GRANT_ID}`, {
       method: 'POST',
       body: JSON.stringify({
-        passSerial: issuedPass.passSerial,
+        token: issuedPass.token,
         attendeeKeys: ['primary'],
         clientEventId,
         deviceId: 'gate-terminal-01',
@@ -452,7 +472,7 @@ describeDb('Phase 11B Wedding Day / WW2 activation & readiness rehearsal', () =>
     const checkInReqDuplicate = new NextRequest(`http://localhost/api/native/gate/wedding-day/check-in?grantId=${GRANT_ID}`, {
       method: 'POST',
       body: JSON.stringify({
-        passSerial: issuedPass.passSerial,
+        token: issuedPass.token,
         attendeeKeys: ['primary'],
         clientEventId,
         deviceId: 'gate-terminal-01',
@@ -479,7 +499,7 @@ describeDb('Phase 11B Wedding Day / WW2 activation & readiness rehearsal', () =>
     const checkInReq2 = new NextRequest(`http://localhost/api/native/gate/wedding-day/check-in?grantId=${GRANT_ID}`, {
       method: 'POST',
       body: JSON.stringify({
-        passSerial: issuedPass.passSerial,
+        token: issuedPass.token,
         attendeeKeys: ['plus-one'],
         clientEventId: clientEventId2,
         deviceId: 'gate-terminal-01',
@@ -531,7 +551,7 @@ describeDb('Phase 11B Wedding Day / WW2 activation & readiness rehearsal', () =>
     const checkInRevokedReq = new NextRequest(`http://localhost/api/native/gate/wedding-day/check-in?grantId=${GRANT_ID}`, {
       method: 'POST',
       body: JSON.stringify({
-        passSerial: issuedPass.passSerial,
+        token: issuedPass.token,
         attendeeKeys: ['primary'],
       }),
     })

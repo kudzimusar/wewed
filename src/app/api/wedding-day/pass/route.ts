@@ -3,9 +3,23 @@ import {
   assertWeddingDayWW2RuntimeReady,
   isWeddingDayWW2Enabled,
 } from '@/lib/wedding-day-feature'
-import { guestPassForRequest } from '@/lib/wedding-day'
+import {
+  guestPassForRequest,
+  WeddingPassUnavailableError,
+  type WeddingPassAvailabilityState,
+} from '@/lib/wedding-day'
 
 export const dynamic = 'force-dynamic'
+
+// HTTP status per shared availability state. The body always carries `code` and `availability`
+// so web, iOS, Android and Planner present the same state; clients must not infer it from status.
+const UNAVAILABLE_STATUS: Record<Exclude<WeddingPassAvailabilityState, 'active'>, number> = {
+  rsvp_required: 403,
+  declined: 403,
+  not_yet_issuable: 409,
+  issuance_closed: 410,
+  revoked: 410,
+}
 
 export async function GET(request: NextRequest) {
   if (!isWeddingDayWW2Enabled()) {
@@ -37,10 +51,11 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const { credential, context, passKey } = result
+    const { credential, context, passKey, availability } = result
     return NextResponse.json(
       {
         success: true,
+        availability,
         data: {
           id: credential.id,
           weddingId: credential.weddingId,
@@ -61,15 +76,27 @@ export async function GET(request: NextRequest) {
       { headers: { 'Cache-Control': 'no-store' } },
     )
   } catch (error) {
+    if (error instanceof WeddingPassUnavailableError && error.availability.state !== 'active') {
+      return NextResponse.json(
+        {
+          success: false,
+          code: error.availability.code,
+          error: error.availability.code,
+          availability: error.availability,
+        },
+        { status: UNAVAILABLE_STATUS[error.availability.state], headers: { 'Cache-Control': 'no-store' } },
+      )
+    }
     const message = error instanceof Error ? error.message : String(error)
-    const isDeclined = message === 'ATTENDANCE_DECLINED'
-    const isAttendance = isDeclined || message.includes('accepted RSVP') || message.includes('ATTENDANCE_REQUIRED')
-    const isClosed = message === 'PASS_ISSUANCE_CLOSED'
-    const status = isAttendance ? 403 : isClosed ? 410 : 500
-    const code = isDeclined ? 'ATTENDANCE_DECLINED' : isAttendance ? 'ATTENDANCE_REQUIRED' : isClosed ? 'PASS_ISSUANCE_CLOSED' : 'PASS_UNAVAILABLE'
+    // Attendance flipped between the session read and the locked issuance transaction.
+    const isAttendance = message === 'ATTENDANCE_REQUIRED'
     return NextResponse.json(
-      { success: false, code, error: message },
-      { status, headers: { 'Cache-Control': 'no-store' } },
+      {
+        success: false,
+        code: isAttendance ? 'ATTENDANCE_REQUIRED' : 'PASS_UNAVAILABLE',
+        error: isAttendance ? 'ATTENDANCE_REQUIRED' : 'PASS_UNAVAILABLE',
+      },
+      { status: isAttendance ? 403 : 500, headers: { 'Cache-Control': 'no-store' } },
     )
   }
 }

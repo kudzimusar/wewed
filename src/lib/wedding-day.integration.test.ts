@@ -393,7 +393,7 @@ describeDb('Phase 11A Wedding Day / WW2 converged authority & schema', () => {
         weddingId: WEDDING_B,
         gateId: GATE_B,
         operatorUserId: OPERATOR_USER,
-        passSerial: credential.passSerial,
+        token: credential.token,
         attendeeKeys: ['primary'],
         source: 'offline-sync',
       }),
@@ -581,12 +581,23 @@ describeDb('Phase 11A Wedding Day / WW2 converged authority & schema', () => {
     })
     expect(repeatResult.success).toBe(true)
 
-    // 3. Offline sync check-in for child-1 using passSerial
+    // 3. Offline sync check-in for child-1 replays the exact scanned token (serial-only is refused)
+    await expect(
+      wd.checkInWeddingGuest({
+        weddingId: WEDDING_A,
+        gateId: GATE_A,
+        operatorUserId: OPERATOR_USER,
+        token: '',
+        attendeeKeys: ['child-1'],
+        source: 'offline-sync',
+        clientEventId: 'client-offline-serial-only',
+      }),
+    ).rejects.toThrow('PASS_TOKEN_REQUIRED')
     const offlineSyncResult = await wd.checkInWeddingGuest({
       weddingId: WEDDING_A,
       gateId: GATE_A,
       operatorUserId: OPERATOR_USER,
-      passSerial: cred.passSerial,
+      token: cred.token,
       attendeeKeys: ['child-1'],
       source: 'offline-sync',
       clientEventId: 'client-offline-event-1',
@@ -612,7 +623,7 @@ describeDb('Phase 11A Wedding Day / WW2 converged authority & schema', () => {
         weddingId: WEDDING_A,
         gateId: GATE_A,
         operatorUserId: OPERATOR_USER,
-        passSerial: cred.passSerial,
+        token: cred.token,
         attendeeKeys: ['primary'],
         source: 'offline-sync',
       }),
@@ -641,7 +652,7 @@ describeDb('Phase 11A Wedding Day / WW2 converged authority & schema', () => {
       weddingId: WEDDING_B,
       gateId: GATE_B,
       operatorUserId: OPERATOR_USER,
-      passSerial: betaCredential.passSerial,
+      token: betaCredential.token,
       attendeeKeys: ['primary', 'plus-one'],
       source: 'offline-sync',
       clientEventId: 'client-multi-attendee-event',

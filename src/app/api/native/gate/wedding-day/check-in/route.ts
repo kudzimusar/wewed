@@ -11,11 +11,37 @@ export const dynamic = 'force-dynamic'
 
 interface CheckInRequestBody {
   token?: string
+  /** Legacy/serial-only field. Never admission proof; its presence without `token` is refused. */
   passSerial?: string
   attendeeKeys?: string[]
   deviceId?: string
   clientEventId?: string
   items?: CheckInRequestBody[]
+}
+
+const CLIENT_ERROR_CODES = new Set([
+  'PASS_NOT_FOUND',
+  'PASS_REVOKED_OR_EXPIRED',
+  'INVALID_PASS_TOKEN',
+  'PASS_WEDDING_MISMATCH',
+  'PASS_EVENT_NOT_PERMITTED',
+  'PASS_SIGNATURE_INVALID',
+  'PASS_CREDENTIAL_MISMATCH',
+  'PASS_SIGNING_KEY_INACTIVE',
+  'PASS_TOKEN_REQUIRED',
+  'GATE_INACTIVE_OR_INVALID',
+  'GUEST_INELIGIBLE',
+])
+
+function hasExactToken(item: CheckInRequestBody): item is CheckInRequestBody & { token: string } {
+  return typeof item.token === 'string' && item.token.trim().length > 0
+}
+
+function checkInErrorCode(error: unknown): string | null {
+  const message = error instanceof Error ? error.message : String(error)
+  if (CLIENT_ERROR_CODES.has(message)) return message
+  if (message.startsWith('INVALID_ATTENDEE_KEY')) return 'INVALID_ATTENDEE_KEY'
+  return null
 }
 
 export async function POST(request: NextRequest) {
@@ -64,15 +90,20 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // Handle batch array/items payload if present
+  // Offline-queue reconciliation. Every item must carry the exact scanned WW2 token; the server
+  // re-verifies it exactly as for a live scan. Serial-only / count-only items are legacy queue
+  // records that never carried proof of the scanned credential: they are reported back as
+  // `blockedLegacyIds` and are never admitted. Terminal verification failures are reported
+  // separately from transient failures so the device can stop retrying them.
   if (Array.isArray(body) || Array.isArray(body.items)) {
     const list: CheckInRequestBody[] = Array.isArray(body) ? body : body.items!
     const syncedIds: string[] = []
     const failedIds: string[] = []
+    const rejected: Array<{ clientEventId: string; code: string }> = []
     const blockedLegacyIds: string[] = []
 
     for (const item of list) {
-      if (!item.attendeeKeys || item.attendeeKeys.length === 0) {
+      if (!item.attendeeKeys || item.attendeeKeys.length === 0 || !hasExactToken(item)) {
         if (item.clientEventId) blockedLegacyIds.push(item.clientEventId)
         continue
       }
@@ -82,15 +113,17 @@ export async function POST(request: NextRequest) {
           gateId: grant.gateId,
           operatorUserId,
           token: item.token,
-          passSerial: item.passSerial,
           attendeeKeys: item.attendeeKeys,
-          source: item.token ? 'qr' : 'offline-sync',
+          source: 'offline-sync',
           deviceId: item.deviceId,
           clientEventId: item.clientEventId,
         })
         if (item.clientEventId) syncedIds.push(item.clientEventId)
-      } catch {
-        if (item.clientEventId) failedIds.push(item.clientEventId)
+      } catch (error) {
+        const code = checkInErrorCode(error)
+        if (!item.clientEventId) continue
+        if (code) rejected.push({ clientEventId: item.clientEventId, code })
+        else failedIds.push(item.clientEventId)
       }
     }
 
@@ -98,6 +131,8 @@ export async function POST(request: NextRequest) {
       success: true,
       syncedIds,
       failedIds,
+      rejectedIds: rejected.map((entry) => entry.clientEventId),
+      rejected,
       blockedLegacyIds,
     })
   }
@@ -110,9 +145,13 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  if (!body.token && !body.passSerial) {
+  if (!hasExactToken(body)) {
     return noStoreJson(
-      { success: false, code: 'TOKEN_OR_SERIAL_REQUIRED', error: 'Pass token or pass serial is required.' },
+      {
+        success: false,
+        code: body.passSerial ? 'SERIAL_ONLY_ADMISSION_UNSUPPORTED' : 'PASS_TOKEN_REQUIRED',
+        error: 'The exact scanned Wedding Pass credential is required for admission.',
+      },
       400,
     )
   }
@@ -123,9 +162,8 @@ export async function POST(request: NextRequest) {
       gateId: grant.gateId,
       operatorUserId,
       token: body.token,
-      passSerial: body.passSerial,
       attendeeKeys: body.attendeeKeys,
-      source: body.token ? 'qr' : 'offline-sync',
+      source: body.clientEventId ? 'offline-sync' : 'qr',
       deviceId: body.deviceId,
       clientEventId: body.clientEventId,
     })
@@ -135,23 +173,10 @@ export async function POST(request: NextRequest) {
       ...result,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    const isClientError =
-      message === 'PASS_NOT_FOUND' ||
-      message === 'PASS_REVOKED_OR_EXPIRED' ||
-      message === 'INVALID_PASS_TOKEN' ||
-      message === 'PASS_WEDDING_MISMATCH' ||
-      message === 'PASS_EVENT_NOT_PERMITTED' ||
-      message === 'PASS_SIGNATURE_INVALID' ||
-      message === 'PASS_CREDENTIAL_MISMATCH' ||
-      message === 'PASS_SIGNING_KEY_INACTIVE' ||
-      message === 'GATE_INACTIVE_OR_INVALID' ||
-      message === 'GUEST_INELIGIBLE' ||
-      message.startsWith('INVALID_ATTENDEE_KEY')
-    const status = isClientError ? 400 : 500
+    const code = checkInErrorCode(error)
     return noStoreJson(
-      { success: false, code: isClientError ? message : 'CHECKIN_FAILED', error: message },
-      status,
+      { success: false, code: code ?? 'CHECKIN_FAILED', error: code ?? 'CHECKIN_FAILED' },
+      code ? 400 : 500,
     )
   }
 }

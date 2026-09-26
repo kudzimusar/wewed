@@ -1,5 +1,6 @@
 import 'server-only'
 import { db } from '@/lib/db'
+import { withdrawWeddingPassesForAttendance } from '@/lib/wedding-day'
 
 /**
  * Master plan WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01, Phase 9 — Digital Invitation + RSVP
@@ -156,10 +157,42 @@ export async function applyGuestRsvpUpdate(params: {
     delete data.kidsCount
   }
 
-  const updated = await db.rSVP.update({
-    where: { token: rsvpToken },
-    data,
-    select: GUEST_RSVP_SELECT,
+  // RSVP ↔ Wedding Pass lifecycle. The write takes the same Guest → RSVP → credential lock order
+  // as Pass issuance and Gate check-in (`@/lib/wedding-day`), so an attendance change and a
+  // concurrent Pass retrieval serialize instead of racing. When attendance stops being `true`
+  // every live credential is revoked/superseded in the same transaction; re-accepting later never
+  // revives it — the next authorized Pass retrieval issues a fresh credential. Edits that keep
+  // attendance unchanged (meal, message, party details, ...) never touch the Pass.
+  const updated = await db.$transaction(async (tx) => {
+    const guestRows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT g.id
+         FROM public."Guest" g
+         JOIN public."RSVP" r ON r."guestId" = g.id
+        WHERE r.token = $1 AND g."weddingId" = $2
+        LIMIT 1
+        FOR UPDATE OF g`,
+      rsvpToken,
+      weddingId,
+    )
+    const guestId = guestRows[0]?.id
+    if (!guestId) throw new Error('RSVP_NOT_FOUND')
+
+    const previousRows = await tx.$queryRawUnsafe<Array<{ attending: boolean | null }>>(
+      `SELECT attending FROM public."RSVP" WHERE "guestId" = $1 LIMIT 1 FOR UPDATE`,
+      guestId,
+    )
+    const previouslyAttending = previousRows[0]?.attending === true
+
+    const record = await tx.rSVP.update({
+      where: { token: rsvpToken },
+      data,
+      select: GUEST_RSVP_SELECT,
+    })
+
+    if (previouslyAttending && record.attending !== true) {
+      await withdrawWeddingPassesForAttendance(tx, { weddingId, guestId })
+    }
+    return record
   })
 
   return { ok: true, rsvp: updated }

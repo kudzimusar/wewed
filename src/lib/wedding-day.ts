@@ -16,6 +16,12 @@ import {
   isWeddingDayWW2Enabled,
 } from '@/lib/wedding-day-feature'
 import { readWeddingGuestSession } from '@/lib/wedding-guest-session'
+import {
+  ATTENDANCE_WITHDRAWN_REASON,
+  type WeddingPassAvailability,
+  type WeddingPassAvailabilityCode,
+  type WeddingPassAvailabilityState,
+} from '@/lib/wedding-pass-availability'
 
 export const WW2_VERSION = 'WW2'
 export const WW2_ALGORITHM = 'ECDSA_P256_SHA256'
@@ -114,6 +120,77 @@ export function weddingPassIssuanceAllowedAt(
   const time = now.getTime()
   return time >= window.opensAt.getTime() && time <= window.cutoffAt.getTime()
 }
+
+// The Guest-facing availability vocabulary is shared with web/Planner UI (client-safe module);
+// native clients mirror the same state strings.
+export type {
+  WeddingPassAvailability,
+  WeddingPassAvailabilityCode,
+  WeddingPassAvailabilityState,
+} from '@/lib/wedding-pass-availability'
+
+const AVAILABILITY_CODE: Record<WeddingPassAvailabilityState, WeddingPassAvailabilityCode> = {
+  rsvp_required: 'ATTENDANCE_REQUIRED',
+  declined: 'ATTENDANCE_DECLINED',
+  not_yet_issuable: 'PASS_NOT_YET_ISSUABLE',
+  active: 'PASS_ACTIVE',
+  issuance_closed: 'PASS_ISSUANCE_CLOSED',
+  revoked: 'PASS_REVOKED',
+}
+
+export function weddingPassAvailability(
+  state: WeddingPassAvailabilityState,
+  weddingDate: Date,
+): WeddingPassAvailability {
+  const window = weddingPassIssuanceWindow(weddingDate)
+  return {
+    state,
+    code: AVAILABILITY_CODE[state],
+    opensAt: window.opensAt.toISOString(),
+    cutoffAt: window.cutoffAt.toISOString(),
+    expiresAt: window.expiresAt.toISOString(),
+  }
+}
+
+/**
+ * Pure availability resolution for a Guest who currently has NO usable credential (a usable
+ * credential is always `active`). `latest` is the most recent credential row for the Guest, if any.
+ */
+export function resolveUnissuedPassAvailabilityState(input: {
+  attending: boolean | null
+  weddingDate: Date
+  latest: Pick<CredentialRow, 'revokedAt' | 'revocationReason'> | null
+  now?: Date
+}): WeddingPassAvailabilityState {
+  if (input.attending === false) return 'declined'
+  if (input.attending !== true) return 'rsvp_required'
+  const now = (input.now ?? new Date()).getTime()
+  const window = weddingPassIssuanceWindow(input.weddingDate)
+  if (now < window.opensAt.getTime()) return 'not_yet_issuable'
+  if (now > window.cutoffAt.getTime()) {
+    // An operator revocation that can no longer be replaced is reported as revoked rather than as
+    // a generic closed window. Attendance-driven withdrawal is not an operator revocation.
+    return input.latest?.revokedAt && input.latest.revocationReason !== ATTENDANCE_WITHDRAWN_REASON
+      ? 'revoked'
+      : 'issuance_closed'
+  }
+  // Inside the window with no usable credential: the next authorized retrieval issues one.
+  return 'active'
+}
+
+export class WeddingPassUnavailableError extends Error {
+  constructor(readonly availability: WeddingPassAvailability) {
+    super(availability.code)
+    this.name = 'WeddingPassUnavailableError'
+  }
+}
+
+// RSVP ↔ Pass lifecycle: attendance withdrawal. The SQL lives in a dependency-free module so every
+// RSVP writer (Guest self-service and Planner worksheet import) shares exactly one implementation.
+export {
+  ATTENDANCE_WITHDRAWN_REASON,
+  withdrawWeddingPassesForAttendance,
+} from '@/lib/wedding-pass-attendance'
 
 export function canonicalWw2Payload(input: {
   weddingShortId: string
@@ -409,7 +486,23 @@ export async function ensureWeddingPassCredential(input: {
       if (existing && credentialIsUsable(existing, now.getTime())) return existing
 
       if (!weddingPassIssuanceAllowedAt(guest.weddingDate, now)) {
-        throw new Error('PASS_ISSUANCE_CLOSED')
+        // Distinguish "not open yet" from "closed" (and an irreplaceable operator revocation) so
+        // every client can present the same state instead of a generic failure.
+        const latestRows = await tx.$queryRawUnsafe<CredentialRow[]>(
+          `SELECT * FROM public."WeddingPassCredential"
+            WHERE "weddingId" = $1 AND "guestId" = $2
+            ORDER BY "issueSeq" DESC
+            LIMIT 1`,
+          input.weddingId,
+          input.guestId,
+        )
+        const state = resolveUnissuedPassAvailabilityState({
+          attending: true,
+          weddingDate: guest.weddingDate,
+          latest: latestRows[0] ?? null,
+          now,
+        })
+        throw new WeddingPassUnavailableError(weddingPassAvailability(state, guest.weddingDate))
       }
       const window = weddingPassIssuanceWindow(guest.weddingDate)
 
@@ -634,9 +727,10 @@ export async function readWeddingDayGuestContext(request: NextRequest) {
     weddingTitle: string
     guestName: string
     attending: boolean | null
+    weddingDate: Date
   }>>(
     `SELECT g.id AS "guestId", g."weddingId", w.slug AS "weddingSlug", w.title AS "weddingTitle",
-            g.name AS "guestName", r.attending
+            g.name AS "guestName", r.attending, w.date AS "weddingDate"
        FROM public."Guest" g
        JOIN public."Wedding" w ON w.id = g."weddingId"
        LEFT JOIN public."RSVP" r ON r."guestId" = g.id
@@ -655,6 +749,7 @@ export async function readWeddingDayGuestContext(request: NextRequest) {
     guestId: row.guestId,
     guestName: row.guestName,
     attending: row.attending,
+    weddingDate: row.weddingDate,
   }
 }
 
@@ -665,10 +760,10 @@ export async function guestPassForRequest(request: NextRequest) {
   const context = await readWeddingDayGuestContext(request)
   if (!context) return null
   if (context.attending === false) {
-    throw new Error('ATTENDANCE_DECLINED')
+    throw new WeddingPassUnavailableError(weddingPassAvailability('declined', context.weddingDate))
   }
   if (context.attending !== true) {
-    throw new Error('ATTENDANCE_REQUIRED')
+    throw new WeddingPassUnavailableError(weddingPassAvailability('rsvp_required', context.weddingDate))
   }
   const credential = await ensureWeddingPassCredential({
     weddingId: context.weddingId,
@@ -679,15 +774,23 @@ export async function guestPassForRequest(request: NextRequest) {
     context,
     credential,
     passKey,
+    availability: weddingPassAvailability('active', context.weddingDate),
   }
 }
 
+/**
+ * Gate admission. The exact scanned WW2 credential is the only admission proof: live scans and
+ * offline-queue reconciliation both present the token, and the server re-runs
+ * `verifyWeddingPassToken` (signature, key lifecycle, byte-for-byte match against the issued row,
+ * revocation/expiry). A pass serial is an index, not proof of possession, so serial-only
+ * admission is refused. Wedding, Gate and operator come only from the caller's server-resolved
+ * operational grant.
+ */
 export async function checkInWeddingGuest(input: {
   weddingId: string
   gateId: string
   operatorUserId: string
-  token?: string
-  passSerial?: string
+  token: string
   attendeeKeys: string[]
   source?: 'qr' | 'offline-sync'
   deviceId?: string
@@ -698,36 +801,15 @@ export async function checkInWeddingGuest(input: {
   const requestedKeys = Array.from(new Set(input.attendeeKeys ?? []))
   if (requestedKeys.length === 0) throw new Error('ATTENDEE_KEYS_REQUIRED')
 
-  let credential: CredentialRow
-  if (input.token) {
-    credential = await verifyWeddingPassToken({
-      weddingId: input.weddingId,
-      token: input.token,
-    })
-  } else if (input.passSerial) {
-    const rows = await db.$queryRawUnsafe<CredentialRow[]>(
-      `SELECT * FROM public."WeddingPassCredential"
-        WHERE "weddingId" = $1 AND "passSerial" = $2
-        LIMIT 1`,
-      input.weddingId,
-      input.passSerial,
-    )
-    const found = rows[0]
-    if (!found) throw new Error('PASS_NOT_FOUND')
-    if (
-      found.revokedAt ||
-      found.supersededAt ||
-      (found.expiresAt && found.expiresAt.getTime() <= Date.now())
-    ) {
-      throw new Error('PASS_REVOKED_OR_EXPIRED')
-    }
-    await passKeyForCredential(db, found)
-    credential = found
-  } else {
-    throw new Error('TOKEN_OR_SERIAL_REQUIRED')
+  if (typeof input.token !== 'string' || !input.token.trim()) {
+    throw new Error('PASS_TOKEN_REQUIRED')
   }
+  const credential = await verifyWeddingPassToken({
+    weddingId: input.weddingId,
+    token: input.token,
+  })
 
-  const source = input.source ?? (input.token ? 'qr' : 'offline-sync')
+  const source = input.source ?? (input.clientEventId ? 'offline-sync' : 'qr')
 
   return db.$transaction(async (tx) => {
     // Keep the same lock order as issuance: Guest -> RSVP -> credential. This avoids a
