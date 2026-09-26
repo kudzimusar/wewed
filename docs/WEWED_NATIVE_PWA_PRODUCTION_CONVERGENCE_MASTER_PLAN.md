@@ -5068,3 +5068,32 @@ Accordingly:
 No product patch is authorized or required from this review.
 
 **Next progressive unit: QRO02B / CRED01 — SECURE REAL-CREDENTIAL INJECTION + AUTHENTICATED READ-ONLY CHARITY & KUDZIE PARITY.** This unit must use only owner-authorized secure credential sources, must not request secrets pasted into chat or committed to the repository, keeps `WEWED_PARITY_ALLOW_PASS_GET` unset, performs zero wedding business-data writes, and exists solely to complete the live-read proof. QRO03 remains unreleased until QRO02B is independently accepted.
+
+
+### D-072 — Mandatory moderator continuity and immediate follow-up tasking (2026-09-27)
+**OWNER RULE — A MODERATOR VERDICT MAY NOT BE THE END OF A PROGRAMME CYCLE.**
+
+The Wewed moderator operating model is extended with a mandatory continuity rule.
+
+After every implementation, research, certification or environment-agent return, the moderator must in the same review cycle:
+
+- independently review and classify the return;
+- close ordinary bounded gaps where authorized;
+- determine the exact next progressive unit from the authoritative programme sequence;
+- create/update the repository task file for that unit where applicable;
+- **issue the full next-agent prompt immediately**;
+- keep later phases explicitly parked/frozen.
+
+A moderator may not stop with only `ACCEPTED`, `PARTIALLY ACCEPTED`, `NOT PROVEN`, `BLOCKED-ENV`, `BLOCKED-ACTIVATION`, PASS/FAIL, or “next step is …”.
+
+If an external input prevents actual execution, the moderator must still issue a blocker-resolution prompt that names the missing input, secure handoff method, exact resumption point and safety boundaries. The programme is therefore never left without an active next task unless the owner explicitly pauses it.
+
+Authoritative supporting rule:
+
+`docs/agent-prompts/WEWED_MODERATOR_CONTINUITY_RULE.md`
+
+Reusable task format updated accordingly:
+
+`docs/agent-prompts/WEWED_MODERATOR_AGENT_PROMPT_FORMAT.md`
+
+This rule applies to all future Wewed moderator sessions and phases unless explicitly superseded by the owner.
