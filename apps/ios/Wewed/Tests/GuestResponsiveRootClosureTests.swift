@@ -172,4 +172,34 @@ final class GuestResponsiveRootClosureTests: XCTestCase {
             ["Home", "Invitation", "Pass", "Wedding Day", "More"]
         )
     }
+
+    func testLiveInvitationPublishesPhysicalWidthInBothHostingContexts() throws {
+        let invitation = try Self.source(
+            "apps/ios/Wewed/Views/Invitation/LiveGuestInvitationView.swift"
+        )
+        let ivory = try Self.source(
+            "apps/ios/Wewed/Views/Invitation/Ivory/IvoryFloralGoldNative.swift"
+        )
+
+        XCTAssertTrue(invitation.contains("WewedScreenContainer {"))
+        XCTAssertTrue(ivory.contains("@Environment(\\.wewedContentWidth) private var publishedContentWidth"))
+        XCTAssertTrue(ivory.contains("IvoryViewportGeometry.boundedViewportWidth"))
+        XCTAssertTrue(ivory.contains(".frame(width: viewportWidth)"))
+        XCTAssertFalse(ivory.contains("ScrollView(.horizontal"))
+        XCTAssertFalse(ivory.contains("ScrollView([.horizontal"))
+    }
+
+    func testCanonicalPassRetainsAuthorityAndHasNoRootHorizontalScroll() throws {
+        let pass = try Self.source(
+            "apps/ios/Wewed/Views/Pass/WeddingReferencePassView.swift"
+        )
+
+        XCTAssertTrue(pass.contains("public struct WeddingReferencePassView: View"))
+        XCTAssertTrue(pass.contains("WeddingQRCodeView(payload: pass.qrPayload"))
+        XCTAssertTrue(pass.contains("ScrollView(.vertical, showsIndicators: false)"))
+        XCTAssertTrue(pass.contains("WeddingPassViewportGeometry.cardWidth"))
+        XCTAssertFalse(pass.contains("ScrollView(.horizontal"))
+        XCTAssertFalse(pass.contains("ScrollView([.horizontal"))
+    }
+
 }
