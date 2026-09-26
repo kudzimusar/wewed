@@ -5315,3 +5315,67 @@ QRO03 remains unreleased.
 **Next progressive unit: QRO02B2 / CERT02 — FINAL INDEPENDENT CHARITY & KUDZIE IVORY LIVE PARITY CERTIFICATION.**
 
 The certifier must use the integrated NLC01 source and the now-live `ivory-floral-gold` Charity & Kudzie authority, perform no product patching and no wedding business-data writes, and prove the real Guest/Planner authority across web/native API/iOS/Android. Only after moderator acceptance of that certification may QRO03 be released.
+
+
+### D-079 — QRO02B2 final Ivory certification accepted; QRO03 released (2026-09-27)
+**MODERATOR REVIEW — QRO02B2 / CERT02 ACCEPTED. FINAL CHARITY & KUDZIE IVORY READ PARITY IS PROVEN.**
+
+Independent moderator verification confirmed:
+- active integration branch moved from `ba38a3624581899a4999ac8d221346ec11a1f504` to certification receipt SHA `454bca9b4973c81fff26c9e7cf75a7c3ce684c2c` by exactly one docs-only commit:
+  `docs/QRO02B2_CERT02_FINAL_IVORY_LIVE_PARITY_RECEIPT_20260927.md`;
+- no product/test source changed during certification;
+- production `main` remains `646f08421d778cf6f85bf12195581228ae3fbccc`;
+- integration qualification Preview `dpl_2sHasSHCbDnFAHRgBH4HyNHvo98v` is READY and serves exact product SHA `ba38a362...`;
+- the certification receipt records `wewed.parity.v1 PASS` for actor-specific requirements:
+  - `G = desktop, ios, android`;
+  - `P = desktop, native-api`;
+  - `G-VIA-P = desktop, native-api`;
+- certification used the same real Charity & Kudzie wedding and Guest IDs previously established and reports invitation style `ivory-floral-gold`;
+- production safety was independently corroborated from Vercel runtime logs for 2026-09-26T22:22:18Z–22:50:01Z:
+  - production deployment `dpl_ApFS83c3F2MtqNFvCQEF8Pdg1UwL` has **no** `guest-session`, `/invite/`, or `/api/native/` requests in the qualification window;
+  - integration Preview `dpl_2sHas...` received the expected Guest-session requests during the same window;
+- Wedding Day remains `BLOCKED-ACTIVATION`, represented at run level rather than as a fake Pass business state.
+
+Moderator classification:
+- certification branch/source boundary: **ACCEPTED**;
+- production/integration deployment identity: **ACCEPTED**;
+- final web/native API/iOS/Android Guest read parity: **ACCEPTED**;
+- canonical `ivory-floral-gold` invitation authority: **ACCEPTED**;
+- `wewed.parity.v1 PASS`: **ACCEPTED**;
+- zero accidental production native qualification traffic: **ACCEPTED**;
+- Wedding business-data writes during certification: **0 ACCEPTED to available evidence**;
+- Android zero-size style/motion test hooks: **non-blocking observability gap**;
+- no iOS/Android native account-side exporter for `P` / `G-VIA-P`: **non-blocking instrumentation gap**, because the current native exporter supports Guest records only and the declared actor-specific contract is explicit;
+- stale query-string card precedence inside the legacy RSVP dialog: **bounded invariant defect discovered by certification**.
+
+The bounded stale-card defect was closed by the moderator before QRO03 release:
+- branch `closure/qro02b2-rsvp-authority-20260927`;
+- PR #219;
+- changed only `src/components/wedding/invitation-rsvp-dialog.tsx` and `src/lib/canonical-invitation.test.ts`;
+- once Guest-session data resolves, `data.wedding.invitationCardStyle` now wins over any stale/hand-edited `card=` query;
+- Preview `dpl_F7qeozt96NQ2Lbphn5unNcW9ggmU` for the closure branch is READY;
+- PR #219 merged to integration as `fb2e2f2483c15c99e63e3a3e7219a6f63b821e17`;
+- integration Preview `dpl_93NtUPp41dmQQExo2MUDjLkuHi74` is READY and serves exact `fb2e2f24...`.
+
+**QRO03 IS RELEASED.**
+
+Next progressive unit:
+`QRO03 / RSVP01 — CONTROLLED REVERSIBLE REAL CHARITY & KUDZIE RSVP WRITE`.
+
+QRO03 must prove END-TO-END mutation convergence, not only read parity:
+`native Guest write -> authoritative RSVP row -> Planner/Couple read -> other native read -> mandatory restoration through the same authoritative Guest RSVP operation`.
+
+To minimize owner-data impact, QRO03 will use a single reversible **message-only** RSVP field mutation rather than changing attendance:
+- pre-state message is recorded;
+- one native client writes a short non-secret QRO03 marker through `GuestSessionClient.saveRsvp`;
+- attendance, party, seating, invitation, Pass, Gate and wedding data remain unchanged;
+- Planner/Couple and the other native platform must observe the exact marker;
+- the marker is then cleared/restored through the same normal Guest RSVP API;
+- final snapshot must byte/value-match the pre-state for all RSVP fields;
+- this is **one test mutation plus one mandatory restoration write**, and no other wedding business-data writes are authorized.
+
+The integration Preview may become writable for Charity & Kudzie only through branch-scoped Preview configuration:
+`WEWED_PREVIEW_WRITABLE_WEDDING_ID=<Charity & Kudzie wedding id>`.
+After restoration, that authorization must be removed and the Preview must be proven read-only again.
+
+QRO04 Wedding Pass/Gate remains unreleased until QRO03 is independently accepted.
