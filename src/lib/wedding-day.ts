@@ -699,9 +699,11 @@ export async function verifyWeddingPassToken(input: {
   }
 
   // A valid signing key cannot be used to fabricate a different payload for an existing serial.
-  // The immutable credential row is the canonical signed token issued to this Guest.
+  // The immutable credential row is the canonical signed token issued to this Guest. Surrounding
+  // whitespace from a scanner is not part of the credential (WW2 tokens contain none, and
+  // `parseWw2Token` already trims), so it must not turn a genuine scan into a terminal rejection.
   if (
-    credential.token !== input.token ||
+    credential.token !== input.token.trim() ||
     credential.nonce !== parsed.nonce ||
     credential.eventBitmask !== parsed.eventBitmask ||
     credential.signatureHex !== parsed.signatureHex

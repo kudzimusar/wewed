@@ -392,6 +392,15 @@ describeDb('LQR01 global Wedding Pass / QR convergence', () => {
     expect(batch.body.blockedLegacyIds).toEqual([`${run}-legacy-batch`])
     expect(await checkInCount(G)).toBe(1)
 
+    // Scanner whitespace around the exact credential is not a different credential.
+    const padded = await gateCheckIn({ token: `${X}\n`, attendeeKeys: ['primary'], clientEventId: `${run}-evt-1` })
+    expect(padded.status).toBe(200)
+    expect(await checkInCount(G)).toBe(1)
+    // A different payload for the same serial is still refused.
+    const tampered = await gateCheckIn({ token: `${X.slice(0, -1)}${X.endsWith('0') ? '1' : '0'}`, attendeeKeys: ['plus-one'] })
+    expect(tampered.status).toBe(400)
+    expect(await checkInCount(G)).toBe(1)
+
     // Cross-wedding rejection.
     await expect(wd.checkInWeddingGuest({
       weddingId: W_FAR, gateId: GATE, operatorUserId: OPERATOR, token: X, attendeeKeys: ['primary'],
