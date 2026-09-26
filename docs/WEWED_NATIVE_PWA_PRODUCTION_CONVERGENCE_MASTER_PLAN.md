@@ -5097,3 +5097,24 @@ Reusable task format updated accordingly:
 `docs/agent-prompts/WEWED_MODERATOR_AGENT_PROMPT_FORMAT.md`
 
 This rule applies to all future Wewed moderator sessions and phases unless explicitly superseded by the owner.
+
+
+### D-073 — Charity & Kudzie invitation authority target is Ivory Floral Gold (2026-09-27)
+**OWNER PRODUCT DECISION — THE AUTHORITATIVE CHARITY & KUDZIE DIGITAL INVITATION STYLE IS `ivory-floral-gold`.**
+
+The current personal Guest URL observed by the owner still contains `card=botanical`, while the intended and separately qualified native invitation experience is **Ivory Floral Gold**.
+
+Architecture remains unchanged:
+- the saved wedding field `Wedding.invitationCardStyle` is the authority;
+- web and native must render that same saved style;
+- native must not hardcode Ivory as a Charity & Kudzie special case;
+- stale/edited `card=` query parameters in personal invitation URLs are not authoritative;
+- existing personal Guest credentials should remain valid across a style change and should not be rotated merely to change presentation.
+
+QRO02B remains read-only and must report the actual live Charity & Kudzie invitation style and cross-client renderer identity.
+
+A closure unit is queued, not yet executable:
+
+`docs/agent-prompts/QRO02C_INV01_CHARITY_KUDZIE_INVITATION_AUTHORITY_CONVERGENCE_20260927.md`
+
+If QRO02B proves the live saved style is not `ivory-floral-gold`, the moderator should release QRO02C before QRO03. QRO02C will authorize only the controlled invitation-style convergence, preserve the existing Guest credential and other invitation fields, and prove web/iOS/Android all render Ivory Floral Gold from the same saved authority.
