@@ -27,6 +27,7 @@ import {
   type WewedProductionAuthorityV1,
   type WorkspaceGrant,
 } from './contract'
+import { membershipWorkspaceGrant } from '@/lib/wedding-relationship-eligibility'
 
 /** Mirrors `isDashboardRole` in app-session.ts. */
 const DASHBOARD_CLASSES = new Set(['admin', 'couple', 'planner', 'vendor'])
@@ -296,21 +297,13 @@ function deriveWeddingGrants(
 ) {
   for (const m of evidence.weddingMemberships) {
     const source = { kind: 'wedding_membership' as const, id: m.membershipId }
-    if (m.status !== 'active') {
-      nonGranting.push({ source, reason: 'membership_not_active' })
+    // Shared with the desktop transport (src/lib/wedding-relationship-eligibility.ts).
+    const decision = membershipWorkspaceGrant(m)
+    if (!decision.grants) {
+      nonGranting.push({ source, reason: decision.reason })
       continue
     }
-    if (!m.governedAccess) {
-      nonGranting.push({ source, reason: 'wedding_access_not_governed' })
-      continue
-    }
-    const kind =
-      m.role === 'owner' ? 'couple' : m.role === 'planner' ? 'planner' : m.role === 'coordinator' ? 'coordinator' : null
-    if (!kind) {
-      // `viewer`, and anything unrecognised, is evidence without a native workspace.
-      nonGranting.push({ source, reason: 'viewer_relationship' })
-      continue
-    }
+    const kind = decision.kind
     grants.push({
       grantId: `${kind}:wedding:${m.weddingId}`,
       workspaceKind: kind,

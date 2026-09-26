@@ -17,6 +17,7 @@ import {
   WEWED_PLATFORM_SESSION_ID,
 } from '@/lib/business-access'
 import { previewAccountBookkeepingSuppressed } from '@/lib/preview-write-safety'
+import { desktopDashboardAdmission } from '@/lib/wedding-relationship-eligibility'
 
 function errorResponse(message: string, status: number) {
   const response = NextResponse.json(
@@ -98,9 +99,11 @@ export async function POST(request: NextRequest) {
       }),
     ])
 
+    // Account-class admission is shared with the native authority's eligibility module; an
+    // account outside the dashboard classes is refused here (open policy D-COORD-ACCOUNT-CLASS).
     if (
       !accessUser ||
-      !accessUser.isActive ||
+      !desktopDashboardAdmission(accessUser).admitted ||
       !isDashboardRole(accessUser.role)
     ) {
       await supabase.auth.signOut()
