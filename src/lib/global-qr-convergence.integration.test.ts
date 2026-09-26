@@ -321,7 +321,7 @@ describeDb('LQR01 global Wedding Pass / QR convergence', () => {
     const list = await plannerList(W)
     expect(list.status).toBe(200)
     expect(await credentialCount(W)).toBe(0)
-    const states = Object.fromEntries(list.body.data.guests.map((row: { guestId: string; state: string }) => [row.guestId, row.state]))
+    const states = Object.fromEntries(list.body.data.guests.map((row: { guestId: string; credentialState: string }) => [row.guestId, row.credentialState]))
     expect(states[G]).toBe('not_yet_issued')
     expect(states[P]).toBe('pending_rsvp')
     expect(states[D]).toBe('declined')
@@ -364,7 +364,8 @@ describeDb('LQR01 global Wedding Pass / QR convergence', () => {
     expect(adminX.body.data.token === X).toBe(true)
     expect(Buffer.compare(Buffer.from(adminX.body.data.token, 'utf8'), Buffer.from(X, 'utf8'))).toBe(0)
     const rowX = await plannerRow(W, G)
-    expect(rowX.state).toBe('active')
+    expect(rowX.credentialState).toBe('active')
+    expect(rowX.arrivalState).toBe('not_checked_in')
     expect(rowX.credential).toMatchObject({ passSerial: credentialX.passSerial, tokenVersion: 'WW2', issueSeq: 1, revokedAt: null })
     const viewAudit = await db.auditEvent.findFirstOrThrow({ where: { weddingId: W, action: 'wedding_pass.viewed', resourceId: credentialX.id } })
     expect(viewAudit.actorId).toBe(PLANNER)
@@ -382,7 +383,7 @@ describeDb('LQR01 global Wedding Pass / QR convergence', () => {
     expect(await checkInCount(G)).toBe(1)
     const offlineRow = await db.weddingCheckIn.findFirstOrThrow({ where: { guestId: G, attendeeKey: 'primary' } })
     expect(offlineRow).toMatchObject({ credentialId: credentialX.id, gateId: GATE, admittedByUserId: OPERATOR, source: 'offline-sync' })
-    expect((await plannerRow(W, G)).state).toBe('partially_checked_in')
+    expect(await plannerRow(W, G)).toMatchObject({ credentialState: 'active', arrivalState: 'partially_checked_in' })
 
     // Serial-only (legacy queue shape) is never admission proof — single and batch forms.
     const serialOnly = await gateCheckIn({ passSerial: credentialX.passSerial, attendeeKeys: ['plus-one'], clientEventId: `${run}-legacy` })
@@ -414,9 +415,11 @@ describeDb('LQR01 global Wedding Pass / QR convergence', () => {
     revokeRequest.headers.set('Authorization', `Bearer ${operatorBearer}`)
     expect((await postRevoke(revokeRequest)).status).toBe(200)
 
-    // Planner reports revoked and refuses to show X; nothing is re-minted by looking.
+    // Planner reports revoked and refuses to show X; nothing is re-minted by looking. The earlier
+    // partial arrival stays visible as its own dimension and never hides the revocation (§19).
     const rowRevoked = await plannerRow(W, G)
-    expect(rowRevoked.state).toBe('partially_checked_in')
+    expect(rowRevoked.credentialState).toBe('revoked')
+    expect(rowRevoked.arrivalState).toBe('partially_checked_in')
     expect(rowRevoked.credential.revokedAt).not.toBeNull()
     expect((await plannerView(W, G)).status).toBe(409)
     expect(await credentialCount(W, G)).toBe(1)
@@ -448,7 +451,7 @@ describeDb('LQR01 global Wedding Pass / QR convergence', () => {
     expect((await freshManifestEntry(credentialY.passSerial)).revokedAt).toBeNull()
     const admitPlusOne = await gateCheckIn({ token: Y, attendeeKeys: ['plus-one'] })
     expect(admitPlusOne.status).toBe(200)
-    expect((await plannerRow(W, G)).state).toBe('checked_in')
+    expect(await plannerRow(W, G)).toMatchObject({ credentialState: 'active', arrivalState: 'checked_in' })
     const rsvp = await db.rSVP.findUniqueOrThrow({ where: { guestId: G }, select: { checkedIn: true } })
     expect(rsvp.checkedIn).toBe(true)
   })
@@ -478,13 +481,13 @@ describeDb('LQR01 global Wedding Pass / QR convergence', () => {
     const declinedPass = await guestPass(W, H)
     expect(declinedPass.status).toBe(403)
     expect(declinedPass.body.availability.state).toBe('declined')
-    expect((await plannerRow(W, H)).state).toBe('declined')
+    expect((await plannerRow(W, H)).credentialState).toBe('declined')
     expect((await plannerView(W, H)).status).toBe(409)
 
     // false → true issues nothing by itself.
     expect((await guestRsvp(H, { attending: true })).status).toBe(200)
     expect(await liveCredentialCount(H)).toBe(0)
-    expect((await plannerRow(W, H)).state).toBe('superseded')
+    expect((await plannerRow(W, H)).credentialState).toBe('superseded')
     expect((await gateCheckIn({ token: X, attendeeKeys: ['primary'] })).body.code).toBe('PASS_REVOKED_OR_EXPIRED')
 
     // The next authorized retrieval issues a fresh Y.
@@ -538,12 +541,12 @@ describeDb('LQR01 global Wedding Pass / QR convergence', () => {
     expect([far.status, far.body.code, far.body.availability.state]).toEqual([409, 'PASS_NOT_YET_ISSUABLE', 'not_yet_issuable'])
     expect(Date.parse(far.body.availability.opensAt)).toBeGreaterThan(Date.now())
     expect(await credentialCount(W_FAR)).toBe(0)
-    expect((await plannerRow(W_FAR, FAR)).state).toBe('not_yet_issuable')
+    expect((await plannerRow(W_FAR, FAR)).credentialState).toBe('not_yet_issuable')
 
     // After cutoff with nothing issued: closed.
     const past = await guestPass(W_PAST, PAST)
     expect([past.status, past.body.code, past.body.availability.state]).toEqual([410, 'PASS_ISSUANCE_CLOSED', 'issuance_closed'])
-    expect((await plannerRow(W_PAST, PAST)).state).toBe('issuance_closed')
+    expect((await plannerRow(W_PAST, PAST)).credentialState).toBe('issuance_closed')
 
     // Operator revocation that can no longer be replaced: revoked, not a generic closure.
     await db.$executeRawUnsafe(`UPDATE public."Wedding" SET date = now() + interval '2 days' WHERE id = $1`, W_PAST)
@@ -555,6 +558,6 @@ describeDb('LQR01 global Wedding Pass / QR convergence', () => {
     const revoked = await guestPass(W_PAST, PAST)
     expect([revoked.status, revoked.body.code, revoked.body.availability.state]).toEqual([410, 'PASS_REVOKED', 'revoked'])
     expect(JSON.stringify(revoked.body)).not.toContain('WW2.')
-    expect((await plannerRow(W_PAST, PAST)).state).toBe('revoked')
+    expect((await plannerRow(W_PAST, PAST)).credentialState).toBe('revoked')
   })
 })

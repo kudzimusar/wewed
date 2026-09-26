@@ -57,6 +57,8 @@ export interface WeddingGuestIdentity {
   email: string | null
   tableNumber: number | null
   tableName: string | null
+  /** The SeatingTable identity, only when that table belongs to this wedding. */
+  seatingTableId: string | null
   rsvpToken: string
   attending: boolean | null
   mealChoice: string | null
@@ -208,7 +210,7 @@ export async function resolveGuestSessionForWedding(
           name: true,
           email: true,
           tableNumber: true,
-          seatingTable: { select: { name: true, weddingId: true } },
+          seatingTable: { select: { id: true, name: true, weddingId: true } },
         },
       },
     },
@@ -229,6 +231,7 @@ export async function resolveGuestSessionForWedding(
     email: rsvp.guest.email,
     tableNumber: rsvp.guest.tableNumber,
     tableName: rsvp.guest.seatingTable?.weddingId === wedding.id ? rsvp.guest.seatingTable.name : null,
+    seatingTableId: rsvp.guest.seatingTable?.weddingId === wedding.id ? rsvp.guest.seatingTable.id : null,
     rsvpToken: rsvp.token,
     attending: rsvp.attending,
     mealChoice: rsvp.mealChoice,

@@ -6,14 +6,17 @@ import { Loader2, ShieldCheck, Ticket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import {
-  WEDDING_PASS_ADMIN_STATE_LABEL,
-  type WeddingPassAdminState,
+  WEDDING_ARRIVAL_STATE_LABEL,
+  WEDDING_PASS_CREDENTIAL_STATE_LABEL,
+  type WeddingArrivalState,
+  type WeddingPassCredentialAdminState,
 } from '@/lib/wedding-pass-availability'
 
 interface WeddingPassAdminRow {
   guestId: string
   name: string
-  state: WeddingPassAdminState
+  credentialState: WeddingPassCredentialAdminState
+  arrivalState: WeddingArrivalState
   party: { size: number; attendeeKeys: string[]; plusOneName: string | null }
   table: { number: number | null; name: string | null }
   checkIn: { admittedCount: number; admittedAttendeeKeys: string[] }
@@ -47,7 +50,8 @@ interface ViewedWeddingPass {
 }
 
 // States in which the Guest holds a live credential that may be viewed.
-const VIEWABLE_STATES: ReadonlySet<WeddingPassAdminState> = new Set(['active', 'partially_checked_in', 'checked_in'])
+// Viewing depends on the credential alone; arrival never makes a revoked Pass viewable.
+const VIEWABLE_STATES: ReadonlySet<WeddingPassCredentialAdminState> = new Set(['active'])
 
 function formatDate(value: string | null): string {
   if (!value) return '—'
@@ -153,20 +157,21 @@ export function WeddingPassAdministration() {
         <div className="mt-4 overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm" data-testid="wedding-pass-admin-table">
             <thead className="text-xs uppercase tracking-[0.12em] text-espresso/50">
-              <tr><th className="py-2 pr-3">Guest</th><th className="py-2 pr-3">State</th><th className="py-2 pr-3">Party</th><th className="py-2 pr-3">Table</th><th className="py-2 pr-3">Pass serial</th><th className="py-2 pr-3">Issued</th><th className="py-2 pr-3">Expires</th><th className="py-2" /></tr>
+              <tr><th className="py-2 pr-3">Guest</th><th className="py-2 pr-3">Wedding Pass</th><th className="py-2 pr-3">Arrival</th><th className="py-2 pr-3">Party</th><th className="py-2 pr-3">Table</th><th className="py-2 pr-3">Pass serial</th><th className="py-2 pr-3">Issued</th><th className="py-2 pr-3">Expires</th><th className="py-2" /></tr>
             </thead>
             <tbody>
               {payload?.guests.map((row) => (
                 <tr key={row.guestId} className="border-t border-gold/15" data-testid={`wedding-pass-row-${row.guestId}`}>
                   <td className="py-2 pr-3 font-medium text-espresso">{row.name}</td>
-                  <td className="py-2 pr-3" data-testid="wedding-pass-state" data-state={row.state}>{WEDDING_PASS_ADMIN_STATE_LABEL[row.state]}{row.state === 'partially_checked_in' ? ` (${row.checkIn.admittedCount}/${row.party.size})` : ''}</td>
+                  <td className="py-2 pr-3" data-testid="wedding-pass-state" data-state={row.credentialState}>{WEDDING_PASS_CREDENTIAL_STATE_LABEL[row.credentialState]}</td>
+                  <td className="py-2 pr-3" data-testid="wedding-pass-arrival" data-state={row.arrivalState}>{WEDDING_ARRIVAL_STATE_LABEL[row.arrivalState]}{row.arrivalState === 'not_checked_in' ? '' : ` (${row.checkIn.admittedCount} of ${row.party.size})`}</td>
                   <td className="py-2 pr-3">{row.party.size}</td>
                   <td className="py-2 pr-3">{tableLabel(row)}</td>
                   <td className="py-2 pr-3 font-mono text-xs">{row.credential?.passSerial ?? '—'}{row.credential ? ` · ${row.credential.tokenVersion} #${row.credential.issueSeq}` : ''}</td>
                   <td className="py-2 pr-3 text-xs">{formatDate(row.credential?.issuedAt ?? null)}</td>
                   <td className="py-2 pr-3 text-xs">{formatDate(row.credential?.revokedAt ?? row.credential?.expiresAt ?? null)}</td>
                   <td className="py-2 text-right">
-                    {VIEWABLE_STATES.has(row.state) && row.credential && !row.credential.revokedAt && !row.credential.supersededAt ? (
+                    {VIEWABLE_STATES.has(row.credentialState) && row.credential && !row.credential.revokedAt && !row.credential.supersededAt ? (
                       <Button type="button" size="sm" variant="outline" onClick={() => void viewPass(row.guestId)}>View Wedding Pass</Button>
                     ) : null}
                   </td>

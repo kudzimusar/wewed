@@ -73,6 +73,9 @@ export async function GET(request: NextRequest, { params }: Params) {
       success: true,
       authorized: true,
       wedding: {
+        // Stable identity for live parity (QRO 01 §15): the invitation-bound Guest already receives
+        // this ID from /api/wedding-day/pass. It is an identifier, not a credential.
+        id: wedding.id,
         slug: wedding.slug,
         privacy: wedding.privacy,
         title: wedding.title,
@@ -97,6 +100,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         email: guest.email,
         tableNumber: guest.tableNumber,
         tableName: guest.tableName,
+        seatingTableId: guest.seatingTableId,
       },
       rsvp: {
         attending: guest.attending,

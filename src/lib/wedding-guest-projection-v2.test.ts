@@ -24,18 +24,22 @@ afterEach(() => {
 // this branch can be reviewed and deployed without introducing the Wedding Day domain at all.
 describe('guest-specific server projection', () => {
   test('only current guest seating relationship is selected', async () => {
-    record = { token: identity.rsvpToken, guest: { id: 'guest-a', weddingId: 'wedding', name: 'Synthetic A', tableNumber: 1, seatingTable: { name: 'Acacia', weddingId: 'wedding' } } }
+    record = { token: identity.rsvpToken, guest: { id: 'guest-a', weddingId: 'wedding', name: 'Synthetic A', tableNumber: 1, seatingTable: { id: 'table-acacia', name: 'Acacia', weddingId: 'wedding' } } }
     const value = await resolveGuestSessionForWedding({ id: 'wedding' } as any, session(), fakeDb)
     expect(value?.tableNumber).toBe(1)
     expect(value?.tableName).toBe('Acacia')
+    // Live parity identity (QRO 01 §15): the table's ID travels with its name, under the same rule.
+    expect(value?.seatingTableId).toBe('table-acacia')
     expect(query.where).toEqual({ guestId: 'guest-a' })
-    expect(query.include.guest.select.seatingTable).toEqual({ select: { name: true, weddingId: true } })
+    expect(query.include.guest.select.seatingTable).toEqual({ select: { id: true, name: true, weddingId: true } })
   })
   test('another guest and a cross-wedding table cannot leak', async () => {
-    record = { token: identity.rsvpToken, guest: { id: 'guest-b', weddingId: 'wedding', seatingTable: { name: 'Private B', weddingId: 'wedding' } } }
+    record = { token: identity.rsvpToken, guest: { id: 'guest-b', weddingId: 'wedding', seatingTable: { id: 'table-b', name: 'Private B', weddingId: 'wedding' } } }
     expect(await resolveGuestSessionForWedding({ id: 'wedding' } as any, session(), fakeDb)).toBeNull()
     record.guest.id = 'guest-a'; record.guest.seatingTable.weddingId = 'other'
-    expect((await resolveGuestSessionForWedding({ id: 'wedding' } as any, session(), fakeDb))?.tableName).toBeNull()
+    const crossWedding = await resolveGuestSessionForWedding({ id: 'wedding' } as any, session(), fakeDb)
+    expect(crossWedding?.tableName).toBeNull()
+    expect(crossWedding?.seatingTableId).toBeNull()
   })
   test('rotation rejects guest projection', async () => {
     record = { token: 'rotated', guest: { id: 'guest-a', weddingId: 'wedding' } }

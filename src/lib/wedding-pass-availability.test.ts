@@ -5,9 +5,11 @@ import { readFile } from 'node:fs/promises'
 import {
   ATTENDANCE_WITHDRAWN_REASON,
   GUEST_PASS_AVAILABILITY_COPY,
-  WEDDING_PASS_ADMIN_STATE_LABEL,
+  WEDDING_ARRIVAL_STATE_LABEL,
+  WEDDING_PASS_CREDENTIAL_STATE_LABEL,
   WEDDING_PASS_AVAILABILITY_STATES,
-  resolveWeddingPassAdminState,
+  resolveWeddingArrivalState,
+  resolveWeddingPassCredentialAdminState,
   weddingHouseholdAttendeeKeys,
 } from '@/lib/wedding-pass-availability'
 
@@ -35,7 +37,7 @@ describe('Wedding Pass issuance-window policy (unchanged)', () => {
   })
 
   test('the client-safe admin resolver uses the same window as the server authority', () => {
-    const state = (now: Date) => resolveWeddingPassAdminState({ attending: true, weddingDate: wedding, latest: null, householdSize: 1, admittedCount: 0, now })
+    const state = (now: Date) => resolveWeddingPassCredentialAdminState({ attending: true, weddingDate: wedding, latest: null, now })
     expect(state(at(-14 * DAY - 1))).toBe('not_yet_issuable')
     expect(state(at(-14 * DAY))).toBe('not_yet_issued')
     expect(state(at(DAY))).toBe('not_yet_issued')
@@ -83,8 +85,8 @@ describe('Guest availability state', () => {
 })
 
 describe('Couple/Planner administrative state', () => {
-  const resolve = (input: Partial<Parameters<typeof resolveWeddingPassAdminState>[0]>) =>
-    resolveWeddingPassAdminState({ attending: true, weddingDate: wedding, latest: null, householdSize: 2, admittedCount: 0, now: at(0), ...input })
+  const resolve = (input: Partial<Parameters<typeof resolveWeddingPassCredentialAdminState>[0]>) =>
+    resolveWeddingPassCredentialAdminState({ attending: true, weddingDate: wedding, latest: null, now: at(0), ...input })
 
   test('covers every required administrative state', () => {
     expect(resolve({ attending: null })).toBe('pending_rsvp')
@@ -96,9 +98,20 @@ describe('Couple/Planner administrative state', () => {
     expect(resolve({ latest: lifecycle({ revokedAt: at(0), revocationReason: ATTENDANCE_WITHDRAWN_REASON, supersededAt: at(0) }) })).toBe('superseded')
     expect(resolve({ latest: lifecycle({ supersededAt: at(0) }) })).toBe('superseded')
     expect(resolve({ latest: lifecycle({ expiresAt: at(-1) }) })).toBe('issuance_closed')
-    expect(resolve({ latest: lifecycle(), admittedCount: 1 })).toBe('partially_checked_in')
-    expect(resolve({ latest: lifecycle(), admittedCount: 2 })).toBe('checked_in')
-    for (const label of Object.values(WEDDING_PASS_ADMIN_STATE_LABEL)) expect(label).not.toMatch(/invitation/i)
+    for (const label of Object.values(WEDDING_PASS_CREDENTIAL_STATE_LABEL)) expect(label).not.toMatch(/invitation/i)
+  })
+
+  test('arrival is a separate dimension and never hides the credential state (QRO 01 §19)', () => {
+    expect(resolveWeddingArrivalState({ householdSize: 2, admittedCount: 0 })).toBe('not_checked_in')
+    expect(resolveWeddingArrivalState({ householdSize: 2, admittedCount: 1 })).toBe('partially_checked_in')
+    expect(resolveWeddingArrivalState({ householdSize: 2, admittedCount: 2 })).toBe('checked_in')
+    // "Wedding Pass: Revoked · Arrival: 1 of 2 checked in" — both dimensions remain visible.
+    expect(resolve({ latest: lifecycle({ revokedAt: at(0), revocationReason: 'Lost phone' }) })).toBe('revoked')
+    expect(resolveWeddingArrivalState({ householdSize: 2, admittedCount: 1 })).toBe('partially_checked_in')
+    // The credential resolver cannot even be told about arrival.
+    expect(resolveWeddingPassCredentialAdminState.length).toBe(1)
+    const keys = Object.keys(WEDDING_ARRIVAL_STATE_LABEL)
+    for (const key of Object.keys(WEDDING_PASS_CREDENTIAL_STATE_LABEL)) expect(keys).not.toContain(key)
   })
 
   test('household expansion matches the Gate attendee keys', () => {

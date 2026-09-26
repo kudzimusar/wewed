@@ -4,7 +4,8 @@ import { requireWeddingPermission } from '@/lib/wedding-access'
 import { isWeddingDayWW2Enabled } from '@/lib/wedding-day-feature'
 import { weddingPassIssuanceWindow } from '@/lib/wedding-day'
 import {
-  resolveWeddingPassAdminState,
+  resolveWeddingArrivalState,
+  resolveWeddingPassCredentialAdminState,
   weddingHouseholdAttendeeKeys,
 } from '@/lib/wedding-pass-availability'
 
@@ -95,7 +96,7 @@ export async function GET(request: NextRequest) {
     const household = weddingHouseholdAttendeeKeys(row)
     const admitted = admittedByGuest.get(row.guestId) ?? new Set<string>()
     const admittedAttendeeKeys = household.filter((key) => admitted.has(key))
-    const state = resolveWeddingPassAdminState({
+    const credentialState = resolveWeddingPassCredentialAdminState({
       attending: row.attending,
       weddingDate: wedding.date,
       latest: row.credentialId
@@ -106,14 +107,18 @@ export async function GET(request: NextRequest) {
             expiresAt: row.expiresAt,
           }
         : null,
+      now,
+    })
+    const arrivalState = resolveWeddingArrivalState({
       householdSize: household.length,
       admittedCount: admittedAttendeeKeys.length,
-      now,
     })
     return {
       guestId: row.guestId,
       name: row.name,
-      state,
+      // Two independent dimensions; never one compressed status (QRO 01 §19).
+      credentialState,
+      arrivalState,
       party: {
         size: household.length,
         attendeeKeys: household,

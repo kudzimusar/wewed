@@ -60,7 +60,13 @@ export const GUEST_PASS_AVAILABILITY_COPY: Record<Exclude<WeddingPassAvailabilit
 /** Revocation reason recorded when a Guest's attendance stops being `true`. */
 export const ATTENDANCE_WITHDRAWN_REASON = 'rsvp_attendance_withdrawn'
 
-export type WeddingPassAdminState =
+/**
+ * Couple/Planner view of a Guest's Wedding Pass has two independent dimensions (QRO 01 §19):
+ * the *credential* (is there a valid admission credential?) and *arrival* (how much of the party
+ * has been admitted?). They are never compressed into one status: a revoked Pass whose party is
+ * half admitted is "Wedding Pass: Revoked · Arrival: 1 of 2 checked in", not "Partially checked in".
+ */
+export type WeddingPassCredentialAdminState =
   | 'pending_rsvp'
   | 'declined'
   | 'not_yet_issuable'
@@ -69,18 +75,22 @@ export type WeddingPassAdminState =
   | 'revoked'
   | 'superseded'
   | 'issuance_closed'
-  | 'partially_checked_in'
-  | 'checked_in'
 
-export const WEDDING_PASS_ADMIN_STATE_LABEL: Record<WeddingPassAdminState, string> = {
+export type WeddingArrivalState = 'not_checked_in' | 'partially_checked_in' | 'checked_in'
+
+export const WEDDING_PASS_CREDENTIAL_STATE_LABEL: Record<WeddingPassCredentialAdminState, string> = {
   pending_rsvp: 'Pending RSVP',
   declined: 'Declined',
-  not_yet_issuable: 'Pass not yet issuable',
-  not_yet_issued: 'Pass not yet issued',
-  active: 'Pass active',
-  revoked: 'Pass revoked',
-  superseded: 'Pass superseded',
+  not_yet_issuable: 'Not yet issuable',
+  not_yet_issued: 'Not yet issued',
+  active: 'Active',
+  revoked: 'Revoked',
+  superseded: 'Superseded',
   issuance_closed: 'Issuance closed',
+}
+
+export const WEDDING_ARRIVAL_STATE_LABEL: Record<WeddingArrivalState, string> = {
+  not_checked_in: 'Not checked in',
   partially_checked_in: 'Partially checked in',
   checked_in: 'Checked in',
 }
@@ -119,23 +129,18 @@ export function weddingHouseholdAttendeeKeys(rsvp: {
 }
 
 /**
- * Couple/Planner administrative state for one Guest. Pure: it never issues, never reads a token,
- * and is computed only from RSVP, the Guest's most recent credential lifecycle metadata and Gate
- * check-in rows.
+ * Couple/Planner *credential* state for one Guest. Pure: it never issues, never reads a token, and
+ * is computed only from RSVP and the Guest's most recent credential lifecycle metadata. Arrival
+ * is deliberately not an input: see `resolveWeddingArrivalState`.
  */
-export function resolveWeddingPassAdminState(input: {
+export function resolveWeddingPassCredentialAdminState(input: {
   attending: boolean | null
   weddingDate: Date
   latest: WeddingPassCredentialLifecycle | null
-  householdSize: number
-  admittedCount: number
   now?: Date
-}): WeddingPassAdminState {
+}): WeddingPassCredentialAdminState {
   if (input.attending === null) return 'pending_rsvp'
   if (input.attending === false) return 'declined'
-
-  if (input.householdSize > 0 && input.admittedCount >= input.householdSize) return 'checked_in'
-  if (input.admittedCount > 0) return 'partially_checked_in'
 
   const now = (input.now ?? new Date()).getTime()
   const latest = input.latest
@@ -153,4 +158,14 @@ export function resolveWeddingPassAdminState(input: {
   if (now < anchor - OPENS_BEFORE_MS) return 'not_yet_issuable'
   if (now > anchor + CUTOFF_AFTER_MS) return 'issuance_closed'
   return 'not_yet_issued'
+}
+
+/** Couple/Planner *arrival* state: Gate check-ins against the Guest's canonical household. */
+export function resolveWeddingArrivalState(input: {
+  householdSize: number
+  admittedCount: number
+}): WeddingArrivalState {
+  if (input.admittedCount <= 0) return 'not_checked_in'
+  if (input.householdSize > 0 && input.admittedCount >= input.householdSize) return 'checked_in'
+  return 'partially_checked_in'
 }
