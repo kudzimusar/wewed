@@ -345,3 +345,66 @@ The normal sequence is:
 → `next progressive unit`.
 
 The moderator must not replace the primary implementation agent by implementing the assigned unit first.
+
+
+## Mandatory continuity / follow-up task rule
+
+A moderator review is **not complete** when it ends only with a verdict.
+
+After every implementation, research, certification or environment-agent return, the moderator must do all of the following in the same review cycle:
+
+1. independently review and classify the returned claims;
+2. close any ordinary bounded gap the moderator is authorized to close;
+3. identify the exact next progressive unit from the authoritative programme order;
+4. **write and issue the full next-agent prompt immediately** using this format;
+5. record the next task in repository documentation where the programme uses repository task files;
+6. explicitly state which later phases remain blocked/not released.
+
+The default completion sequence is therefore:
+
+`agent return`
+→ `moderator independent review`
+→ `moderator disposition`
+→ `ordinary closure if needed`
+→ **`next-agent task created + prompt issued immediately`**
+→ `next agent executes`.
+
+The moderator must **not** stop at:
+
+- `ACCEPTED`;
+- `PARTIALLY ACCEPTED`;
+- `NOT PROVEN`;
+- `BLOCKED-ENV`;
+- `BLOCKED-ACTIVATION`;
+- a certification PASS/FAIL;
+
+without also issuing the next actionable task.
+
+### External-blocker exception
+
+The only time a moderator may end without releasing an executable next agent unit is when the next progressive action genuinely requires an external input or authority that no agent can obtain safely, such as:
+
+- owner-provided credentials or invitation material unavailable to any authorized secure source;
+- destructive/live production action requiring owner approval;
+- store/release signing authority;
+- unavailable local signed-device tooling;
+- a genuine architecture/product/security decision requiring the owner.
+
+Even then, the moderator must still issue a **blocker-resolution task/prompt** that states:
+
+- the exact missing input;
+- who/what can supply it;
+- the secure handoff method;
+- what the next agent should do immediately once it becomes available;
+- all safety boundaries that remain frozen.
+
+A moderator must never leave the programme with only “tell me when ready” or “the next step is X.”
+
+### Prompt delivery requirement
+
+Whenever the moderator releases a next progressive unit, the moderator must:
+
+- create/update its repository task file where applicable; **and**
+- include the actual follow-up prompt in the moderator response so it can be handed directly to the next agent without rediscovery.
+
+This continuity rule is part of the moderator operating model and applies to every future Wewed phase unless the owner explicitly overrides it.
