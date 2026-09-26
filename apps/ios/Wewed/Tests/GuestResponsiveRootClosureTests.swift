@@ -195,9 +195,18 @@ final class GuestResponsiveRootClosureTests: XCTestCase {
         )
 
         XCTAssertTrue(pass.contains("public struct WeddingReferencePassView: View"))
+        XCTAssertTrue(pass.contains("GeometryReader { rootProxy in"))
+        XCTAssertTrue(pass.contains("WeddingPassViewportGeometry.boundedViewportWidth"))
+        XCTAssertTrue(pass.contains("NavigationStack {"))
+        XCTAssertTrue(pass.contains("WeddingFloralBackground(opacity: 0.055)"))
+        XCTAssertTrue(pass.contains(".frame(width: viewportWidth, height: rootProxy.size.height)"))
         XCTAssertTrue(pass.contains("WeddingQRCodeView(payload: pass.qrPayload"))
         XCTAssertTrue(pass.contains("ScrollView(.vertical, showsIndicators: false)"))
         XCTAssertTrue(pass.contains("WeddingPassViewportGeometry.cardWidth"))
+        XCTAssertFalse(
+            pass.contains("NavigationStack {\n            ZStack {\n                WeddingFloralBackground"),
+            "screen decoration must not size the NavigationStack before viewport resolution"
+        )
         XCTAssertFalse(pass.contains("ScrollView(.horizontal"))
         XCTAssertFalse(pass.contains("ScrollView([.horizontal"))
     }
