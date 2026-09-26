@@ -28,7 +28,13 @@ import javax.crypto.spec.GCMParameterSpec
  */
 class AndroidKeystoreSecureStorage(
     context: Context,
-    private val preferencesName: String = "wewed_secure_session"
+    private val preferencesName: String = "wewed_secure_session",
+    /**
+     * When true, [save] writes synchronously and throws if the write is not durable. The Wedding Day
+     * offline credential vault uses this so a queued admission is never persisted ahead of the exact
+     * credential it will be reconciled with.
+     */
+    private val durableWrites: Boolean = false
 ) : SecureStorage {
 
     private val prefs = context.getSharedPreferences(preferencesName, Context.MODE_PRIVATE)
@@ -68,7 +74,12 @@ class AndroidKeystoreSecureStorage(
         val packed = ByteArray(iv.size + ciphertext.size)
         iv.copyInto(packed)
         ciphertext.copyInto(packed, iv.size)
-        prefs.edit().putString(key, Base64.encodeToString(packed, Base64.NO_WRAP)).apply()
+        val editor = prefs.edit().putString(key, Base64.encodeToString(packed, Base64.NO_WRAP))
+        if (durableWrites) {
+            check(editor.commit()) { "Secure value could not be written durably." }
+        } else {
+            editor.apply()
+        }
     }
 
     override fun get(key: String): String? {

@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -22,6 +23,7 @@ import pro.wewed.app.models.CheckInStatus
 import pro.wewed.app.models.CheckInVerificationResult
 import pro.wewed.app.models.Guest
 import pro.wewed.app.navigation.GateOperationalContext
+import pro.wewed.app.services.WeddingDayAuthorityStatus
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.theme.WewedColors
 import pro.wewed.app.theme.WewedRadius
@@ -43,6 +45,8 @@ fun UsherScannerScreen(
     var checkInCount by remember { mutableIntStateOf(1) }
     var auditRecords by remember { mutableStateOf<List<CheckInAuditRecord>>(emptyList()) }
     var showAuditDialog by remember { mutableStateOf(false) }
+    // LQR01: age of the cached authority offline admission is checked against. Observability only.
+    var authorityStatus by remember { mutableStateOf<WeddingDayAuthorityStatus?>(null) }
     val scope = rememberCoroutineScope()
 
     fun refreshAudit() {
@@ -51,8 +55,16 @@ fun UsherScannerScreen(
         }
     }
 
+    fun refreshAuthority() {
+        val gate = appViewModel.weddingDayGate ?: return
+        scope.launch {
+            authorityStatus = runCatching { gate.authorityStatus(System.currentTimeMillis()) }.getOrNull()
+        }
+    }
+
     LaunchedEffect(Unit) {
         refreshAudit()
+        refreshAuthority()
     }
 
     Scaffold(
@@ -113,6 +125,7 @@ fun UsherScannerScreen(
                                         context.operatorUserId
                                     )
                                     refreshAudit()
+                                    refreshAuthority()
                                 }
                             }
                         }
@@ -160,6 +173,26 @@ fun UsherScannerScreen(
                             }
                         }
 
+                    }
+                }
+            }
+
+            authorityStatus?.let { status ->
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = WewedSpacing.base, vertical = 8.dp)
+                            .testTag("gate-offline-authority"),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            status.summaryLine(),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (status.isStale || status.isExpired) WewedColors.Warning else Color.Gray
+                        )
+                        Text(WeddingDayAuthorityStatus.CACHED_AUTHORITY_NOTICE, fontSize = 11.sp, color = Color.Gray)
                     }
                 }
             }

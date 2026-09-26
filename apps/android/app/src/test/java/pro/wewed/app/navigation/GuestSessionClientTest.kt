@@ -8,9 +8,12 @@ import org.junit.Test
 import pro.wewed.app.invitation.GuestRsvpRecord
 import pro.wewed.app.invitation.GuestRsvpUpdate
 import pro.wewed.app.invitation.GuestSessionClient
+import pro.wewed.app.invitation.GuestSessionError
 import pro.wewed.app.invitation.GuestSessionException
 import pro.wewed.app.invitation.RsvpSaveResult
+import pro.wewed.app.models.WeddingPassAvailabilityState
 import pro.wewed.app.services.InMemorySecureStorage
+import pro.wewed.app.services.Ww2TestSigner
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.ServerSocket
@@ -51,6 +54,7 @@ class GuestSessionClientTest {
     private val routes = mutableMapOf<String, Reply>()
     private val seenCookies = CopyOnWriteArrayList<String>()
     private val seenBodies = CopyOnWriteArrayList<String>()
+    private val seenPaths = CopyOnWriteArrayList<String>()
     /** "(none)" marks a request that presented no session, so absence is assertable. */
     private val noCookie = "(none)"
 
@@ -85,6 +89,7 @@ class GuestSessionClientTest {
                             if (name == "content-length") length = value.toIntOrNull() ?: 0
                         }
                         seenCookies.add(cookie ?: noCookie)
+                        seenPaths.add("$method $path")
                         val body = if (length > 0) {
                             val buffer = CharArray(length)
                             reader.read(buffer, 0, length)
@@ -498,5 +503,149 @@ class GuestSessionClientTest {
         // A JSON null must read as "not answered", never as the string "null".
         assertNull(snapshot.invitationCardMessage)
         assertNull(snapshot.rsvpDeadline)
+    }
+
+    // --- Wedding Pass (LQR01) ---------------------------------------------------------------
+
+    private val signer = Ww2TestSigner()
+
+    private fun attendingGuestA() {
+        exchangeSucceeds("charity-and-kudzie", "guest_a", "Guest A", guestASession)
+        invitationReads("charity-and-kudzie", "guest_a", "Guest A", true)
+    }
+
+    private fun passReads(token: String, guestId: String = "guest_a") {
+        routes["GET /api/wedding-day/pass"] = Reply(
+            200,
+            """{"success":true,"availability":{"state":"active","code":"PASS_ACTIVE"},""" +
+                """"data":{"id":"pass-1","weddingId":"wedding-1","guestId":"$guestId",""" +
+                """"passSerial":"WWABC1234","tokenVersion":"WW2","token":"$token",""" +
+                """"publicKeyDerBase64":"${signer.publicKeyDerBase64}"}}"""
+        )
+    }
+
+    private fun passRefused(status: Int, state: String, code: String, opensAt: String? = null) {
+        val opens = opensAt?.let { "\"$it\"" } ?: "null"
+        routes["GET /api/wedding-day/pass"] = Reply(
+            status,
+            """{"success":false,"code":"$code","error":"$code",""" +
+                """"availability":{"state":"$state","code":"$code","opensAt":$opens,"cutoffAt":null,"expiresAt":null}}"""
+        )
+    }
+
+    private suspend fun passFailure(): GuestSessionError? =
+        (runCatching { client.loadWeddingPass("guest_a") }.exceptionOrNull() as? GuestSessionException)?.error
+
+    /** The QR a Guest shows is the server-signed WW2 token itself, byte for byte. */
+    @Test
+    fun theWeddingPassQrPayloadIsTheExactSignedWw2Token() = runBlocking {
+        attendingGuestA()
+        client.exchangePrivateInvitation("charity-and-kudzie", rawToken)
+        val token = signer.token("wedts26", "WWABC1234")
+        passReads(token)
+
+        val pass = client.loadWeddingPass("guest_a")
+        assertEquals(token, pass.qrPayload)
+        assertEquals(token, pass.token)
+        assertEquals("wedding-1", pass.weddingId)
+    }
+
+    /** A token that does not verify against the published key is never shown as a pass. */
+    @Test
+    fun aWeddingPassThatFailsVerificationIsRefused() = runBlocking {
+        attendingGuestA()
+        client.exchangePrivateInvitation("charity-and-kudzie", rawToken)
+        val forged = Ww2TestSigner().token("wedts26", "WWABC1234")
+        passReads(forged)
+        assertEquals(GuestSessionError.Unauthorized, passFailure())
+
+        passReads(signer.token("wedts26", "WWABC1234"), guestId = "guest_b")
+        assertEquals(GuestSessionError.Unauthorized, passFailure())
+    }
+
+    /** The server's availability state — not its HTTP status — says why there is no pass. */
+    @Test
+    fun eachNonActiveAvailabilityMapsToItsState() = runBlocking {
+        attendingGuestA()
+        client.exchangePrivateInvitation("charity-and-kudzie", rawToken)
+        val cases = listOf(
+            Triple(403, "rsvp_required", "ATTENDANCE_REQUIRED") to WeddingPassAvailabilityState.RSVP_REQUIRED,
+            Triple(403, "declined", "ATTENDANCE_DECLINED") to WeddingPassAvailabilityState.DECLINED,
+            Triple(409, "not_yet_issuable", "PASS_NOT_YET_ISSUABLE") to WeddingPassAvailabilityState.NOT_YET_ISSUABLE,
+            Triple(410, "issuance_closed", "PASS_ISSUANCE_CLOSED") to WeddingPassAvailabilityState.ISSUANCE_CLOSED,
+            Triple(410, "revoked", "PASS_REVOKED") to WeddingPassAvailabilityState.REVOKED
+        )
+        for ((reply, expected) in cases) {
+            val (status, state, code) = reply
+            val opensAt = if (state == "not_yet_issuable") "2026-12-16T08:00:00.000Z" else null
+            passRefused(status, state, code, opensAt)
+            val failure = passFailure()
+            assertTrue("$state must be PassUnavailable, got $failure", failure is GuestSessionError.PassUnavailable)
+            val availability = (failure as GuestSessionError.PassUnavailable).availability
+            assertEquals(expected, availability.state)
+            assertEquals(state, availability.state.wireValue)
+            assertEquals(code, availability.code)
+            assertEquals(opensAt, availability.opensAt)
+        }
+    }
+
+    /** A revoked pass never yields a WeddingPass, and the session itself is left alone. */
+    @Test
+    fun aRevokedPassNeverYieldsAWeddingPass() = runBlocking {
+        attendingGuestA()
+        client.exchangePrivateInvitation("charity-and-kudzie", rawToken)
+        passRefused(410, "revoked", "PASS_REVOKED")
+
+        val result = runCatching { client.loadWeddingPass("guest_a") }
+        assertTrue(result.isFailure)
+        assertNull(result.getOrNull())
+        assertTrue(client.hasActiveSession())
+    }
+
+    /** Absent or unrecognised availability keeps today's transport error. */
+    @Test
+    fun unrecognisedAvailabilityKeepsTheTransportError() = runBlocking {
+        attendingGuestA()
+        client.exchangePrivateInvitation("charity-and-kudzie", rawToken)
+
+        routes["GET /api/wedding-day/pass"] =
+            Reply(503, """{"success":false,"code":"WEDDING_DAY_DISABLED","error":"WEDDING_DAY_DISABLED"}""")
+        assertEquals(GuestSessionError.Transport(503), passFailure())
+
+        passRefused(410, "archived", "PASS_ARCHIVED")
+        assertEquals(GuestSessionError.Transport(410), passFailure())
+
+        routes["GET /api/wedding-day/pass"] = Reply(500, "<html>error</html>")
+        assertEquals(GuestSessionError.Transport(500), passFailure())
+    }
+
+    /** The local attendance pre-check names the state; another Guest stays unauthorized. */
+    @Test
+    fun theAttendancePreCheckMapsToAvailabilityWithoutAskingForAPass() = runBlocking {
+        exchangeSucceeds("charity-and-kudzie", "guest_a", "Guest A", guestASession)
+        client.exchangePrivateInvitation("charity-and-kudzie", rawToken)
+        passReads(signer.token("wedts26", "WWABC1234"))
+
+        invitationReads("charity-and-kudzie", "guest_a", "Guest A", false)
+        val declined = passFailure()
+        assertEquals(
+            WeddingPassAvailabilityState.DECLINED,
+            (declined as GuestSessionError.PassUnavailable).availability.state
+        )
+
+        invitationReads("charity-and-kudzie", "guest_a", "Guest A", null)
+        val pending = passFailure()
+        assertEquals(
+            WeddingPassAvailabilityState.RSVP_REQUIRED,
+            (pending as GuestSessionError.PassUnavailable).availability.state
+        )
+
+        invitationReads("charity-and-kudzie", "guest_b", "Guest B", true)
+        assertEquals(GuestSessionError.Unauthorized, passFailure())
+
+        assertFalse(
+            "no pass may be requested when the pre-check fails",
+            seenPaths.contains("GET /api/wedding-day/pass")
+        )
     }
 }

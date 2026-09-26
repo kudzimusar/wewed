@@ -13,9 +13,14 @@ import pro.wewed.app.services.FixtureWeddingRepository
 import pro.wewed.app.services.InMemorySecureStorage
 import pro.wewed.app.services.TokenVerificationResult
 import pro.wewed.app.services.TokenVerifier
+import pro.wewed.app.services.Ww2TestSigner
 import pro.wewed.app.state.SessionViewModel
 
 class WewedTests {
+    /** LQR01: offline admission records the exact scanned WW2 credential, never a bare serial. */
+    private val passSigner = Ww2TestSigner()
+    private fun scannedPass(serial: String) = passSigner.token("wedts26", serial)
+
 
     @Test
     fun testTokenParsingValidFormat() {
@@ -239,16 +244,16 @@ class WewedTests {
         store.saveManifest(weddingId, items)
 
         // 1. Valid partial admission (1 of 2)
-        val res1 = store.recordOfflineCheckIn(weddingId, "SERIAL01", 1, "usher_gate")
+        val res1 = store.recordOfflineCheckIn(weddingId, scannedPass("SERIAL01"), 1)
         assertEquals(CheckInStatus.PARTIAL_CHECKED_IN, res1.status)
         assertEquals(1, res1.alreadyCheckedInCount)
 
         // 2. Capacity exceeded (trying to admit 2 more when only 1 spot is left)
-        val res2 = store.recordOfflineCheckIn(weddingId, "SERIAL01", 2, "usher_gate")
+        val res2 = store.recordOfflineCheckIn(weddingId, scannedPass("SERIAL01"), 2)
         assertEquals(CheckInStatus.CAPACITY_EXCEEDED, res2.status)
 
         // 3. Final admission of remaining 1
-        val res3 = store.recordOfflineCheckIn(weddingId, "SERIAL01", 1, "usher_gate")
+        val res3 = store.recordOfflineCheckIn(weddingId, scannedPass("SERIAL01"), 1)
         assertEquals(CheckInStatus.VALID_PASS, res3.status)
         assertEquals(2, res3.alreadyCheckedInCount)
     }
@@ -263,11 +268,12 @@ class WewedTests {
         store.clearManifest(weddingId)
         store.saveManifest(weddingId, items)
 
-        store.recordOfflineCheckIn(weddingId, "SYNC_SERIAL", 2, "usher_offline_1")
+        store.recordOfflineCheckIn(weddingId, scannedPass("SYNC_SERIAL"), 2)
 
         val pending = store.getPendingCheckIns(weddingId)
         assertEquals(1, pending.size)
         assertEquals("SYNC_SERIAL", pending.first().passSerial)
+        assertEquals("ww2.offline.${pending.first().id}", pending.first().credentialRef)
         assertEquals(2, pending.first().count)
         assertFalse(pending.first().synced)
 
@@ -391,12 +397,14 @@ class WewedTests {
             pro.wewed.app.services.GuestManifestItem(id = "g2", serial = "WWMF0104", guestName = "Musarurwa Family", partySize = 4)
         )
 
-        // 1. Manifest downloaded & saved to persistent disk
-        var store = pro.wewed.app.services.OfflineManifestStore(tempDir)
+        // 1. Manifest downloaded & saved to persistent disk. The exact scanned credentials live in
+        // the device vault, which survives a restart just as the durable cache directory does.
+        val vault = InMemorySecureStorage()
+        var store = pro.wewed.app.services.OfflineManifestStore(tempDir, credentialVault = vault)
         store.saveManifest(weddingId, initialItems)
 
         // 2. Network disabled & App terminated/restarted (New store instance initialized from same storage dir)
-        store = pro.wewed.app.services.OfflineManifestStore(tempDir)
+        store = pro.wewed.app.services.OfflineManifestStore(tempDir, credentialVault = vault)
 
         // 3. Manifest still available after app restart
         val loaded = store.getManifest(weddingId)
@@ -404,7 +412,7 @@ class WewedTests {
         assertEquals("Jane & Michael Doe", loaded.first { it.serial == "WWJD0824" }.guestName)
 
         // 4. Guest 1 scanned offline (Admit 2 of 2)
-        val res1 = store.recordOfflineCheckIn(weddingId, "WWJD0824", 2, "gate_usher_1")
+        val res1 = store.recordOfflineCheckIn(weddingId, scannedPass("WWJD0824"), 2)
         assertEquals(CheckInStatus.VALID_PASS, res1.status)
         assertEquals(2, res1.alreadyCheckedInCount)
 
@@ -416,14 +424,18 @@ class WewedTests {
         assertFalse(pending[0].synced)
 
         // 6. Guest 2 scanned offline (Partial arrival: admit 2 of 4)
-        val res2 = store.recordOfflineCheckIn(weddingId, "WWMF0104", 2, "gate_usher_1")
+        val res2 = store.recordOfflineCheckIn(weddingId, scannedPass("WWMF0104"), 2)
         assertEquals(CheckInStatus.PARTIAL_CHECKED_IN, res2.status)
         assertEquals(2, res2.alreadyCheckedInCount)
 
         // App restart simulation while offline (crashed / battery died)
-        store = pro.wewed.app.services.OfflineManifestStore(tempDir)
+        store = pro.wewed.app.services.OfflineManifestStore(tempDir, credentialVault = vault)
         pending = store.getPendingCheckIns(weddingId)
         assertEquals(2, pending.size) // Both queued records survived crash/restart!
+        for (rec in pending) {
+            assertEquals(rec.passSerial, TokenVerifier.parse(vault.get(rec.credentialRef!!)!!)
+                .let { (it as TokenVerificationResult.Success).token.passSerial })
+        }
 
         // 7. Connectivity restored -> queued records synchronize
         for (rec in pending) {
@@ -433,7 +445,7 @@ class WewedTests {
         assertEquals(0, remainingPending.size)
 
         // 8. Duplicates / conflicts reconciled: Duplicate attempt rejected
-        val dupRes = store.recordOfflineCheckIn(weddingId, "WWJD0824", 1, "gate_usher_2")
+        val dupRes = store.recordOfflineCheckIn(weddingId, scannedPass("WWJD0824"), 1)
         assertEquals(CheckInStatus.CAPACITY_EXCEEDED, dupRes.status)
     }
 }

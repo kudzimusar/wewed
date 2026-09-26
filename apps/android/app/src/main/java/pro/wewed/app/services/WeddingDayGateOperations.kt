@@ -9,6 +9,13 @@ interface WeddingDayGateOperations {
     suspend fun checkIn(qrPayload: String, count: Int): CheckInVerificationResult
     suspend fun reconcilePending(): WeddingDaySyncResult
     suspend fun revokePass(passSerial: String, reason: String): WeddingDayRevokeResult
+
+    /**
+     * LQR01 — how old the cached, root-verified authority this device admits against is, at [now]
+     * (epoch millis). Observability only: it never blocks admission or changes the manifest TTL.
+     * Null when no verified manifest is cached or the gate cannot say.
+     */
+    suspend fun authorityStatus(now: Long): WeddingDayAuthorityStatus? = null
 }
 
 /**
@@ -46,20 +53,25 @@ class ManifestBackedWeddingDayGate(
         qrPayload: String,
         count: Int
     ): CheckInVerificationResult {
-        val item = syncService.verifyOfflinePass(
+        syncService.verifyOfflinePass(
             token = qrPayload,
             weddingId = gateContext.weddingId,
             offlineStore = offlineStore,
             trustStore = trustStore
         )
+        // LQR01: the exact scanned credential — not its serial — is what gets queued, so sync can
+        // present it for server re-verification. New records carry no operator authority either;
+        // the server derives the operator from the live grant.
         return offlineStore.recordOfflineCheckIn(
             weddingId = gateContext.weddingId,
-            serial = item.serial,
-            count = count,
-            // Legacy queue schema still has usherId for backward decoding, but new Phase-11A
-            // records carry no operator authority. The server derives operator from the live grant.
-            usherId = ""
+            token = qrPayload,
+            count = count
         )
+    }
+
+    override suspend fun authorityStatus(now: Long): WeddingDayAuthorityStatus? {
+        val trust = trustStore.manifest(gateContext.weddingId) ?: return null
+        return WeddingDayAuthorityStatus.from(trust, now)
     }
 
     override suspend fun reconcilePending(): WeddingDaySyncResult = syncService.syncPendingCheckIns(

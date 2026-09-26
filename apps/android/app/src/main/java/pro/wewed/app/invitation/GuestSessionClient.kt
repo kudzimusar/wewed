@@ -3,6 +3,8 @@ package pro.wewed.app.invitation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import pro.wewed.app.models.WeddingPassAvailability
+import pro.wewed.app.models.WeddingPassAvailabilityState
 import pro.wewed.app.services.SecureStorage
 import java.io.BufferedReader
 import java.net.HttpURLConnection
@@ -109,6 +111,12 @@ sealed interface RsvpSaveResult {
 sealed interface GuestSessionError {
     data object Unauthorized : GuestSessionError
     data class Transport(val status: Int) : GuestSessionError
+
+    /**
+     * LQR01 — the Wedding Pass is not issued for a reason the server named in `availability.state`
+     * (or the attendance pre-check established). Distinct from [Transport]: retrying will not help.
+     */
+    data class PassUnavailable(val availability: WeddingPassAvailability) : GuestSessionError
 }
 
 class GuestSessionException(val error: GuestSessionError) : Exception("guest session unavailable")
@@ -399,7 +407,19 @@ class GuestSessionClient(
 
     suspend fun loadWeddingPass(originGuestId: String): pro.wewed.app.models.WeddingPass = withContext(Dispatchers.IO) {
         val snapshot = loadInternal(null)
-        if (snapshot.guestId != originGuestId || snapshot.attending != true) throw GuestSessionException(GuestSessionError.Unauthorized)
+        if (snapshot.guestId != originGuestId || snapshot.attending != true) {
+            // Another Guest's session learns nothing about this Guest's pass.
+            if (snapshot.guestId != originGuestId) throw GuestSessionException(GuestSessionError.Unauthorized)
+            throw GuestSessionException(
+                GuestSessionError.PassUnavailable(
+                    if (snapshot.attending == false) {
+                        WeddingPassAvailability(WeddingPassAvailabilityState.DECLINED, "ATTENDANCE_DECLINED")
+                    } else {
+                        WeddingPassAvailability(WeddingPassAvailabilityState.RSVP_REQUIRED, "ATTENDANCE_REQUIRED")
+                    }
+                )
+            )
+        }
         val data = guestData("/api/wedding-day/pass")
         val token = data.optString("token")
         if (data.optString("guestId") != originGuestId || !token.startsWith("WW2.") ||
@@ -415,8 +435,30 @@ class GuestSessionClient(
 
     private fun guestData(path: String): JSONObject {
         val response = request("GET", path, null, true)
-        if (response.status != 200 || response.body == null) throw GuestSessionException(GuestSessionError.Transport(response.status))
+        if (response.status != 200 || response.body == null) {
+            // Only the Wedding Pass route answers a refusal with `availability`; its state — never
+            // the HTTP status alone — says why there is no pass. Absent or unrecognised availability
+            // keeps the transport error.
+            refusedPassAvailability(response.body)?.let {
+                throw GuestSessionException(GuestSessionError.PassUnavailable(it))
+            }
+            throw GuestSessionException(GuestSessionError.Transport(response.status))
+        }
         return JSONObject(response.body).getJSONObject("data")
+    }
+
+    /** A recognised, non-active `availability` block from a refused response body, if there is one. */
+    private fun refusedPassAvailability(body: String?): WeddingPassAvailability? {
+        val json = body?.let { runCatching { JSONObject(it) }.getOrNull() } ?: return null
+        val availability = json.optJSONObject("availability") ?: return null
+        val state = WeddingPassAvailabilityState.fromWireValue(availability.optStringOrNull("state"))
+            ?.takeIf { it != WeddingPassAvailabilityState.ACTIVE }
+            ?: return null
+        return WeddingPassAvailability(
+            state = state,
+            code = availability.optStringOrNull("code") ?: json.optStringOrNull("code"),
+            opensAt = availability.optStringOrNull("opensAt")
+        )
     }
 
     private data class Response(

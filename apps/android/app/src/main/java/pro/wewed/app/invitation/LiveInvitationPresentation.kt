@@ -2,6 +2,12 @@ package pro.wewed.app.invitation
 
 import pro.wewed.app.models.InvitationStyle
 import pro.wewed.app.models.RSVPStatus
+import pro.wewed.app.models.WeddingPassAvailability
+import pro.wewed.app.models.WeddingPassAvailabilityState
+import pro.wewed.app.services.parseWeddingDayIsoDate
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 
 /**
  * What the live card renders from.
@@ -105,5 +111,42 @@ data class LiveInvitationPresentation(
                 checkedIn = snapshot.checkedIn,
                 checkedInAt = snapshot.checkedInAt
             )
+    }
+}
+
+/**
+ * LQR01 — the Pass tab's copy when the server has said a Guest's Wedding Pass is not issued now.
+ *
+ * Each availability state gets its own sentence and test tag; anything unrecognised keeps the
+ * generic line. This copy is only ever about the WW2 Wedding Pass — never a Printed or Open
+ * Invitation credential.
+ */
+object WeddingPassAvailabilityCopy {
+    const val GENERIC_UNAVAILABLE = "Your Wedding Pass is unavailable. Please try again later."
+
+    fun message(availability: WeddingPassAvailability?): String = when (availability?.state) {
+        WeddingPassAvailabilityState.NOT_YET_ISSUABLE -> "Your Wedding Pass will be available closer to the wedding."
+        WeddingPassAvailabilityState.ISSUANCE_CLOSED -> "Wedding Pass issuance has closed for this wedding."
+        WeddingPassAvailabilityState.REVOKED ->
+            "This Wedding Pass is no longer valid. Please contact the couple or the wedding team."
+        WeddingPassAvailabilityState.DECLINED -> "You declined this invitation, so no Wedding Pass is issued."
+        WeddingPassAvailabilityState.RSVP_REQUIRED -> "Confirm your attendance to receive your Wedding Pass."
+        WeddingPassAvailabilityState.ACTIVE, null -> GENERIC_UNAVAILABLE
+    }
+
+    fun testTag(availability: WeddingPassAvailability?): String =
+        availability?.state?.takeIf { it != WeddingPassAvailabilityState.ACTIVE }
+            ?.let { "live-guest-pass-state-${it.wireValue}" }
+            ?: "live-guest-pass-unavailable"
+
+    /** "Available from 16 December 2026" for a not-yet-issuable pass whose opening time parses. */
+    fun availableFrom(
+        availability: WeddingPassAvailability,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): String? {
+        if (availability.state != WeddingPassAvailabilityState.NOT_YET_ISSUABLE) return null
+        val opensAt = availability.opensAt?.let(::parseWeddingDayIsoDate) ?: return null
+        val format = SimpleDateFormat("d MMMM yyyy", Locale.US).apply { this.timeZone = timeZone }
+        return "Available from ${format.format(opensAt)}"
     }
 }

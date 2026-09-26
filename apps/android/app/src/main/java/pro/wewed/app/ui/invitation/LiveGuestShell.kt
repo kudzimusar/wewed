@@ -794,12 +794,24 @@ private fun formatWeddingDate(raw: String?): String {
 private fun LiveIssuedGuestPass(profile: LiveInvitationPresentation, coordinator: LiveGuestInvitationCoordinator) {
     var pass by remember(profile.guestId) { mutableStateOf<pro.wewed.app.models.WeddingPass?>(null) }
     var failed by remember(profile.guestId) { mutableStateOf(false) }
+    // LQR01: the server's availability state, when it named one, so the Guest is told why.
+    var availability by remember(profile.guestId) { mutableStateOf<pro.wewed.app.models.WeddingPassAvailability?>(null) }
     LaunchedEffect(profile.guestId) {
         try { pass = coordinator.weddingPass(profile.guestId) }
         catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (error: GuestSessionException) {
+            availability = (error.error as? GuestSessionError.PassUnavailable)?.availability
+            failed = true
+        }
         catch (_: Exception) { failed = true }
     }
     if (pass != null) pro.wewed.app.ui.pass.WeddingReferencePassScreen(onOpenScanner = {}, providedPass = pass, showScanner = false)
-    else if (failed) Text("Your Wedding Pass is unavailable. Please try again later.", modifier = Modifier.padding(20.dp).testTag("live-guest-pass-unavailable"))
+    else if (failed) Column(
+        modifier = Modifier.padding(20.dp).testTag(WeddingPassAvailabilityCopy.testTag(availability)),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(WeddingPassAvailabilityCopy.message(availability))
+        availability?.let { WeddingPassAvailabilityCopy.availableFrom(it) }?.let { Text(it) }
+    }
     else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
 }

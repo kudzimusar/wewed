@@ -3,17 +3,24 @@ package pro.wewed.app.services
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.nio.file.Files
 
 class WeddingDayOfflineTest {
+    private val signer = Ww2TestSigner()
+
     @Test
     fun offlineQueueSurvivesRestartWithExactAttendeeKeys() = runBlocking {
         val dir = Files.createTempDirectory("wewed-android-offline").toFile()
         try {
             val weddingId = "wedding-1"
-            var store = OfflineManifestStore(dir, deviceId = "android-gate-a")
+            // LQR01: the exact scanned credential lives in the secure vault, which (like the
+            // Keystore on a device) outlives the process; the cache directory holds only metadata.
+            val vault = InMemorySecureStorage()
+            val token = signer.token("abc12345", "WWABC1234")
+            var store = OfflineManifestStore(dir, deviceId = "android-gate-a", credentialVault = vault)
             store.saveManifest(
                 weddingId,
                 listOf(
@@ -36,9 +43,8 @@ class WeddingDayOfflineTest {
 
             val result = store.recordOfflineCheckIn(
                 weddingId = weddingId,
-                serial = "WWABC1234",
-                count = 1,
-                usherId = "usher-1"
+                token = token,
+                count = 1
             )
             assertEquals(2, result.alreadyCheckedInCount)
             assertEquals(1, result.remainingCount)
@@ -48,17 +54,21 @@ class WeddingDayOfflineTest {
             assertEquals(listOf("plus-one"), pending.single().attendeeKeys)
             assertEquals("android-gate-a", pending.single().deviceId)
             assertEquals("", pending.single().usherId)
+            val credentialRef = pending.single().credentialRef!!
+            assertEquals(token, vault.get(credentialRef))
 
             // Simulate process death / app restart against the same durable storage directory.
-            store = OfflineManifestStore(dir, deviceId = "android-gate-a")
+            store = OfflineManifestStore(dir, deviceId = "android-gate-a", credentialVault = vault)
             val restoredGuest = store.lookupBySerial(weddingId, "WWABC1234")!!
             assertEquals(listOf("primary", "plus-one"), restoredGuest.checkedInAttendeeKeys)
             pending = store.getPendingCheckIns(weddingId)
             assertEquals(listOf("plus-one"), pending.single().attendeeKeys)
+            assertEquals(credentialRef, pending.single().credentialRef)
             assertFalse(pending.single().synced)
 
             store.markCheckInSynced(pending.single().id)
-            store = OfflineManifestStore(dir, deviceId = "android-gate-a")
+            assertNull("a synced event no longer retains its credential", vault.get(credentialRef))
+            store = OfflineManifestStore(dir, deviceId = "android-gate-a", credentialVault = vault)
             assertTrue(store.getPendingCheckIns(weddingId).isEmpty())
         } finally {
             dir.deleteRecursively()
@@ -69,7 +79,15 @@ class WeddingDayOfflineTest {
     fun revokedManifestCredentialIsRejectedOffline() = runBlocking {
         val dir = Files.createTempDirectory("wewed-android-revoked").toFile()
         try {
-            val store = OfflineManifestStore(dir)
+            val savedKeys = mutableListOf<String>()
+            val backing = InMemorySecureStorage()
+            val vault = object : SecureStorage by backing {
+                override fun save(key: String, value: String) {
+                    savedKeys += key
+                    backing.save(key, value)
+                }
+            }
+            val store = OfflineManifestStore(dir, credentialVault = vault)
             store.saveManifest(
                 "wedding-1",
                 listOf(
@@ -85,9 +103,11 @@ class WeddingDayOfflineTest {
                 )
             )
 
-            val result = store.recordOfflineCheckIn("wedding-1", "WWREVOKED", 1, "usher-1")
+            val result = store.recordOfflineCheckIn("wedding-1", signer.token("abc12345", "WWREVOKED"), 1)
             assertEquals(pro.wewed.app.models.CheckInStatus.INVALID_PASS, result.status)
             assertTrue(store.getPendingCheckIns("wedding-1").isEmpty())
+            // A refused scan never retains the credential either.
+            assertTrue(savedKeys.isEmpty())
         } finally {
             dir.deleteRecursively()
         }
@@ -236,7 +256,8 @@ class WeddingDayOfflineTest {
                 )
             )
         )
-        store.recordOfflineCheckIn("wedding-1", "WWABC1234", 1, "must-not-persist")
+        val token = signer.token("abc12345", "WWABC1234")
+        store.recordOfflineCheckIn("wedding-1", token, 1)
 
         val trustStore = WeddingDayManifestTrustStore()
         trustStore.save(
@@ -273,11 +294,12 @@ class WeddingDayOfflineTest {
 
         assertEquals(1, result.syncedIds.size)
         assertTrue(postedPath.contains("grantId=gate_operator:wedding-1:gate-1"))
-        assertTrue(postedBody.contains("\"passSerial\""))
+        // LQR01: the exact scanned credential is the admission claim; a serial alone never is.
+        assertEquals(token, org.json.JSONObject(postedBody).getString("token"))
         assertTrue(postedBody.contains("\"attendeeKeys\""))
         assertTrue(postedBody.contains("\"clientEventId\""))
         assertTrue(postedBody.contains("\"deviceId\""))
-        for (forbidden in listOf("guestId", "weddingId", "gateId", "usherId", "operatorUserId", "source", "eventKey")) {
+        for (forbidden in listOf("passSerial", "guestId", "weddingId", "gateId", "usherId", "operatorUserId", "source", "eventKey")) {
             assertFalse("offline sync must not submit $forbidden", postedBody.contains("\"$forbidden\""))
         }
     }
@@ -358,9 +380,8 @@ class WeddingDayOfflineTest {
         store.markPassRevoked("wedding-1", "WWLOCALREVOKE")
         val result = store.recordOfflineCheckIn(
             "wedding-1",
-            "WWLOCALREVOKE",
-            1,
-            ""
+            signer.token("abc12345", "WWLOCALREVOKE"),
+            1
         )
         assertEquals(pro.wewed.app.models.CheckInStatus.INVALID_PASS, result.status)
         assertTrue(store.getPendingCheckIns("wedding-1").isEmpty())

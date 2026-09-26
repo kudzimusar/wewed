@@ -1,5 +1,6 @@
 package pro.wewed.app.services
 
+import android.content.Context
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import pro.wewed.app.models.CheckInStatus
@@ -36,6 +37,10 @@ data class GuestManifestItem(
 
 /**
  * A gate check-in record queued locally while offline, awaiting idempotent server sync.
+ *
+ * [passSerial] is for display and lookup only; it is never an admission claim. LQR01 records carry
+ * [credentialRef] — the secure-vault key under which the exact scanned WW2 token is held — and the
+ * token itself is never part of this record or of the durable cache it is persisted to.
  */
 data class QueuedCheckIn(
     val id: String = UUID.randomUUID().toString(),
@@ -47,8 +52,43 @@ data class QueuedCheckIn(
     val usherId: String,
     var synced: Boolean = false,
     val attendeeKeys: List<String> = emptyList(),
-    val deviceId: String? = null
+    val deviceId: String? = null,
+    /** Vault key (`ww2.offline.<id>`) of the exact scanned token. Null for pre-LQR01 records. */
+    val credentialRef: String? = null,
+    /** Set when the server terminally rejected the event; a rejected event is no longer pending. */
+    val rejectionCode: String? = null
 )
+
+/**
+ * How a queued check-in can be reconciled. Only [EXACT_CREDENTIAL] is ever sent to the server; every
+ * other class is reported as blocked, never sent, never silently trusted, and left visible for
+ * operator resolution.
+ */
+enum class QueuedCheckInReconciliation {
+    /** Attendee keys present and the vault still holds a WW2 token for this record's serial. */
+    EXACT_CREDENTIAL,
+
+    /** Pre-v2 count-only event: no attendee keys, so it can never be replayed as a whole household. */
+    LEGACY_COUNT_ONLY,
+
+    /** Pre-LQR01 event: attendee keys but no retained credential. It can never become trusted. */
+    LEGACY_SERIAL_ONLY,
+
+    /** A credential was retained, but the vault no longer yields a matching WW2 token (wiped/reinstalled). */
+    CREDENTIAL_UNAVAILABLE;
+
+    companion object {
+        fun classify(record: QueuedCheckIn, storedToken: String?): QueuedCheckInReconciliation {
+            if (record.attendeeKeys.isEmpty()) return LEGACY_COUNT_ONLY
+            if (record.credentialRef == null) return LEGACY_SERIAL_ONLY
+            if (storedToken == null || !storedToken.startsWith("WW2.")) return CREDENTIAL_UNAVAILABLE
+            val parsed = (TokenVerifier.parse(storedToken) as? TokenVerificationResult.Success)?.token
+                ?: return CREDENTIAL_UNAVAILABLE
+            if (parsed.version != "WW2" || parsed.passSerial != record.passSerial) return CREDENTIAL_UNAVAILABLE
+            return EXACT_CREDENTIAL
+        }
+    }
+}
 
 /**
  * Interface defining offline manifest storage and sync queue operations.
@@ -57,9 +97,28 @@ interface OfflineManifestStoreProtocol {
     suspend fun saveManifest(weddingId: String, items: List<GuestManifestItem>)
     suspend fun getManifest(weddingId: String): List<GuestManifestItem>
     suspend fun lookupBySerial(weddingId: String, serial: String): GuestManifestItem?
-    suspend fun recordOfflineCheckIn(weddingId: String, serial: String, count: Int, usherId: String): CheckInVerificationResult
+
+    /**
+     * Admits against the cached manifest using the exact scanned WW2 [token], which the caller has
+     * already verified. The token is retained only in the secure credential vault, so the queued
+     * event can later be reconciled by presenting that same credential to the server.
+     */
+    suspend fun recordOfflineCheckIn(weddingId: String, token: String, count: Int): CheckInVerificationResult
+
+    /** Queued events still awaiting reconciliation: not synced and not terminally rejected. */
     suspend fun getPendingCheckIns(weddingId: String): List<QueuedCheckIn>
+
+    /** Marks the event synced and drops its retained credential. */
     suspend fun markCheckInSynced(id: String)
+
+    /** Records a terminal server rejection and drops the retained credential; the event is never resent. */
+    suspend fun markCheckInRejected(id: String, code: String) {
+        throw UnsupportedOperationException("Offline store does not support terminal rejection")
+    }
+
+    /** The exact token retained for [record], or null when none is (or can be) retained. Fails closed. */
+    suspend fun credential(record: QueuedCheckIn): String? = null
+
     suspend fun markPassRevoked(weddingId: String, serial: String) {
         throw UnsupportedOperationException("Offline store does not support local pass revocation")
     }
@@ -72,10 +131,17 @@ interface OfflineManifestStoreProtocol {
  * V2 persistence is deliberately line-oriented and dependency-free so JVM tests and Android
  * devices use the exact same durable format. Existing JSON snapshots produced by the original
  * implementation are still read once and are rewritten as V2 on the next mutation.
+ *
+ * LQR01 — queue metadata lives in the ordinary durable cache under [storageDir]; the bearer WW2
+ * token of each queued admission lives only in [credentialVault], keyed by the record's
+ * `credentialRef`. If the vault loses a token (keystore invalidated, app reinstalled), the event
+ * becomes [QueuedCheckInReconciliation.CREDENTIAL_UNAVAILABLE] and fails closed. The default vault
+ * is in-memory so JVM tests stay hermetic; production must use [deviceProtected].
  */
 class OfflineManifestStore(
     private val storageDir: File? = null,
-    private val deviceId: String = "android-wedding-day"
+    private val deviceId: String = "android-wedding-day",
+    private val credentialVault: SecureStorage = InMemorySecureStorage()
 ) : OfflineManifestStoreProtocol {
     private val mutex = Mutex()
     private val manifests = mutableMapOf<String, MutableMap<String, GuestManifestItem>>()
@@ -131,6 +197,9 @@ class OfflineManifestStore(
                 }
                 "Q" -> if (parts.size >= 12) {
                     val weddingId = decode(parts[1])
+                    // V3 appends credentialRef and rejectionCode after the V2 columns; a 12-column
+                    // V2 line is a pre-LQR01 record and keeps both null.
+                    val isV3 = parts.size >= 15 && parts[14] == "v3"
                     val queued = QueuedCheckIn(
                         id = decode(parts[2]),
                         weddingId = weddingId,
@@ -141,7 +210,9 @@ class OfflineManifestStore(
                         usherId = decode(parts[7]),
                         synced = parts[8].toBoolean(),
                         attendeeKeys = decodeList(parts[9]),
-                        deviceId = decodeNullable(parts[10])
+                        deviceId = decodeNullable(parts[10]),
+                        credentialRef = if (isV3) decodeNullable(parts[12]) else null,
+                        rejectionCode = if (isV3) decodeNullable(parts[13]) else null
                     )
                     syncQueues.getOrPut(weddingId) { mutableListOf() }.add(queued)
                 }
@@ -226,10 +297,24 @@ class OfflineManifestStore(
 
     override suspend fun recordOfflineCheckIn(
         weddingId: String,
-        serial: String,
-        count: Int,
-        usherId: String
+        token: String,
+        count: Int
     ): CheckInVerificationResult = mutex.withLock {
+        val parsed = (TokenVerifier.parse(token) as? TokenVerificationResult.Success)?.token
+        if (parsed == null || parsed.version != "WW2") {
+            return@withLock CheckInVerificationResult(
+                status = CheckInStatus.INVALID_PASS,
+                guestName = "Unknown Guest",
+                householdName = null,
+                partySize = 0,
+                alreadyCheckedInCount = 0,
+                remainingCount = 0,
+                tableNumber = null,
+                tableName = null,
+                gateMessage = "Scanned code is not a Wedding Pass"
+            )
+        }
+        val serial = parsed.passSerial
         val weddingMap = manifests[weddingId]
         val item = weddingMap?.get(serial)
 
@@ -289,9 +374,30 @@ class OfflineManifestStore(
             checkedInCount = newCheckedKeys.size,
             checkedInAttendeeKeys = newCheckedKeys
         )
+
+        val queueId = UUID.randomUUID().toString()
+        val credentialRef = credentialKey(queueId)
+        // The exact credential is secured BEFORE anything is admitted or queued. A vault that cannot
+        // hold it admits nobody: an event that could never be reconciled must not be created.
+        try {
+            credentialVault.save(credentialRef, token)
+        } catch (_: Exception) {
+            return@withLock CheckInVerificationResult(
+                status = CheckInStatus.INVALID_PASS,
+                guestName = item.guestName,
+                householdName = null,
+                partySize = item.partySize,
+                alreadyCheckedInCount = checkedKeys.size,
+                remainingCount = remainingKeys.size,
+                tableNumber = null,
+                tableName = item.tableAssignment,
+                gateMessage = "This device could not secure the scanned pass; admission was not recorded"
+            )
+        }
         weddingMap[serial] = updated
 
         val queued = QueuedCheckIn(
+            id = queueId,
             weddingId = weddingId,
             passSerial = serial,
             guestId = item.id,
@@ -300,7 +406,8 @@ class OfflineManifestStore(
             // decode. New queue entries never persist operator authority.
             usherId = "",
             attendeeKeys = admittedKeys,
-            deviceId = deviceId
+            deviceId = deviceId,
+            credentialRef = credentialRef
         )
         syncQueues.getOrPut(weddingId) { mutableListOf() }.add(queued)
         persistState()
@@ -324,17 +431,35 @@ class OfflineManifestStore(
     }
 
     override suspend fun getPendingCheckIns(weddingId: String): List<QueuedCheckIn> = mutex.withLock {
-        syncQueues[weddingId]?.filter { !it.synced } ?: emptyList()
+        syncQueues[weddingId]?.filter { !it.synced && it.rejectionCode == null } ?: emptyList()
     }
 
     override suspend fun markCheckInSynced(id: String) = mutex.withLock {
         for ((_, queue) in syncQueues) {
             val index = queue.indexOfFirst { it.id == id }
             if (index >= 0) {
+                queue[index].credentialRef?.let(credentialVault::delete)
                 queue[index] = queue[index].copy(synced = true)
             }
         }
         persistState()
+    }
+
+    override suspend fun markCheckInRejected(id: String, code: String) = mutex.withLock {
+        for ((_, queue) in syncQueues) {
+            val index = queue.indexOfFirst { it.id == id }
+            if (index >= 0) {
+                queue[index].credentialRef?.let(credentialVault::delete)
+                queue[index] = queue[index].copy(rejectionCode = code)
+            }
+        }
+        persistState()
+    }
+
+    override suspend fun credential(record: QueuedCheckIn): String? {
+        // Only this record's own vault key is ever read, whatever the cache file claims.
+        val ref = record.credentialRef?.takeIf { it == credentialKey(record.id) } ?: return null
+        return credentialVault.get(ref)
     }
 
     override suspend fun markPassRevoked(weddingId: String, serial: String) = mutex.withLock {
@@ -348,7 +473,9 @@ class OfflineManifestStore(
 
     override suspend fun clearManifest(weddingId: String) = mutex.withLock {
         manifests.remove(weddingId)
-        syncQueues.remove(weddingId)
+        syncQueues.remove(weddingId)?.forEach { queued ->
+            queued.credentialRef?.let(credentialVault::delete)
+        }
         persistState()
     }
 
@@ -412,7 +539,10 @@ class OfflineManifestStore(
                     item.synced.toString(),
                     encodeList(item.attendeeKeys),
                     encodeNullable(item.deviceId),
-                    "v2"
+                    "v2",
+                    encodeNullable(item.credentialRef),
+                    encodeNullable(item.rejectionCode),
+                    "v3"
                 ).joinToString("|")
             }
         }
@@ -422,6 +552,29 @@ class OfflineManifestStore(
     companion object {
         private const val V2_HEADER = "WEWED_OFFLINE_V2\n"
         private const val LIST_SEPARATOR = "\u001f"
+
+        /** SharedPreferences file of the Keystore-backed vault holding queued WW2 credentials. */
+        const val OFFLINE_CREDENTIALS_PREFERENCES = "wewed_wedding_day_offline_credentials"
+
+        /**
+         * The production store: queue metadata in [storageDir], each queued WW2 token in an Android
+         * Keystore-protected vault ([AndroidKeystoreSecureStorage], AES-GCM with a non-exportable key).
+         */
+        fun deviceProtected(
+            context: Context,
+            storageDir: File,
+            deviceId: String = "android-wedding-day"
+        ): OfflineManifestStore = OfflineManifestStore(
+            storageDir = storageDir,
+            deviceId = deviceId,
+            credentialVault = AndroidKeystoreSecureStorage(
+                context.applicationContext,
+                OFFLINE_CREDENTIALS_PREFERENCES,
+                durableWrites = true
+            )
+        )
+
+        private fun credentialKey(queueId: String): String = "ww2.offline.$queueId"
 
         private fun defaultAttendeeKeys(partySize: Int): List<String> {
             if (partySize <= 0) return emptyList()

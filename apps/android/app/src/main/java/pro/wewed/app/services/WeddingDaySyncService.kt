@@ -89,10 +89,15 @@ sealed class WeddingDaySyncException(message: String) : Exception(message) {
     object PassSignatureInvalid : WeddingDaySyncException("Pass signature is invalid")
 }
 
+/**
+ * [failedIds] stay pending and are retried; [blockedLegacyIds] are never sent (no exact credential);
+ * [rejectedIds] were terminally refused by the server and are never resent.
+ */
 data class WeddingDaySyncResult(
     val syncedIds: List<String>,
     val failedIds: List<String>,
-    val blockedLegacyIds: List<String>
+    val blockedLegacyIds: List<String>,
+    val rejectedIds: List<String> = emptyList()
 )
 
 private data class ManifestApiEnvelope(
@@ -321,6 +326,7 @@ class WeddingDaySyncService(
         val synced = mutableListOf<String>()
         val failed = mutableListOf<String>()
         val legacy = mutableListOf<String>()
+        val rejected = mutableListOf<String>()
 
         val path = if (grantId != null) {
             "/api/native/gate/wedding-day/check-in?grantId=${grantId}"
@@ -337,16 +343,21 @@ class WeddingDaySyncService(
         }
 
         for (record in pending) {
-            if (record.attendeeKeys.isEmpty()) {
-                // Never reinterpret a legacy count-only event as "admit whole household".
+            val token = offlineStore.credential(record)
+            if (token == null ||
+                QueuedCheckInReconciliation.classify(record, token) != QueuedCheckInReconciliation.EXACT_CREDENTIAL
+            ) {
+                // Never reinterpret a legacy count-only event as "admit whole household", and never
+                // turn a serial into an admission claim: without the exact scanned credential the
+                // event is blocked for operator resolution.
                 legacy += record.id
                 continue
             }
             // Wedding, Gate, operator, source and canonical event are all server-derived
-            // from the freshly revalidated operational grant. Offline storage contributes only
-            // operation identity/data.
+            // from the freshly revalidated operational grant. The server re-verifies the exact
+            // scanned token; offline storage contributes only that credential and operation data.
             val body = linkedMapOf<String, Any>(
-                "passSerial" to record.passSerial,
+                "token" to token,
                 "attendeeKeys" to record.attendeeKeys,
                 "clientEventId" to record.id
             )
@@ -358,18 +369,34 @@ class WeddingDaySyncService(
                     headers,
                     gson.toJson(body)
                 )
-                if (response.status in 200..299) {
-                    offlineStore.markCheckInSynced(record.id)
-                    synced += record.id
-                } else {
-                    failed += record.id
+                val terminalCode = if (response.status == 400) terminalRejectionCode(response.body) else null
+                when {
+                    response.status in 200..299 -> {
+                        offlineStore.markCheckInSynced(record.id)
+                        synced += record.id
+                    }
+                    terminalCode != null -> {
+                        offlineStore.markCheckInRejected(record.id, terminalCode)
+                        rejected += record.id
+                    }
+                    else -> failed += record.id
                 }
             } catch (_: Exception) {
                 failed += record.id
             }
         }
 
-        return WeddingDaySyncResult(synced, failed, legacy)
+        return WeddingDaySyncResult(synced, failed, legacy, rejected)
+    }
+
+    /** The server's code when it names a terminal rejection; anything else is retryable. */
+    private fun terminalRejectionCode(body: String): String? {
+        val envelope = try {
+            gson.fromJson(body, WeddingDayMutationEnvelope::class.java)
+        } catch (_: Exception) {
+            null
+        }
+        return (envelope?.code ?: envelope?.error)?.takeIf { it in TERMINAL_CHECK_IN_REJECTION_CODES }
     }
 
     suspend fun revokePass(
@@ -417,22 +444,45 @@ class WeddingDaySyncService(
         }
     }
 
-    private fun parseIsoDate(value: String): Date? {
-        val patterns = listOf(
-            "yyyy-MM-dd'T'HH:mm:ss.SSSX",
-            "yyyy-MM-dd'T'HH:mm:ssX"
+    private fun parseIsoDate(value: String): Date? = parseWeddingDayIsoDate(value)
+
+    companion object {
+        /**
+         * Server codes that terminally reject an offline check-in (HTTP 400). Such an event is
+         * recorded as rejected and never resent; every other failure is retryable.
+         */
+        val TERMINAL_CHECK_IN_REJECTION_CODES: Set<String> = setOf(
+            "PASS_NOT_FOUND",
+            "PASS_REVOKED_OR_EXPIRED",
+            "INVALID_PASS_TOKEN",
+            "PASS_WEDDING_MISMATCH",
+            "PASS_EVENT_NOT_PERMITTED",
+            "PASS_SIGNATURE_INVALID",
+            "PASS_CREDENTIAL_MISMATCH",
+            "PASS_TOKEN_REQUIRED",
+            "SERIAL_ONLY_ADMISSION_UNSUPPORTED",
+            "GUEST_INELIGIBLE",
+            "INVALID_ATTENDEE_KEY"
         )
-        for (pattern in patterns) {
-            try {
-                val formatter = SimpleDateFormat(pattern, Locale.US)
-                formatter.timeZone = TimeZone.getTimeZone("UTC")
-                formatter.isLenient = false
-                val parsed = formatter.parse(value)
-                if (parsed != null) return parsed
-            } catch (_: Exception) {
-                // Try the next ISO-8601 representation.
-            }
-        }
-        return null
     }
+}
+
+/** Parses the ISO-8601 UTC timestamps the Wedding Day APIs emit, with or without milliseconds. */
+internal fun parseWeddingDayIsoDate(value: String): Date? {
+    val patterns = listOf(
+        "yyyy-MM-dd'T'HH:mm:ss.SSSX",
+        "yyyy-MM-dd'T'HH:mm:ssX"
+    )
+    for (pattern in patterns) {
+        try {
+            val formatter = SimpleDateFormat(pattern, Locale.US)
+            formatter.timeZone = TimeZone.getTimeZone("UTC")
+            formatter.isLenient = false
+            val parsed = formatter.parse(value)
+            if (parsed != null) return parsed
+        } catch (_: Exception) {
+            // Try the next ISO-8601 representation.
+        }
+    }
+    return null
 }

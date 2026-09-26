@@ -28,6 +28,30 @@ data class WeddingPass(
     val qrPayload: String
 )
 
+/**
+ * LQR01 — why the server is not issuing a Guest's Wedding Pass right now. Wire values match the
+ * `availability.state` of `GET /api/wedding-day/pass` exactly.
+ */
+enum class WeddingPassAvailabilityState(val wireValue: String) {
+    RSVP_REQUIRED("rsvp_required"),
+    DECLINED("declined"),
+    NOT_YET_ISSUABLE("not_yet_issuable"),
+    ACTIVE("active"),
+    ISSUANCE_CLOSED("issuance_closed"),
+    REVOKED("revoked");
+
+    companion object {
+        fun fromWireValue(value: String?): WeddingPassAvailabilityState? = entries.firstOrNull { it.wireValue == value }
+    }
+}
+
+/** The server's `availability` block. [opensAt] is the ISO-8601 string exactly as the server sent it. */
+data class WeddingPassAvailability(
+    val state: WeddingPassAvailabilityState,
+    val code: String?,
+    val opensAt: String? = null
+)
+
 data class CheckInAuditRecord(
     val id: String = UUID.randomUUID().toString(),
     val passSerial: String,

@@ -168,6 +168,8 @@ class LiveGuestInvitationCoordinator(
                 // whoever was active before.
                 is GuestSessionError.Unauthorized -> LiveInvitationState.Refused(null)
                 is GuestSessionError.Transport -> LiveInvitationState.Unavailable(reason.status)
+                // Raised only by the Wedding Pass read, never by an exchange.
+                is GuestSessionError.PassUnavailable -> LiveInvitationState.Unavailable(null)
             }
         }
         return load(identity.weddingSlug)
@@ -183,6 +185,8 @@ class LiveGuestInvitationCoordinator(
             when (val reason = error.error) {
                 is GuestSessionError.Unauthorized -> LiveInvitationState.Refused(null)
                 is GuestSessionError.Transport -> LiveInvitationState.Unavailable(reason.status)
+                // Raised only by the Wedding Pass read, never by an invitation read.
+                is GuestSessionError.PassUnavailable -> LiveInvitationState.Unavailable(null)
             }
         }
     }
@@ -250,6 +254,8 @@ class LiveGuestInvitationCoordinator(
                     RsvpEditorPreparation.ReopenRequired
                 }
                 is GuestSessionError.Transport -> RsvpEditorPreparation.Unavailable(reason.status)
+                // Raised only by the Wedding Pass read, never by an invitation read.
+                is GuestSessionError.PassUnavailable -> RsvpEditorPreparation.Unavailable(null)
             }
         }
 
