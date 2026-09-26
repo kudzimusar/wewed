@@ -5264,3 +5264,54 @@ Native renderers:
 The generic web `DigitalInvitationCard(... compact)` tile must not be used as parity/canonical evidence for this invitation.
 
 INV-CANON01 has been corrected accordingly. All later invitation convergence and UAT must target the approved native floral stationery object, not merely a style name or flat catalogue card.
+
+
+### D-078 — INV-CANON01 activation and production promotion moderator review (2026-09-27)
+**MODERATOR REVIEW — ACCEPTED FOR CANONICAL WEB SOURCE + PRODUCTION PROMOTION; LIVE IVORY ACTIVATION ACCEPTED TO AVAILABLE RUNTIME EVIDENCE; FINAL FOUR-CLIENT IVORY PARITY STILL REQUIRES INDEPENDENT CERTIFICATION.**
+
+Independent moderator verification confirmed:
+- canonical branch `closure/inv-canon01-planner-canonical-ivory-20260927` = `04ce1d7000e8dbda98fcf61cc786c52e30a0cca4`;
+- `main@ba4b08f8... -> 04ce1d70...` is exactly one commit and four files:
+  - `src/components/wedding/invitation-experience/premium-invitation-studio.tsx`;
+  - `src/components/wedding/invitation-manager.tsx`;
+  - `src/lib/canonical-invitation.test.ts`;
+  - `tests/e2e/premium-digital-invitation.spec.ts`;
+- the Ivory catalogue tile is now explicitly the approved `/invitation-art/ivory/closed-master.webp` artwork, while the other 11 tiles retain the generic catalogue renderer;
+- the selected interactive Ivory preview remains routed to the dedicated `IvoryFloralGoldTriFold`, not `GenericMotionCard`;
+- read-only Preview behavior on `423 PREVIEW_WRITE_BLOCKED` is handled without hiding the studio;
+- Vercel Preview `dpl_Ef86Vfme1tw2xwrifMzgmNzbDMMY` is READY and serves exact `04ce1d70...`;
+- production runtime independently shows exactly one authorized `PUT /api/planner/guests/invitations -> 200` at 2026-09-26 21:24:31 UTC, bracketed by GETs; no PATCH token-rotation request is present in that qualification window;
+- production route semantics prove a successful PUT transaction updates invitation style/message/deadline/children policy atomically and writes its audit event; PATCH is the separate token-rotation route;
+- the agent's before/after value snapshot and unchanged token digest remain implementation evidence rather than an independently re-read database snapshot;
+- the NLC01 native closure source independently contains the iOS and Android revision-key fix that prevents consuming a pending invitation entry from cancelling its own exchange;
+- NLC01 also contains actor-specific parity client requirements and a separate `BLOCKED-ACTIVATION` run blocker instead of falsifying `passAvailability`.
+
+Moderator production action:
+- opened PR #217 from `closure/inv-canon01-planner-canonical-ivory-20260927` to `main`;
+- verified PR #217 is exactly the four-file / one-commit candidate;
+- merged PR #217;
+- production `main` is now `646f08421d778cf6f85bf12195581228ae3fbccc`;
+- Vercel production deployment `dpl_ApFS83c3F2MtqNFvCQEF8Pdg1UwL` is READY, source `main@646f0842...`, with aliases `wewed.pro` and `www.wewed.pro`.
+
+Moderator integration action:
+- opened PR #218 from `closure/phase13-qro02b-native-entry-parity-nlc01-20260927` into `integration/phase13-live-account-data-convergence-20260926`;
+- verified it is mergeable and contains the NLC01 native-entry/parity closure;
+- merged PR #218;
+- active Phase 13 integration head is now `ba38a3624581899a4999ac8d221346ec11a1f504`.
+
+Classification:
+- canonical web source delta: **ACCEPTED**;
+- canonical Preview deployment identity: **ACCEPTED**;
+- production one-write event: **ACCEPTED**;
+- exact live post-write wedding field snapshot / token digest: **PARTIALLY ACCEPTED (agent evidence; no contrary evidence)**;
+- approved Ivory native dispatch/source: **ACCEPTED by source inspection**;
+- agent-reported native visible UAT: **PARTIALLY ACCEPTED / NOT independently certified**;
+- live Planner production promotion: **ACCEPTED and DEPLOYED**;
+- QRO02B1 source closure: **ACCEPTED for integration, pending final runtime certification**;
+- Wedding Day remains **BLOCKED-ACTIVATION**.
+
+QRO03 remains unreleased.
+
+**Next progressive unit: QRO02B2 / CERT02 — FINAL INDEPENDENT CHARITY & KUDZIE IVORY LIVE PARITY CERTIFICATION.**
+
+The certifier must use the integrated NLC01 source and the now-live `ivory-floral-gold` Charity & Kudzie authority, perform no product patching and no wedding business-data writes, and prove the real Guest/Planner authority across web/native API/iOS/Android. Only after moderator acceptance of that certification may QRO03 be released.
