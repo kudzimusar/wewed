@@ -4,6 +4,12 @@ import { useEffect, useState } from 'react'
 import qrcode from 'qrcode'
 import { Loader2, QrCode, ShieldCheck } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import {
+  GUEST_PASS_AVAILABILITY_COPY,
+  isWeddingPassAvailabilityState,
+  type WeddingPassAvailability,
+  type WeddingPassAvailabilityState,
+} from '@/lib/wedding-pass-availability'
 
 interface WeddingPassData {
   weddingId: string
@@ -26,16 +32,25 @@ interface WeddingPassResponse {
   data?: WeddingPassData
   code?: string
   error?: string
+  availability?: WeddingPassAvailability
+}
+
+function availabilityState(payload: WeddingPassResponse): WeddingPassAvailabilityState | null {
+  const state = payload.availability?.state
+  return isWeddingPassAvailabilityState(state) ? state : null
 }
 
 function friendlyPassError(payload: WeddingPassResponse): string {
+  // The server's shared availability state wins; web, iOS and Android present the same sentence.
+  const state = availabilityState(payload)
+  if (state && state !== 'active') {
+    const copy = GUEST_PASS_AVAILABILITY_COPY[state]
+    const opensAt = payload.availability?.opensAt ? new Date(payload.availability.opensAt) : null
+    return state === 'not_yet_issuable' && opensAt && !Number.isNaN(opensAt.getTime())
+      ? `${copy} Available from ${opensAt.toLocaleDateString()}.`
+      : copy
+  }
   switch (payload.code) {
-    case 'ATTENDANCE_REQUIRED':
-      return 'Confirm your attendance to unlock your Wedding Pass.'
-    case 'ATTENDANCE_DECLINED':
-      return 'No admission Pass is available because your response is declined.'
-    case 'PASS_ISSUANCE_CLOSED':
-      return 'Your Wedding Pass is not available in the current issuance window.'
     case 'WEDDING_DAY_DISABLED':
       return 'Wedding Pass is not active for this wedding yet.'
     case 'WEDDING_DAY_KEY_CONFIGURATION_INVALID':
@@ -51,7 +66,7 @@ export function WeddingGuestPassDialog({ slug }: { slug: string }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [passState, setPassState] = useState<'attending' | 'pending' | 'declined' | 'error' | null>(null)
+  const [passState, setPassState] = useState<WeddingPassAvailabilityState | 'error' | null>(null)
   const [pass, setPass] = useState<WeddingPassData | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
@@ -103,17 +118,12 @@ export function WeddingGuestPassDialog({ slug }: { slug: string }) {
             !data.token.startsWith('WW2.') ||
             !data.publicKeyDerBase64
           ) {
-            if (payload.code === 'ATTENDANCE_DECLINED') {
-              setPassState('declined')
-            } else if (payload.code === 'ATTENDANCE_REQUIRED') {
-              setPassState('pending')
-            } else {
-              setPassState('error')
-            }
+            const state = availabilityState(payload)
+            setPassState(state && state !== 'active' ? state : 'error')
             throw new Error(friendlyPassError(payload))
           }
           setPass(data)
-          setPassState('attending')
+          setPassState('active')
         })
         .catch((caught) => {
           setPass(null)
@@ -131,6 +141,7 @@ export function WeddingGuestPassDialog({ slug }: { slug: string }) {
       <DialogContent
         data-testid="wedding-guest-pass-dialog"
         data-pass-authority="ww2"
+        data-pass-state={passState ?? undefined}
         className="overflow-hidden rounded-[2rem] border border-[#c89a55]/45 bg-[#fff9ef] p-0 text-[#3a2b20] shadow-2xl sm:max-w-md"
       >
         <div className="bg-[#17130f] px-6 pb-7 pt-8 text-center text-[#f5dfb8]">
@@ -144,11 +155,9 @@ export function WeddingGuestPassDialog({ slug }: { slug: string }) {
             Your Wedding Pass
           </DialogTitle>
           <DialogDescription className="mx-auto mt-3 max-w-xs text-sm leading-6 text-[#d8cbbb]">
-            {passState === 'declined'
-              ? 'No admission Pass is available because your response is declined.'
-              : passState === 'pending'
-                ? 'Confirm your attendance to unlock your Wedding Pass.'
-                : 'This is your signed WW2 admission credential. Keep it private and present it at the wedding gate.'}
+            {passState && passState !== 'active' && passState !== 'error'
+              ? GUEST_PASS_AVAILABILITY_COPY[passState]
+              : 'This is your signed WW2 admission credential. Keep it private and present it at the wedding gate.'}
           </DialogDescription>
         </div>
 

@@ -1,14 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { QrCode, UserPlus, Users } from 'lucide-react'
+import { QrCode, Ticket, UserPlus, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { InvitationManager } from '@/components/wedding/invitation-manager'
 import { PhysicalInvitationQr } from '@/components/wedding/physical-invitation-qr'
 import { PlannerTeamInviteManager } from '@/components/wedding/planner/planner-team-invite-manager'
+import { WeddingPassAdministration } from '@/components/wedding/wedding-pass-administration'
 
-type InvitationMode = 'guest' | 'team'
+type InvitationMode = 'guest' | 'pass' | 'team'
 
 export function PlannerInvitationTools() {
   const [open, setOpen] = useState(false)
@@ -30,10 +31,10 @@ export function PlannerInvitationTools() {
         <DialogContent className="max-h-[94vh] w-[96vw] max-w-6xl overflow-y-auto border-gold/30 bg-ivory text-espresso">
           <DialogTitle className="wewed-heading text-3xl">Invitations & secure QR</DialogTitle>
           <DialogDescription>
-            Bulk printed-card access, personal guest RSVP credentials and project-team access are kept separate so one QR never impersonates another guest.
+            Each QR has one job and they are kept separate: Printed Invitation Access (shared physical cards), Open Invitation (each guest&apos;s private link and RSVP), Wedding Pass (venue admission) and project-team access. One QR never impersonates another.
           </DialogDescription>
 
-          <div className="mt-2 grid gap-2 rounded-2xl border border-gold/20 bg-white p-2 sm:grid-cols-2">
+          <div className="mt-2 grid gap-2 rounded-2xl border border-gold/20 bg-white p-2 sm:grid-cols-3">
             <Button
               type="button"
               variant={mode === 'guest' ? 'default' : 'ghost'}
@@ -41,7 +42,16 @@ export function PlannerInvitationTools() {
               className={mode === 'guest' ? 'min-h-12 justify-start bg-gold text-espresso hover:bg-gold-light' : 'min-h-12 justify-start text-espresso/65 hover:bg-ivory'}
             >
               <Users className="size-4" />
-              Guest cards, RSVP & guest QR
+              Open Invitation · Guest cards, RSVP & guest QR
+            </Button>
+            <Button
+              type="button"
+              variant={mode === 'pass' ? 'default' : 'ghost'}
+              onClick={() => setMode('pass')}
+              className={mode === 'pass' ? 'min-h-12 justify-start bg-gold text-espresso hover:bg-gold-light' : 'min-h-12 justify-start text-espresso/65 hover:bg-ivory'}
+            >
+              <Ticket className="size-4" />
+              Wedding Pass · venue admission
             </Button>
             <Button
               type="button"
@@ -58,12 +68,16 @@ export function PlannerInvitationTools() {
             <div className="mt-4">
               <PhysicalInvitationQr />
               <div className="mb-4 rounded-xl border border-gold/15 bg-white px-4 py-3">
-                <p className="font-medium text-espresso">Digital wedding cards, RSVP and QR</p>
+                <p className="font-medium text-espresso">Open Invitation · Digital wedding cards, RSVP and QR</p>
                 <p className="mt-1 text-sm leading-6 text-espresso/60">
-                  Personal guest rows below keep their own RSVP credentials and digital cards. They remain separate from the shared bulk-print QR above.
+                  Personal guest rows below keep their own RSVP credentials and digital cards. They remain separate from the shared Printed Invitation Access QR above, and neither is a Wedding Pass: admission uses the Wedding Pass tab.
                 </p>
               </div>
               <InvitationManager compact />
+            </div>
+          ) : mode === 'pass' ? (
+            <div className="mt-4">
+              <WeddingPassAdministration />
             </div>
           ) : (
             <div className="mt-4">

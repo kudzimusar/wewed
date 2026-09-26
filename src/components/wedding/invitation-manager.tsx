@@ -250,8 +250,8 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
       <section className="mt-7" aria-labelledby="personal-invitation-delivery-heading">
         <div className="mb-4">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gold-muted">Personal delivery</p>
-          <h3 id="personal-invitation-delivery-heading" className="mt-1 font-serif text-2xl">Guest-specific links & QR codes</h3>
-          <p className="mt-1 max-w-2xl text-xs leading-5 text-espresso/50">Each link is personal to one guest. The bulk physical invitation QR remains a separate shared-access feature.</p>
+          <h3 id="personal-invitation-delivery-heading" className="mt-1 font-serif text-2xl">Open Invitation · guest-specific links & QR codes</h3>
+          <p className="mt-1 max-w-2xl text-xs leading-5 text-espresso/50">Each link is personal to one guest and opens their private invitation. It is not a Wedding Pass and does not admit anyone at the venue. Printed Invitation Access remains a separate shared-access feature.</p>
         </div>
 
         {busy === 'load' && rows.length === 0 ? <div className="flex min-h-48 items-center justify-center"><Loader2 className="size-7 animate-spin text-gold-muted" /></div> : (

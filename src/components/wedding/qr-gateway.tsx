@@ -163,8 +163,8 @@ export function QrGatewayTrigger({ onOpen }: { onOpen: () => void }) {
       variant="ghost"
       size="icon"
       onClick={onOpen}
-      aria-label="Open wedding QR and sharing"
-      title="Wedding QR and sharing"
+      aria-label="Open Wedding Website QR and sharing"
+      title="Wedding Website QR and sharing"
       className="border-gold/30 bg-espresso/40 text-champagne backdrop-blur-sm transition-colors hover:bg-gold/10 hover:text-gold"
     >
       <QrCode className="size-4" />
@@ -177,7 +177,7 @@ function FloatingQrButton({ onClick }: { onClick: () => void }) {
     <motion.button
       type="button"
       onClick={onClick}
-      aria-label="Open wedding QR and sharing"
+      aria-label="Open Wedding Website QR and sharing"
       initial={{ scale: 0, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 320, damping: 22, delay: 0.4 }}
@@ -303,10 +303,10 @@ export function QrGateway({ open, onOpenChange }: QrGatewayProps) {
         <DialogContent className="max-h-[94dvh] overflow-y-auto border-gold/30 bg-champagne text-espresso sm:max-w-3xl">
           <DialogTitle className="flex items-center gap-2 font-serif text-3xl">
             <QrCode className="size-6 text-gold-muted" />
-            Wedding QR and sharing
+            Wedding Website QR and sharing
           </DialogTitle>
           <DialogDescription>
-            Public sharing is wedding-scoped. Private invitation credentials are only created in the guest invitation manager.
+            Wedding Website sharing is wedding-scoped navigation only. Open Invitation links are created in the guest invitation manager, and the Wedding Pass (venue admission) is never shared from here.
           </DialogDescription>
 
           {privateWedding ? (
