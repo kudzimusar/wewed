@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { withdrawWeddingPassesForAttendance } from '@/lib/wedding-pass-attendance'
 import { removeGuestWorksheetData, saveGuestWorksheetData } from './guest-worksheet-write'
 import type { GuestWorksheetDataRow } from './guest-worksheet-contract'
 import type { GuestWorksheetRollbackSnapshot, SerializedRsvpState } from './guest-worksheet-snapshot'
@@ -69,9 +70,16 @@ export async function rollbackGuestWorksheetImport(
         const guest = await tx.guest.findFirst({ where: { id: state.guestId, weddingId }, select: { id: true } })
         if (!guest) throw new Error('Guest no longer exists.')
         await tx.guest.update({ where: { id: state.guestId }, data: state.guest })
+        // RSVP ↔ Wedding Pass lifecycle: restoring a pre-import RSVP that is no longer attending
+        // (or removing the RSVP) must withdraw any live Pass, exactly as the import itself does.
+        // The Guest row is locked by the update above (Guest → RSVP → credential lock order).
+        const current = await tx.rSVP.findUnique({ where: { guestId: state.guestId } })
+        const restoredAttending = state.rsvp ? state.rsvp.attending : null
+        if (current?.attending === true && restoredAttending !== true) {
+          await withdrawWeddingPassesForAttendance(tx, { weddingId, guestId: state.guestId })
+        }
 
         if (state.rsvp) {
-          const current = await tx.rSVP.findUnique({ where: { guestId: state.guestId } })
           const data = restoredRsvpData(state.rsvp)
           if (current) {
             await tx.rSVP.update({ where: { guestId: state.guestId }, data })

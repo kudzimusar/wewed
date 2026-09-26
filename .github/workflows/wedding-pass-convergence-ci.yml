@@ -13,6 +13,8 @@ on:
       - 'src/lib/guest-rsvp-mutation.ts'
       - 'src/lib/global-qr-convergence.integration.test.ts'
       - 'src/lib/import-engine/guest-worksheet-apply.ts'
+      - 'src/lib/import-engine/guest-worksheet-rollback.ts'
+      - 'src/lib/rsvp-pass-lifecycle-writers.integration.test.ts'
       - 'src/lib/preview-write-safety.ts'
       - 'src/lib/preview-live-data-safety.integration.test.ts'
       - 'src/lib/gate-authority.ts'
@@ -102,3 +104,6 @@ jobs:
 
       - name: Preview live-data safety (P13-LIVE-1)
         run: bun test src/lib/preview-live-data-safety.integration.test.ts
+
+      - name: RSVP writers preserve the Wedding Pass lifecycle
+        run: bun test src/lib/rsvp-pass-lifecycle-writers.integration.test.ts
