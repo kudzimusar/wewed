@@ -4958,3 +4958,49 @@ The communication format for future agent tasks is:
 `docs/agent-prompts/WEWED_MODERATOR_AGENT_PROMPT_FORMAT.md`
 
 **Phase-13 status:** **NOT ACCEPTED — LIVE-DATA INTEGRATION FOUNDATION IS NOW THE PRIMARY NEXT UNIT.**
+
+
+### D-069 — QRO01 Guest live-data integration foundation moderator review (2026-09-26)
+**MODERATOR REVIEW — SOURCE FOUNDATION ACCEPTED. LIVE REAL-ACCOUNT PARITY AND END-TO-END CHARITY & KUDZIE WRITE REMAIN OPEN.**
+
+QRO01 returned:
+- integration branch: `integration/phase13-live-account-data-convergence-20260926`;
+- final remote HEAD: `d98c3db72271ac9b298c2fd72fd5d4586b2d02f2`;
+- qualified product SHA: `b59893e07a853a70abd4d6283e547d6ec9602e92`;
+- qualification run: `36242916755`;
+- server job: `108406687752`;
+- iOS job: `108406687656`;
+- Android job: `108406687509`.
+
+Independent moderator verification confirmed:
+- final remote HEAD equals the reported SHA;
+- backend base `926d89a1...` and native companion `7efd2d7e...` were reconciled by merge commit `d98091970afdb8398e36b4ad4755a987b0f4d3d9`;
+- the merge deliberately retained backend server authority and native product authority rather than importing the older divergent native-line server;
+- final differs from qualified SHA only by removal of the temporary QRO01 workflow and addition of the permanent receipt;
+- no temporary QRO01 workflow remains at final HEAD;
+- run `36242916755` completed successfully at exact qualified SHA `b59893e0...`, with all three jobs green;
+- iOS CI executed 515 tests, 14 skipped, 0 failures; simulator and unsigned Release builds succeeded;
+- Android unit/debug/UAT qualification job succeeded;
+- Preview write guards are present both at route level and as domain-layer backstops for Gate check-in, Pass revocation/issuance and RSVP/Wedding-Day mutation authority;
+- Preview desktop sign-in suppresses account bookkeeping and limits pending-membership acceptance to the explicitly writable wedding;
+- DEBUG-only productionPreview exists on iOS and Android, with allowlisted Preview origins, separated credential storage and Release fixed to `https://wewed.pro`;
+- `wewed.parity.v1` exists and rejects secret-shaped material while comparing real authority identifiers and safe digests;
+- Guest record projection is shared for RSVP/party/seating authority;
+- Planner Wedding Pass credential state and arrival state are separated;
+- worksheet rollback now withdraws a live Pass when restoring non-attendance;
+- Coordinator authority differences are explicitly pinned rather than silently hidden.
+
+The moderator does **not** accept the following as proven:
+- authenticated real Charity & Kudzie parity;
+- real desktop/iOS/Android Guest identity equality;
+- real RSVP propagation;
+- live Preview Wedding Pass availability against the production-backed database;
+- any real Wedding Pass QR for Charity & Kudzie;
+- live Gate acceptance;
+- the agent's local full-suite aggregate claims beyond the independently verified focused CI evidence.
+
+The QRO01 source foundation is therefore accepted without a moderator product patch.
+
+**Next progressive unit:** authenticated **read-only live parity first** against the existing integration Preview and the real Charity & Kudzie wedding. No production migration, WW2 key activation, real RSVP mutation or Gate write is part of the first live probe. Prove real Invitation/Guest/Wedding/RSVP/table/party authority across desktop + native-api + iOS + Android using `wewed.parity.v1`. Only after that read gate is green should the programme authorize the controlled Charity & Kudzie RSVP write and separately decide the live-database Gate/WW2 migrations + Preview-only key/flag activation required for Pass-state/Gate qualification.
+
+**Phase-13 status:** **NOT ACCEPTED — SOURCE FOUNDATION ACCEPTED; AUTHENTICATED LIVE PARITY IS NEXT.**
