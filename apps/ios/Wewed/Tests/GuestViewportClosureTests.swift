@@ -150,4 +150,102 @@ final class GuestViewportClosureTests: XCTestCase {
         XCTAssertTrue(hero.contains(".frame(width: width)"))
         XCTAssertFalse(hero.contains("guestCountdownTile(_ value: Int, _ label: String)"))
     }
+
+    // NM06: even if an inner GeometryReader is accidentally offered more width than the phone,
+    // the published physical Guest viewport remains the invitation's sizing authority.
+    func testInvitationStageNeverExceedsPublishedPhysicalViewport() {
+        for viewport in phoneWidths {
+            let resolved = IvoryViewportGeometry.boundedViewportWidth(
+                proposedWidth: viewport + 120,
+                publishedWidth: viewport
+            )
+            let stage = IvoryViewportGeometry.stageWidth(
+                proposedWidth: viewport + 120,
+                publishedWidth: viewport
+            )
+
+            XCTAssertEqual(resolved, viewport, accuracy: 0.001)
+            XCTAssertLessThanOrEqual(stage, viewport)
+            XCTAssertLessThanOrEqual(stage, IvoryGeometry.maxStageWidth)
+        }
+    }
+
+    func testInvitationDetailFooterPairAlwaysFitsAuthoredStage() {
+        for viewport in phoneWidths {
+            let stage = IvoryViewportGeometry.stageWidth(
+                proposedWidth: viewport,
+                publishedWidth: viewport
+            )
+            let content = IvoryViewportGeometry.detailFooterContentWidth(stageWidth: stage)
+            let button = IvoryViewportGeometry.detailFooterButtonWidth(
+                stageWidth: stage,
+                includesPass: true
+            )
+            let reconstructed =
+                button * 2 +
+                IvoryViewportGeometry.detailFooterSpacing +
+                IvoryViewportGeometry.detailFooterInset * 2
+
+            XCTAssertEqual(reconstructed, stage, accuracy: 0.001)
+            XCTAssertLessThanOrEqual(content, stage)
+            XCTAssertGreaterThan(button, 0)
+        }
+    }
+
+    func testCanonicalWeddingPassWidthChainFitsRepresentativeIPhones() {
+        for viewport in phoneWidths {
+            let resolved = WeddingPassViewportGeometry.boundedViewportWidth(
+                proposedWidth: viewport + 96,
+                publishedWidth: viewport
+            )
+            let card = WeddingPassViewportGeometry.cardWidth(viewportWidth: resolved)
+            let content = WeddingPassViewportGeometry.cardContentWidth(viewportWidth: resolved)
+            let qrPlate = WeddingPassViewportGeometry.qrPlateWidth(viewportWidth: resolved)
+            let qr = WeddingPassViewportGeometry.qrCodeWidth(viewportWidth: resolved)
+
+            XCTAssertEqual(resolved, viewport, accuracy: 0.001)
+            XCTAssertEqual(
+                card + WeddingPassViewportGeometry.outerInset * 2,
+                viewport,
+                accuracy: 0.001
+            )
+            XCTAssertEqual(
+                content + WeddingPassViewportGeometry.cardPadding * 2,
+                card,
+                accuracy: 0.001
+            )
+            XCTAssertLessThanOrEqual(card, viewport)
+            XCTAssertLessThanOrEqual(qrPlate, content)
+            XCTAssertLessThanOrEqual(qr, qrPlate)
+            XCTAssertGreaterThan(qr, 0)
+        }
+    }
+
+    func testCanonicalPassDecorationCannotBecomeSizingAuthorityAndTextWraps() throws {
+        let source = try String(
+            contentsOf: Self.repositoryFile(
+                "apps/ios/Wewed/Views/Pass/WeddingReferencePassView.swift"
+            ),
+            encoding: .utf8
+        )
+        let start = try XCTUnwrap(source.range(of: "private func passCard("))
+        let end = try XCTUnwrap(
+            source.range(of: "private func preparePass()", range: start.upperBound..<source.endIndex)
+        )
+        let card = String(source[start.lowerBound..<end.lowerBound])
+
+        XCTAssertTrue(card.contains(".frame(width: cardWidth)"))
+        XCTAssertTrue(card.contains(".background {"))
+        XCTAssertTrue(card.contains("WewedMediaImage(WewedAsset.ornamentFrame)"))
+        XCTAssertFalse(
+            card.contains("ZStack {\n            WewedMediaImage(WewedAsset.ornamentFrame)"),
+            "ornament must remain decoration, never a child that participates in card sizing"
+        )
+        XCTAssertGreaterThanOrEqual(
+            card.components(separatedBy: ".fixedSize(horizontal: false, vertical: true)").count - 1,
+            5,
+            "dynamic Pass strings must wrap vertically inside the bounded content width"
+        )
+    }
+
 }
