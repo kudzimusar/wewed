@@ -568,3 +568,21 @@ Success:
 Blocked:
 
 `QRO02B1 NATIVE/PARITY CLOSURE <BLOCKED-ENV|NOT PROVEN|FALSE / STALE> — <exact one-line reason> — RETURNING TO MODERATOR.`
+
+
+## Moderator sequencing correction — D-076
+
+After QRO02B1 returns and is accepted, **do not release QRO02C immediately**.
+
+First release:
+
+`INV-CANON01 — Ivory Floral Gold Canonical Reference Closure`
+
+Task:
+`docs/agent-prompts/INV_CANON01_IVORY_FLORAL_GOLD_CANONICAL_REFERENCE_20260927.md`
+
+Reason: the web Invitation Studio currently uses a generic `DigitalInvitationCard(... compact)` tile for Ivory, while the actual canonical closed Ivory stationery exists separately in `IvoryFloralGoldTriFold`. The canonical closed-card visual reference must be established before the live Charity & Kudzie style is changed and before real visible UAT resumes.
+
+Revised sequence:
+
+`QRO02B1 -> INV-CANON01 -> QRO02C -> final QRO02B four-client Ivory certification -> QRO03`.
