@@ -310,6 +310,10 @@ jobs:
               timeout: 15000
           - waitForAnimationToEnd
           - takeScreenshot: 04_pass
+          - swipe:
+              direction: UP
+              duration: 500
+          - takeScreenshot: 04b_pass_footer
           - tapOn: "Home"
           - extendedWaitUntil:
               visible:
