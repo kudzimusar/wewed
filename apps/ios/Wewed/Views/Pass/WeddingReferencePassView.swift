@@ -112,97 +112,119 @@ public struct WeddingReferencePassView: View {
     }
 
     private func passCard(_ pass: WeddingPass) -> some View {
-        ZStack {
-            WewedMediaImage(WewedAsset.ornamentFrame)
-                .scaledToFill()
-                .opacity(0.12)
+        VStack(spacing: 12) {
+            WeddingMonogram(names: pass.coupleNames, size: 42)
 
-            VStack(spacing: 12) {
-                WeddingMonogram(names: pass.coupleNames, size: 42)
+            Text(pass.coupleNames)
+                .font(.system(size: 22, weight: .regular, design: .serif))
+                .italic()
+                .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.78)
 
-                Text(pass.coupleNames)
-                    .font(.system(size: 22, weight: .regular, design: .serif))
-                    .italic()
-                    .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+            Text(pass.guestName)
+                .font(.system(size: 20, weight: .semibold, design: .serif))
+                .foregroundStyle(WeddingIdentityPalette.ink)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.82)
 
-                Text(pass.guestName)
-                    .font(.system(size: 20, weight: .semibold, design: .serif))
-                    .foregroundStyle(WeddingIdentityPalette.ink)
+            Text(pass.currentStage == .checkedIn ? "ADMITTED" : "ATTENDING")
+                .font(.system(size: 11, weight: .bold))
+                .tracking(1.2)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 5)
+                .background(WeddingIdentityPalette.forest)
+                .clipShape(Capsule())
 
-                Text(pass.currentStage == .checkedIn ? "ADMITTED" : "ATTENDING")
-                    .font(.system(size: 11, weight: .bold))
-                    .tracking(1.2)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 5)
-                    .background(WeddingIdentityPalette.forest)
-                    .clipShape(Capsule())
+            Text("Party of \(pass.partySize)")
+                .font(.system(size: 13))
+                .foregroundStyle(WeddingIdentityPalette.muted)
 
-                Text("Party of \(pass.partySize)")
-                    .font(.system(size: 13))
-                    .foregroundStyle(WeddingIdentityPalette.muted)
-
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(.white)
-                        .frame(width: 174, height: 174)
-                    WeddingQRCodeView(payload: pass.qrPayload, size: 146)
-                        .accessibilityIdentifier("wedding-pass-qr")
-                }
-
-                let productionCredential = pass.qrPayload.hasPrefix("WW2.")
-                Text(productionCredential ? "Scan at venue" : "Shadow preview — not valid for admission")
-                    .font(.system(size: 11))
-                    .foregroundStyle(WeddingIdentityPalette.muted)
-
-                Text(productionCredential ? "WEWED PASS CREDENTIAL" : "SHADOW TEST CREDENTIAL")
-                    .font(.system(size: 9, weight: .semibold))
-                    .tracking(1.3)
-                    .foregroundStyle(WeddingIdentityPalette.muted)
-
-                if let table = pass.tableName {
-                    Label(table, systemImage: "table.furniture")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(WeddingIdentityPalette.forest)
-                }
-
-                Text(pass.venueName)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(WeddingIdentityPalette.ink)
-
-                Text(displayDate(pass.weddingDate))
-                    .font(.system(size: 11))
-                    .foregroundStyle(WeddingIdentityPalette.muted)
-
-                let venueAddress = pass.venueAddress.isEmpty ? pass.venueName : pass.venueAddress
-                if let query = venueAddress.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-                   let mapURL = URL(string: "https://maps.apple.com/?q=\(query)") {
-                    Link(destination: mapURL) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "mappin.and.ellipse")
-                            Text("Open in Maps")
-                                .font(.system(size: 12, weight: .semibold))
-                        }
-                        .foregroundStyle(WeddingIdentityPalette.champagneDeep)
-                        .padding(.vertical, 2)
-                    }
-                    .accessibilityIdentifier("pass-open-maps")
-                }
-
-                Button { showingGuestDetails = true } label: {
-                    Text("View Guest Details")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(WeddingIdentityPalette.ink)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 11)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(WeddingIdentityPalette.champagne, lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
+            ZStack {
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(.white)
+                    .frame(width: 174, height: 174)
+                WeddingQRCodeView(payload: pass.qrPayload, size: 146)
+                    .accessibilityIdentifier("wedding-pass-qr")
             }
-            .padding(22)
+
+            let productionCredential = pass.qrPayload.hasPrefix("WW2.")
+            Text(productionCredential ? "Scan at venue" : "Shadow preview — not valid for admission")
+                .font(.system(size: 11))
+                .foregroundStyle(WeddingIdentityPalette.muted)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(productionCredential ? "WEWED PASS CREDENTIAL" : "SHADOW TEST CREDENTIAL")
+                .font(.system(size: 9, weight: .semibold))
+                .tracking(1.3)
+                .foregroundStyle(WeddingIdentityPalette.muted)
+                .multilineTextAlignment(.center)
+
+            if let table = pass.tableName {
+                Label(table, systemImage: "table.furniture")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(WeddingIdentityPalette.forest)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text(pass.venueName)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(WeddingIdentityPalette.ink)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(displayDate(pass.weddingDate))
+                .font(.system(size: 11))
+                .foregroundStyle(WeddingIdentityPalette.muted)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            let venueAddress = pass.venueAddress.isEmpty ? pass.venueName : pass.venueAddress
+            if let query = venueAddress.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+               let mapURL = URL(string: "https://maps.apple.com/?q=\(query)") {
+                Link(destination: mapURL) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "mappin.and.ellipse")
+                        Text("Open in Maps")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                    .padding(.vertical, 2)
+                }
+                .accessibilityIdentifier("pass-open-maps")
+            }
+
+            Button { showingGuestDetails = true } label: {
+                Text("View Guest Details")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(WeddingIdentityPalette.ink)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(WeddingIdentityPalette.champagne, lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+        // The card's content is the sizing authority. The decorative ornament is painted only
+        // after the card has a concrete size, so scaledToFill can never enlarge or horizontally
+        // offset the canonical Pass. This closes IOS-PASS-01 without touching WW2 authority.
+        .padding(22)
+        .frame(maxWidth: .infinity)
+        .background {
+            GeometryReader { cardProxy in
+                WewedMediaImage(WewedAsset.ornamentFrame)
+                    .scaledToFill()
+                    .frame(width: cardProxy.size.width, height: cardProxy.size.height)
+                    .clipped()
+                    .opacity(0.12)
+            }
         }
         .background(WeddingIdentityPalette.ivorySoft)
         .overlay(
