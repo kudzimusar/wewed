@@ -5118,3 +5118,61 @@ A closure unit is queued, not yet executable:
 `docs/agent-prompts/QRO02C_INV01_CHARITY_KUDZIE_INVITATION_AUTHORITY_CONVERGENCE_20260927.md`
 
 If QRO02B proves the live saved style is not `ivory-floral-gold`, the moderator should release QRO02C before QRO03. QRO02C will authorize only the controlled invitation-style convergence, preserve the existing Guest credential and other invitation fields, and prove web/iOS/Android all render Ivory Floral Gold from the same saved authority.
+
+
+### D-074 — QRO02B authenticated live-read moderator review (2026-09-27)
+**MODERATOR REVIEW — PARTIALLY ACCEPTED: REAL SERVER-SIDE CHARITY & KUDZIE PARITY IS PROVEN; FOUR-CLIENT LIVE PARITY REMAINS NOT PROVEN DUE TO NATIVE ENTRY-PATH DEFECTS AND PARITY-CONTRACT GAPS.**
+
+QRO02B returned integration HEAD:
+`f63f2baf77e5ed87ea4b6853745ab83ac511c7f6`.
+
+Independent moderator verification confirmed:
+- remote `integration/phase13-live-account-data-convergence-20260926` equals `f63f2baf77e5ed87ea4b6853745ab83ac511c7f6`;
+- `5e7a3162... -> f63f2baf...` is exactly one commit changing only:
+  - `docs/QRO02B_CRED01_AUTHENTICATED_READ_ONLY_PARITY_RECEIPT_20260927.md`;
+  - `scripts/parity/wewed-parity.ts` (native identity path `authority.identity.accessUserId`);
+- no `apps/` or ordinary product source changed in QRO02B;
+- tested Preview `dpl_4xEofdKh7qD29eMgboHq2mLkUmWi` is READY Preview serving exact SHA `5e7a3162b910258ad1c88e5600543e556ad7ecc2`;
+- Vercel runtime logs independently corroborate all nine reported authenticated Preview requests at 19:20:15–19:20:29 UTC, all HTTP 200;
+- the real server-side authority values in the agent receipt therefore have live request corroboration, including Guest session, Planner browser account path and native account/API path;
+- Charity & Kudzie's live invitation style was reported as `botanical`, consistent with D-073's queued invitation-style convergence requirement;
+- iOS `RootView.swift` independently contains the self-cancelling pattern:
+  `.task(id: appState.pendingInvitationEntry) -> consumePendingInvitationEntry() -> await liveCoordinator.enter(entry)`;
+- Android `RootScreen.kt` independently contains the analogous pattern:
+  `LaunchedEffect(pendingInvitationEntry) -> consumePendingInvitationEntry() -> liveCoordinator.enter(entry)`;
+- the Android causal claim remains not fully runtime-proven until instrumented, but source parity makes it a high-confidence implementation hypothesis;
+- `src/lib/parity/wewed-parity-v1.ts` independently confirms one global `requiredClients` list is applied to every label;
+- the same contract independently requires `passAvailability` for role `guest` and cannot represent an environment-level `BLOCKED-ACTIVATION` state separately from business Pass availability;
+- Vercel independently confirms one production request at 19:24:24 UTC:
+  `POST /api/weddings/charity-and-kudzie/guest-session -> 200`
+  on production deployment `dpl_BLD2JjcBEiBxMVHyVVUoUNUgkYKR`, `main` SHA `ba4b08f8bca2d5cd5826e1ef1d2701d9049dd887`;
+- production source for that POST performs RSVP-token lookup plus signed session/portfolio cookie issuance only; it performs no wedding business-data mutation.
+
+Moderator classification:
+- remote branch/final SHA: **ACCEPTED**;
+- QRO02B diff/source-boundary claim: **ACCEPTED**;
+- collector identity-path fix: **ACCEPTED by source inspection**; local 22/0 test execution remains agent-reported rather than independently re-run;
+- real desktop/PWA ↔ native account API live authority parity: **ACCEPTED**;
+- Charity & Kudzie real Guest/RSVP/party/table server-side agreement: **ACCEPTED**;
+- live invitation style = `botanical`: **ACCEPTED as QRO02B observed live authority**, not accepted as intended product state (D-073 target remains `ivory-floral-gold`);
+- iOS invitation-entry failure: **ACCEPTED P1 source defect / live parity NOT PROVEN**;
+- Android invitation-entry failure: **NOT PROVEN cause**, with equivalent source defect pattern independently confirmed;
+- four-client `wewed.parity.v1`: **NOT PROVEN**;
+- parity global-required-client defect: **ACCEPTED tooling defect**;
+- Pass required-field vs activation-blocked defect: **ACCEPTED tooling-contract defect**;
+- Wedding Day/Pass: **BLOCKED-ACTIVATION**;
+- unintended production invitation exchange: **ACCEPTED incident disclosure; no business-data mutation proven by route semantics**;
+- QRO02B wedding business-data writes: **0 accepted to the evidence available**.
+
+No QRO03 release.
+
+**Next progressive unit: QRO02B1 / NLC01 — NATIVE INVITATION ENTRY + PARITY CONTRACT CLOSURE.**
+This is an implementation/closure unit, not certification. It must:
+1. fix the iOS self-cancelling live-invitation entry path without replaying an exchange;
+2. instrument and close the Android live-invitation entry failure, fixing the analogous cancellation defect if confirmed;
+3. harden native qualification isolation so only the intended qualification build handles the deep link;
+4. repair `wewed.parity.v1` so required clients are actor/label-appropriate rather than globally impossible, without weakening required equality;
+5. represent `BLOCKED-ACTIVATION` separately from actual Wedding Pass business availability rather than falsifying `passAvailability`;
+6. add regression coverage and run full relevant server/iOS/Android qualification.
+
+After moderator acceptance of QRO02B1, release a clean independent QRO02B re-certification against the same real credentials. Only then, if four-client read parity passes, release queued QRO02C / INV01 to converge Charity & Kudzie from `botanical` to `ivory-floral-gold`. QRO03 remains blocked until QRO02C is accepted.
