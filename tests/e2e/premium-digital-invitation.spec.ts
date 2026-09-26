@@ -72,6 +72,13 @@ test('Planner Card Studio provides a compact premium library and one interactive
   const themeButtons = page.locator('[data-testid^="invitation-style-"]')
   expect(await themeButtons.count()).toBeGreaterThanOrEqual(12)
 
+  // INV-CANON01: the Ivory tile is the approved ornate CLOSED artwork, never the generic flat card.
+  const ivoryTile = page.getByTestId('invitation-style-ivory-floral-gold')
+  await expect(ivoryTile.getByTestId('invitation-style-canonical-closed')).toBeVisible()
+  await expect(ivoryTile.locator('img[src="/invitation-art/ivory/closed-master.webp"]')).toHaveAttribute('alt', /A special invitation awaits/)
+  await expect(ivoryTile.getByTestId('digital-invitation-card-ivory-floral-gold')).toHaveCount(0)
+  await expect(page.getByTestId('invitation-style-midnight').getByTestId('digital-invitation-card-midnight')).toBeVisible()
+
   await page.getByTestId('invitation-style-ivory-floral-gold').click()
   const frame = page.getByTestId('invitation-preview-frame')
   await expect(frame).toHaveAttribute('data-preview-device', 'mobile')
