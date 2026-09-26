@@ -2,7 +2,8 @@
 /**
  * wewed.parity.v1 live parity tooling (QRO 01 §13–§16, §33).
  *
- *   bun scripts/parity/wewed-parity.ts collect --out run.json
+ *   bun scripts/parity/wewed-parity.ts preflight                      (no credentials; read-only)
+ *   bun scripts/parity/wewed-parity.ts collect --out run.json --network-log network.json
  *   bun scripts/parity/wewed-parity.ts check run.json [ios-G.json android-G.json ...]
  *       [--require desktop,native-api,ios,android] [--same-wedding G,G-VIA-P,P]
  *
@@ -42,6 +43,7 @@ import {
   type WewedParityRunV1,
 } from '../../src/lib/parity/wewed-parity-v1'
 import { validateQualificationOrigin } from '../../src/lib/parity/qualification-origin'
+import { classifyParityResponse as classify, redactPath } from '../../src/lib/parity/network-evidence'
 import { guestRsvpStatus } from '../../src/lib/guest-record-authority'
 import { membershipRoleForWorkspaceKind, workspaceKindForMembershipRole } from '../../src/lib/wedding-relationship-eligibility'
 
@@ -59,9 +61,24 @@ function arg(name: string): string | undefined {
 
 const weddingDateOf = (iso: string | null | undefined) => (iso ? new Date(iso).toISOString().slice(0, 10) : null)
 
+/**
+ * QRO 02 §29 network evidence: one entry per request — timestamp, client, method, path with every
+ * query value redacted, HTTP status and a safe classification. Never headers, cookies, bodies,
+ * tokens or credential-bearing URLs.
+ */
+export interface NetworkEvidence {
+  at: string
+  client: string
+  method: string
+  path: string
+  status: number
+  classification: string
+}
+const NETWORK_LOG: NetworkEvidence[] = []
+
 class Transport {
   private cookies = new Map<string, string>()
-  constructor(private origin: string, private bypass: string | undefined) {}
+  constructor(private origin: string, private bypass: string | undefined, private client: string) {}
 
   async request(method: string, path: string, init: { body?: unknown; bearer?: string } = {}) {
     const headers: Record<string, string> = { Accept: 'application/json', 'x-wewed-client': 'parity-collector' }
@@ -87,6 +104,14 @@ class Transport {
     } catch {
       body = {}
     }
+    NETWORK_LOG.push({
+      at: new Date().toISOString(),
+      client: this.client,
+      method,
+      path: redactPath(path),
+      status: response.status,
+      classification: classify(response.status, body, response.headers.get('location')),
+    })
     // Status and path only: never the body, which may hold tokens.
     if (response.status >= 300 && ![409, 410, 423, 503].includes(response.status)) {
       console.error(`wewed-parity: ${method} ${path} → ${response.status}${body.code ? ` ${body.code}` : ''}`)
@@ -108,7 +133,7 @@ async function collectGuest(origin: string, commitSha: string, bypass: string | 
   } catch {
     fail('WEWED_PARITY_GUEST_INVITATION must be a private invitation URL (/invite/<slug>?rsvp=…)')
   }
-  const t = new Transport(origin, bypass)
+  const t = new Transport(origin, bypass, 'desktop:guest')
   const exchange = await t.request('POST', `/api/weddings/${encodeURIComponent(slug)}/guest-session`, { body: { token } })
   if (exchange.status !== 200) fail(`Guest invitation exchange failed (${exchange.status})`)
   const session = await t.request('GET', `/api/weddings/${encodeURIComponent(slug)}/guest-session`)
@@ -162,7 +187,7 @@ async function collectAccount(
   const guestLabel = `G-VIA-${credentials.label}`
 
   // Desktop/PWA transport.
-  const desktop = new Transport(origin, bypass)
+  const desktop = new Transport(origin, bypass, 'desktop:account')
   const signin = await desktop.request('POST', '/api/auth/signin', { body: { email: credentials.email, password: credentials.password } })
   if (signin.status !== 200) fail(`desktop sign-in failed (${signin.status})`)
   if (targetWeddingId && signin.body.activeWedding?.id !== targetWeddingId) {
@@ -202,7 +227,7 @@ async function collectAccount(
   }
 
   // Native transport — the exact endpoints the iOS/Android apps call.
-  const native = new Transport(origin, bypass)
+  const native = new Transport(origin, bypass, 'native-api:account')
   const nativeSignin = await native.request('POST', '/api/native/account/signin', { body: { email: credentials.email, password: credentials.password } })
   const bearer: string | undefined = nativeSignin.body.sessionToken
   if (nativeSignin.status !== 200 || !bearer) fail(`native sign-in failed (${nativeSignin.status})`)
@@ -285,6 +310,46 @@ async function collect() {
   const json = `${JSON.stringify(run, null, 2)}\n`
   if (out) writeFileSync(out, json)
   else process.stdout.write(json)
+  writeNetworkLog()
+}
+
+function writeNetworkLog() {
+  const file = arg('--network-log')
+  if (file) writeFileSync(file, `${JSON.stringify(NETWORK_LOG, null, 2)}\n`)
+}
+
+/**
+ * Credential-free, read-only readiness probe of the qualification origin: Deployment Protection
+ * (with the bypass if supplied), route liveness and the Wedding Day (WW2) feature state. It sends no
+ * account, invitation or session material and cannot write anything.
+ */
+async function preflight() {
+  const origin = validateQualificationOrigin(process.env.WEWED_PARITY_ORIGIN)
+  if (!origin.ok) fail(`WEWED_PARITY_ORIGIN rejected (${origin.reason})`)
+  const bypass = process.env.WEWED_PARITY_PROTECTION_BYPASS?.trim() || undefined
+  const t = new Transport(origin.origin, bypass, 'preflight')
+  const root = await t.request('GET', '/api/native/account/authority')
+  const pass = await t.request('GET', '/api/wedding-day/pass')
+  const signin = await t.request('POST', '/api/native/account/signin', { body: {} })
+  const protectedByVercel = NETWORK_LOG.some((entry) => entry.classification === 'vercel-deployment-protection')
+  // Only an answer from the application itself (JSON `success: false`) proves a route or state.
+  const app = (response: { body: Json }) => response.body.success === false && !response.body.protection
+  const report = {
+    origin: origin.origin,
+    bypassSupplied: Boolean(bypass),
+    deploymentProtection: protectedByVercel ? (bypass ? 'BYPASS_REJECTED' : 'PROTECTED_NO_BYPASS') : 'PASSED',
+    nativeAuthorityRoute: protectedByVercel ? 'UNPROVEN' : app(root) && root.status === 401 ? 'LIVE' : `UNEXPECTED_${root.status}`,
+    nativeSigninRoute: protectedByVercel ? 'UNPROVEN' : app(signin) && [400, 401].includes(signin.status) ? 'LIVE' : `UNEXPECTED_${signin.status}`,
+    weddingDay: protectedByVercel
+      ? 'UNPROVEN'
+      : pass.body.code === 'WEDDING_DAY_DISABLED' ? 'DISABLED'
+        : pass.body.code === 'WEDDING_DAY_KEY_CONFIGURATION_INVALID' ? 'ENABLED_KEYS_INVALID'
+          : app(pass) && pass.status === 401 ? 'ENABLED'
+            : `UNPROVEN_${pass.status}`,
+    network: NETWORK_LOG,
+  }
+  console.log(JSON.stringify(report, null, 2))
+  writeNetworkLog()
 }
 
 function check() {
@@ -319,6 +384,7 @@ function check() {
 }
 
 const command = process.argv[2]
-if (command === 'collect') await collect()
+if (command === 'preflight') await preflight()
+else if (command === 'collect') await collect()
 else if (command === 'check') check()
-else fail('usage: wewed-parity.ts collect [--out file] | check <files…> [--require clients] [--same-wedding labels]')
+else fail('usage: wewed-parity.ts preflight | collect [--out file] [--network-log file] | check <files…> [--require clients] [--same-wedding labels]')
