@@ -278,25 +278,24 @@ export async function PUT(request: NextRequest, { params }: Params) {
   return noStore(NextResponse.json({ success: true, rsvp: updated }))
 }
 
-export async function PATCH(request: NextRequest, { params }: Params) {
-  const { slug } = await params
-  const { wedding, guest } = await currentGuest(request, slug)
-  if (!wedding || !guest) {
-    return noStore(
-      NextResponse.json({ success: false, error: 'Guest access is not active.' }, { status: 401 }),
-    )
-  }
-
-  const blocked = previewWriteError(wedding.id)
-  if (blocked) return blocked
-
-  const updated = await db.rSVP.update({
-    where: { token: guest.rsvpToken },
-    data: { checkedIn: true, checkedInAt: guest.checkedInAt ?? new Date() },
-    select: { checkedIn: true, checkedInAt: true },
-  })
-
-  return noStore(NextResponse.json({ success: true, rsvp: updated }))
+// A Guest Session is invitation/RSVP identity, never venue-admission authority. This method used
+// to let any holder of a Guest Session mark their own RSVP as checked in, which let a guest (or
+// anyone who obtained their invitation link) self-admit from anywhere. Check-in is recorded only
+// by an authorized wedding operator (`POST /api/planner/event-day`, `guests.edit`). The handler is
+// kept explicit so older cached clients receive a stable, non-mutating refusal instead of a
+// framework default, and so the refusal is regression-testable. It deliberately performs no
+// database access at all.
+export async function PATCH() {
+  return noStore(
+    NextResponse.json(
+      {
+        success: false,
+        code: 'GUEST_SESSION_NOT_ADMISSION_AUTHORITY',
+        error: 'Arrival is confirmed by the wedding team at the entrance, not from the invitation.',
+      },
+      { status: 405, headers: { Allow: 'GET, POST, PUT, DELETE' } },
+    ),
+  )
 }
 
 export async function DELETE(request: NextRequest, { params }: Params) {

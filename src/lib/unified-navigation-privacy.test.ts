@@ -111,6 +111,13 @@ describe('unified Wewed navigation and wedding privacy', () => {
     expect(checkin).toContain('/guest-session')
     expect(checkin).not.toContain('DEMO_TOKEN_URL')
     expect(checkin).not.toContain('pseudo-random')
+    // QR-P0-01: a Guest Session reads arrival status but can never record it.
+    expect(checkin).not.toContain("method: 'PATCH'")
+    expect(checkin).not.toContain('checkIn()')
+    const guestSessionRoute = await source('src/app/api/weddings/[slug]/guest-session/route.ts')
+    const patchHandler = guestSessionRoute.slice(guestSessionRoute.indexOf('export async function PATCH'))
+    expect(patchHandler.slice(0, patchHandler.indexOf('export async function DELETE'))).not.toMatch(/checkedIn|db\./)
+    expect(guestSessionRoute).toContain('GUEST_SESSION_NOT_ADMISSION_AUTHORITY')
   })
 
   test('every stakeholder has visible navigation from a role home', async () => {

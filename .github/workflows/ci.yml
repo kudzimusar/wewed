@@ -84,6 +84,9 @@ jobs:
       - name: Run registration trigger PostgreSQL integration
         run: psql "postgresql://postgres:postgres@localhost:5432/wewed" -f scripts/registration-trigger-postgres-integration.sql
 
+      - name: Run Guest Session admission-authority regression (QR-P0-01)
+        run: bun test src/lib/guest-session-admission-authority.integration.test.ts
+
       - name: Run Phase 0 historical engagement invariants
         run: bun test src/lib/planner-historical-engagement.test.ts
 
