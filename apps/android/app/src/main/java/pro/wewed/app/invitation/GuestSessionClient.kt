@@ -500,12 +500,24 @@ class GuestSessionClient(
         // couldn't reach Wewed". The Unavailable state existed and was unreachable for the most
         // common failure there is.
         return try {
-            perform(method, path, body, withSession, followRedirects)
+            perform(method, path, body, withSession, followRedirects).also {
+                debugTransport("$method ${path.substringBefore('?')} -> ${it.status}")
+            }
         } catch (error: java.io.IOException) {
+            debugTransport("$method ${path.substringBefore('?')} -> IOException ${error::class.java.simpleName}")
             Response(status = -1, body = null, issuedSession = null)
         } catch (error: SecurityException) {
+            debugTransport("$method ${path.substringBefore('?')} -> SecurityException")
             Response(status = -1, body = null, issuedSession = null)
         }
+    }
+
+    /**
+     * DEBUG-only transport observability (QRO02B1): method, query-free path and outcome — never a
+     * token, cookie, header or body. Release builds log nothing.
+     */
+    private fun debugTransport(line: String) {
+        if (pro.wewed.app.BuildConfig.DEBUG) android.util.Log.d("WewedGuestSession", line)
     }
 
     private fun perform(
