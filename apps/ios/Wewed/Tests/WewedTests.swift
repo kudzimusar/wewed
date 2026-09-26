@@ -214,16 +214,16 @@ final class WewedTests: XCTestCase {
         try await store.saveManifest(weddingId: weddingId, items: items)
 
         // 1. Valid partial admission (1 of 2)
-        let res1 = try await store.recordOfflineCheckIn(weddingId: weddingId, serial: "SERIAL01", count: 1, usherId: "usher_gate")
+        let res1 = try await store.recordOfflineCheckIn(weddingId: weddingId, token: WeddingDayOfflineTests.ww2Token(serial: "SERIAL01"), count: 1)
         XCTAssertEqual(res1.status, .validPass)
         XCTAssertEqual(res1.checkedInCount, 1)
 
         // 2. Capacity exceeded (trying to admit 2 more when only 1 spot is left)
-        let res2 = try await store.recordOfflineCheckIn(weddingId: weddingId, serial: "SERIAL01", count: 2, usherId: "usher_gate")
+        let res2 = try await store.recordOfflineCheckIn(weddingId: weddingId, token: WeddingDayOfflineTests.ww2Token(serial: "SERIAL01"), count: 2)
         XCTAssertEqual(res2.status, .capacityExceeded)
 
         // 3. Final admission of remaining 1
-        let res3 = try await store.recordOfflineCheckIn(weddingId: weddingId, serial: "SERIAL01", count: 1, usherId: "usher_gate")
+        let res3 = try await store.recordOfflineCheckIn(weddingId: weddingId, token: WeddingDayOfflineTests.ww2Token(serial: "SERIAL01"), count: 1)
         XCTAssertEqual(res3.status, .validPass)
         XCTAssertEqual(res3.checkedInCount, 2)
     }
@@ -237,7 +237,7 @@ final class WewedTests: XCTestCase {
         await store.clearManifest(weddingId: weddingId)
         try await store.saveManifest(weddingId: weddingId, items: items)
 
-        _ = try await store.recordOfflineCheckIn(weddingId: weddingId, serial: "SYNC_SERIAL", count: 2, usherId: "usher_offline_1")
+        _ = try await store.recordOfflineCheckIn(weddingId: weddingId, token: WeddingDayOfflineTests.ww2Token(serial: "SYNC_SERIAL"), count: 2)
 
         let pending = await store.getPendingCheckIns(weddingId: weddingId)
         XCTAssertEqual(pending.count, 1)
@@ -387,7 +387,7 @@ final class WewedTests: XCTestCase {
         XCTAssertEqual(loaded.first(where: { $0.serial == "WWJD0824" })?.guestName, "Jane & Michael Doe")
 
         // 4. Guest 1 scanned offline (Admit 2 of 2)
-        let res1 = try await store.recordOfflineCheckIn(weddingId: weddingId, serial: "WWJD0824", count: 2, usherId: "gate_usher_1")
+        let res1 = try await store.recordOfflineCheckIn(weddingId: weddingId, token: WeddingDayOfflineTests.ww2Token(serial: "WWJD0824"), count: 2)
         XCTAssertEqual(res1.status, .validPass)
         XCTAssertEqual(res1.checkedInCount, 2)
 
@@ -399,7 +399,7 @@ final class WewedTests: XCTestCase {
         XCTAssertFalse(pending[0].synced)
 
         // 6. Guest 2 scanned offline (Partial arrival: admit 2 of 4)
-        let res2 = try await store.recordOfflineCheckIn(weddingId: weddingId, serial: "WWMF0104", count: 2, usherId: "gate_usher_1")
+        let res2 = try await store.recordOfflineCheckIn(weddingId: weddingId, token: WeddingDayOfflineTests.ww2Token(serial: "WWMF0104"), count: 2)
         XCTAssertEqual(res2.status, .validPass)
         XCTAssertEqual(res2.checkedInCount, 2)
 
@@ -416,7 +416,7 @@ final class WewedTests: XCTestCase {
         XCTAssertEqual(remainingPending.count, 0)
 
         // 8. Duplicates / conflicts reconciled: Duplicate attempt rejected
-        let dupRes = try await store.recordOfflineCheckIn(weddingId: weddingId, serial: "WWJD0824", count: 1, usherId: "gate_usher_2")
+        let dupRes = try await store.recordOfflineCheckIn(weddingId: weddingId, token: WeddingDayOfflineTests.ww2Token(serial: "WWJD0824"), count: 1)
         XCTAssertEqual(dupRes.status, .capacityExceeded)
     }
 }

@@ -143,6 +143,8 @@ public actor LiveGuestInvitationCoordinator {
             // whoever was active before.
             case .unauthorized: return .refused(nil)
             case let .transport(status): return .unavailable(status: status)
+            // Pass availability is only ever reported by the Wedding Pass read, not entry.
+            case .passUnavailable: return .unavailable(status: nil)
             }
         } catch {
             return .unavailable(status: nil)
@@ -159,6 +161,8 @@ public actor LiveGuestInvitationCoordinator {
             switch error {
             case .unauthorized: return .refused(nil)
             case let .transport(status): return .unavailable(status: status)
+            // Pass availability is only ever reported by the Wedding Pass read, not entry.
+            case .passUnavailable: return .unavailable(status: nil)
             }
         } catch {
             return .unavailable(status: nil)
@@ -245,6 +249,8 @@ public actor LiveGuestInvitationCoordinator {
                 return .reopenRequired
             case let .transport(status):
                 return .unavailable(status: status)
+            case .passUnavailable:
+                return .unavailable(status: nil)
             }
         } catch {
             return .unavailable(status: nil)

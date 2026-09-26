@@ -6,6 +6,12 @@ public protocol WeddingDayGateOperations: Sendable {
     func checkIn(qrPayload: String, count: Int) async throws -> CheckInVerificationResult
     func reconcilePending() async -> WeddingDaySyncResult
     func revokePass(passSerial: String, reason: String) async -> WeddingDayRevokeResult
+    /// Observability only: how old the cached, verified manifest authority is. Never gates admission.
+    func authorityStatus(now: Date) async -> WeddingDayAuthorityStatus?
+}
+
+public extension WeddingDayGateOperations {
+    func authorityStatus(now: Date) async -> WeddingDayAuthorityStatus? { nil }
 }
 
 /// Opt-in Wedding Day gate runtime used by isolated integration builds/tests.
@@ -70,13 +76,13 @@ public actor ManifestBackedWeddingDayGate: WeddingDayGateOperations {
             offlineStore: offlineStore,
             trustStore: trustStore
         )
+        // The exact verified payload is queued — never a serial reconstructed from it — so sync can
+        // present the same WW2 credential the server issued. New records carry no operator
+        // authority; server sync derives the operator from the live Gate grant.
         let result = try await offlineStore.recordOfflineCheckIn(
             weddingId: gateContext.weddingId,
-            serial: passSerial(from: qrPayload),
-            count: count,
-            // Legacy queue snapshots can still decode usherId, but new records deliberately carry
-            // no operator authority. Server sync derives the operator from the live Gate grant.
-            usherId: ""
+            token: qrPayload,
+            count: count
         )
 
         if result.status == .validPass && result.remainingCount > 0 {
@@ -136,10 +142,8 @@ public actor ManifestBackedWeddingDayGate: WeddingDayGateOperations {
         }
     }
 
-    private func passSerial(from token: String) -> String {
-        switch TokenVerifier.parse(token: token) {
-        case .success(let parsed): return parsed.passSerial
-        case .failure: return ""
-        }
+    public func authorityStatus(now: Date) async -> WeddingDayAuthorityStatus? {
+        guard let trust = await trustStore.manifest(weddingId: gateContext.weddingId) else { return nil }
+        return WeddingDayAuthorityStatus(trust: trust, now: now)
     }
 }

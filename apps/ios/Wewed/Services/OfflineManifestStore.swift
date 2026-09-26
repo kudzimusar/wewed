@@ -58,9 +58,14 @@ public struct GuestManifestItem: Codable, Identifiable, Equatable, Sendable {
 }
 
 /// A gate check-in record queued locally while offline, awaiting sync to the remote server.
+///
+/// The record is queue metadata only. The exact scanned WW2 credential is never a field here: it
+/// lives in the OS-protected credential vault under `credentialRef`, so the ordinary cache file
+/// never holds a bearer credential.
 public struct QueuedCheckIn: Codable, Identifiable, Equatable, Sendable {
     public let id: String
     public let weddingId: String
+    /// Display/lookup only. Never sent as admission authority — the server admits by exact token.
     public let passSerial: String
     public let guestId: String
     public let count: Int
@@ -70,6 +75,11 @@ public struct QueuedCheckIn: Codable, Identifiable, Equatable, Sendable {
     /// Exact server attendee keys admitted by this local event. Optional for backwards-compatible decoding.
     public let attendeeKeys: [String]?
     public let deviceId: String?
+    /// Credential-vault key (`ww2.offline.<id>`) holding the exact scanned WW2 token. Absent on
+    /// pre-LQR01 records, which therefore can never be reconciled as a trusted QR event.
+    public let credentialRef: String?
+    /// Set when the server terminally rejected this event. A rejected event is no longer pending.
+    public var rejectionCode: String?
 
     public init(
         id: String = UUID().uuidString,
@@ -81,7 +91,9 @@ public struct QueuedCheckIn: Codable, Identifiable, Equatable, Sendable {
         usherId: String,
         synced: Bool = false,
         attendeeKeys: [String]? = nil,
-        deviceId: String? = nil
+        deviceId: String? = nil,
+        credentialRef: String? = nil,
+        rejectionCode: String? = nil
     ) {
         self.id = id
         self.weddingId = weddingId
@@ -93,6 +105,37 @@ public struct QueuedCheckIn: Codable, Identifiable, Equatable, Sendable {
         self.synced = synced
         self.attendeeKeys = attendeeKeys
         self.deviceId = deviceId
+        self.credentialRef = credentialRef
+        self.rejectionCode = rejectionCode
+    }
+}
+
+/// How a queued offline event may be reconciled with the server.
+///
+/// Only `exactCredential` is ever sent. Every other class is blocked, never sent and never silently
+/// trusted: it stays queued and visible for operator resolution.
+public enum QueuedCheckInReconciliation: String, Equatable, Sendable {
+    /// Attendee keys present and the vault returns the exact WW2 token for this record's serial.
+    case exactCredential
+    /// Pre-v2 queue: no attendee keys, so never reinterpreted as "admit the whole household".
+    case legacyCountOnly
+    /// Pre-LQR01 queue: attendee keys but no retained credential. It cannot be migrated to a
+    /// trusted QR event because the exact credential was never kept.
+    case legacySerialOnly
+    /// A credential was retained but the vault no longer has it (reinstall, wipe) or it does not
+    /// match this record. Fails closed.
+    case credentialUnavailable
+
+    public static func classify(_ record: QueuedCheckIn, vaultToken: String?) -> QueuedCheckInReconciliation {
+        guard let keys = record.attendeeKeys, !keys.isEmpty else { return .legacyCountOnly }
+        guard record.credentialRef != nil else { return .legacySerialOnly }
+        guard let vaultToken, vaultToken.hasPrefix("WW2."),
+              case .success(let parsed) = TokenVerifier.parse(token: vaultToken),
+              parsed.version == "WW2",
+              parsed.passSerial == record.passSerial else {
+            return .credentialUnavailable
+        }
+        return .exactCredential
     }
 }
 
@@ -101,33 +144,88 @@ public protocol OfflineManifestStoreProtocol: Sendable {
     func saveManifest(weddingId: String, items: [GuestManifestItem]) async throws
     func getManifest(weddingId: String) async -> [GuestManifestItem]
     func lookupBySerial(weddingId: String, serial: String) async -> GuestManifestItem?
-    func recordOfflineCheckIn(weddingId: String, serial: String, count: Int, usherId: String) async throws -> CheckInVerificationResult
+    /// Records an admission for the exact scanned WW2 `token`. The caller must already have
+    /// verified the token; the store retains it in the credential vault for exact-token sync.
+    func recordOfflineCheckIn(weddingId: String, token: String, count: Int) async throws -> CheckInVerificationResult
+    /// Queued events that are neither synced nor terminally rejected.
     func getPendingCheckIns(weddingId: String) async -> [QueuedCheckIn]
+    /// Marks an event synced and deletes its retained credential.
     func markCheckInSynced(id: String) async throws
+    /// Records a terminal server rejection and deletes the event's retained credential.
+    func markCheckInRejected(id: String, code: String) async throws
+    /// The raw vault value for `record.credentialRef`, if any. Classification decides whether it
+    /// is the exact credential for this record.
+    func credential(for record: QueuedCheckIn) async -> String?
     func markPassRevoked(weddingId: String, serial: String) async throws
     func clearManifest(weddingId: String) async
 }
 
 public enum OfflineManifestStoreMutationError: Error, Sendable {
     case revocationUnsupported
+    case rejectionUnsupported
+    /// The credential vault did not retain the scanned token, so the admission was not recorded.
+    case credentialVaultUnavailable
 }
 
 public extension OfflineManifestStoreProtocol {
     func markPassRevoked(weddingId: String, serial: String) async throws {
         throw OfflineManifestStoreMutationError.revocationUnsupported
     }
+
+    func markCheckInRejected(id: String, code: String) async throws {
+        throw OfflineManifestStoreMutationError.rejectionUnsupported
+    }
+
+    /// Fails closed: a store without a credential vault can never reconcile an event.
+    func credential(for record: QueuedCheckIn) async -> String? { nil }
 }
 
 /// Thread-safe in-memory and persistent offline manifest store for Zimbabwe-first field operations.
+///
+/// Storage is split by sensitivity:
+/// - queue metadata (serial, attendee keys, `credentialRef`, sync/rejection state) lives in the
+///   ordinary durable cache file;
+/// - the exact scanned WW2 token — a bearer credential — lives only in `credentialVault`, keyed by
+///   `ww2.offline.<queued id>`. In production that is the Keychain (`deviceProtected`).
+///
+/// If the vault loses a token (reinstall, wipe), its event classifies as `credentialUnavailable`
+/// and fails closed: it is never sent and never silently trusted.
 public actor OfflineManifestStore: OfflineManifestStoreProtocol {
-    public static let shared = OfflineManifestStore()
+    /// Production store, wired to the OS-protected credential vault.
+    public static let shared = OfflineManifestStore.deviceProtected()
+
+    /// Distinct Keychain service for retained offline Wedding Day credentials.
+    public static let credentialVaultService = "pro.wewed.app.wedding-day.offline-credentials"
+
+    /// Production factory: queued WW2 tokens are held in the Keychain
+    /// (`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, never synced off this device).
+    public static func deviceProtected(
+        storageDirectory: URL? = nil,
+        deviceId: String = "ios-wedding-day"
+    ) -> OfflineManifestStore {
+        OfflineManifestStore(
+            storageDirectory: storageDirectory,
+            deviceId: deviceId,
+            credentialVault: KeychainSecureStorage(service: credentialVaultService)
+        )
+    }
+
+    static func credentialRef(forQueuedId id: String) -> String { "ww2.offline.\(id)" }
 
     private var manifests: [String: [String: GuestManifestItem]] = [:] // weddingId -> [serial: item]
     private var syncQueues: [String: [QueuedCheckIn]] = [:]           // weddingId -> [queuedCheckIns]
     private let fileURL: URL?
     private let deviceId: String
+    private let credentialVault: SecureStorageProtocol
 
-    public init(storageDirectory: URL? = nil, deviceId: String = "ios-wedding-day") {
+    /// The plain constructor defaults to an in-memory vault so unit tests stay hermetic and never
+    /// touch the Keychain. Production code uses `shared` / `deviceProtected(...)`.
+    public init(
+        storageDirectory: URL? = nil,
+        deviceId: String = "ios-wedding-day",
+        credentialVault: SecureStorageProtocol = InMemorySecureStorage()
+    ) {
+        self.credentialVault = credentialVault
         let url: URL?
         if let dir = storageDirectory {
             url = dir.appendingPathComponent("wewed_offline_manifest.json")
@@ -190,7 +288,26 @@ public actor OfflineManifestStore: OfflineManifestStoreProtocol {
         return Array(allKeys.prefix(max(0, min(item.checkedInCount, allKeys.count))))
     }
 
-    public func recordOfflineCheckIn(weddingId: String, serial: String, count: Int, usherId: String) async throws -> CheckInVerificationResult {
+    /// Admits `count` attendees for the exact scanned WW2 `token`.
+    ///
+    /// The serial is parsed from the token itself, so the queued event and the retained credential
+    /// can never disagree. The token is written to the credential vault — and read back — BEFORE
+    /// the queue record is persisted: an admission this device cannot later reconcile with its
+    /// exact credential is not recorded at all.
+    public func recordOfflineCheckIn(weddingId: String, token: String, count: Int) async throws -> CheckInVerificationResult {
+        guard case .success(let parsed) = TokenVerifier.parse(token: token), parsed.version == "WW2" else {
+            return CheckInVerificationResult(
+                status: .invalidPass,
+                guestName: "Unknown Guest",
+                householdName: nil,
+                partySize: 0,
+                checkedInCount: 0,
+                tableNumber: nil,
+                tableName: nil,
+                message: "Scanned code is not a Wedding Pass credential"
+            )
+        }
+        let serial = parsed.passSerial
         guard count > 0,
               var weddingMap = manifests[weddingId],
               var item = weddingMap[serial] else {
@@ -236,6 +353,14 @@ public actor OfflineManifestStore: OfflineManifestStoreProtocol {
             )
         }
 
+        let queuedId = UUID().uuidString
+        let credentialRef = Self.credentialRef(forQueuedId: queuedId)
+        credentialVault.save(key: credentialRef, value: token)
+        guard credentialVault.get(key: credentialRef) == token else {
+            credentialVault.delete(key: credentialRef)
+            throw OfflineManifestStoreMutationError.credentialVaultUnavailable
+        }
+
         let admittedKeys = Array(remainingKeys.prefix(count))
         checkedInKeys.append(contentsOf: admittedKeys)
         item.checkedInCount = checkedInKeys.count
@@ -244,6 +369,7 @@ public actor OfflineManifestStore: OfflineManifestStoreProtocol {
         manifests[weddingId] = weddingMap
 
         let queued = QueuedCheckIn(
+            id: queuedId,
             weddingId: weddingId,
             passSerial: serial,
             guestId: item.id,
@@ -252,7 +378,8 @@ public actor OfflineManifestStore: OfflineManifestStoreProtocol {
             // persist operator authority; online sync resolves the current Gate operator.
             usherId: "",
             attendeeKeys: admittedKeys,
-            deviceId: deviceId
+            deviceId: deviceId,
+            credentialRef: credentialRef
         )
 
         var queue = syncQueues[weddingId] ?? []
@@ -274,20 +401,36 @@ public actor OfflineManifestStore: OfflineManifestStoreProtocol {
     }
 
     public func getPendingCheckIns(weddingId: String) async -> [QueuedCheckIn] {
-        return (syncQueues[weddingId] ?? []).filter { !$0.synced }
+        return (syncQueues[weddingId] ?? []).filter { !$0.synced && $0.rejectionCode == nil }
     }
 
     public func markCheckInSynced(id: String) async throws {
+        try updateQueued(id: id) { $0.synced = true }
+    }
+
+    public func markCheckInRejected(id: String, code: String) async throws {
+        try updateQueued(id: id) { $0.rejectionCode = code }
+    }
+
+    public func credential(for record: QueuedCheckIn) async -> String? {
+        guard let ref = record.credentialRef else { return nil }
+        return credentialVault.get(key: ref)
+    }
+
+    /// Applies `change` to the queued event, persists, and only then drops its retained credential:
+    /// a synced or rejected event must never be sent again, so it no longer needs one.
+    private func updateQueued(id: String, _ change: (inout QueuedCheckIn) -> Void) throws {
+        var refs: [String] = []
         for (weddingId, queue) in syncQueues {
             var updatedQueue = queue
-            for i in 0..<updatedQueue.count {
-                if updatedQueue[i].id == id {
-                    updatedQueue[i].synced = true
-                }
+            for i in 0..<updatedQueue.count where updatedQueue[i].id == id {
+                change(&updatedQueue[i])
+                if let ref = updatedQueue[i].credentialRef { refs.append(ref) }
             }
             syncQueues[weddingId] = updatedQueue
         }
         try persistState()
+        refs.forEach { credentialVault.delete(key: $0) }
     }
 
     public func markPassRevoked(weddingId: String, serial: String) async throws {
@@ -304,9 +447,11 @@ public actor OfflineManifestStore: OfflineManifestStoreProtocol {
     }
 
     public func clearManifest(weddingId: String) async {
+        let refs = (syncQueues[weddingId] ?? []).compactMap(\.credentialRef)
         manifests.removeValue(forKey: weddingId)
         syncQueues.removeValue(forKey: weddingId)
         try? persistState()
+        refs.forEach { credentialVault.delete(key: $0) }
     }
 
     private func persistState() throws {

@@ -2,13 +2,21 @@ import XCTest
 @testable import WewedKit
 
 final class WeddingDayOfflineTests: XCTestCase {
+    /// A well-formed WW2 credential for store-level tests. The store is not the verification
+    /// boundary (`verifyOfflinePass` is); it parses the serial from the exact scanned token.
+    static func ww2Token(serial: String, shortId: String = "abc12345") -> String {
+        "WW2.\(shortId).\(serial).0e.66f001ab.\(String(repeating: "ab", count: 64))"
+    }
+
     func testOfflineQueueSurvivesRestartWithExactAttendeeKeys() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
 
         let weddingId = "wedding-1"
-        var store = OfflineManifestStore(storageDirectory: dir, deviceId: "ios-gate-a")
+        let vault = InMemorySecureStorage()
+        let token = Self.ww2Token(serial: "WWABC1234")
+        var store = OfflineManifestStore(storageDirectory: dir, deviceId: "ios-gate-a", credentialVault: vault)
         try await store.saveManifest(
             weddingId: weddingId,
             items: [
@@ -31,28 +39,33 @@ final class WeddingDayOfflineTests: XCTestCase {
 
         let result = try await store.recordOfflineCheckIn(
             weddingId: weddingId,
-            serial: "WWABC1234",
-            count: 1,
-            usherId: "usher-1"
+            token: token,
+            count: 1
         )
         XCTAssertEqual(result.alreadyCheckedInCount, 2)
         XCTAssertEqual(result.remainingCount, 1)
 
         var pending = await store.getPendingCheckIns(weddingId: weddingId)
         XCTAssertEqual(pending.count, 1)
+        XCTAssertEqual(pending[0].passSerial, "WWABC1234")
         XCTAssertEqual(pending[0].attendeeKeys, ["plus-one"])
         XCTAssertEqual(pending[0].deviceId, "ios-gate-a")
         XCTAssertEqual(pending[0].usherId, "")
+        let credentialRef = try XCTUnwrap(pending[0].credentialRef)
 
-        store = OfflineManifestStore(storageDirectory: dir, deviceId: "ios-gate-a")
+        store = OfflineManifestStore(storageDirectory: dir, deviceId: "ios-gate-a", credentialVault: vault)
         let restored = await store.lookupBySerial(weddingId: weddingId, serial: "WWABC1234")
         XCTAssertEqual(restored?.checkedInAttendeeKeys, ["primary", "plus-one"])
         pending = await store.getPendingCheckIns(weddingId: weddingId)
         XCTAssertEqual(pending[0].attendeeKeys, ["plus-one"])
+        XCTAssertEqual(pending[0].credentialRef, credentialRef)
         XCTAssertFalse(pending[0].synced)
+        let restoredToken = await store.credential(for: pending[0])
+        XCTAssertEqual(restoredToken, token)
 
         try await store.markCheckInSynced(id: pending[0].id)
-        store = OfflineManifestStore(storageDirectory: dir, deviceId: "ios-gate-a")
+        XCTAssertNil(vault.get(key: credentialRef))
+        store = OfflineManifestStore(storageDirectory: dir, deviceId: "ios-gate-a", credentialVault: vault)
         let remainingPending = await store.getPendingCheckIns(weddingId: weddingId)
         XCTAssertTrue(remainingPending.isEmpty)
     }
@@ -80,9 +93,8 @@ final class WeddingDayOfflineTests: XCTestCase {
 
         let result = try await store.recordOfflineCheckIn(
             weddingId: "wedding-1",
-            serial: "WWREVOKED",
-            count: 1,
-            usherId: "usher-1"
+            token: Self.ww2Token(serial: "WWREVOKED"),
+            count: 1
         )
         XCTAssertEqual(result.status, .invalidPass)
         let pending = await store.getPendingCheckIns(weddingId: "wedding-1")
@@ -223,8 +235,9 @@ final class WeddingDayOfflineTests: XCTestCase {
 
 
     func testOfflineSyncBodyCarriesOperationDataButNoAuthorityClaims() throws {
+        let token = Self.ww2Token(serial: "WWABC1234")
         let body = OfflineSyncBody(
-            passSerial: "WWABC1234",
+            token: token,
             attendeeKeys: ["primary", "plus-one"],
             deviceId: "ios-device-1",
             clientEventId: "queue-event-1"
@@ -232,12 +245,15 @@ final class WeddingDayOfflineTests: XCTestCase {
         let data = try JSONEncoder().encode(body)
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual(Set(json.keys), Set([
-            "passSerial",
+            "token",
             "attendeeKeys",
             "deviceId",
             "clientEventId",
         ]))
+        XCTAssertEqual(json["token"] as? String, token)
+        // LQR01: the exact token is the admission credential; serial-only admission is refused.
         for forbidden in [
+            "passSerial",
             "guestId", "weddingId", "gateId", "usherId",
             "operatorUserId", "source", "eventKey"
         ] {
@@ -315,9 +331,8 @@ final class WeddingDayOfflineTests: XCTestCase {
         try await store.markPassRevoked(weddingId: "wedding-local-revoke", serial: "WWLOCALREVOKE")
         let result = try await store.recordOfflineCheckIn(
             weddingId: "wedding-local-revoke",
-            serial: "WWLOCALREVOKE",
-            count: 1,
-            usherId: ""
+            token: Self.ww2Token(serial: "WWLOCALREVOKE"),
+            count: 1
         )
         XCTAssertEqual(result.status, .invalidPass)
         let pending = await store.getPendingCheckIns(weddingId: "wedding-local-revoke")

@@ -537,19 +537,53 @@ public struct LiveGuestShellView: View {
     }
 }
 
+extension LiveGuestShellView {
+    /// Pass-tab copy for a server-reported availability state. Nil keeps the generic unavailable text.
+    static func passAvailabilityCopy(_ availability: WeddingPassAvailability) -> String? {
+        switch availability.state {
+        case .notYetIssuable: return "Your Wedding Pass will be available closer to the wedding."
+        case .issuanceClosed: return "Wedding Pass issuance has closed for this wedding."
+        case .revoked: return "This Wedding Pass is no longer valid. Please contact the couple or the wedding team."
+        case .declined: return "You declined this invitation, so no Wedding Pass is issued."
+        case .rsvpRequired: return "Confirm your attendance to receive your Wedding Pass."
+        case .active: return nil
+        }
+    }
+
+    /// "Available from <date>" only when the pass is not yet issuable and `opensAt` parses.
+    static func passAvailableFromLabel(_ availability: WeddingPassAvailability) -> String? {
+        guard availability.state == .notYetIssuable, let opensAt = availability.opensAtDate else { return nil }
+        return "Available from \(opensAt.formatted(date: .long, time: .shortened))"
+    }
+}
+
 private struct LiveIssuedGuestPassView: View {
     let profile: LiveInvitationPresentation
     let coordinator: LiveGuestInvitationCoordinator
     @State private var pass: WeddingPass?
+    @State private var availability: WeddingPassAvailability?
     @State private var failed = false
     var body: some View {
         Group {
             if let pass { WeddingReferencePassView(pass: pass, showScanner: false) }
+            else if let availability, let copy = LiveGuestShellView.passAvailabilityCopy(availability) {
+                VStack(spacing: 8) {
+                    Text(copy)
+                    if let from = LiveGuestShellView.passAvailableFromLabel(availability) {
+                        Text(from).font(.footnote)
+                    }
+                }
+                .multilineTextAlignment(.center)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("live-guest-pass-state-\(availability.state.rawValue)")
+            }
             else if failed { Text("Your Wedding Pass is unavailable. Please try again later.").accessibilityIdentifier("live-guest-pass-unavailable") }
             else { ProgressView("Loading Wedding Pass…") }
         }.task {
             do { pass = try await coordinator.weddingPass(guestId: profile.guestId) }
             catch is CancellationError { }
+            // `failed` too, so a state without distinct copy still falls back to the generic text.
+            catch let GuestSessionError.passUnavailable(value) { availability = value; failed = true }
             catch { failed = true }
         }
     }

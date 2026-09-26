@@ -139,9 +139,74 @@ public enum RsvpSaveResult: Equatable, Sendable {
     case failed(status: Int)
 }
 
+/// Whether the server can issue this Guest's Wedding Pass right now, as `GET /api/wedding-day/pass`
+/// reports it in `availability`. Read from `availability.state`, never inferred from HTTP status.
+public struct WeddingPassAvailability: Equatable, Sendable {
+    public enum State: String, CaseIterable, Equatable, Sendable {
+        case rsvpRequired = "rsvp_required"
+        case declined
+        case notYetIssuable = "not_yet_issuable"
+        case active
+        case issuanceClosed = "issuance_closed"
+        case revoked
+    }
+
+    public let state: State
+    public let code: String?
+    /// ISO-8601, when the server says issuance opens (`not_yet_issuable`).
+    public let opensAt: String?
+    public let cutoffAt: String?
+    public let expiresAt: String?
+
+    public init(
+        state: State,
+        code: String? = nil,
+        opensAt: String? = nil,
+        cutoffAt: String? = nil,
+        expiresAt: String? = nil
+    ) {
+        self.state = state
+        self.code = code
+        self.opensAt = opensAt
+        self.cutoffAt = cutoffAt
+        self.expiresAt = expiresAt
+    }
+
+    public var opensAtDate: Date? {
+        guard let opensAt else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: opensAt) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: opensAt)
+    }
+
+    /// A recognised `availability` object from a pass response, or nil.
+    static func from(responseBody body: Data?) -> WeddingPassAvailability? {
+        guard let body,
+              let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let availability = json["availability"] as? [String: Any],
+              let raw = availability["state"] as? String,
+              let state = State(rawValue: raw) else { return nil }
+        func text(_ key: String) -> String? {
+            guard let value = availability[key] as? String, !value.isEmpty else { return nil }
+            return value
+        }
+        return WeddingPassAvailability(
+            state: state,
+            code: text("code") ?? (json["code"] as? String),
+            opensAt: text("opensAt"),
+            cutoffAt: text("cutoffAt"),
+            expiresAt: text("expiresAt")
+        )
+    }
+}
+
 public enum GuestSessionError: Error, Equatable, Sendable {
     case unauthorized
     case transport(status: Int)
+    /// The Guest is who they say they are, but no Wedding Pass is issuable in this state.
+    case passUnavailable(WeddingPassAvailability)
 }
 
 /// The native client of Wewed's existing guest-session authority.
@@ -417,8 +482,19 @@ public actor GuestSessionClient {
 
     public func loadWeddingPass(originGuestId: String) async throws -> WeddingPass {
         let snapshot = try await loadInvitation()
-        guard snapshot.guestId == originGuestId, snapshot.attending == true else { throw GuestSessionError.unauthorized }
+        guard snapshot.guestId == originGuestId, snapshot.attending == true else {
+            // Another Guest's session is an authority failure, never an availability state.
+            guard snapshot.guestId == originGuestId else { throw GuestSessionError.unauthorized }
+            throw GuestSessionError.passUnavailable(snapshot.attending == false
+                ? WeddingPassAvailability(state: .declined, code: "ATTENDANCE_DECLINED")
+                : WeddingPassAvailability(state: .rsvpRequired, code: "ATTENDANCE_REQUIRED"))
+        }
         let response = try await perform(method: "GET", path: "/api/wedding-day/pass", body: nil, withSession: true)
+        // A recognised non-active availability is never a pass, whatever else the body carries.
+        if let availability = WeddingPassAvailability.from(responseBody: response.body),
+           availability.state != .active {
+            throw GuestSessionError.passUnavailable(availability)
+        }
         guard response.status == 200, let body = response.body,
               let json = try JSONSerialization.jsonObject(with: body) as? [String: Any],
               let data = json["data"] as? [String: Any],

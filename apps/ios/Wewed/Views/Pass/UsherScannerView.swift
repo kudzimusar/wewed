@@ -9,6 +9,7 @@ public struct UsherScannerView: View {
     @State private var checkInCount: Int = 1
     @State private var auditRecords: [CheckInAuditRecord] = []
     @State private var showingAuditSheet: Bool = false
+    @State private var authorityStatus: WeddingDayAuthorityStatus? = nil
 
     private let gateContext: GateOperationalContext?
     private let onDone: (() -> Void)?
@@ -31,6 +32,9 @@ public struct UsherScannerView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     viewfinderHeader
+                    if let authorityStatus {
+                        authorityLine(authorityStatus)
+                    }
                     if let result = scanResult {
                         resultCard(result: result)
                     }
@@ -56,6 +60,7 @@ public struct UsherScannerView: View {
             }
             .task {
                 loadAuditRecords()
+                await loadAuthorityStatus()
             }
         }
     }
@@ -129,6 +134,29 @@ public struct UsherScannerView: View {
             }
         }
         .frame(height: 310)
+    }
+
+    /// Observability only: offline admission is decided from this device's cached manifest.
+    private func authorityLine(_ status: WeddingDayAuthorityStatus) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(status.summaryLine())
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(status.isStale || status.isExpired ? WewedColors.warning : .secondary)
+            Text(WeddingDayAuthorityStatus.cachedListNotice)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal)
+        .padding(.top, WewedSpacing.sm)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("gate-offline-authority-status")
+    }
+
+    private func loadAuthorityStatus() async {
+        authorityStatus = await appState.weddingDayGate?.authorityStatus(now: Date())
     }
 
     private func resultCard(result: CheckInVerificationResult) -> some View {
@@ -309,6 +337,7 @@ public struct UsherScannerView: View {
                 )
                 scanResult = res
                 loadAuditRecords()
+                await loadAuthorityStatus()
             } catch {
                 scanResult = CheckInVerificationResult(
                     status: .invalidPass,

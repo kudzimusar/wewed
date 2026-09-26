@@ -30,13 +30,18 @@ public struct WeddingDayRevokeResult: Equatable, Sendable {
 
 public struct WeddingDaySyncResult: Equatable, Sendable {
     public let syncedIds: [String]
+    /// Retryable failures (network, 5xx, 401/403/409/429, non-terminal 400). Still pending.
     public let failedIds: [String]
+    /// Never sent: legacy count-only / serial-only events, or an unavailable retained credential.
     public let blockedLegacyIds: [String]
+    /// Terminally rejected by the server. No longer pending and never resent.
+    public let rejectedIds: [String]
 
-    public init(syncedIds: [String], failedIds: [String], blockedLegacyIds: [String]) {
+    public init(syncedIds: [String], failedIds: [String], blockedLegacyIds: [String], rejectedIds: [String] = []) {
         self.syncedIds = syncedIds
         self.failedIds = failedIds
         self.blockedLegacyIds = blockedLegacyIds
+        self.rejectedIds = rejectedIds
     }
 }
 
@@ -94,8 +99,10 @@ private struct NativeManifestHouseholdMember: Decodable {
     let attendeeName: String
 }
 
+/// The exact scanned WW2 token is the admission credential; the server re-verifies it. There is
+/// deliberately no `passSerial`: serial-only admission is refused by the server.
 struct OfflineSyncBody: Encodable {
-    let passSerial: String
+    let token: String
     let attendeeKeys: [String]
     let deviceId: String?
     let clientEventId: String
@@ -103,6 +110,21 @@ struct OfflineSyncBody: Encodable {
 
 
 public actor WeddingDaySyncService {
+    /// Server check-in rejections that will never succeed on retry. Any other failure is retryable.
+    public static let terminalRejectionCodes: Set<String> = [
+        "PASS_NOT_FOUND",
+        "PASS_REVOKED_OR_EXPIRED",
+        "INVALID_PASS_TOKEN",
+        "PASS_WEDDING_MISMATCH",
+        "PASS_EVENT_NOT_PERMITTED",
+        "PASS_SIGNATURE_INVALID",
+        "PASS_CREDENTIAL_MISMATCH",
+        "PASS_TOKEN_REQUIRED",
+        "SERIAL_ONLY_ADMISSION_UNSUPPORTED",
+        "GUEST_INELIGIBLE",
+        "INVALID_ATTENDEE_KEY",
+    ]
+
     private let session: URLSession
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
@@ -296,6 +318,7 @@ public actor WeddingDaySyncService {
         var synced: [String] = []
         var failed: [String] = []
         var legacy: [String] = []
+        var rejected: [String] = []
         let checkInBaseURL = baseURL.appendingPathComponent("api/native/gate/wedding-day/check-in")
         var components = URLComponents(url: checkInBaseURL, resolvingAgainstBaseURL: false)
         if let grantId {
@@ -304,8 +327,13 @@ public actor WeddingDaySyncService {
         let url = components?.url ?? checkInBaseURL
 
         for record in pending {
-            guard let attendeeKeys = record.attendeeKeys, !attendeeKeys.isEmpty else {
-                // Never reinterpret an old count-only queue entry as "admit whole household".
+            // Only the exact retained credential is ever sent. Count-only and serial-only legacy
+            // events, and events whose credential the vault no longer holds, are never
+            // reinterpreted as a trusted QR admission: they stay queued for operator resolution.
+            let vaultToken = await offlineStore.credential(for: record)
+            guard QueuedCheckInReconciliation.classify(record, vaultToken: vaultToken) == .exactCredential,
+                  let token = vaultToken,
+                  let attendeeKeys = record.attendeeKeys else {
                 legacy.append(record.id)
                 continue
             }
@@ -319,7 +347,7 @@ public actor WeddingDaySyncService {
             }
             request.httpBody = try? encoder.encode(
                 OfflineSyncBody(
-                    passSerial: record.passSerial,
+                    token: token,
                     attendeeKeys: attendeeKeys,
                     deviceId: record.deviceId,
                     clientEventId: record.id
@@ -327,14 +355,23 @@ public actor WeddingDaySyncService {
             )
 
             do {
-                let (_, response) = try await session.data(for: request)
-                guard let http = response as? HTTPURLResponse,
-                      (200..<300).contains(http.statusCode) else {
+                let (data, response) = try await session.data(for: request)
+                guard let http = response as? HTTPURLResponse else {
                     failed.append(record.id)
                     continue
                 }
-                try await offlineStore.markCheckInSynced(id: record.id)
-                synced.append(record.id)
+                if (200..<300).contains(http.statusCode) {
+                    try await offlineStore.markCheckInSynced(id: record.id)
+                    synced.append(record.id)
+                } else if http.statusCode == 400,
+                          let envelope = try? decoder.decode(MutationAPIEnvelope.self, from: data),
+                          let code = envelope.code ?? envelope.error,
+                          Self.terminalRejectionCodes.contains(code) {
+                    try await offlineStore.markCheckInRejected(id: record.id, code: code)
+                    rejected.append(record.id)
+                } else {
+                    failed.append(record.id)
+                }
             } catch {
                 failed.append(record.id)
             }
@@ -343,7 +380,8 @@ public actor WeddingDaySyncService {
         return WeddingDaySyncResult(
             syncedIds: synced,
             failedIds: failed,
-            blockedLegacyIds: legacy
+            blockedLegacyIds: legacy,
+            rejectedIds: rejected
         )
     }
 
