@@ -106,11 +106,31 @@ export interface WewedParityRecordV1 {
   capabilities: string[] | null
 }
 
+/**
+ * An environment condition that makes a *business* field unobservable. It is never a business
+ * value itself: `passAvailability` stays reserved for real Wedding Day states.
+ */
+export const PARITY_ACTIVATION_EVIDENCE = ['WEDDING_DAY_DISABLED', 'WEDDING_DAY_KEY_CONFIGURATION_INVALID', 'WEDDING_DAY_SCHEMA_ABSENT'] as const
+export interface ParityActivationBlocker {
+  kind: 'wedding-day-activation'
+  state: 'BLOCKED-ACTIVATION'
+  /** What the application itself answered (e.g. the Pass route's `WEDDING_DAY_DISABLED`). */
+  evidence: (typeof PARITY_ACTIVATION_EVIDENCE)[number]
+}
+
 export interface WewedParityRunV1 {
   contract: typeof WEWED_PARITY_CONTRACT
   runId: string
-  /** Every label must be observed by every one of these clients. */
+  /** Default: every label must be observed by every one of these clients. */
   requiredClients: ParityClient[]
+  /**
+   * Actor-specific requirements, overriding `requiredClients` for the listed labels — e.g. a Guest
+   * `G` has no account identity, so it requires desktop + ios + android but never `native-api`.
+   * Every listed label must be present in the run.
+   */
+  requiredClientsByLabel?: Record<string, ParityClient[]>
+  /** Environment blockers. Wedding Day activation exempts only the `passAvailability` requirement. */
+  blockers?: ParityActivationBlocker[]
   /** Labels that must all resolve the same weddingId (e.g. CA, P, C and G on the UAT wedding). */
   sameWeddingLabels?: string[]
   records: WewedParityRecordV1[]
@@ -128,6 +148,7 @@ export type ParityFailureCode =
   | 'PASS_DIGEST_REQUIRED'
   | 'PASS_DIGEST_FORBIDDEN'
   | 'CROSS_LABEL_WEDDING_MISMATCH'
+  | 'BLOCKER_CONTRADICTED'
 
 export interface ParityFailure {
   code: ParityFailureCode
@@ -294,6 +315,22 @@ export function checkWewedParityRun(input: unknown): ParityCheckResult {
       failures: [{ code: 'CONTRACT_INVALID', message: `input must be a ${WEWED_PARITY_CONTRACT} run with records[] and at least two requiredClients` }],
     }
   }
+  const byLabelRequirement = run.requiredClientsByLabel ?? {}
+  const requirementInvalid = typeof byLabelRequirement !== 'object' || Array.isArray(byLabelRequirement)
+    || Object.values(byLabelRequirement).some((clients) => !Array.isArray(clients) || clients.length === 0
+      || clients.some((c) => !PARITY_CLIENTS.includes(c)))
+  const blockers = run.blockers ?? []
+  const blockersInvalid = !Array.isArray(blockers) || blockers.some((b) => !b || b.kind !== 'wedding-day-activation'
+    || b.state !== 'BLOCKED-ACTIVATION' || !PARITY_ACTIVATION_EVIDENCE.includes(b.evidence))
+  if (requirementInvalid || blockersInvalid) {
+    return {
+      ok: false,
+      compared,
+      failures: [{ code: 'CONTRACT_INVALID', message: 'requiredClientsByLabel must map labels to non-empty known client lists; blockers must be wedding-day-activation / BLOCKED-ACTIVATION with application evidence' }],
+    }
+  }
+  const weddingDayBlocked = blockers.length > 0
+  const requiredFor = (label: string): ParityClient[] => byLabelRequirement[label] ?? run.requiredClients!
 
   const records: WewedParityRecordV1[] = []
   run.records.forEach((raw, index) => {
@@ -313,9 +350,15 @@ export function checkWewedParityRun(input: unknown): ParityCheckResult {
     byLabel.set(record.label, clients)
   }
 
+  for (const label of Object.keys(byLabelRequirement).sort()) {
+    if (!byLabel.has(label)) {
+      failures.push({ code: 'CLIENT_MISSING', label, message: `${label}: required actor has no record from any client` })
+    }
+  }
+
   for (const [label, clients] of [...byLabel.entries()].sort(([a], [b]) => a.localeCompare(b))) {
     compared[label] = [...clients.keys()].sort()
-    for (const client of run.requiredClients) {
+    for (const client of requiredFor(label)) {
       if (!clients.has(client)) {
         failures.push({ code: 'CLIENT_MISSING', label, message: `${label}: no ${client} record — the ${client} client did not resolve this actor` })
       }
@@ -323,6 +366,8 @@ export function checkWewedParityRun(input: unknown): ParityCheckResult {
     const list = [...clients.values()]
     for (const record of list) {
       for (const field of REQUIRED_BY_ROLE[record.role] ?? []) {
+        // Wedding Day disabled makes Pass availability unobservable — not missing, not a state.
+        if (field === 'passAvailability' && weddingDayBlocked) continue
         const v = record[field]
         if (v === null || (Array.isArray(v) && v.length === 0)) {
           failures.push({
@@ -330,6 +375,12 @@ export function checkWewedParityRun(input: unknown): ParityCheckResult {
             message: `${label}/${record.client}: ${field} is required for role ${record.role} (grant or relationship unexpectedly missing)`,
           })
         }
+      }
+      if (weddingDayBlocked && record.passAvailability !== null) {
+        failures.push({
+          code: 'BLOCKER_CONTRADICTED', label, field: 'passAvailability',
+          message: `${label}/${record.client}: observed Pass state ${record.passAvailability} although the run declares Wedding Day BLOCKED-ACTIVATION`,
+        })
       }
       if (record.passAvailability === 'active' && record.passDigest === null) {
         failures.push({ code: 'PASS_DIGEST_REQUIRED', label, field: 'passDigest', message: `${label}/${record.client}: an active Pass must carry its credential digest` })

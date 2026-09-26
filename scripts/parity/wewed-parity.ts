@@ -44,6 +44,7 @@ import {
 } from '../../src/lib/parity/wewed-parity-v1'
 import { validateQualificationOrigin } from '../../src/lib/parity/qualification-origin'
 import { classifyParityResponse as classify, redactPath } from '../../src/lib/parity/network-evidence'
+import { defaultRequiredClientsByLabel, nativeAccessUserId, weddingDayBlockerFromPassProbe } from '../../src/lib/parity/collector-mapping'
 import { guestRsvpStatus } from '../../src/lib/guest-record-authority'
 import { membershipRoleForWorkspaceKind, workspaceKindForMembershipRole } from '../../src/lib/wedding-relationship-eligibility'
 
@@ -249,8 +250,7 @@ async function collectAccount(
       baseUrl: origin,
       commitSha,
     }),
-    // WewedProductionAuthorityV1 carries the account identity under `identity` (contract.ts).
-    accessUserId: authority.body.authority?.identity?.accessUserId ?? null,
+    accessUserId: nativeAccessUserId(authority.body),
     grantId: grant?.grantId ?? null,
     membershipRole: grant ? membershipRoleForWorkspaceKind(grant.workspaceKind) : null,
     permissions: grant?.permissions ?? null,
@@ -301,10 +301,16 @@ async function collect() {
   }
   if (!records.length) fail('nothing to collect: set WEWED_PARITY_GUEST_INVITATION and/or the account credentials')
 
+  // Wedding Day activation, observed from the application without any session (cannot issue).
+  const probe = await new Transport(origin.origin, bypass, 'activation-probe').request('GET', '/api/wedding-day/pass')
+  const blocker = weddingDayBlockerFromPassProbe(probe.status, probe.body)
+  const accountLabel = email && password ? (process.env.WEWED_PARITY_ACCOUNT_LABEL ?? 'P').trim() : null
   const run: WewedParityRunV1 = {
     contract: WEWED_PARITY_CONTRACT,
     runId: `live-${new Date().toISOString()}`,
     requiredClients: ['desktop', 'native-api'],
+    requiredClientsByLabel: defaultRequiredClientsByLabel(accountLabel, guestId !== null),
+    ...(blocker ? { blockers: [blocker] } : {}),
     records,
   }
   const out = arg('--out')
@@ -369,10 +375,20 @@ function check() {
   }
   const required = arg('--require')?.split(',').map((c) => c.trim()) as ParityClient[] | undefined
   const sameWedding = arg('--same-wedding')?.split(',').map((l) => l.trim())
+  // --require-for LABEL=client,client (repeatable) overrides one actor's requirements.
+  const requireFor: Record<string, ParityClient[]> = { ...(base.requiredClientsByLabel ?? {}) }
+  process.argv.forEach((value, index) => {
+    if (process.argv[index - 1] !== '--require-for') return
+    const [label, list] = value.split('=')
+    if (!label || !list) fail('--require-for expects LABEL=client,client')
+    requireFor[label.trim()] = list.split(',').map((c) => c.trim()) as ParityClient[]
+  })
   const run = {
     contract: WEWED_PARITY_CONTRACT,
     runId: base.runId ?? 'merged',
     requiredClients: required ?? base.requiredClients ?? ['desktop', 'native-api'],
+    ...(Object.keys(requireFor).length ? { requiredClientsByLabel: requireFor } : {}),
+    ...(base.blockers ? { blockers: base.blockers } : {}),
     sameWeddingLabels: sameWedding ?? base.sameWeddingLabels,
     records,
   }
@@ -388,4 +404,4 @@ const command = process.argv[2]
 if (command === 'preflight') await preflight()
 else if (command === 'collect') await collect()
 else if (command === 'check') check()
-else fail('usage: wewed-parity.ts preflight | collect [--out file] [--network-log file] | check <files…> [--require clients] [--same-wedding labels]')
+else fail('usage: wewed-parity.ts preflight | collect [--out file] [--network-log file] | check <files…> [--require clients] [--require-for LABEL=clients]… [--same-wedding labels]')

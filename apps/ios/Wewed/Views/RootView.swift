@@ -487,7 +487,7 @@ public struct RootView: View {
                 appState.handleIncomingURL(url)
             }
         }
-        .task(id: appState.pendingInvitationEntry) {
+        .task(id: appState.invitationEntryRevision) {
             // The separation runs both ways. The legacy path is barred from live mode, and the
             // live path is equally barred from Shadow: a Shadow slug is not a real wedding, so
             // sending it to the production authority produced a refusal for a link that is
