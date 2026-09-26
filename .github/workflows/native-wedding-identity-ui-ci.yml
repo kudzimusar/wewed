@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - native-mobile/wedding-identity-ui-20260918
-      - native-mobile/phase13-ios-invitation-pass-closure-nm06-20260926
     paths:
       - 'apps/ios/**'
       - 'apps/android/**'
