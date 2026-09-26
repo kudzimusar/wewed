@@ -99,6 +99,7 @@ fun RootScreen(
     val pendingInvitationDeepLink by appViewModel.pendingInvitationDeepLink.collectAsState()
     val rejectedInvitation by appViewModel.rejectedInvitation.collectAsState()
     val pendingInvitationEntry by appViewModel.pendingInvitationEntry.collectAsState()
+    val invitationEntryRevision by appViewModel.invitationEntryRevision.collectAsState()
     val pendingRouteDeepLink by appViewModel.pendingRouteDeepLink.collectAsState()
 
     var isScannerOpen by remember { mutableStateOf(false) }
@@ -142,7 +143,8 @@ fun RootScreen(
     }
     var liveInvitation by remember { mutableStateOf<LiveInvitationState>(LiveInvitationState.Idle) }
 
-    LaunchedEffect(pendingInvitationEntry) {
+    // Keyed on the arrival revision, never on the entry it consumes (QRO02B1).
+    LaunchedEffect(invitationEntryRevision) {
         // The separation runs both ways. The legacy path is barred from live mode, and the live
         // path is equally barred from Shadow: a Shadow slug is not a real wedding, so sending it
         // to the production authority produced a refusal for a link that is perfectly valid in

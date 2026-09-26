@@ -200,3 +200,92 @@ test('the shared cross-language contract file mirrors the checker exactly', () =
   expect(Object.keys(emptyParityRecord({ label: 'G', role: 'guest', client: 'ios', baseUrl: 'http://127.0.0.1:1', commitSha: 'abcdef1' })))
     .toEqual([...WEWED_PARITY_FIELDS])
 })
+
+describe('QRO02B1 — actor-specific required clients', () => {
+  const guestRun = (clients: ParityClient[], extra: Partial<WewedParityRunV1> = {}) =>
+    run(clients.map((c) => guest(c, { passAvailability: 'not_yet_issuable' })), {
+      requiredClients: ['desktop', 'native-api'],
+      requiredClientsByLabel: { G: ['desktop', 'ios', 'android'] },
+      ...extra,
+    })
+
+  test('a Guest requires desktop + iOS + Android and never a native-account identity', () => {
+    expect(checkWewedParityRun(guestRun(['desktop', 'ios', 'android'])).ok).toBe(true)
+  })
+
+  test('a genuinely required client that is missing still fails', () => {
+    expect(codes(guestRun(['desktop', 'ios']))).toContain('CLIENT_MISSING:')
+  })
+
+  test('a required actor with no records at all fails', () => {
+    const result = checkWewedParityRun(guestRun(['desktop', 'ios', 'android'], {
+      requiredClientsByLabel: { G: ['desktop', 'ios', 'android'], P: ['desktop', 'native-api', 'ios', 'android'] },
+    }))
+    expect(result.failures.some((f) => f.code === 'CLIENT_MISSING' && f.label === 'P')).toBe(true)
+  })
+
+  test('the Planner can still require all four clients while the Guest requires three', () => {
+    const records = [
+      ...(['desktop', 'ios', 'android'] as ParityClient[]).map((c) => guest(c, { passAvailability: 'not_yet_issuable' })),
+      ...(['desktop', 'native-api', 'ios', 'android'] as ParityClient[]).map((c) => planner(c)),
+    ]
+    const r = run(records, {
+      requiredClients: ['desktop', 'native-api'],
+      requiredClientsByLabel: { G: ['desktop', 'ios', 'android'], P: ['desktop', 'native-api', 'ios', 'android'] },
+      sameWeddingLabels: ['G', 'P'],
+    })
+    expect(checkWewedParityRun(r).failures).toEqual([])
+    const missingIos = { ...r, records: records.filter((x) => !(x.label === 'P' && x.client === 'ios')) }
+    expect(checkWewedParityRun(missingIos).failures.map((f) => `${f.code}:${f.label}`)).toContain('CLIENT_MISSING:P')
+  })
+
+  test('different IDs still fail under actor-specific requirements', () => {
+    const records = (['desktop', 'ios', 'android'] as ParityClient[]).map((c) =>
+      guest(c, { passAvailability: 'not_yet_issuable', ...(c === 'android' ? { guestId: 'guest-other' } : {}) }))
+    expect(codes(run(records, { requiredClientsByLabel: { G: ['desktop', 'ios', 'android'] } }))).toContain('LABEL_MATCH_ID_MISMATCH:guestId')
+  })
+
+  test('malformed requirement maps are refused', () => {
+    expect(codes(run([], { requiredClientsByLabel: { G: [] } }))).toEqual(['CONTRACT_INVALID:'])
+    expect(codes(run([], { requiredClientsByLabel: { G: ['fax' as ParityClient] } }))).toEqual(['CONTRACT_INVALID:'])
+  })
+})
+
+describe('QRO02B1 — Wedding Day BLOCKED-ACTIVATION is separate from Pass availability', () => {
+  const blocked = { blockers: [{ kind: 'wedding-day-activation' as const, state: 'BLOCKED-ACTIVATION' as const, evidence: 'WEDDING_DAY_DISABLED' as const }] }
+  const unobserved = (c: ParityClient, o: Partial<WewedParityRecordV1> = {}) => guest(c, { passAvailability: null, ...o })
+  const trio: ParityClient[] = ['desktop', 'ios', 'android']
+  const byLabel = { requiredClientsByLabel: { G: trio } }
+
+  test('without the blocker an unobserved Pass is still REQUIRED_FIELD_MISSING', () => {
+    expect(codes(run(trio.map((c) => unobserved(c)), byLabel))).toContain('REQUIRED_FIELD_MISSING:passAvailability')
+  })
+
+  test('with the blocker an unobserved Pass is not a failure and everything else still is', () => {
+    expect(checkWewedParityRun(run(trio.map((c) => unobserved(c)), { ...byLabel, ...blocked })).ok).toBe(true)
+    expect(codes(run(trio.map((c) => unobserved(c, c === 'ios' ? { tableId: null } : {})), { ...byLabel, ...blocked })))
+      .toEqual(expect.arrayContaining(['FIELD_MISMATCH:tableId']))
+    expect(codes(run(trio.map((c) => unobserved(c, c === 'ios' ? { guestId: null } : {})), { ...byLabel, ...blocked })))
+      .toContain('REQUIRED_FIELD_MISSING:guestId')
+    expect(codes(run(['desktop', 'ios'].map((c) => unobserved(c as ParityClient)), { ...byLabel, ...blocked }))).toContain('CLIENT_MISSING:')
+  })
+
+  test('a client that observed a business Pass state contradicts the blocker', () => {
+    expect(codes(run(trio.map((c) => unobserved(c, c === 'android' ? { passAvailability: 'not_yet_issuable' } : {})), { ...byLabel, ...blocked })))
+      .toContain('BLOCKER_CONTRADICTED:passAvailability')
+  })
+
+  test('passAvailability never accepts a blocker as a business value, and blockers are validated', () => {
+    expect(codes(run([guest('ios', { passAvailability: 'blocked_activation' as never })], byLabel))).toContain('RECORD_INVALID:passAvailability')
+    expect(codes(run([], { blockers: [{ kind: 'wedding-day-activation', state: 'BLOCKED-ACTIVATION', evidence: 'ANYTHING' as never }] })))
+      .toEqual(['CONTRACT_INVALID:'])
+  })
+
+  test('when Wedding Day is active the ordinary Pass rules return', () => {
+    const digest = passTokenDigest('synthetic-credential')
+    const active = (c: ParityClient) => guest(c, { passAvailability: 'active', passSerial: 'WWSYN-001', passDigest: digest })
+    expect(checkWewedParityRun(run(trio.map(active), byLabel)).ok).toBe(true)
+    expect(codes(run(trio.map((c) => guest(c, { passAvailability: 'active', passSerial: 'WWSYN-001' })), byLabel))).toContain('PASS_DIGEST_REQUIRED:passDigest')
+    expect(codes(run(trio.map((c) => guest(c, { passAvailability: 'not_yet_issuable', passDigest: digest })), byLabel))).toContain('PASS_DIGEST_FORBIDDEN:passDigest')
+  })
+})

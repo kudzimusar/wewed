@@ -333,6 +333,23 @@ class AppViewModel(
     private val _pendingInvitationEntry = MutableStateFlow<InvitationEntry?>(null)
     val pendingInvitationEntry: StateFlow<InvitationEntry?> = _pendingInvitationEntry.asStateFlow()
 
+    /**
+     * Lifecycle key for the root's invitation-exchange effect (QRO02B1).
+     *
+     * The effect used to be keyed on [pendingInvitationEntry] and cleared it when consuming, so the
+     * key change restarted the effect and cancelled the in-flight exchange: a Guest link arriving
+     * while the account workspace was showing got "We couldn't reach Wewed" after a successful
+     * exchange (runtime-proven). The revision changes only when a new entry arrives — including the
+     * same link opened again — so consuming never cancels, and a later invitation still runs once.
+     */
+    private val _invitationEntryRevision = MutableStateFlow(0)
+    val invitationEntryRevision: StateFlow<Int> = _invitationEntryRevision.asStateFlow()
+
+    private fun offerInvitationEntry(entry: InvitationEntry) {
+        _pendingInvitationEntry.value = entry
+        _invitationEntryRevision.value += 1
+    }
+
     /** Consumed by the coordinator once, so a re-render cannot replay an exchange. */
     fun consumePendingInvitationEntry(): InvitationEntry? =
         _pendingInvitationEntry.value.also { _pendingInvitationEntry.value = null }
@@ -352,13 +369,13 @@ class AppViewModel(
                 // Handed to the coordinator to redeem. It names nobody here, so there is nothing
                 // to route on yet — but it must not be dropped, which is what used to happen.
                 _rejectedInvitation.value = null
-                _pendingInvitationEntry.value = entry
+                offerInvitationEntry(entry)
                 _pendingRouteDeepLink.value = null
                 return
             }
             is InvitationEntry.PrivateInvitation -> {
                 _rejectedInvitation.value = null
-                _pendingInvitationEntry.value = entry
+                offerInvitationEntry(entry)
             }
             null -> Unit
         }

@@ -316,7 +316,22 @@ public final class AppState: ObservableObject, @unchecked Sendable {
     /// same. The handoff in particular used to be recognised and then dropped on the floor, so the
     /// parser tests passed while the app never redeemed it. Carrying it as state is what makes the
     /// journey completable.
-    @Published public var pendingInvitationEntry: InvitationEntry?
+    @Published public var pendingInvitationEntry: InvitationEntry? {
+        didSet {
+            // Every newly arrived entry — including the same link tapped again — gets a new
+            // revision. Consuming (setting nil) never changes it.
+            if pendingInvitationEntry != nil { invitationEntryRevision &+= 1 }
+        }
+    }
+
+    /// Lifecycle key for the view task that exchanges `pendingInvitationEntry` (QRO02B1).
+    ///
+    /// The task used to be keyed on the entry itself and cleared that entry when it consumed it.
+    /// Clearing its own key made SwiftUI cancel the task — and the in-flight invitation exchange
+    /// with it (`NSURLErrorCancelled`, zero bytes sent) — so a real Guest arriving at the account
+    /// workspace saw "We couldn't reach Wewed". The revision changes only when a new entry
+    /// arrives, so consuming never cancels the exchange and a later invitation still runs once.
+    @Published public private(set) var invitationEntryRevision: Int = 0
 
     /// Consumed by the coordinator once, so a re-render cannot replay an exchange.
     public func consumePendingInvitationEntry() -> InvitationEntry? {
