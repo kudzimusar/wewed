@@ -7,6 +7,7 @@ import {
 } from '@/lib/wedding-day-feature'
 import { MAX_REVOCATION_REASON_LENGTH, revokeWeddingPassCredential } from '@/lib/wedding-day'
 import { db } from '@/lib/db'
+import { previewWriteError } from '@/lib/preview-write-response'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,6 +44,11 @@ export async function POST(request: NextRequest) {
   if (!resolved.ok) return resolved.response
 
   const { grant } = resolved.context
+
+  // P0-LIVE: the wedding comes only from the server-resolved operational grant. Preview shares the
+  // live database, so this write is refused unless Preview is scoped to exactly this wedding.
+  const previewBlocked = previewWriteError(grant.weddingId)
+  if (previewBlocked) return previewBlocked
 
   let body: RevokeRequestBody
   try {

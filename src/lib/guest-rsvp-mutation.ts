@@ -1,6 +1,7 @@
 import 'server-only'
 import { db } from '@/lib/db'
 import { withdrawWeddingPassesForAttendance } from '@/lib/wedding-day'
+import { PREVIEW_WRITE_BLOCK_MESSAGE, previewWeddingMutationBlocked } from '@/lib/preview-write-safety'
 
 /**
  * Master plan WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01, Phase 9 — Digital Invitation + RSVP
@@ -76,6 +77,7 @@ export interface GuestRsvpRecord {
 export type GuestRsvpUpdateResult =
   | { ok: true; rsvp: GuestRsvpRecord }
   | { ok: false; code: 'CHILDREN_NOT_ALLOWED'; status: 400; error: string }
+  | { ok: false; code: 'PREVIEW_WRITE_BLOCKED'; status: 423; error: string }
 
 const GUEST_RSVP_SELECT = {
   attending: true,
@@ -138,6 +140,11 @@ export async function applyGuestRsvpUpdate(params: {
   requestedFields: Partial<Record<GuestRsvpField, unknown>>
 }): Promise<GuestRsvpUpdateResult> {
   const { weddingId, rsvpToken, requestedFields } = params
+  // Domain backstop: transports already refuse Preview writes, but the shared mutation authority
+  // must not depend on every caller remembering to.
+  if (previewWeddingMutationBlocked(weddingId)) {
+    return { ok: false, code: 'PREVIEW_WRITE_BLOCKED', status: 423, error: PREVIEW_WRITE_BLOCK_MESSAGE }
+  }
   const childrenPolicy = await loadWeddingChildrenPolicy(weddingId)
 
   if (childrenPolicy === 'adults_only' && requestedFields.kidsAttending === true) {

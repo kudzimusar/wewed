@@ -4,7 +4,11 @@ import { randomUUID } from 'node:crypto'
 import type { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { readAppSession, type AppSession } from '@/lib/app-session'
-import { shouldBlockPreviewWrite, PREVIEW_WRITE_BLOCK_MESSAGE } from '@/lib/preview-write-safety'
+import {
+  assertPreviewWeddingMutationAllowed,
+  shouldBlockPreviewWrite,
+  PREVIEW_WRITE_BLOCK_MESSAGE,
+} from '@/lib/preview-write-safety'
 import {
   GATE_CAPABILITY_VOCABULARY,
   type GateCapability,
@@ -254,6 +258,7 @@ export async function createWeddingGate(input: {
   name: string
   actorUserId: string
 }): Promise<WeddingGateRecord> {
+  assertPreviewWeddingMutationAllowed(input.weddingId)
   const name = input.name.trim()
   if (name.length < 2 || name.length > 120) {
     throw new Error('INVALID_GATE_NAME')
@@ -291,6 +296,7 @@ export async function disableWeddingGate(input: {
   gateId: string
   actorUserId: string
 }): Promise<WeddingGateRecord> {
+  assertPreviewWeddingMutationAllowed(input.weddingId)
   return db.$transaction(async (tx) => {
     const existing = await tx.$queryRawUnsafe<GateRow[]>(
       `SELECT id, "weddingId", name, status, "createdAt", "updatedAt"
@@ -338,6 +344,7 @@ export async function assignGateOperator(input: {
   expiresAt?: Date | null
   actorUserId: string
 }): Promise<WeddingGateAssignmentRecord> {
+  assertPreviewWeddingMutationAllowed(input.weddingId)
   if (!Array.isArray(input.capabilities) ||
       input.capabilities.some(
         (item) =>
@@ -465,6 +472,7 @@ export async function revokeGateOperator(input: {
   assignmentId: string
   actorUserId: string
 }): Promise<WeddingGateAssignmentRecord> {
+  assertPreviewWeddingMutationAllowed(input.weddingId)
   return db.$transaction(async (tx) => {
     const rows = await tx.$queryRawUnsafe<AssignmentRow[]>(
       `UPDATE public."WeddingGateAssignment" a

@@ -5,6 +5,7 @@ import { isWewedPlatformAdministrator } from '@/lib/business-access'
 import {
   PREVIEW_WRITE_BLOCK_MESSAGE,
   shouldBlockPreviewWrite,
+  pendingMembershipAcceptanceScope,
 } from '@/lib/preview-write-safety'
 
 export type MembershipRole = 'owner' | 'planner' | 'coordinator' | 'viewer' | 'admin'
@@ -205,6 +206,9 @@ export async function listAccessibleWeddings(
 }
 
 export async function acceptPendingMemberships(userId: string): Promise<void> {
+  const scope = pendingMembershipAcceptanceScope()
+  if (scope.mode === 'none') return
+  const weddingFilter = scope.mode === 'wedding' ? ' AND "weddingId" = $2' : ''
   await db.$executeRawUnsafe(
     `
       UPDATE public."WeddingMembership"
@@ -212,9 +216,10 @@ export async function acceptPendingMemberships(userId: string): Promise<void> {
           "acceptedAt" = COALESCE("acceptedAt", CURRENT_TIMESTAMP),
           "revokedAt" = NULL,
           "updatedAt" = CURRENT_TIMESTAMP
-      WHERE "userId" = $1 AND status = 'invited'
+      WHERE "userId" = $1 AND status = 'invited'${weddingFilter}
     `,
-    userId
+    userId,
+    ...(scope.mode === 'wedding' ? [scope.weddingId] : [])
   )
 }
 

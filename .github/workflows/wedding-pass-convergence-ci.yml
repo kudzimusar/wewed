@@ -13,6 +13,11 @@ on:
       - 'src/lib/guest-rsvp-mutation.ts'
       - 'src/lib/global-qr-convergence.integration.test.ts'
       - 'src/lib/import-engine/guest-worksheet-apply.ts'
+      - 'src/lib/preview-write-safety.ts'
+      - 'src/lib/preview-live-data-safety.integration.test.ts'
+      - 'src/lib/gate-authority.ts'
+      - 'src/lib/wedding-access.ts'
+      - 'src/app/api/auth/**'
       - 'src/app/api/wedding-day/**'
       - 'src/app/api/native/gate/wedding-day/**'
       - 'src/app/api/planner/wedding-passes/**'
@@ -94,3 +99,6 @@ jobs:
 
       - name: Guest Session is not admission authority (source contract)
         run: bun test src/lib/unified-navigation-privacy.test.ts
+
+      - name: Preview live-data safety (P13-LIVE-1)
+        run: bun test src/lib/preview-live-data-safety.integration.test.ts

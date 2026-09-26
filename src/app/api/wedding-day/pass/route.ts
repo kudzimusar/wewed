@@ -8,6 +8,11 @@ import {
   WeddingPassUnavailableError,
   type WeddingPassAvailabilityState,
 } from '@/lib/wedding-day'
+import {
+  isPreviewWriteBlockedError,
+  PREVIEW_WRITE_BLOCK_MESSAGE,
+  PREVIEW_WRITE_BLOCKED_CODE,
+} from '@/lib/preview-write-safety'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,6 +90,17 @@ export async function GET(request: NextRequest) {
           availability: error.availability,
         },
         { status: UNAVAILABLE_STATUS[error.availability.state], headers: { 'Cache-Control': 'no-store' } },
+      )
+    }
+    if (isPreviewWriteBlockedError(error)) {
+      // P0-LIVE-03: this GET would have issued a credential. A Preview not scoped to this exact
+      // wedding may read an existing Pass but never create one.
+      return NextResponse.json(
+        { success: false, code: PREVIEW_WRITE_BLOCKED_CODE, error: PREVIEW_WRITE_BLOCK_MESSAGE },
+        {
+          status: 423,
+          headers: { 'Cache-Control': 'no-store', 'x-wewed-preview-write-blocked': 'true' },
+        },
       )
     }
     const message = error instanceof Error ? error.message : String(error)

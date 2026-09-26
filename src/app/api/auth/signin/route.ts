@@ -16,6 +16,7 @@ import {
   isWewedPlatformAdministrator,
   WEWED_PLATFORM_SESSION_ID,
 } from '@/lib/business-access'
+import { previewAccountBookkeepingSuppressed } from '@/lib/preview-write-safety'
 
 function errorResponse(message: string, status: number) {
   const response = NextResponse.json(
@@ -122,28 +123,30 @@ export async function POST(request: NextRequest) {
       await isWewedPlatformAdministrator(accessUser.id)
 
     if (platformAdministrator) {
-      await db.$transaction([
-        db.user.update({
-          where: { id: accessUser.id },
-          data: { lastLoginAt: now, currentWeddingId: null },
-        }),
-        db.userProfile.upsert({
-          where: { id: data.user.id },
-          create: {
-            id: data.user.id,
-            email: normalizedAuthEmail,
-            displayName,
-            role: 'admin',
-            lastLoginAt: now,
-          },
-          update: {
-            email: normalizedAuthEmail,
-            displayName,
-            role: 'admin',
-            lastLoginAt: now,
-          },
-        }),
-      ])
+      if (!previewAccountBookkeepingSuppressed()) {
+        await db.$transaction([
+          db.user.update({
+            where: { id: accessUser.id },
+            data: { lastLoginAt: now, currentWeddingId: null },
+          }),
+          db.userProfile.upsert({
+            where: { id: data.user.id },
+            create: {
+              id: data.user.id,
+              email: normalizedAuthEmail,
+              displayName,
+              role: 'admin',
+              lastLoginAt: now,
+            },
+            update: {
+              email: normalizedAuthEmail,
+              displayName,
+              role: 'admin',
+              lastLoginAt: now,
+            },
+          }),
+        ])
+      }
 
       const response = NextResponse.json({
         success: true,
@@ -183,29 +186,31 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      await db.$transaction([
-        db.user.update({
-          where: { id: accessUser.id },
-          data: { currentWeddingId: null, lastLoginAt: now },
-        }),
-        db.userProfile.upsert({
-          where: { id: data.user.id },
-          create: {
-            id: data.user.id,
-            email: normalizedAuthEmail,
-            displayName: vendor.businessName,
-            role: 'vendor',
-            lastLoginAt: now,
-          },
-          update: {
-            email: normalizedAuthEmail,
-            displayName: vendor.businessName,
-            role: 'vendor',
-            coupleId: null,
-            lastLoginAt: now,
-          },
-        }),
-      ])
+      if (!previewAccountBookkeepingSuppressed()) {
+        await db.$transaction([
+          db.user.update({
+            where: { id: accessUser.id },
+            data: { currentWeddingId: null, lastLoginAt: now },
+          }),
+          db.userProfile.upsert({
+            where: { id: data.user.id },
+            create: {
+              id: data.user.id,
+              email: normalizedAuthEmail,
+              displayName: vendor.businessName,
+              role: 'vendor',
+              lastLoginAt: now,
+            },
+            update: {
+              email: normalizedAuthEmail,
+              displayName: vendor.businessName,
+              role: 'vendor',
+              coupleId: null,
+              lastLoginAt: now,
+            },
+          }),
+        ])
+      }
 
       const response = NextResponse.json({
         success: true,
@@ -240,28 +245,30 @@ export async function POST(request: NextRequest) {
 
     const weddings = await listAccessibleWeddings(accessUser.id, accessUser.role)
     if (weddings.length === 0 && accessUser.role === 'planner') {
-      await db.$transaction([
-        db.user.update({
-          where: { id: accessUser.id },
-          data: { currentWeddingId: null, lastLoginAt: now },
-        }),
-        db.userProfile.upsert({
-          where: { id: data.user.id },
-          create: {
-            id: data.user.id,
-            email: normalizedAuthEmail,
-            displayName,
-            role: 'planner',
-            lastLoginAt: now,
-          },
-          update: {
-            email: normalizedAuthEmail,
-            displayName,
-            role: 'planner',
-            lastLoginAt: now,
-          },
-        }),
-      ])
+      if (!previewAccountBookkeepingSuppressed()) {
+        await db.$transaction([
+          db.user.update({
+            where: { id: accessUser.id },
+            data: { currentWeddingId: null, lastLoginAt: now },
+          }),
+          db.userProfile.upsert({
+            where: { id: data.user.id },
+            create: {
+              id: data.user.id,
+              email: normalizedAuthEmail,
+              displayName,
+              role: 'planner',
+              lastLoginAt: now,
+            },
+            update: {
+              email: normalizedAuthEmail,
+              displayName,
+              role: 'planner',
+              lastLoginAt: now,
+            },
+          }),
+        ])
+      }
 
       const response = NextResponse.json({
         success: true,
@@ -310,28 +317,30 @@ export async function POST(request: NextRequest) {
     const activeWedding =
       weddings.find((wedding) => wedding.id === storedWeddingId) ?? weddings[0]
 
-    await db.$transaction([
-      db.user.update({
-        where: { id: accessUser.id },
-        data: { currentWeddingId: activeWedding.id, lastLoginAt: now },
-      }),
-      db.userProfile.upsert({
-        where: { id: data.user.id },
-        create: {
-          id: data.user.id,
-          email: normalizedAuthEmail,
-          displayName,
-          role: accessUser.role,
-          lastLoginAt: now,
-        },
-        update: {
-          email: normalizedAuthEmail,
-          displayName,
-          role: accessUser.role,
-          lastLoginAt: now,
-        },
-      }),
-    ])
+    if (!previewAccountBookkeepingSuppressed()) {
+      await db.$transaction([
+        db.user.update({
+          where: { id: accessUser.id },
+          data: { currentWeddingId: activeWedding.id, lastLoginAt: now },
+        }),
+        db.userProfile.upsert({
+          where: { id: data.user.id },
+          create: {
+            id: data.user.id,
+            email: normalizedAuthEmail,
+            displayName,
+            role: accessUser.role,
+            lastLoginAt: now,
+          },
+          update: {
+            email: normalizedAuthEmail,
+            displayName,
+            role: accessUser.role,
+            lastLoginAt: now,
+          },
+        }),
+      ])
+    }
 
     const response = NextResponse.json({
       success: true,

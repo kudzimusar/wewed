@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { db } from '@/lib/db'
 import { ATTENDANCE_WITHDRAWN_REASON } from '@/lib/wedding-pass-availability'
+import { assertPreviewWeddingMutationAllowed } from '@/lib/preview-write-safety'
 
 /**
  * RSVP ↔ Wedding Pass lifecycle — attendance withdrawal. Re-exported by `@/lib/wedding-day`, the
@@ -26,6 +27,7 @@ export async function withdrawWeddingPassesForAttendance(
   tx: Pick<typeof db, '$queryRawUnsafe' | '$executeRawUnsafe'>,
   input: { weddingId: string; guestId: string; now?: Date },
 ): Promise<string[]> {
+  assertPreviewWeddingMutationAllowed(input.weddingId)
   const now = input.now ?? new Date()
   const withdrawn = await tx.$queryRawUnsafe<Array<{ id: string; passSerial: string }>>(
     `UPDATE public."WeddingPassCredential"

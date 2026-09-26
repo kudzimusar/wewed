@@ -16,6 +16,7 @@ import {
   isWeddingDayWW2Enabled,
 } from '@/lib/wedding-day-feature'
 import { readWeddingGuestSession } from '@/lib/wedding-guest-session'
+import { assertPreviewWeddingMutationAllowed } from '@/lib/preview-write-safety'
 import {
   ATTENDANCE_WITHDRAWN_REASON,
   type WeddingPassAvailability,
@@ -362,6 +363,7 @@ export async function ensurePassKey(
   )
   if (existing[0]) return validateBoundKey(existing[0])
 
+  assertPreviewWeddingMutationAllowed(weddingId)
   const id = randomUUID()
   const inserted = await queryable.$queryRawUnsafe<PassKeyRow[]>(
     `INSERT INTO public."WeddingPassKey"
@@ -506,6 +508,11 @@ export async function ensureWeddingPassCredential(input: {
       }
       const window = weddingPassIssuanceWindow(guest.weddingDate)
 
+      // Everything above is a read (an existing usable credential is returned, and the real
+      // not-yet-issuable / closed state is reported unchanged). From here on the transaction
+      // supersedes and issues, so Preview must be scoped to this exact wedding.
+      assertPreviewWeddingMutationAllowed(input.weddingId)
+
       if (existing) {
         await tx.$queryRawUnsafe(
           `UPDATE public."WeddingPassCredential"
@@ -598,6 +605,7 @@ export async function revokeWeddingPassCredential(input: {
   const reason = input.reason.trim()
   if (!reason) throw new Error('REVOCATION_REASON_REQUIRED')
   if (reason.length > MAX_REVOCATION_REASON_LENGTH) throw new Error('REVOCATION_REASON_TOO_LONG')
+  assertPreviewWeddingMutationAllowed(input.weddingId)
   const now = input.now ?? new Date()
 
   return db.$transaction(async (tx) => {
@@ -799,6 +807,8 @@ export async function checkInWeddingGuest(input: {
   clientEventId?: string
 }): Promise<WeddingCheckInResult> {
   assertWeddingDayWW2RuntimeReady()
+  // Every check-in path writes WeddingCheckIn (and may mark the RSVP checked in).
+  assertPreviewWeddingMutationAllowed(input.weddingId)
 
   const requestedKeys = Array.from(new Set(input.attendeeKeys ?? []))
   if (requestedKeys.length === 0) throw new Error('ATTENDEE_KEYS_REQUIRED')
