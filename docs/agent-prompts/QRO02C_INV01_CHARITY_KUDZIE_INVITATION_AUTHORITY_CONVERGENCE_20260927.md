@@ -30,6 +30,12 @@ but that query parameter is not final authority. Current server code deliberatel
 
 QRO02B is read-only and must first establish the actual live value and cross-client behavior.
 
+## INV-CANON01 prerequisite
+
+This unit is **not released** until the moderator has accepted `INV-CANON01 — Ivory Floral Gold Canonical Reference Closure`.
+
+The web Invitation Studio must first surface the actual closed `IvoryFloralGoldTriFold` as the canonical Ivory visual reference, with native iOS/Android confirmed against the same closed/opening/open/details contract.
+
 ## Release trigger
 
 Moderator may release this unit only if QRO02B proves one of:
