@@ -249,7 +249,8 @@ async function collectAccount(
       baseUrl: origin,
       commitSha,
     }),
-    accessUserId: authority.body.authority?.accessUserId ?? null,
+    // WewedProductionAuthorityV1 carries the account identity under `identity` (contract.ts).
+    accessUserId: authority.body.authority?.identity?.accessUserId ?? null,
     grantId: grant?.grantId ?? null,
     membershipRole: grant ? membershipRoleForWorkspaceKind(grant.workspaceKind) : null,
     permissions: grant?.permissions ?? null,
