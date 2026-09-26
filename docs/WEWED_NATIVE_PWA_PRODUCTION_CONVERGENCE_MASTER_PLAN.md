@@ -4920,3 +4920,41 @@ The final branch differs from the visual/qualified source only by cleanup of tem
 If LNM passes this gate, the iOS Guest visual presentation gate may close and the next authority gate is the release-mode live `https://wewed.pro` production-data/PWA parity probe.
 
 **Phase-13 status:** **NOT ACCEPTED — NM06 SOURCE/BUILD AND IMPLEMENTATION-EVIDENCE REVIEW PASSED; INDEPENDENT LOCAL iOS VISUAL CERTIFICATION IS NEXT. LIVE PRODUCTION-DATA/PWA PARITY REMAINS UNPROVEN.**
+
+
+### D-068 — Guest live-data integration becomes the Phase-13 primary qualification path (2026-09-26)
+**OWNER DIRECTION + MODERATOR PLAN — FIXTURE-ONLY QUALIFICATION IS NO LONGER SUFFICIENT FOR PHASE-13 RELEASE CONVERGENCE.**
+
+The authoritative execution plan is now:
+
+`docs/WEWED_PHASE13_GUEST_LIVE_DATA_INTEGRATION_PLAN.md`
+
+Plan ID:
+
+`WW-P13-LIVE-DATA-GUEST-CONVERGENCE-2026-09-26-01`
+
+A downloadable repository mirror is maintained at:
+
+`docs/WEWED_PHASE13_GUEST_LIVE_DATA_INTEGRATION_PLAN.txt`
+
+The progressive stakeholder order is frozen:
+
+`Guest → Couple/Planner → Gate → Coordinator → Vendor → Admin`.
+
+The one writable real-data UAT wedding is Charity & Kudzie, configured by wedding ID through `WEWED_PREVIEW_WRITABLE_WEDDING_ID`; other production-backed weddings remain read-only in Preview. The canonical 14-day Wedding Pass issuance rule remains in force. Charity & Kudzie may be used immediately for real invitation, Guest identity, RSVP, Couple/Planner and Pass-availability parity, but its date must not be changed merely to force early admission-token issuance.
+
+Native qualification will add a DEBUG-only allowlisted productionPreview mode using real production authority clients against one integration Preview origin. Release binaries remain fixed to `https://wewed.pro`.
+
+The next implementation unit is:
+
+`LQR01 — Phase 13 Guest Live-Data Integration Foundation`
+
+Task source:
+
+`docs/agent-prompts/LQR01_PHASE13_GUEST_LIVE_DATA_INTEGRATION_FOUNDATION_20260926.md`
+
+The communication format for future agent tasks is:
+
+`docs/agent-prompts/WEWED_MODERATOR_AGENT_PROMPT_FORMAT.md`
+
+**Phase-13 status:** **NOT ACCEPTED — LIVE-DATA INTEGRATION FOUNDATION IS NOW THE PRIMARY NEXT UNIT.**
