@@ -61,18 +61,22 @@ public struct WeddingReferencePassView: View {
     }
 
     public var body: some View {
-        NavigationStack {
-            ZStack {
-                WeddingFloralBackground(opacity: 0.055)
+        GeometryReader { rootProxy in
+            let viewportWidth = WeddingPassViewportGeometry.boundedViewportWidth(
+                proposedWidth: rootProxy.size.width,
+                publishedWidth: publishedContentWidth
+            )
+            let cardWidth = WeddingPassViewportGeometry.cardWidth(
+                viewportWidth: viewportWidth
+            )
 
-                GeometryReader { proxy in
-                    let viewportWidth = WeddingPassViewportGeometry.boundedViewportWidth(
-                        proposedWidth: proxy.size.width,
-                        publishedWidth: publishedContentWidth
-                    )
-                    let cardWidth = WeddingPassViewportGeometry.cardWidth(
-                        viewportWidth: viewportWidth
-                    )
+            NavigationStack {
+                ZStack {
+                    // NM06: screen decoration conforms to the already-resolved physical viewport.
+                    // It is never allowed to participate in sizing the NavigationStack or ScrollView.
+                    WeddingFloralBackground(opacity: 0.055)
+                        .frame(width: viewportWidth, height: rootProxy.size.height)
+                        .clipped()
 
                     ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: 18) {
@@ -82,6 +86,7 @@ public struct WeddingReferencePassView: View {
 
                             } else if isLoading {
                                 ProgressView("Loading wedding pass…")
+                                    .frame(maxWidth: .infinity)
                                     .padding(.top, 120)
                             } else {
                                 ContentUnavailableView(
@@ -89,6 +94,7 @@ public struct WeddingReferencePassView: View {
                                     systemImage: "qrcode",
                                     description: Text("No Wedding Pass is issued to this account for the active wedding.")
                                 )
+                                .frame(maxWidth: .infinity)
                                 .padding(.top, 80)
                             }
                         }
@@ -97,44 +103,47 @@ public struct WeddingReferencePassView: View {
                         .padding(.top, 12)
                         .padding(.bottom, 30)
                     }
-                    .frame(width: viewportWidth, height: proxy.size.height)
+                    .frame(width: viewportWidth, height: rootProxy.size.height)
                     .clipped()
                 }
-            }
-            #if os(iOS)
-            .toolbar(.hidden, for: .navigationBar)
-            #endif
-            .sheet(isPresented: $showingScanner) {
-                UsherScannerView {
-                    showingScanner = false
+                .frame(width: viewportWidth, height: rootProxy.size.height)
+                #if os(iOS)
+                .toolbar(.hidden, for: .navigationBar)
+                #endif
+                .sheet(isPresented: $showingScanner) {
+                    UsherScannerView {
+                        showingScanner = false
+                    }
                 }
-            }
-            .sheet(isPresented: $showingGuestDetails) {
-                if let pass {
-                    NavigationStack {
-                        List {
-                            Section("Guest") {
-                                LabeledContent("Name", value: pass.guestName)
-                                LabeledContent("Party", value: "Party of \(pass.partySize)")
-                                if let table = pass.tableName {
-                                    LabeledContent("Seating", value: table)
+                .sheet(isPresented: $showingGuestDetails) {
+                    if let pass {
+                        NavigationStack {
+                            List {
+                                Section("Guest") {
+                                    LabeledContent("Name", value: pass.guestName)
+                                    LabeledContent("Party", value: "Party of \(pass.partySize)")
+                                    if let table = pass.tableName {
+                                        LabeledContent("Seating", value: table)
+                                    }
+                                }
+                                Section("Wedding") {
+                                    LabeledContent("Venue", value: pass.venueName)
+                                    LabeledContent("Date", value: displayDate(pass.weddingDate))
                                 }
                             }
-                            Section("Wedding") {
-                                LabeledContent("Venue", value: pass.venueName)
-                                LabeledContent("Date", value: displayDate(pass.weddingDate))
-                            }
-                        }
-                        .navigationTitle("Guest Details")
-                        .toolbar {
-                            ToolbarItem(placement: .confirmationAction) {
-                                Button("Done") { showingGuestDetails = false }
+                            .navigationTitle("Guest Details")
+                            .toolbar {
+                                ToolbarItem(placement: .confirmationAction) {
+                                    Button("Done") { showingGuestDetails = false }
+                                }
                             }
                         }
                     }
                 }
+                .task { await preparePass() }
             }
-            .task { await preparePass() }
+            .frame(width: viewportWidth, height: rootProxy.size.height)
+            .clipped()
         }
         .accessibilityIdentifier("pass-root")
     }
