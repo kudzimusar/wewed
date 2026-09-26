@@ -5035,3 +5035,36 @@ Accordingly:
 No moderator product patch is required for QRO02. The blocker is authorized environment/credential enablement, not an ordinary repository defect.
 
 **Next progressive unit: QRO02A / ENV01 — Preview authentication enablement and rerun of authenticated read-only parity.** Required owner/infrastructure inputs are: Preview `WEWED_SESSION_SECRET`, Vercel Protection Bypass for Automation, the real Guest private invitation, and Couple/Planner credentials. Keep the Preview read-only and do not authorize RSVP mutation, Pass issuance, Gate writes, live migration, WW2 activation, or production deployment in this unit. QRO03 remains unreleased until real read parity is PROVEN.
+
+
+### D-071 — QRO02A / ENV01 Preview authentication enablement moderator review (2026-09-27)
+**MODERATOR REVIEW — PARTIALLY ACCEPTED: PREVIEW APPLICATION REACHABILITY IS PROVEN; REAL AUTHENTICATED CHARITY & KUDZIE PARITY REMAINS BLOCKED-ENV.**
+
+QRO02A returned final integration HEAD `5e7a3162b910258ad1c88e5600543e556ad7ecc2`.
+
+Independent moderator verification confirmed:
+- remote `integration/phase13-live-account-data-convergence-20260926` equals `5e7a3162b910258ad1c88e5600543e556ad7ecc2`;
+- `9241e37c... -> 5e7a3162...` is exactly one commit and adds only `docs/QRO02A_ENV01_PREVIEW_AUTHENTICATION_ENABLEMENT_RECEIPT_20260927.md`; no product source and no `apps/` file changed;
+- same-source Preview redeploy `dpl_Dz8Byj5j7te9txSRfsPm38ScBRyn` is READY, target Preview, branch `integration/phase13-live-account-data-convergence-20260926`, serving exact product SHA `9241e37cb11fa0938a2a0c3ec6e738b2d3ccd001`;
+- the branch receipt push produced READY Preview `dpl_4xEofdKh7qD29eMgboHq2mLkUmWi` at final docs-only SHA `5e7a3162...`; branch alias now follows that docs-only deployment;
+- Vercel runtime logs for `dpl_Dz8...` independently show the claimed credential-free preflight reached Wewed application serverless routes at the recorded time: `GET /api/native/account/authority -> 401`, `GET /api/wedding-day/pass -> 503`, and `POST /api/native/account/signin -> 400`;
+- because those requests reached application runtime on a Deployment-Protected Preview, the protection barrier was successfully crossed for the preflight;
+- `503` from the application confirms `WEDDING_DAY_DISABLED`; this is **BLOCKED-ACTIVATION**, not `PASS_NOT_YET_ISSUABLE`.
+
+The moderator still cannot independently enumerate Vercel environment-variable names/scopes with the currently exposed connected Vercel read tools. Therefore the agent's exact claims that `WEWED_SESSION_SECRET` is branch-scoped Preview-only, production remains absent, the database/Supabase variables target Preview+Production, and `WEWED_PREVIEW_WRITABLE_WEDDING_ID` is scoped only to the old feature branch remain **NOT PROVEN independently**. The runtime evidence proves application reachability behind protection, but it does not prove successful Guest/native session issuance because no valid Guest invitation or account credentials were exercised.
+
+Accordingly:
+- repository / receipt-only delta: **ACCEPTED**;
+- same-source Preview redeploy identity: **ACCEPTED**;
+- application reachability behind Deployment Protection: **ACCEPTED**;
+- Wedding Day disabled classification: **ACCEPTED / BLOCKED-ACTIVATION**;
+- exact Preview environment inventory and secret scoping: **PARTIALLY ACCEPTED / NOT PROVEN independently**;
+- real Charity & Kudzie Guest invitation exchange: **BLOCKED-ENV / NOT PROVEN**;
+- real Couple/Planner native-account session issuance: **BLOCKED-ENV / NOT PROVEN**;
+- desktop/PWA/native-api/iOS/Android live parity: **BLOCKED-ENV / NOT PROVEN**;
+- `wewed.parity.v1` live check: **NOT RUN / NOT PROVEN**;
+- Wewed wedding business-data writes: agent reports 0; no contrary repository/runtime evidence found.
+
+No product patch is authorized or required from this review.
+
+**Next progressive unit: QRO02B / CRED01 — SECURE REAL-CREDENTIAL INJECTION + AUTHENTICATED READ-ONLY CHARITY & KUDZIE PARITY.** This unit must use only owner-authorized secure credential sources, must not request secrets pasted into chat or committed to the repository, keeps `WEWED_PARITY_ALLOW_PASS_GET` unset, performs zero wedding business-data writes, and exists solely to complete the live-read proof. QRO03 remains unreleased until QRO02B is independently accepted.
