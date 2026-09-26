@@ -1,0 +1,145 @@
+name: QRO01 temporary integration qualification
+
+# TEMPORARY (QRO 01). Exact-head qualification of integration/phase13-live-account-data-convergence-20260926.
+# Removed before the unit is returned to the moderator. Uses a throwaway PostgreSQL service and
+# disposable CI-only keys; never touches production data, keys or deployments.
+
+on:
+  push:
+    branches:
+      - integration/phase13-live-account-data-convergence-20260926
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qro01-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: Server authority, Preview safety and parity suites
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wewed
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
+      AUTHORITY_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wewed?schema=public
+      WEWED_SESSION_SECRET: ci-session-secret-not-for-production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bunx prisma generate --schema prisma/schema.prisma
+      - run: bunx prisma migrate deploy --schema prisma/schema.prisma
+      # Each file in its own process: Bun module mocks are process-global.
+      - name: Qualification suites
+        shell: bash
+        run: |
+          set -euo pipefail
+          suites=(
+            src/lib/preview-write-safety.test.ts
+            src/lib/preview-live-data-safety.integration.test.ts
+            src/lib/rsvp-pass-lifecycle-writers.integration.test.ts
+            src/lib/wedding-pass-availability.test.ts
+            src/lib/wedding-pass-issuance-window.test.ts
+            src/lib/global-qr-convergence.integration.test.ts
+            src/lib/wedding-day.integration.test.ts
+            src/lib/wedding-day-routes.integration.test.ts
+            src/lib/wedding-day-activation-rehearsal.integration.test.ts
+            src/lib/wedding-day-key-preflight.test.ts
+            src/lib/guest-rsvp-convergence.integration.test.ts
+            src/lib/unified-navigation-privacy.test.ts
+            src/lib/wedding-guest-projection-v2.test.ts
+            src/lib/wedding-guest-session-v2.test.ts
+            src/lib/guest-record-authority.test.ts
+            src/lib/wedding-relationship-eligibility.test.ts
+            src/lib/parity/wewed-parity-v1.test.ts
+            src/lib/parity/qualification-origin.test.ts
+            src/lib/native-domain-context.integration.test.ts
+            src/lib/production-authority/grants.test.ts
+            src/lib/production-authority/production-authority.integration.test.ts
+            src/lib/production-authority/onboarding-reconciliation.integration.test.ts
+            src/app/api/native/account/native-account-contract.test.ts
+          )
+          for suite in "${suites[@]}"; do
+            echo "::group::$suite"
+            bun test "$suite"
+            echo "::endgroup::"
+          done
+
+  ios:
+    name: iOS Swift tests, simulator and unsigned Release builds
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          xcodebuild -version
+      - name: Swift tests
+        working-directory: apps/ios
+        run: swift test
+      - name: Swift build
+        working-directory: apps/ios
+        run: swift build
+      - run: brew install xcodegen
+      - name: Generate project
+        working-directory: apps/ios
+        run: xcodegen generate --spec project.yml
+      - name: Verify bundle identities
+        working-directory: apps/ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          project='Wewed.xcodeproj/project.pbxproj'
+          grep -F 'PRODUCT_BUNDLE_IDENTIFIER = pro.wewed.app.dev;' "$project"
+          grep -F 'PRODUCT_BUNDLE_IDENTIFIER = pro.wewed.app.uatdev;' "$project"
+          grep -F 'PRODUCT_BUNDLE_IDENTIFIER = pro.wewed.app;' "$project"
+      - name: Simulator application build
+        working-directory: apps/ios
+        run: >-
+          xcodebuild -project Wewed.xcodeproj -scheme Wewed -configuration Debug -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+      - name: Unsigned Release build
+        working-directory: apps/ios
+        run: >-
+          xcodebuild -project Wewed.xcodeproj -scheme Wewed -configuration Release -sdk iphoneos
+          -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
+
+  android:
+    name: Android unit tests, debug and Release-configured UAT assembly
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+      # assembleRelease is deliberately gated on the owner's upload-signing credentials (store
+      # operation, not authorized here). assembleUat inherits Release (BuildConfig.DEBUG=false, so
+      # the production lane is pinned to https://wewed.pro) with debug signing.
+      - name: Unit tests and assembly (no owner signing credentials)
+        working-directory: apps/android
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest assembleDebug assembleUat --no-daemon --stacktrace
