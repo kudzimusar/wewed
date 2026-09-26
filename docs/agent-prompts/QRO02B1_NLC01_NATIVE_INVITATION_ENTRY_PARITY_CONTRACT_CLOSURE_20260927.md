@@ -554,7 +554,7 @@ Do not release QRO03.
 
 Return the closure branch to the moderator.
 
-The moderator will independently review this implementation and then issue the next certification task immediately.
+The moderator will independently review this implementation. If accepted, the moderator will release QRO02C first to converge Charity & Kudzie to the owner-approved `ivory-floral-gold` authority, then issue the independent final QRO02B certification against that final intended state.
 
 ---
 
