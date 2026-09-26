@@ -4854,3 +4854,69 @@ The qualified implementation differs from the final branch only by deletion of t
 If that narrow re-certification passes, iOS Guest visual presentation may be closed and the next authority gate is the already-planned release-mode live `https://wewed.pro` production-data/PWA parity probe.
 
 **Phase-13 status:** **NOT ACCEPTED — NM05M1 PASS SOURCE/BUILD CLOSURE QUALIFIED; NARROW PASS + HOME iOS DEVICE RE-CERTIFICATION IS NEXT. LIVE PRODUCTION-DATA/PWA PARITY REMAINS UNPROVEN.**
+
+
+### D-067 — NM06 Invitation + Pass independent implementation moderator review (2026-09-26)
+**MODERATOR REVIEW — NM06 INDEPENDENT IMPLEMENTATION ACCEPTED FOR LOCAL DEVICE CERTIFICATION. NO MODERATOR PRODUCT PATCH REQUIRED. IOS DEVICE VISUAL CERTIFICATION REMAINS OPEN.**
+
+NM06 correctly restarted from the independent NM05 agent implementation, not from either moderator-authored experimental branch.
+
+**Authoritative NM06 state:**
+- base branch: `native-mobile/phase13-ios-ui-overflow-closure-nm05-agent-20260925`;
+- base SHA: `baf92c05c96764b6a67d5751cda6ac825a6107a5`;
+- implementation branch: `native-mobile/phase13-ios-invitation-pass-closure-nm06-20260926`;
+- final remote HEAD: `a978470a0ff190d162ded4d6d6c6c4dd6c524f70`;
+- branch is 18 commits ahead of NM05 and 0 behind;
+- permanent diff is exactly five iOS files:
+  - `apps/ios/Wewed/Views/Invitation/LiveGuestInvitationView.swift`;
+  - `apps/ios/Wewed/Views/Invitation/Ivory/IvoryFloralGoldNative.swift`;
+  - `apps/ios/Wewed/Views/Pass/WeddingReferencePassView.swift`;
+  - `apps/ios/Wewed/Tests/GuestViewportClosureTests.swift`;
+  - `apps/ios/Wewed/Tests/GuestResponsiveRootClosureTests.swift`.
+- no Android, backend, database, production, Guest Session authority, RSVP authority or WW2 authority files are in the permanent diff;
+- no temporary NM06 workflow remains in final branch state.
+
+**Independent source review:** the two reported root causes are supported by the final code.
+
+For Invitation, `LiveGuestInvitationView` now establishes `WewedScreenContainer` in both ceremonial and reopened hosting contexts. `IvoryFloralGoldNative` consumes the published `wewedContentWidth` and resolves its stage from `min(local proposal, published physical viewport)`, preventing an inflated inner `GeometryReader` proposal from becoming the stage authority. The detail footer is derived from the same authored stage width. No root horizontal invitation scroll was introduced.
+
+For the canonical Pass, `WeddingReferencePassView` now resolves the physical Guest viewport first, computes a concrete card width and padded content width, derives QR geometry from that bounded width, and renders decorative media only as background of the already-sized card. Dynamic Pass strings wrap vertically inside the bounded card. `WeddingReferencePassView` and `WeddingQRCodeView(payload: pass.qrPayload...)` remain the canonical authorities.
+
+**Independent qualification verification:**
+- iOS qualification run: `36214531599`;
+- iOS job: `108327755560`;
+- qualified product SHA: `36b041185edd5c2b32620a05641b25c8aafc71fc`;
+- Swift tests: 473 executed, 14 skipped, 0 failures;
+- Swift build: PASS;
+- XcodeGen/bundle identity checks: PASS;
+- simulator app build: `BUILD SUCCEEDED`;
+- unsigned generic-device Release build: `BUILD SUCCEEDED`.
+
+The enclosing historical workflow reports failure only because:
+1. the Android release-packaging job requires unavailable upload-signing secrets; and
+2. the legacy static-contract job contains stale acceptance-anchor path expectations.
+Neither failure is caused by the five-file NM06 iOS delta and neither changes the narrow iOS Guest qualification result.
+
+**Independent visual-evidence review:**
+- visual run: `36214922245`;
+- job: `108328887110`;
+- visual SHA: `ee90b76fca5409fc4c3ff38fbf6047e8a89f61b0`;
+- artifact: `nm06-ios-invitation-pass-screens`;
+- artifact digest: `sha256:2fa9b36d7c62eb918766c50158230baf840fd72dfeded2df160d3e5021adaa77`.
+- product source is identical between qualified SHA and visual SHA; only the temporary visual workflow changed.
+- moderator manually inspected all seven artifact images: Home sentinel, Invitation Closed, Invitation Details, Invitation Details footer, Pass, Pass footer, Invitation reopened.
+- no horizontal clipping or right-edge loss is visible in the provided 393pt-equivalent evidence;
+- the long Invitation fixture remains contained in both first-entry and reopened contexts;
+- the Invitation footer pair is fully visible;
+- the long Pass fixture wraps within the card, QR is centered, and the Guest Details footer is fully visible after vertical scrolling;
+- native TabView remains above the home indicator.
+
+The final branch differs from the visual/qualified source only by cleanup of temporary workflows; no product source changed after qualification or visual evidence.
+
+**Moderator conclusion:** no ordinary NM06 product defect remains that justifies another source patch before independent local-device certification. Additional code changes now would weaken the implementation→moderator→LNM separation rather than close a demonstrated defect.
+
+**Next progressive unit:** LNM01 must independently certify the exact final NM06 SHA `a978470a0ff190d162ded4d6d6c6c4dd6c524f70` on the established local iPhone 18 Pro / iOS 27.0 lane. The minimum gate is Home sentinel + Invitation Closed + Invitation Details/footer + reopened Invitation + canonical Pass/footer. LNM must not edit tracked product or test files. It must explicitly attempt to reproduce the owner's prior invitation-overflow concern and `IOS-PASS-01`. If any visual defect remains, return evidence to the moderator without patching it.
+
+If LNM passes this gate, the iOS Guest visual presentation gate may close and the next authority gate is the release-mode live `https://wewed.pro` production-data/PWA parity probe.
+
+**Phase-13 status:** **NOT ACCEPTED — NM06 SOURCE/BUILD AND IMPLEMENTATION-EVIDENCE REVIEW PASSED; INDEPENDENT LOCAL iOS VISUAL CERTIFICATION IS NEXT. LIVE PRODUCTION-DATA/PWA PARITY REMAINS UNPROVEN.**
