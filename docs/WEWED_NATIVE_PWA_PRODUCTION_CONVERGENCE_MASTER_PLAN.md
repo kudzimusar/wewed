@@ -5176,3 +5176,32 @@ This is an implementation/closure unit, not certification. It must:
 6. add regression coverage and run full relevant server/iOS/Android qualification.
 
 After moderator acceptance of QRO02B1, release a clean independent QRO02B re-certification against the same real credentials. Only then, if four-client read parity passes, release queued QRO02C / INV01 to converge Charity & Kudzie from `botanical` to `ivory-floral-gold`. QRO03 remains blocked until QRO02C is accepted.
+
+
+### D-075 — Native Ivory renderer preserved; live Botanical selection is the regression (2026-09-27)
+**MODERATOR FORENSIC CLARIFICATION AFTER OWNER UAT SCREENSHOTS.**
+
+The observed Android Garden Romance/Botanical UI is a real product regression relative to the owner-approved Charity & Kudzie native invitation journey, but it is **not** caused by deletion or replacement of the accepted native Ivory Floral Gold renderer.
+
+Independent source comparison proves:
+- accepted native reference: `a978470a0ff190d162ded4d6d6c6c4dd6c524f70`;
+- current integration: `f63f2baf77e5ed87ea4b6853745ab83ac511c7f6`;
+- Android `IvoryFloralGoldNative.kt` blob on both refs: `d2b8086b057651313ce009b39455856b5c1685f5` (byte-identical).
+
+The regression mechanism is authority selection:
+`live Wedding.invitationCardStyle = botanical -> InvitationStyle.BOTANICAL -> GENERIC_MOTION -> GenericMotionInvitationNative`.
+
+The owner-approved route is:
+`live Wedding.invitationCardStyle = ivory-floral-gold -> IVORY_CUSTOM -> IvoryFloralGoldNative`.
+
+Therefore:
+1. production/live server data may select the invitation experience ID, but must not replace or downgrade native renderer implementation;
+2. Charity & Kudzie Botanical is an observed legacy live state, not an acceptable final parity target;
+3. QRO02B1 must preserve the accepted native Ivory renderer while repairing entry lifecycle;
+4. after QRO02B1 moderator acceptance, QRO02C is released **before** final QRO02B re-certification;
+5. QRO02C changes only the controlled Charity & Kudzie invitation-style authority to `ivory-floral-gold` and proves the same credential opens the preserved native Ivory experience;
+6. final QRO02B four-client certification is then performed against the final intended Ivory state, not against Botanical;
+7. QRO03 remains blocked until that final Ivory parity is independently accepted.
+
+Revised sequence:
+`QRO02B1 -> QRO02C -> final independent QRO02B certification -> QRO03`.
