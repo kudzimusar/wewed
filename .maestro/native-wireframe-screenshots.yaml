@@ -1,0 +1,87 @@
+appId: pro.wewed.app.dev
+---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+
+# Entry now runs through the Wewed welcome surface rather than a development login form with
+# a role chooser and a shipped password. Shadow and UAT lanes enter through the environment
+# affordance, which carries no credential and exists only where persona switching is permitted.
+# Waits for the welcome surface itself rather than for the word "Wewed", which the splash also
+# shows. Asserting the text and then tapping raced the splash: on a busy device the tap landed
+# before the welcome screen existed, and the lane failed intermittently for no product reason.
+- extendedWaitUntil:
+    visible:
+      id: "welcome-root"
+    timeout: 15000
+- tapOn:
+    id: "welcome-shadow-entry"
+
+# Capture the actual phone viewport for each approved reference screen.
+- assertVisible:
+    id: "home-root"
+- takeScreenshot: wireframe-home
+
+- tapOn: "Plan"
+- assertVisible:
+    id: "planner-root"
+- takeScreenshot: wireframe-plan
+
+- tapOn: "Guests"
+- assertVisible:
+    id: "guests-root"
+- takeScreenshot: wireframe-guests
+
+- tapOn: "More"
+- assertVisible:
+    id: "more-root"
+- takeScreenshot: wireframe-more
+
+# The invitation is captured from its own scoped guest link: Couple Home no longer opens an
+# arbitrary guest's invitation (P0-11).
+- openLink: "wewed://invite/shadow_ref_charity_kudzie?rsvp=shadow-pending-guest"
+# All four states of the approved stationery are captured, because a still of the open face alone
+# would not show whether the doors, the seal or the reveal are there at all.
+- extendedWaitUntil:
+    visible:
+      id: "invitation-closed-cover"
+    timeout: 8000
+- waitForAnimationToEnd
+- takeScreenshot: wireframe-invitation-closed
+- tapOn:
+    id: "invitation-open-button"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-panel-centre"
+    timeout: 8000
+- waitForAnimationToEnd
+- takeScreenshot: wireframe-invitation-open
+- tapOn:
+    id: "invitation-details-button"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-interactive-details"
+    timeout: 5000
+- waitForAnimationToEnd
+- takeScreenshot: wireframe-invitation-details
+
+# The Wedding Pass is identity-bound (P0-5), so it is captured as the guest who actually holds the
+# credential rather than from the couple shell, which has no pass token.
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "attending_guest"
+# The persona launch argument authenticates the session directly, so no sign-in tap is required.
+# Guest Entry Contract (master plan §6.3): a persona launch is an ordinary return, not an
+# invitation arrival, so the Guest opens on Guest Home. Only an explicit link opens on the card
+# (see native-shadow-deep-link-invitation / native-invitation-cta-touch).
+- assertVisible:
+    id: "role-shell-guest"
+- tapOn: "Pass"
+- assertVisible:
+    id: "pass-root"
+- assertVisible:
+    id: "wedding-pass-qr"
+- takeScreenshot: wireframe-pass

@@ -1,0 +1,192 @@
+{
+  "contractVersion": "wewed-admin-policy/1",
+  "source": "src/lib/wewed-admin-policy.ts",
+  "note": "Generated from the web Admin policy module, which is what the Admin API enforces. Both native platforms assert equality against this file, so a native build cannot offer an action the server would refuse.",
+  "roles": [
+    "wewed_super_admin",
+    "wewed_operations_admin",
+    "wewed_billing_admin",
+    "wewed_support_admin",
+    "wewed_analyst"
+  ],
+  "roleLabels": {
+    "wewed_super_admin": "Super Admin",
+    "wewed_operations_admin": "Operations Admin",
+    "wewed_billing_admin": "Billing Admin",
+    "wewed_support_admin": "Support Admin",
+    "wewed_analyst": "Analyst / Viewer"
+  },
+  "permissions": [
+    "admin.overview.read",
+    "admin.analytics.read",
+    "admin.accounts.read",
+    "admin.accounts.create",
+    "admin.accounts.approve",
+    "admin.accounts.reject",
+    "admin.accounts.suspend",
+    "admin.accounts.block",
+    "admin.accounts.cancel",
+    "admin.accounts.archive",
+    "admin.accounts.restore",
+    "admin.departments.read",
+    "admin.departments.manage",
+    "admin.members.read",
+    "admin.members.manage",
+    "admin.platform_admins.read",
+    "admin.platform_admins.manage",
+    "admin.scopes.manage",
+    "admin.billing.read",
+    "admin.billing.manage",
+    "admin.support.read",
+    "admin.support.manage",
+    "admin.incidents.read",
+    "admin.incidents.manage",
+    "admin.audit.read"
+  ],
+  "rolePermissions": {
+    "wewed_super_admin": [
+      "admin.overview.read",
+      "admin.analytics.read",
+      "admin.accounts.read",
+      "admin.accounts.create",
+      "admin.accounts.approve",
+      "admin.accounts.reject",
+      "admin.accounts.suspend",
+      "admin.accounts.block",
+      "admin.accounts.cancel",
+      "admin.accounts.archive",
+      "admin.accounts.restore",
+      "admin.departments.read",
+      "admin.departments.manage",
+      "admin.members.read",
+      "admin.members.manage",
+      "admin.platform_admins.read",
+      "admin.platform_admins.manage",
+      "admin.scopes.manage",
+      "admin.billing.read",
+      "admin.billing.manage",
+      "admin.support.read",
+      "admin.support.manage",
+      "admin.incidents.read",
+      "admin.incidents.manage",
+      "admin.audit.read"
+    ],
+    "wewed_operations_admin": [
+      "admin.analytics.read",
+      "admin.accounts.read",
+      "admin.accounts.create",
+      "admin.accounts.approve",
+      "admin.accounts.reject",
+      "admin.accounts.suspend",
+      "admin.accounts.block",
+      "admin.accounts.cancel",
+      "admin.accounts.archive",
+      "admin.accounts.restore",
+      "admin.departments.read",
+      "admin.departments.manage",
+      "admin.support.read",
+      "admin.support.manage",
+      "admin.incidents.read",
+      "admin.incidents.manage",
+      "admin.audit.read"
+    ],
+    "wewed_billing_admin": [
+      "admin.analytics.read",
+      "admin.accounts.read",
+      "admin.departments.read",
+      "admin.billing.read",
+      "admin.billing.manage",
+      "admin.audit.read"
+    ],
+    "wewed_support_admin": [
+      "admin.accounts.read",
+      "admin.departments.read",
+      "admin.support.read",
+      "admin.support.manage",
+      "admin.incidents.read",
+      "admin.audit.read"
+    ],
+    "wewed_analyst": [
+      "admin.analytics.read",
+      "admin.accounts.read",
+      "admin.departments.read",
+      "admin.billing.read",
+      "admin.support.read",
+      "admin.incidents.read",
+      "admin.audit.read"
+    ]
+  },
+  "accountLifecycleStatuses": [
+    "pending_review",
+    "active",
+    "rejected",
+    "suspended",
+    "blocked",
+    "cancelled",
+    "archived"
+  ],
+  "accountTransitions": {
+    "pending_review": [
+      "active",
+      "rejected"
+    ],
+    "active": [
+      "suspended",
+      "blocked",
+      "cancelled",
+      "archived"
+    ],
+    "rejected": [
+      "pending_review",
+      "archived"
+    ],
+    "suspended": [
+      "active",
+      "blocked",
+      "cancelled",
+      "archived"
+    ],
+    "blocked": [
+      "active",
+      "cancelled",
+      "archived"
+    ],
+    "cancelled": [
+      "active",
+      "archived"
+    ],
+    "archived": [
+      "pending_review",
+      "active"
+    ]
+  },
+  "transitionPermissions": {
+    "pending_review->active": "admin.accounts.approve",
+    "pending_review->rejected": "admin.accounts.reject",
+    "active->suspended": "admin.accounts.suspend",
+    "active->blocked": "admin.accounts.block",
+    "active->cancelled": "admin.accounts.cancel",
+    "active->archived": "admin.accounts.archive",
+    "rejected->pending_review": "admin.accounts.restore",
+    "rejected->archived": "admin.accounts.archive",
+    "suspended->active": "admin.accounts.restore",
+    "suspended->blocked": "admin.accounts.block",
+    "suspended->cancelled": "admin.accounts.cancel",
+    "suspended->archived": "admin.accounts.archive",
+    "blocked->active": "admin.accounts.restore",
+    "blocked->cancelled": "admin.accounts.cancel",
+    "blocked->archived": "admin.accounts.archive",
+    "cancelled->active": "admin.accounts.restore",
+    "cancelled->archived": "admin.accounts.archive",
+    "archived->pending_review": "admin.accounts.restore",
+    "archived->active": "admin.accounts.restore"
+  },
+  "restrictiveStatuses": [
+    "rejected",
+    "suspended",
+    "blocked",
+    "cancelled",
+    "archived"
+  ],
+  "workspaceStatus": "active"
+}

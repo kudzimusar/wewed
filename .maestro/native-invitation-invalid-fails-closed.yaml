@@ -1,0 +1,64 @@
+appId: pro.wewed.app.dev
+---
+# An invalid invitation is refused, and refusing is visible.
+#
+# The failure this guards against is the quiet one: an expired or malformed link that does nothing,
+# so the app opens as whoever was already active and that person's invitation is mistaken for the
+# one just tapped. A refusal must look like a refusal.
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+
+# Guest A is established first, so there is something for a bad link to wrongly fall back to.
+- openLink: "wewed://invite/shadow_ref_charity_kudzie?rsvp=shadow-attending-guest"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-closed-cover"
+    timeout: 8000
+- tapOn:
+    id: "invitation-open-button"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-guest-personalization"
+    timeout: 8000
+
+# A resume link carrying a raw credential is not something Wewed ever emits.
+- openLink: "https://wewed.pro/invite/resume?h=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA&rsvp=LEAKED"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-refused"
+    timeout: 8000
+# No invitation is presented, and no guest is named.
+- assertNotVisible:
+    id: "invitation-panel-centre"
+- assertNotVisible:
+    id: "invitation-guest-personalization"
+
+# The refusal says the same thing whatever failed: which check tripped is not the guest's business,
+# and naming it would help someone guessing at links.
+- assertVisible:
+    id: "invitation-refused-detail"
+
+- tapOn:
+    id: "invitation-refused-dismiss"
+
+# A malformed handoff fails the same way.
+- openLink: "https://wewed.pro/invite/resume?h=too-short"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-refused"
+    timeout: 8000
+- assertNotVisible:
+    id: "invitation-panel-centre"
+
+# And an invite link with no credential identifies nobody.
+- tapOn:
+    id: "invitation-refused-dismiss"
+- openLink: "https://wewed.pro/invite/shadow_ref_charity_kudzie"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-refused"
+    timeout: 8000
+- assertNotVisible:
+    id: "invitation-panel-centre"

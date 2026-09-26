@@ -1,0 +1,24 @@
+# iOS critical Couple path: Home -> Plan -> Guests -> Wedding Day -> More, capturing the
+# principal screens. Proves the IA V2 taxonomy and the responsive screen contract at runtime.
+appId: pro.wewed.app.dev
+---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+      wewed_native_persona: "couple_owner"
+- assertVisible:
+    id: "role-shell-couple"
+- takeScreenshot: ios-couple-home
+
+- tapOn: "Plan"
+- takeScreenshot: ios-couple-plan
+
+- tapOn: "Guests"
+- takeScreenshot: ios-couple-guests
+
+- tapOn: "Wedding Day"
+- takeScreenshot: ios-couple-wedding-day
+
+- tapOn: "More"
+- takeScreenshot: ios-couple-more

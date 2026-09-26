@@ -1,0 +1,65 @@
+appId: pro.wewed.app.dev
+---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+
+# 1. Authentication
+# Entry now runs through the Wewed welcome surface rather than a development login form with
+# a role chooser and a shipped password. Shadow and UAT lanes enter through the environment
+# affordance, which carries no credential and exists only where persona switching is permitted.
+- assertVisible: "Wewed"
+- tapOn:
+    id: "welcome-shadow-entry"
+
+# 2. Home
+- assertVisible:
+    id: "home-root"
+- assertVisible: "Continue Planning"
+
+# 3. Planner
+- tapOn: "Plan"
+- assertVisible:
+    id: "planner-root"
+- assertVisible:
+    id: "planner-module-tasks"
+# The Level-2 worksheet chips sit above the module grid, so the later modules need a scroll.
+- scrollUntilVisible:
+    element:
+      id: "planner-module-seating"
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      id: "planner-module-timeline"
+    direction: DOWN
+
+# 4. Guests
+- tapOn: "Guests"
+- assertVisible:
+    id: "guests-root"
+- assertVisible:
+    id: "guests-search"
+
+# 5. Wedding Day workspace (IA V2: My Pass lives here; the couple holds no guest credential).
+- tapOn: "Wedding Day"
+- assertVisible:
+    id: "couple-wedding_day"
+    retryTapIfNoChange: true
+- tapOn:
+    id: "gate-scanner-exit"
+    optional: true
+    retryTapIfNoChange: true
+- tapOn:
+    text: "Close"
+    optional: true
+- waitForAnimationToEnd
+- assertNotVisible: "Gate Scanner"
+
+# 6. More
+- tapOn: "More"
+- assertVisible:
+    id: "more-root"
+- assertVisible: "Our Story"
+- assertVisible: "Gallery"
+- assertVisible: "Honeymoon"

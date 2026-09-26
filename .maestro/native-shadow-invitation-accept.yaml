@@ -1,0 +1,83 @@
+appId: pro.wewed.app.dev
+---
+# A pending guest accepts, from inside the wedding's configured invitation.
+#
+# Every assertion here is against the approved Ivory Floral Gold stationery. The flow deliberately
+# walks CLOSED -> OPENING -> OPEN -> DETAILS rather than jumping to an RSVP form, because the
+# invitation IS the entry, not a wrapper around one.
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+
+# The invitation is reached the legitimate way: the credential-scoped link the guest receives.
+- openLink: "wewed://invite/shadow_ref_charity_kudzie?rsvp=shadow-pending-guest"
+
+# CLOSED. Doors shut, seal over them. This is the first frame a guest ever sees.
+- extendedWaitUntil:
+    visible:
+      id: "invitation-trifold"
+    timeout: 8000
+- assertVisible:
+    id: "invitation-closed-cover"
+- assertVisible:
+    id: "invitation-panel-left"
+- assertVisible:
+    id: "invitation-panel-right"
+- assertVisible:
+    id: "invitation-monogram"
+
+# OPENING -> OPEN. The hinged reveal runs 1800ms.
+- tapOn:
+    id: "invitation-open-button"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-panel-centre"
+    timeout: 8000
+
+# The invitation's own content, from the wedding graph.
+- assertVisible:
+    id: "invitation-couple-names"
+- assertVisible:
+    id: "invitation-date"
+- assertVisible:
+    id: "invitation-venue"
+# The personalisation. Without it this is a template, not an invitation.
+- assertVisible:
+    id: "invitation-guest-personalization"
+
+# DETAILS.
+- tapOn:
+    id: "invitation-details-button"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-interactive-details"
+    timeout: 5000
+- assertVisible:
+    id: "invitation-cta-rsvp"
+- assertVisible:
+    id: "invitation-cta-calendar"
+- assertVisible:
+    id: "invitation-cta-venue"
+
+# Accept, over the card rather than instead of it.
+- tapOn:
+    id: "invitation-cta-rsvp"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-rsvp-prompt"
+    timeout: 5000
+- tapOn:
+    id: "invitation-rsvp-accept"
+
+# An attending guest is offered their pass, and is not asked again.
+- extendedWaitUntil:
+    visible:
+      id: "invitation-cta-pass"
+    timeout: 8000
+- tapOn:
+    id: "invitation-back-to-invitation"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-rsvp-confirmed"
+    timeout: 5000
