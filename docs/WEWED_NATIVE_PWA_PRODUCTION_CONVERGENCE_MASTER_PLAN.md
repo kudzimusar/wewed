@@ -5004,3 +5004,34 @@ The QRO01 source foundation is therefore accepted without a moderator product pa
 **Next progressive unit:** authenticated **read-only live parity first** against the existing integration Preview and the real Charity & Kudzie wedding. No production migration, WW2 key activation, real RSVP mutation or Gate write is part of the first live probe. Prove real Invitation/Guest/Wedding/RSVP/table/party authority across desktop + native-api + iOS + Android using `wewed.parity.v1`. Only after that read gate is green should the programme authorize the controlled Charity & Kudzie RSVP write and separately decide the live-database Gate/WW2 migrations + Preview-only key/flag activation required for Pass-state/Gate qualification.
 
 **Phase-13 status:** **NOT ACCEPTED — SOURCE FOUNDATION ACCEPTED; AUTHENTICATED LIVE PARITY IS NEXT.**
+
+
+### D-070 — QRO02 authenticated live parity moderator review (2026-09-27)
+**MODERATOR REVIEW — TOOLING / BLOCKER ANALYSIS ACCEPTED. REAL CHARITY & KUDZIE LIVE PARITY REMAINS BLOCKED-ENV.**
+
+Independent moderator verification confirmed:
+- remote `integration/phase13-live-account-data-convergence-20260926` is exactly `9241e37cb11fa0938a2a0c3ec6e738b2d3ccd001`;
+- `d98c3db7... -> 9241e37c...` is two commits changing only the QRO02 receipt, parity CLI/network-evidence tooling and its tests; no `apps/` file changed;
+- `b59893e0... -> 9241e37c...` contains no `apps/` change, so the qualified native tree remains byte-identical;
+- QRO02 CI run `36259520644`, job `108452543528`, succeeded at `98a16095dedc792da704713797e0d4e8ab070b4a`; logs sum to 274 passed / 0 failed;
+- the only post-CI commit removes the temporary QRO02 workflow and adds the permanent receipt; no qualified product/tooling source changed after CI;
+- docs branch decision D-069 is present and did release the read-only QRO02 gate;
+- Vercel deployment `dpl_D5gmpEmH6rnbafTtd93e5VdUJK5a` is READY Preview for the integration branch and serves `d98c3db72271ac9b298c2fd72fd5d4586b2d02f2`;
+- Deployment Protection is independently observable on the Preview: unauthenticated requests currently redirect to Vercel SSO, so application routes behind protection remain unproven without authorized bypass;
+- the QRO02 network-evidence fix correctly classifies both Vercel SSO redirects and the documented API-style `401 Protected deployment` response as deployment protection; the regression test passed in CI;
+- candidate `src/lib/session-signing-secret.ts` fails closed in production when `WEWED_SESSION_SECRET` is absent, and native-account plus Guest-session signing both use that primary signer;
+- current production `main` still retains the historical `WEWED_SESSION_SECRET || SUPABASE_SERVICE_ROLE_KEY` fallback for existing browser/Guest session signing, so production must receive an explicit `WEWED_SESSION_SECRET` before the hardened candidate is promoted. The candidate hardening must not be weakened to restore the fallback.
+
+The moderator could **not independently verify through the currently available Vercel read surface** the agent's environment-inventory claims about the exact presence/absence or target scoping of `DATABASE_URL`, Supabase keys, `WEWED_SESSION_SECRET`, WW2/ROOT keys, or `WEWED_PREVIEW_WRITABLE_WEDDING_ID`. Those exact environment claims therefore remain **NOT PROVEN** at moderator level even though the code-level consequences of a missing session secret are proven.
+
+Accordingly:
+- real Charity & Kudzie connection: **BLOCKED-ENV / NOT PROVEN**;
+- desktop/PWA/iOS/Android Guest equality: **BLOCKED-ENV / NOT PROVEN**;
+- real RSVP read-state parity: **BLOCKED-ENV / NOT PROVEN**;
+- real Pass availability: **BLOCKED-ACTIVATION / NOT PROVEN**;
+- Open Invitation parity: **NOT PROVEN**;
+- Wedding Pass QR equality for Charity & Kudzie: **N/A outside the authorized issuance window**.
+
+No moderator product patch is required for QRO02. The blocker is authorized environment/credential enablement, not an ordinary repository defect.
+
+**Next progressive unit: QRO02A / ENV01 — Preview authentication enablement and rerun of authenticated read-only parity.** Required owner/infrastructure inputs are: Preview `WEWED_SESSION_SECRET`, Vercel Protection Bypass for Automation, the real Guest private invitation, and Couple/Planner credentials. Keep the Preview read-only and do not authorize RSVP mutation, Pass issuance, Gate writes, live migration, WW2 activation, or production deployment in this unit. QRO03 remains unreleased until real read parity is PROVEN.
