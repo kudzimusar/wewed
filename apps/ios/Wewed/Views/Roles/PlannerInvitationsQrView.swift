@@ -26,6 +26,7 @@ public struct PlannerInvitationsQrView: View {
                 IASectionList("Invitations & QR", "Loading invitations…") {
                     ProgressView().frame(maxWidth: .infinity)
                 }
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("planner-invitations-loading")
             case let .unavailable(reason):
                 IASectionList("Invitations & QR") {
@@ -52,6 +53,7 @@ public struct PlannerInvitationsQrView: View {
             physicalSection(snapshot.physical, weddingTitle: snapshot.design.weddingTitle)
             guestSection(snapshot)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("planner-invitations-qr")
     }
 
