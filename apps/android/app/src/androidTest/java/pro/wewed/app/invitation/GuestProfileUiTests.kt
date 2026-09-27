@@ -47,7 +47,7 @@ open class GuestUiTestBase {
                     val body = CharArray(length); var read = 0
                     while (read < length) { val n = input.read(body, read, length-read); if (n < 0) break; read += n }
                     val secondGuest = cookieHeader.contains("session-b") || String(body).contains("second-entry")
-                    var json = JSONObject("""{"success":true,"authorized":true,"wedding":{"slug":"guest-ui","title":"Alex & Sam","date":"2027-06-12","venue":"Test Venue","invitationCardStyle":"ivory-floral-gold"},"guest":{"id":"ui-guest-a","name":"UI Guest A","tableName":"Acacia"},"rsvp":{"plusOne":false,"kidsAttending":false,"kidsCount":0,"checkedIn":false}}""")
+                    var json = JSONObject("""{"success":true,"authorized":true,"wedding":{"slug":"guest-ui","title":"Alex & Sam","date":"2027-06-12","venue":"Test Venue","invitationCardStyle":"ivory-floral-gold"},"guest":{"id":"ui-guest-a","name":"UI Guest A","email":"guest-a@example.invalid","tableNumber":1,"tableName":"Acacia"},"rsvp":{"mealChoice":"Chicken","plusOne":true,"plusOneName":"UI Plus One","kidsAttending":true,"kidsCount":2,"dietaryNotes":"No peanuts","message":"Looking forward to celebrating with you.","checkedIn":false}}""")
                     if (secondGuest) json.put("guest", JSONObject("""{"id":"ui-guest-b","name":"UI Guest B","tableName":"Birch"}"""))
                     json.getJSONObject("rsvp").put("attending", attendance ?: JSONObject.NULL)
                     if (request.contains("/api/wedding-day/pass ")) {
@@ -152,10 +152,10 @@ class GuestPassEligibilityTest : GuestUiTestBase() {
         tap("nav-guest-more")
         waitFor("live-guest-profile-email")
         compose.onNodeWithTag("live-guest-profile-seating").assertExists()
-        compose.onNodeWithTag("live-guest-profile-party").assertTextContains("UI Plus One", substring = true)
-        compose.onNodeWithTag("live-guest-profile-party").assertTextContains("2 children", substring = true)
-        compose.onNodeWithTag("live-guest-profile-meal").assertTextContains("Chicken", substring = true)
-        compose.onNodeWithTag("live-guest-profile-dietary").assertTextContains("No peanuts", substring = true)
+        compose.onNode(hasText("UI Plus One", substring = true) and hasAnyAncestor(hasTestTag("live-guest-profile-party"))).assertExists()
+        compose.onNode(hasText("2 children", substring = true) and hasAnyAncestor(hasTestTag("live-guest-profile-party"))).assertExists()
+        compose.onNode(hasText("Chicken", substring = true) and hasAnyAncestor(hasTestTag("live-guest-profile-meal"))).assertExists()
+        compose.onNode(hasText("No peanuts", substring = true) and hasAnyAncestor(hasTestTag("live-guest-profile-dietary"))).assertExists()
         compose.onNodeWithTag("live-guest-profile-message").assertExists()
     }
 
