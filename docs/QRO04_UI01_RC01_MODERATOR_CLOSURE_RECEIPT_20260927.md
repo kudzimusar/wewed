@@ -12,7 +12,9 @@ The RC01 certifier returned two ordinary bounded defects at `9c79da82` / receipt
 | PR | #221, open and unmerged |
 | Returned receipt head | `e1546d68e994bf90864071cac46f1eff72c6734e` |
 | Android closure commit | `119a08f6ceb81f1d25c2ca43b74b13db43af7896` |
-| iOS closure commit | `b0a4cc6b46b97648e62562aaf5795284e99d4c54` |\n| Android shared-role safe-area commit | `3d0787d62011edbcf468878086a96906b376dbce` |\n| Android safe-area regression guard | `ccecb5231aee690af6f22640bfc78210ba81d138` |
+| iOS closure commit | `b0a4cc6b46b97648e62562aaf5795284e99d4c54` |
+| Android shared-role safe-area commit | `3d0787d62011edbcf468878086a96906b376dbce` |
+| Android safe-area regression guard | `ccecb5231aee690af6f22640bfc78210ba81d138` |
 
 ## 2. Defect closure
 
