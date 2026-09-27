@@ -5759,3 +5759,46 @@ Next active unit:
 `QRO04-UI01 — PRODUCTION NATIVE UI AUTHORITY + SHADOW SEPARATION CLOSURE`.
 
 This unit must fix the production workspace selector/context selector, remove real C&K identity from Sanitized Shadow, and re-run visible qualification in the correct `production_preview`/live Guest paths. Shadow screens may remain as development tools but cannot satisfy production UI acceptance.
+
+
+### D-085 — Final native Guest UI preserved; QRO04 divergence was test-lane selection (2026-09-27)
+**MODERATOR SOURCE FORENSICS — DO NOT REBUILD OR PORT THE FINAL GUEST UI.**
+
+Independent comparison of the certified live-parity source `ba38a3624581899a4999ac8d221346ec11a1f504`, QRO04 start `fa7284fd9b60f927ab28eb6ec627d3ac4a38d4cd`, and QRO04 result `60c1af51ee8b8f863085d17e38009ae9ea52c3c0` proves the final native UI files are byte-identical across the three checkpoints:
+
+- iOS `LiveGuestShellView.swift`: blob `3b2f42f3065eb6303d935a227c2481b8f623d838`;
+- Android `LiveGuestShell.kt`: blob `fb8b03299172c321d5bb2724f9ef0da93687827d`;
+- iOS `RoleWorkspaces.swift`: blob `283b8a1c56886ddc510b6131aa2ecddf9b233186`;
+- Android `RoleWorkspaces.kt`: blob `1a69abbf8c5358b540378d5cea505e7f9e35b95c`;
+- iOS `RootView.swift`: blob `3028b12262623a4eb694391cc7e1afc0531a1b4f`;
+- Android `RootScreen.kt`: blob `7899358a6ccb576326e1887b15b3f3c07e73dcf6`;
+- iOS/Android launch configuration files are likewise unchanged.
+
+The last independently certified live Guest flow at `ba38a362` ran both platforms in explicit `production_preview` and proved the real C&K invitation route.
+
+QRO04's visible Pass identity flows instead explicitly launched `wewed_native_env: shadow` via:
+- `.maestro/ios/ios-guest-pass-identity.yaml`;
+- `.maestro/native-guest-pass-identity.yaml`.
+
+Therefore the final native Guest UI was **not lost, overwritten, or replaced**. The visual divergence was caused by selecting the Shadow test lane.
+
+Three systems must remain distinct:
+1. **Final native apps** — `apps/ios/Wewed` and `apps/android/app`; real Guest path is `GuestOnlyInvitationShellView/GuestOnlyInvitationShell -> LiveGuestInvitation -> LiveGuestShellView/LiveGuestShell`.
+2. **Sanitized/Private Shadow** — development persona harness; useful for synthetic role tests only; never production UI evidence.
+3. **Legacy Android TWA/UAT wrapper** — top-level `android/`; Bubblewrap/Trusted Web Activity around web/PWA; not the native Compose app.
+
+Existing final-UI attending-Guest qualification already exists without Shadow:
+- iOS `apps/ios/GuestProfileUITests/GuestProfileUITests.swift`;
+- Android `apps/android/app/src/androidTest/java/pro/wewed/app/invitation/GuestProfileUiTests.kt`.
+
+These use the **real final Guest surfaces** with a loopback synthetic server and include attending/pass/Wedding Day navigation. They are the correct way to exercise an attending Guest without mutating C&K.
+
+**QRO04-UI01 is narrowed accordingly:**
+- do not redesign/rebuild `LiveGuestShellView` or `LiveGuestShell`;
+- first prove the existing final Guest UI via the established GuestProfile UI tests;
+- prove real C&K invitation entry via explicit `production_preview`;
+- fix only the genuinely unfinished production GrantSelection/ContextSwitcher presentation and any concrete defect found in the final production path;
+- do not spend this unit renaming/rebuilding Shadow fixtures unless required to prevent a production-test misroute;
+- Shadow and legacy TWA/UAT screenshots cannot satisfy final native UI acceptance.
+
+Coordinator/account-class work and live WW2 migration remain blocked until this corrected UI closure is reviewed.
