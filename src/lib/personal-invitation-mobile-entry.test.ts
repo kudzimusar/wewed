@@ -79,7 +79,7 @@ describe('personal invitation mobile entry', () => {
     expect(route).toContain('readWeddingDayGuestContext(request)')
     expect(route).toContain('FROM public."ProgrammeItem"')
     expect(route).toContain("attendeeKey: 'primary'")
-    expect(route).toContain('announcements: []')
+    expect(route).toContain('loadPublishedAnnouncements(context.weddingId')
     expect(route).not.toContain('ATTENDANCE_REQUIRED')
     expect(route).not.toContain('ATTENDANCE_DECLINED')
   })

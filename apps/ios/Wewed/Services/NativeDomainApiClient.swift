@@ -271,6 +271,11 @@ public struct NativeDomainApiClient: Sendable {
         await runGetArray("api/native/wedding/timeline", sessionToken: sessionToken, grantId: grantId, arrayField: "data")
     }
 
+    /// QRO07: the published WeddingAnnouncement projection shared with the website and guest Wedding Day.
+    public func announcements(sessionToken: String, grantId: String) async -> NativeDomainFetch<NativeJSONArray> {
+        await runGetArray("api/native/wedding/announcements", sessionToken: sessionToken, grantId: grantId, arrayField: "data")
+    }
+
     /// QRO05-PIQR01 — the same `loadPlannerInvitationProjection` the desktop Planner's
     /// `GET /api/planner/guests/invitations` reads. Read-only: there is deliberately no native
     /// POST/PUT/PATCH for invitations. The body carries each Guest's private invitation link, so the

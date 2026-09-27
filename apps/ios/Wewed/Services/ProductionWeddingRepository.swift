@@ -153,7 +153,28 @@ public struct ProductionWeddingRepository: WeddingRepositoryProtocol {
     public func getAuditRecords(weddingId: String) async throws -> [CheckInAuditRecord] { [] }
     public func getVendors(weddingId: String) async throws -> [VendorPresence] { [] }
     public func updateVendorState(weddingId: String, id: String, state: VendorPresenceState) async throws -> VendorPresence { try denied() }
-    public func getAnnouncements(weddingId: String) async throws -> [WeddingAnnouncement] { [] }
+    public func getAnnouncements(weddingId: String) async throws -> [WeddingAnnouncement] {
+        // Honest-empty (never fixture data) so the shared Wedding graph loader never fails on it.
+        guard case let .success(array) = await client.announcements(sessionToken: sessionToken, grantId: grantId) else {
+            return []
+        }
+        return array.compactMap { row in
+            guard let id = row.wwString("id") else { return nil }
+            return WeddingAnnouncement(
+                id: id,
+                title: row.wwString("title") ?? "",
+                message: row.wwString("body") ?? "",
+                // Never a fabricated "now": an unparseable stamp sorts as the oldest notice.
+                timestamp: row.wwString("publishedAt").flatMap(Self.parseInstant) ?? Date(timeIntervalSince1970: 0)
+            )
+        }
+    }
+
+    static func parseInstant(_ value: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: value)
+    }
     public func postAnnouncement(weddingId: String, title: String, message: String, urgency: AnnouncementUrgency) async throws -> WeddingAnnouncement { try denied() }
     public func getWeddingPass(token: String) async throws -> WeddingPass { try denied() }
     public func resolveInvitation(weddingSlug: String, token: String) async throws -> InvitationContext { try denied() }

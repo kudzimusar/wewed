@@ -145,7 +145,19 @@ class ProductionWeddingRepository(
     override suspend fun getAuditRecords(weddingId: String) = emptyList<CheckInAuditRecord>()
     override suspend fun getVendors(weddingId: String) = emptyList<pro.wewed.app.models.VendorPresence>()
     override suspend fun updateVendorState(weddingId: String, id: String, state: pro.wewed.app.models.VendorPresenceState) = denied()
-    override suspend fun getAnnouncements(weddingId: String) = emptyList<pro.wewed.app.models.WeddingAnnouncement>()
+    override suspend fun getAnnouncements(weddingId: String): List<pro.wewed.app.models.WeddingAnnouncement> =
+        when (val fetch = client.announcements(sessionToken, grantId)) {
+            is NativeDomainFetch.Success -> fetch.value.toObjectList().map { row ->
+                pro.wewed.app.models.WeddingAnnouncement(
+                    id = row.getString("id"),
+                    title = row.optString("title"),
+                    message = row.optString("body"),
+                    timestampMillis = parseIsoMillis(row.optString("publishedAt")),
+                )
+            }
+            // Honest-empty (never fixture data) so the shared Wedding graph loader never fails on it.
+            else -> emptyList()
+        }
     override suspend fun postAnnouncement(weddingId: String, title: String, message: String, urgency: pro.wewed.app.models.AnnouncementUrgency) = denied()
     override suspend fun getWeddingPass(token: String) = denied()
     override suspend fun resolveInvitation(weddingSlug: String, token: String) = denied()
@@ -184,3 +196,15 @@ private fun JSONObject.toProgrammeItem(): ProgrammeItem = ProgrammeItem(
     location = optString("location").takeIf { !isNull("location") } ?: "",
     description = optString("description").takeIf { !isNull("description") } ?: "",
 )
+
+/** ISO-8601 instant → epoch millis; 0 when absent or unparseable (never a fabricated "now"). */
+internal fun parseIsoMillis(value: String?): Long =
+    value?.takeIf { it.isNotBlank() && it != "null" }
+        ?.let {
+            runCatching {
+                java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+                    .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+                    .parse(it)?.time
+            }.getOrNull()
+        }
+        ?: 0L

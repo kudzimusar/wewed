@@ -125,6 +125,17 @@ class ProductionDomainRepositoriesTest {
     }
 
     @Test
+    fun `announcements read the published website projection`() = runBlocking {
+        val transport = FakeTransport(mapOf("api/native/wedding/announcements" to WeddingDayHttpResponse(200, """{"success":true,"count":1,"data":[{"id":"ann-1","title":"Shuttle times","body":"The shuttle leaves at 13:00.","publishedAt":"2026-12-22T09:30:00.000Z","expiresAt":null,"order":0}]}""")))
+        val repo = ProductionWeddingRepository(NativeDomainApiClient(transport), token, grantId, "wed-1")
+        val announcements = repo.getAnnouncements("wed-1")
+        assertEquals(listOf("ann-1"), announcements.map { it.id })
+        assertEquals("Shuttle times", announcements.first().title)
+        assertEquals("The shuttle leaves at 13:00.", announcements.first().message)
+        assertEquals(1797931800000L, announcements.first().timestampMillis)
+    }
+
+    @Test
     fun `a 401 from any endpoint never returns fixture-shaped data`() = runBlocking {
         val transport = FakeTransport(mapOf("api/native/wedding/tasks" to WeddingDayHttpResponse(401, """{"success":false}""")))
         val repo = ProductionWeddingRepository(NativeDomainApiClient(transport), token, grantId, "wed-1")

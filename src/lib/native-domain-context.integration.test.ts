@@ -233,6 +233,7 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
   let GET_GUESTS: typeof import('@/app/api/native/wedding/guests/route')['GET']
   let GET_SEATING: typeof import('@/app/api/native/wedding/seating/route')['GET']
   let GET_TIMELINE: typeof import('@/app/api/native/wedding/timeline/route')['GET']
+  let GET_ANNOUNCEMENTS: typeof import('@/app/api/native/wedding/announcements/route')['GET']
   let GET_VENDORS: typeof import('@/app/api/native/wedding/vendors/route')['GET']
   let GET_OVERVIEW: typeof import('@/app/api/native/wedding/overview/route')['GET']
   let GET_VENDOR_BUSINESS: typeof import('@/app/api/native/vendor/business/route')['GET']
@@ -264,6 +265,7 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     ;({ GET: GET_GUESTS } = await import('@/app/api/native/wedding/guests/route'))
     ;({ GET: GET_SEATING } = await import('@/app/api/native/wedding/seating/route'))
     ;({ GET: GET_TIMELINE } = await import('@/app/api/native/wedding/timeline/route'))
+    ;({ GET: GET_ANNOUNCEMENTS } = await import('@/app/api/native/wedding/announcements/route'))
     ;({ GET: GET_VENDORS } = await import('@/app/api/native/wedding/vendors/route'))
     ;({ GET: GET_OVERVIEW } = await import('@/app/api/native/wedding/overview/route'))
     ;({ GET: GET_VENDOR_BUSINESS } = await import('@/app/api/native/vendor/business/route'))
@@ -474,6 +476,38 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     expect((await vendorsRes.json()).data.map((v: { id: string }) => v.id).sort()).toEqual(
       [ids.vendorA, ids.vendorEntityA, ids.vendorEntityMulti, ids.vendorEntityNoEngagement, ids.vendorEntityRevoked].sort()
     )
+  })
+
+  test('QRO07 convergence: web, native staff and the shared loader read one announcement projection', async () => {
+    const insert = async (key: string, weddingId: string, status: string, audience: string, expires: string | null = null) => {
+      ids[key] = id(key)
+      await exec(
+        `INSERT INTO public."WeddingAnnouncement" (id, "weddingId", title, body, status, audience, "publishedAt", "expiresAt", "order", "updatedAt")
+         VALUES ($1, $2, $3, 'Body', $4, $5, CASE WHEN $4 = 'published' THEN now() - interval '1 minute' END, $6::timestamptz, 0, now())`,
+        ids[key], weddingId, `Title ${key}`, status, audience, expires,
+      )
+    }
+    await insert('annAll', ids.A, 'published', 'guests')
+    await insert('annAttending', ids.A, 'published', 'attending')
+    await insert('annDraft', ids.A, 'draft', 'guests')
+    await insert('annExpired', ids.A, 'published', 'guests', new Date(Date.now() - 60_000).toISOString())
+    await insert('annOther', ids.B, 'published', 'guests')
+
+    const gid = grantId('planner', 'wedding', ids.A)
+    const nativeRes = await GET_ANNOUNCEMENTS(await bearerRequest(`http://localhost/api/native/wedding/announcements?grantId=${gid}`, actors.planner, `auth-${actors.planner}`))
+    expect(nativeRes.status).toBe(200)
+    const nativeIds = ((await nativeRes.json()).data as Array<{ id: string }>).map((row) => row.id).sort()
+    expect(nativeIds).toEqual([ids.annAll, ids.annAttending].sort())
+
+    const { loadWeddingDataBySlug } = await import('@/lib/wedding-data-server')
+    const web = await loadWeddingDataBySlug(ids.A)
+    // Public web shows the all-guests notice only; attending-only notices need an attending guest session.
+    expect(web?.announcements.map((row) => row.id)).toEqual([ids.annAll])
+    for (const row of web?.announcements ?? []) expect(nativeIds).toContain(row.id)
+
+    const { loadPublishedAnnouncements } = await import('@/lib/wedding-site/server')
+    const attendingGuest = await loadPublishedAnnouncements(ids.A, { includeAttendingOnly: true })
+    expect(attendingGuest.map((row) => row.id).sort()).toEqual(nativeIds)
   })
 
   test('Overview: wedding-scoped grant returns real counts; portfolio-scoped grant never fabricates a wedding', async () => {

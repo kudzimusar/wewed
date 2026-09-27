@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { readWeddingDayGuestContext } from '@/lib/wedding-day'
+import { loadPublishedAnnouncements } from '@/lib/wedding-site/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,6 +11,7 @@ type GuestDayRow = {
   tableNumber: number | null
   tableName: string | null
   checkedIn: boolean | null
+  attending: boolean | null
   plusOne: boolean | null
   plusOneName: string | null
   kidsAttending: boolean | null
@@ -31,6 +33,7 @@ export async function GET(request: NextRequest) {
             g."tableNumber",
             st.name AS "tableName",
             r."checkedIn",
+            r.attending,
             r."plusOne",
             r."plusOneName",
             r."kidsAttending",
@@ -58,6 +61,10 @@ export async function GET(request: NextRequest) {
       ORDER BY "order" ASC, id ASC`,
     context.weddingId,
   )
+
+  const announcements = await loadPublishedAnnouncements(context.weddingId, {
+    includeAttendingOnly: guest.attending === true,
+  })
 
   const household: Array<{
     attendeeKey: string
@@ -94,9 +101,9 @@ export async function GET(request: NextRequest) {
           household,
         },
         programme,
-        // This backend line has no separate announcement table. Keep the transport contract stable
-        // without fabricating wedding notices; a later announcement authority can populate it.
-        announcements: [],
+        // QRO07: the same published WeddingAnnouncement projection the website shows. Notices for
+        // attending guests only reach a guest whose RSVP says they are attending.
+        announcements,
       },
     },
     { headers: { 'Cache-Control': 'private, no-store' } },

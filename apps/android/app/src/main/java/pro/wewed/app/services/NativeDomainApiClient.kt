@@ -105,6 +105,10 @@ class NativeDomainApiClient(
     suspend fun timeline(sessionToken: String, grantId: String): NativeDomainFetch<JSONArray> =
         runGetArray("api/native/wedding/timeline", sessionToken, grantId, "data")
 
+    /** QRO07: the published WeddingAnnouncement projection shared with the website and guest Wedding Day. */
+    suspend fun announcements(sessionToken: String, grantId: String): NativeDomainFetch<JSONArray> =
+        runGetArray("api/native/wedding/announcements", sessionToken, grantId, "data")
+
     /**
      * QRO05-PIQR01 — the same `loadPlannerInvitationProjection` the desktop Planner's
      * `GET /api/planner/guests/invitations` reads. Read-only: there is deliberately no native

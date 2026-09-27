@@ -144,6 +144,18 @@ final class ProductionDomainRepositoriesTests: XCTestCase {
         XCTAssertEqual(auditRecords, [])
     }
 
+    func testAnnouncementsReadThePublishedWebsiteProjection() async throws {
+        Stub.routes["api/native/wedding/announcements"] = Reply(status: 200, body: """
+            {"success":true,"count":1,"data":[{"id":"ann-1","title":"Shuttle times","body":"The shuttle leaves at 13:00.","publishedAt":"2026-12-22T09:30:00.000Z","expiresAt":null,"order":0}]}
+            """)
+        let repo = ProductionWeddingRepository(client: client(), sessionToken: token, grantId: grantId, weddingId: "wed-1")
+        let announcements = try await repo.getAnnouncements(weddingId: "wed-1")
+        XCTAssertEqual(announcements.map(\.id), ["ann-1"])
+        XCTAssertEqual(announcements.first?.title, "Shuttle times")
+        XCTAssertEqual(announcements.first?.message, "The shuttle leaves at 13:00.")
+        XCTAssertEqual(announcements.first?.timestamp, ProductionWeddingRepository.parseInstant("2026-12-22T09:30:00.000Z"))
+    }
+
     func testA401FromAnyEndpointNeverReturnsFixtureShapedData() async {
         Stub.routes["api/native/wedding/tasks"] = Reply(status: 401, body: #"{"success":false}"#)
         let repo = ProductionWeddingRepository(client: client(), sessionToken: token, grantId: grantId, weddingId: "wed-1")
