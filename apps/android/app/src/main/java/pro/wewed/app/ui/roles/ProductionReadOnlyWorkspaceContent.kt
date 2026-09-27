@@ -51,8 +51,11 @@ fun ProductionReadOnlyWorkspaceContent(
             ReadOnlyRow("Venue", listOf(wedding.venue, wedding.venueCity, wedding.venueCountry).filter { it.isNotBlank() }.joinToString(", "))
             ReadOnlyRow("Lifecycle", wedding.lifecycle)
         } ?: run {
-            ReadOnlyRow("Business", snapshot.businessName?.takeIf { it.isNotBlank() } ?: "Business workspace")
-            if (snapshot.scopeKind == "system") ReadOnlyRow("Scope", "Wewed platform")
+            if (snapshot.scopeKind == "system") {
+                ReadOnlyRow("Scope", "Wewed platform")
+            } else {
+                ReadOnlyRow("Business", snapshot.businessName?.takeIf { it.isNotBlank() } ?: "Business workspace")
+            }
         }
 
         if (snapshot.permissions.isNotEmpty()) {
