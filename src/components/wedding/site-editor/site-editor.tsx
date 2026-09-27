@@ -179,6 +179,33 @@ export function SiteEditor({ slug, initial }: { slug: string; initial: EditorSit
           <AnnouncementsPanel slug={slug} announcements={data.announcements} onChanged={refresh} onStatus={setStatus} />
         </section>
 
+        <section id="earlier-content" className={panel} aria-labelledby="earlier-content-heading">
+          <h2 id="earlier-content-heading" className="wewed-heading text-2xl font-light text-espresso">Earlier content</h2>
+          <p className="mt-1 mb-4 font-sans text-sm text-espresso/60">
+            Bring list content saved by the previous website (story moments, questions, travel cards and similar) into the
+            editor below. Imported items stay hidden from guests until you review and publish each one.
+          </p>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true)
+              try {
+                const result = await editorRequest<{ created: number }>(slug, '/site/import-legacy', { method: 'POST' })
+                setStatus(result.created ? `${result.created} earlier item(s) imported as hidden drafts.` : 'Nothing new to import.')
+                await refresh()
+              } catch (error) {
+                setStatus(error instanceof Error ? error.message : 'Something went wrong.')
+              } finally {
+                setBusy(false)
+              }
+            }}
+            className="min-h-11 rounded-full border border-gold/40 px-5 font-sans text-xs uppercase tracking-[0.14em] text-espresso disabled:opacity-40"
+          >
+            Import earlier content (hidden)
+          </button>
+        </section>
+
         <section id="sections" className={panel} aria-labelledby="sections-heading">
           <h2 id="sections-heading" className="wewed-heading text-2xl font-light text-espresso">Sections</h2>
           <p className="mt-1 mb-5 font-sans text-sm text-espresso/60">

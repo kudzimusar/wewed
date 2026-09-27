@@ -119,6 +119,19 @@ describeLocal('QRO07 wedding-website authority', () => {
     expect((await loadWeddingDataBySlug(w.A))!.site.items).toEqual({})
   })
 
+  test('legacy import route: editor-only, idempotent, and never publishes', async () => {
+    const { POST } = await import('@/app/api/weddings/[slug]/site/import-legacy/route')
+    const call = (userId: string | null, weddingId: string | null) =>
+      POST(req('POST', `/api/weddings/${w.A}/site/import-legacy`, userId, weddingId), params({ slug: w.A }))
+    expect((await call(null, null)).status).toBe(401)
+    expect((await call(u.coordinator, w.A)).status).toBe(403)
+    expect((await call(u.plannerB, w.B)).status).toBe(403)
+    const ok = await call(u.planner, w.A)
+    expect(ok.status).toBe(200)
+    expect((await ok.json()).data.created).toBe(0) // already imported above
+    expect((await loadWeddingDataBySlug(w.A))!.site.items).toEqual({})
+  })
+
   test('editor routes: content.edit on THIS wedding only; coordinator and other weddings refused', async () => {
     const { GET } = await import('@/app/api/weddings/[slug]/site/route')
     expect((await GET(req('GET', `/api/weddings/${w.A}/site`, null, null), params({ slug: w.A }))).status).toBe(401)
