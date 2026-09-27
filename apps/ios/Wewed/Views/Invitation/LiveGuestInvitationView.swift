@@ -69,6 +69,7 @@ public struct LiveGuestInvitationView: View {
     private let onContinue: () -> Void
     private let onBackToWedding: (() -> Void)?
     private let onViewPass: (() -> Void)?
+    private let onLeaveWedding: (() -> Void)?
 
     @State private var rsvpPrompt = false
     @State private var rsvpEditorPresentation: LiveInvitationPresentation? = nil
@@ -87,7 +88,8 @@ public struct LiveGuestInvitationView: View {
         onRefreshed: @escaping (LiveInvitationState) -> Void,
         onContinue: @escaping () -> Void,
         onBackToWedding: (() -> Void)? = nil,
-        onViewPass: (() -> Void)? = nil
+        onViewPass: (() -> Void)? = nil,
+        onLeaveWedding: (() -> Void)? = nil
     ) {
         self.presentation = presentation
         self.coordinator = coordinator
@@ -95,6 +97,7 @@ public struct LiveGuestInvitationView: View {
         self.onContinue = onContinue
         self.onBackToWedding = onBackToWedding
         self.onViewPass = onViewPass
+        self.onLeaveWedding = onLeaveWedding
     }
 
     private func requestRsvpEdit() {
@@ -233,6 +236,25 @@ public struct LiveGuestInvitationView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(WeddingIdentityPalette.ivory.opacity(0.98))
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if presentation.attending == nil, let onLeaveWedding {
+                Button(action: onLeaveWedding) {
+                    Text("Not your invitation? Leave this wedding")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(WeddingIdentityPalette.muted)
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                        .background(WeddingIdentityPalette.ivorySoft.opacity(0.98))
+                        .overlay(
+                            Rectangle()
+                                .frame(height: 1)
+                                .foregroundStyle(WeddingIdentityPalette.hairline),
+                            alignment: .top
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("invitation-leave-wedding")
             }
         }
     }
