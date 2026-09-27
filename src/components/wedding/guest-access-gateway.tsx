@@ -16,6 +16,9 @@ function accessErrorMessage(value: string | null | undefined): string | null {
   if (value === 'invalid') {
     return 'This invitation is invalid or no longer active. Ask the couple for a new QR code or invitation link.'
   }
+  if (value === 'handoff') {
+    return 'This link from the Wewed app has expired or is no longer valid. Return to the app and tap the button again, or open your personal invitation link.'
+  }
   if (value === 'missing') {
     return 'The invitation credential was missing. Scan the complete QR code or enter the code below.'
   }
