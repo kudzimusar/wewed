@@ -481,8 +481,8 @@ public actor GuestSessionClient {
 
     /// QRO06 — a short-lived, server-signed exchange that lets the system browser open the Couple
     /// Website or Registry as THIS Guest. The server identifies the Guest from the stored session;
-    /// this sends only the destination key. The returned URL is accepted only if it points back at
-    /// this lane's own origin and redeem path, so a response can never redirect the Guest elsewhere.
+    /// this sends only the destination key. The server answers with a RELATIVE redeem path, which is
+    /// joined to this lane's own origin — a response can never send the Guest's browser elsewhere.
     /// The URL is handed straight to the browser: it is never logged, stored or shown.
     public func browserHandoffURL(weddingSlug: String, destination: GuestBrowserDestination) async throws -> URL {
         let body = try JSONSerialization.data(withJSONObject: ["destination": destination.rawValue])
@@ -491,22 +491,24 @@ public actor GuestSessionClient {
         if response.status == 401 { throw GuestSessionError.unauthorized }
         guard response.status == 200, let data = response.body,
               let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let raw = json["url"] as? String,
-              let url = Self.acceptedHandoffURL(raw, baseUrl: baseUrl, weddingSlug: weddingSlug)
+              let redeem = json["path"] as? String,
+              let url = Self.acceptedHandoffURL(path: redeem, baseUrl: baseUrl, weddingSlug: weddingSlug)
         else { throw GuestSessionError.transport(status: response.status) }
         return url
     }
 
-    static func acceptedHandoffURL(_ raw: String, baseUrl: URL, weddingSlug: String) -> URL? {
-        guard let url = URL(string: raw),
-              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let base = URLComponents(url: baseUrl, resolvingAgainstBaseURL: false),
-              components.scheme == base.scheme, components.host == base.host, components.port == base.port,
+    /// Accepts only `/api/weddings/{slug}/guest-browser-handoff/redeem?h=…` — nothing absolute, no
+    /// other query item, no fragment — and joins it to the lane origin.
+    static func acceptedHandoffURL(path: String, baseUrl: URL, weddingSlug: String) -> URL? {
+        guard path.hasPrefix("/"), !path.hasPrefix("//"),
+              let components = URLComponents(string: path),
+              components.scheme == nil, components.host == nil,
               components.path == "/api/weddings/\(weddingSlug)/guest-browser-handoff/redeem",
-              components.queryItems?.map(\.name) == ["h"],
+              let items = components.queryItems, items.count == 1, items[0].name == "h",
+              let h = items[0].value, !h.isEmpty,
               components.fragment == nil
         else { return nil }
-        return url
+        return URL(string: baseUrl.absoluteString.trimmingTrailingSlash() + path)
     }
 
     public func publishedStory(slug: String) async throws -> String {

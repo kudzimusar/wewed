@@ -36,6 +36,15 @@ function isPhysicalInvitationClaimRoute(
   )
 }
 
+// QRO06: the native → browser Guest handoff authenticates inside its own handlers — issue with
+// the signed Guest session cookie, redeem with the short-lived signed exchange.
+function isGuestBrowserHandoffRoute(pathname: string, method: string): boolean {
+  return (
+    (method === 'POST' && /^\/api\/weddings\/[^/]+\/guest-browser-handoff$/.test(pathname)) ||
+    (method === 'GET' && /^\/api\/weddings\/[^/]+\/guest-browser-handoff\/redeem$/.test(pathname))
+  )
+}
+
 function isProtectedPlannerPage(pathname: string): boolean {
   return pathname === '/planner/ai-workspace' || pathname === '/planner/wedding-brief'
 }
@@ -56,6 +65,7 @@ function requiresDashboardSession(request: NextRequest): boolean {
   if (isGuestWeddingSessionRoute(pathname)) return false
   if (isSharedInvitationSessionRoute(pathname, request.method)) return false
   if (isPhysicalInvitationClaimRoute(pathname, request.method)) return false
+  if (isGuestBrowserHandoffRoute(pathname, request.method)) return false
   if (pathname.startsWith('/api/weddings/')) return true
 
   if (pathname === '/api/rsvp' && request.method === 'GET') return true

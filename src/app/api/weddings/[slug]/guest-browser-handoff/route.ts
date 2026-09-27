@@ -50,7 +50,8 @@ export async function POST(request: NextRequest, { params }: Params) {
     invitationVersion: invitationVersionFingerprint({ weddingId: wedding.id, guestId: guest.id, rsvpToken: guest.rsvpToken }),
     destination: body.destination,
   })
-  const url = new URL(`/api/weddings/${encodeURIComponent(wedding.slug)}/guest-browser-handoff/redeem`, request.nextUrl.origin)
-  url.searchParams.set('h', token)
-  return noStore({ success: true, url: url.toString(), expiresAt: new Date(expiresAt).toISOString() }, 200)
+  // A RELATIVE path: each client joins it to the one origin it already trusts (its lane), so the
+  // response can never point the Guest's browser at another host.
+  const path = `/api/weddings/${encodeURIComponent(wedding.slug)}/guest-browser-handoff/redeem?${new URLSearchParams({ h: token })}`
+  return noStore({ success: true, path, expiresAt: new Date(expiresAt).toISOString() }, 200)
 }

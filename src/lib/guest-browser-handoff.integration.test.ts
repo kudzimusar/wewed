@@ -72,8 +72,8 @@ async function issue(slug: string, guestId: string, weddingId: string, destinati
   )
   return res
 }
-async function redeem(slug: string, exchangeUrl: string) {
-  const res = await REDEEM(new NextRequest(exchangeUrl), { params: Promise.resolve({ slug }) })
+async function redeem(slug: string, exchange: string) {
+  const res = await REDEEM(new NextRequest(new URL(exchange, ORIGIN)), { params: Promise.resolve({ slug }) })
   return res
 }
 function setCookies(res: Response): string[] {
@@ -135,7 +135,7 @@ describeLocal('QRO06 native → browser Guest handoff', () => {
     // A body-supplied guest identity is ignored: the server-resolved Guest is always used.
     const spoof = await ISSUE(issueRequest(w.A, { destination: 'site', guestId: g.rotated }, valid), { params: Promise.resolve({ slug: w.A }) })
     const spoofBody = await spoof.json()
-    const redeemed = await redeem(w.A, spoofBody.url)
+    const redeemed = await redeem(w.A, spoofBody.path)
     expect(verifyWeddingGuestSessionToken(guestCookieFrom(redeemed)!)?.guestId).toBe(g.a)
     const privateWedding = await issue(w.P, g.p, w.P, 'site')
     expect(privateWedding.status).toBe(403)
@@ -146,13 +146,14 @@ describeLocal('QRO06 native → browser Guest handoff', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toBe('private, no-store, max-age=0')
     const body = await res.json()
-    const exchange = new URL(body.url)
-    expect(exchange.origin).toBe(ORIGIN)
+    expect(body.path.startsWith('/')).toBe(true)
+    expect(body.url).toBeUndefined()
+    const exchange = new URL(body.path, ORIGIN)
     expect(exchange.pathname).toBe(`/api/weddings/${w.A}/guest-browser-handoff/redeem`)
     expect([...exchange.searchParams.keys()]).toEqual(['h'])
     const h = exchange.searchParams.get('h')!
     const decoded = Buffer.from(h.split('.')[0], 'base64url').toString('utf8')
-    for (const text of [body.url, decoded]) {
+    for (const text of [body.path, decoded]) {
       expect(text).not.toContain(`${g.a}-rsvp-token`)
       expect(text).not.toContain('wewed_wedding_guest')
     }
@@ -163,7 +164,7 @@ describeLocal('QRO06 native → browser Guest handoff', () => {
 
   test('redeem: establishes the same Guest browser session and lands only on the allowlisted path', async () => {
     for (const [destination, path] of [['site', `/w/${w.A}`], ['registry', `/w/${w.A}#registry`]] as const) {
-      const exchange = (await (await issue(w.A, g.a, w.A, destination)).json()).url
+      const exchange = (await (await issue(w.A, g.a, w.A, destination)).json()).path
       const res = await redeem(w.A, exchange)
       expect(res.status).toBe(303)
       expect(res.headers.get('location')).toBe(path)
@@ -180,7 +181,7 @@ describeLocal('QRO06 native → browser Guest handoff', () => {
 
   test('redeem: tampered, expired, cross-wedding, rotated and now-private exchanges fail closed', async () => {
     const gateway = (slug: string) => `/w/${slug}?accessError=handoff`
-    const exchange = new URL((await (await issue(w.A, g.a, w.A, 'site')).json()).url)
+    const exchange = new URL((await (await issue(w.A, g.a, w.A, 'site')).json()).path, ORIGIN)
     const h = exchange.searchParams.get('h')!
 
     // Tampered destination/guest inside the signed payload.
@@ -208,7 +209,7 @@ describeLocal('QRO06 native → browser Guest handoff', () => {
     }
 
     // The invitation is rotated after issue: the outstanding exchange dies with the old link.
-    const rotatedExchange = (await (await issue(w.A, g.rotated, w.A, 'site')).json()).url
+    const rotatedExchange = (await (await issue(w.A, g.rotated, w.A, 'site')).json()).path
     await exec(`UPDATE public."RSVP" SET token = $1 WHERE "guestId" = $2`, `${g.rotated}-rotated`, g.rotated)
     const afterRotation = await redeem(w.A, rotatedExchange)
     expect(afterRotation.headers.get('location')).toBe(gateway(w.A))
@@ -216,7 +217,7 @@ describeLocal('QRO06 native → browser Guest handoff', () => {
     await exec(`UPDATE public."RSVP" SET token = $1 WHERE "guestId" = $2`, `${g.rotated}-rsvp-token`, g.rotated)
 
     // The wedding is made private after issue.
-    const beforePrivate = (await (await issue(w.B, g.b, w.B, 'site')).json()).url
+    const beforePrivate = (await (await issue(w.B, g.b, w.B, 'site')).json()).path
     await exec(`UPDATE public."Wedding" SET privacy = 'private' WHERE id = $1`, w.B)
     const afterPrivate = await redeem(w.B, beforePrivate)
     expect(afterPrivate.headers.get('location')).toBe(gateway(w.B))
@@ -227,7 +228,7 @@ describeLocal('QRO06 native → browser Guest handoff', () => {
   test('issue + redeem never mutate RSVP, Guest, Wedding or audit state', async () => {
     const before = await fingerprint([w.A])
     for (const destination of ['site', 'registry']) {
-      const exchange = (await (await issue(w.A, g.a, w.A, destination)).json()).url
+      const exchange = (await (await issue(w.A, g.a, w.A, destination)).json()).path
       await redeem(w.A, exchange)
     }
     expect(await fingerprint([w.A])).toEqual(before)

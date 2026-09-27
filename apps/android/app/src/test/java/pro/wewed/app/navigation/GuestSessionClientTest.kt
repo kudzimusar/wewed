@@ -657,10 +657,10 @@ class GuestSessionClientTest {
     fun `browser handoff sends only the destination with the stored session`() = runBlocking {
         exchangeSucceeds("synthetic", "a", "Synthetic", guestASession)
         client.exchangePrivateInvitation("synthetic", rawToken)
-        val redeem = "${origin()}/api/weddings/synthetic/guest-browser-handoff/redeem?h=signed.exchange"
-        routes["POST /api/weddings/synthetic/guest-browser-handoff"] = Reply(200, """{"success":true,"url":"$redeem"}""")
+        val redeem = "/api/weddings/synthetic/guest-browser-handoff/redeem?h=signed.exchange"
+        routes["POST /api/weddings/synthetic/guest-browser-handoff"] = Reply(200, """{"success":true,"path":"$redeem"}""")
         val url = client.browserHandoffUrl("synthetic", pro.wewed.app.invitation.GuestBrowserDestination.REGISTRY)
-        assertEquals(redeem, url)
+        assertEquals("${origin()}$redeem", url)
         assertEquals("${GuestSessionClient.SESSION_COOKIE}=$guestASession", seenCookies.last())
         assertEquals("""{"destination":"registry"}""", seenBodies.last())
         assertFalse(seenBodies.last().contains(rawToken))
@@ -668,19 +668,22 @@ class GuestSessionClientTest {
     }
 
     @Test
-    fun `browser handoff refuses any url off the lane or redeem path`() {
+    fun `browser handoff accepts only the relative redeem path`() {
         val base = "https://wewed.pro"
-        assertNotNull(pro.wewed.app.invitation.acceptedHandoffUrl(
-            "https://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y", base, "synthetic"))
+        assertEquals(
+            "https://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y",
+            pro.wewed.app.invitation.acceptedHandoffUrl("/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y", base, "synthetic"),
+        )
         for (bad in listOf(
             "https://evil.example/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y",
-            "http://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y",
-            "https://wewed.pro:8443/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y",
-            "https://wewed.pro/api/weddings/other/guest-browser-handoff/redeem?h=x.y",
-            "https://wewed.pro/w/synthetic",
-            "https://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y&next=https://evil.example",
-            "https://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y#frag",
-            "not a url",
+            "//evil.example/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y",
+            "/api/weddings/other/guest-browser-handoff/redeem?h=x.y",
+            "/w/synthetic",
+            "/api/weddings/synthetic/guest-browser-handoff/redeem",
+            "/api/weddings/synthetic/guest-browser-handoff/redeem?h=",
+            "/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y&next=https://evil.example",
+            "/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y#frag",
+            "api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y",
             null,
         )) {
             assertNull(bad, pro.wewed.app.invitation.acceptedHandoffUrl(bad, base, "synthetic"))
