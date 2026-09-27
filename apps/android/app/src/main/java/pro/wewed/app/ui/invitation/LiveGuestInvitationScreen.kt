@@ -1,5 +1,6 @@
 package pro.wewed.app.ui.invitation
 
+import androidx.activity.compose.BackHandler
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
@@ -527,6 +528,10 @@ private fun LiveRsvpForm(
         // Always sent: a message to the couple is meaningful whether or not the guest is attending.
         message = message.trim(),
     )
+
+    // System Back closes the RSVP form exactly like tapping the scrim; without this the gesture fell
+    // through to the Activity and closed the app mid-RSVP (QRO04-UI01-RC02). Disabled while saving.
+    BackHandler(enabled = !isSubmitting, onBack = onDismiss)
 
     Box(
         modifier = Modifier
