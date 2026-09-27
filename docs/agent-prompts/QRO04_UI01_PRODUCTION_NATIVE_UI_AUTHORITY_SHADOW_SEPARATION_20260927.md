@@ -1,359 +1,475 @@
-# QRO04-UI01 — Production Native UI Authority + Shadow Separation Closure
+# QRO04-UI01 — Correct Final Native UI Re-Certification + Workspace Selector Closure
 
 ## Repository
 `kudzimusar/wewed`
 
-## Starting point
+## Exact starting point
 
-QRO04 agent branch:
+Source branch:
 `closure/phase13-qro04-pass-gate-ci-path-filter-20260927`
 
-Required starting HEAD:
+Required HEAD:
 `60c1af51ee8b8f863085d17e38009ae9ea52c3c0`
 
 Create:
-`closure/phase13-qro04-production-ui-authority-ui01-20260927`
+`closure/phase13-qro04-final-native-ui-recert-ui01-20260927`
 
-Do not base from production main.
+Do not base from `main`.
 
-Do not discard the accepted one-line Wedding Pass CI workflow fix.
+Preserve the accepted QRO04 workflow fix in:
+`.github/workflows/wedding-pass-convergence-ci.yml`
 
-Moderator decision:
-**D-084 — Shadow UI is not production UI evidence; QRO04 visual certification reopened**
+Moderator decisions:
+- **D-084** — Shadow UI is not production UI evidence.
+- **D-085** — the final native Guest UI was not lost; QRO04 diverged by launching the wrong test lane.
 
-## Why this unit exists
+# 0. READ THIS FIRST — DO NOT REBUILD THE FINAL UI
 
-The owner supplied visible evidence that QRO04 was showing `Sanitized Shadow` / `Switch Persona` screens while a separate real Planner login showed a newer production-role UI.
+The owner has already tested the final native Attending Guest experience multiple times.
 
-Independent source review confirms:
+Independent Git comparison proves these final native UI files are byte-identical between the last certified live Guest source `ba38a362`, QRO04 start `fa7284fd`, and QRO04 result `60c1af51`:
 
-- QRO04's Maestro Guest identity files explicitly launch `wewed_native_env: shadow`;
-- the Shadow persona picker is development-only;
-- QRO04 changed no native UI code;
-- production and Shadow are separate runtime paths;
-- the production Planner shell exists and is the correct visual family;
-- the production invitation-bound Guest uses `LiveGuestShellView` / `LiveGuestShell.kt`, not Shadow `GuestShellView` / `GuestShell`;
-- the production workspace selector is genuinely unfinished and can expose default-blue controls plus raw grant ids.
+- iOS `apps/ios/Wewed/Views/Invitation/LiveGuestShellView.swift`
+- Android `apps/android/app/src/main/java/pro/wewed/app/ui/invitation/LiveGuestShell.kt`
+- iOS `apps/ios/Wewed/Views/Roles/RoleWorkspaces.swift`
+- Android `apps/android/app/src/main/java/pro/wewed/app/ui/roles/RoleWorkspaces.kt`
+- iOS `apps/ios/Wewed/Views/RootView.swift`
+- Android `apps/android/app/src/main/java/pro/wewed/app/ui/RootScreen.kt`
 
-This unit closes those gaps before any WW2 live migration or later stakeholder phase.
+**Do not redesign, replace, port, or merge Shadow UI into those final UI files.**
 
-# 1. NON-NEGOTIABLE UI AUTHORITY MAP
+The objective is to reconnect qualification to the correct final-native runtime, then fix only concrete production-path UI defects.
 
-## Planner / Couple / Coordinator / Vendor / Admin
+# 1. KEEP THE THREE UI SYSTEMS SEPARATE
 
-Production/account UI authority is the real role-shell family in:
-- iOS `apps/ios/Wewed/Views/Roles/RoleWorkspaces.swift`;
-- Android `apps/android/app/src/main/java/pro/wewed/app/ui/roles/RoleWorkspaces.kt`.
-
-For Planner specifically:
-- iOS `PlannerShellView`;
-- Android `PlannerShell`.
-
-The owner's `Professional Planner` screenshot with a `Production` badge, ivory/champagne styling and `Our Wedding Plan` cards is the target family.
-
-Do not replace these shells with PersonaPicker/Shadow screens.
-
-## Guest
-
-Production Guest UI authority is invitation/session-bound:
+## A. FINAL NATIVE APPS — THIS IS THE PRODUCT WE ARE CERTIFYING
 
 iOS:
-`apps/ios/Wewed/Views/Invitation/LiveGuestShellView.swift`
+`apps/ios/Wewed`
 
 Android:
-`apps/android/app/src/main/java/pro/wewed/app/ui/invitation/LiveGuestShell.kt`
+`apps/android/app`
 
-Required real Guest path:
-`Wewed splash -> approved Ivory invitation -> RSVP/details -> LiveGuestShell`
+### Final Guest path
 
-with:
-`Home | Invitation | Pass | Wedding Day | More`.
+iOS:
+`GuestOnlyInvitationShellView -> LiveGuestInvitationView -> LiveGuestShellView`
 
-Do not use:
-- `GuestShellView`;
-- Android `GuestShell`;
-- `DevelopmentPersona.attending_guest`;
+Android:
+`GuestOnlyInvitationShell -> LiveGuestInvitationScreen -> LiveGuestShell`
+
+The canonical Guest journey is:
+
+`Wewed splash -> approved ornate Ivory invitation -> RSVP/details -> persistent Guest shell`
+
+Persistent Guest navigation:
+
+`Home | Invitation | Pass | Wedding Day | More`
+
+This is the UI authority for Guest acceptance.
+
+### Final account-role path
+
+Planner/Couple/Coordinator/Vendor/Admin use the production role-shell family in:
+- iOS `RoleWorkspaces.swift`
+- Android `RoleWorkspaces.kt`
+
+For Planner:
+- iOS `PlannerShellView`
+- Android `PlannerShell`
+
+The owner's polished `Professional Planner / Production / Our Wedding Plan` screenshot is the correct production visual family.
+
+## B. SANITIZED / PRIVATE SHADOW — TEST HARNESS ONLY
+
+Examples:
+- `Switch Persona`
 - `Sanitized Shadow`
-as production Guest evidence.
+- `Private Real Shadow`
+- `Shadow Guest Test Role`
+- `Shadow Usher Test Role`
+- `DevelopmentPersona.attending_guest`
 
-## Gate
+These are qualification/dev tools only.
 
-Production Gate authority must come only from a real server-resolved operational grant / `WeddingGateAssignment`.
+They may still be tested as Shadow, but **they cannot satisfy any final native UI acceptance criterion in this unit**.
 
-Do not use `DevelopmentPersona.gate_usher` or a Shadow Gate assignment as production UI proof.
+Do not use these files as final UI evidence:
+- `.maestro/ios/ios-guest-pass-identity.yaml`
+- `.maestro/native-guest-pass-identity.yaml`
+- `.maestro/native-role-persona-switching.yaml`
+- `.maestro/native-real-shadow.yaml`
+- anything under `.maestro/private-real/`
 
-# 2. LAUNCH-LANE RULE
+unless the result is explicitly labeled `SHADOW TEST ONLY`.
 
-For every production-shaped DEBUG qualification:
+## C. LEGACY ANDROID TWA/UAT WRAPPER — NOT THE NATIVE APP
 
-use:
+Top-level:
+`android/`
+
+This is the Bubblewrap/Trusted Web Activity wrapper around web/PWA.
+
+It is not:
+`apps/android/app`
+
+Do not use screenshots, APKs, launch behavior, or UI from top-level `android/` as proof of the final native Compose application.
+
+# 2. EXACT REASON QRO04 SHOWED SANITIZED SHADOW
+
+QRO04 used:
+- `.maestro/ios/ios-guest-pass-identity.yaml`
+- `.maestro/native-guest-pass-identity.yaml`
+
+Those explicitly set:
+`wewed_native_env: "shadow"`
+
+That is why the owner saw the Shadow Guest screens.
+
+Do not “fix” this by editing the final Guest shell.
+
+The correction is:
+**run the correct final-native test path.**
+
+# 3. FIRST GATE — RE-PROVE THE EXISTING FINAL ATTENDING GUEST UI WITHOUT SHADOW
+
+Before changing product UI, run the existing final-surface Guest UI tests.
+
+## iOS
+
+Use:
+`apps/ios/GuestProfileUITests/GuestProfileUITests.swift`
+
+This suite launches the real `GuestOnlyInvitationShellView` through the DEBUG-only loopback Guest UI server path.
+
+Required tests include:
+- `testInvitationHomeReopenAndRelaunch`
+- `testProfileAndPassReturnToPreviousSurface`
+- `testAttendingCardOpensServerPassAndWeddingDay`
+- `testPendingAndDeclinedDoNotGetPass`
+- `testProductionGuestOnlyLaunchSurvivesWithoutCrash`
+
+For the attending test, capture visible evidence that the UI is the final Guest shell:
+- no `Sanitized Shadow`;
+- no `Switch Persona`;
+- no role-shell Shadow badge;
+- final bottom navigation;
+- Pass surface;
+- Wedding Day surface.
+
+The loopback data is synthetic, but the UI components must be the real final Guest components.
+
+## Android
+
+Use:
+`apps/android/app/src/androidTest/java/pro/wewed/app/invitation/GuestProfileUiTests.kt`
+
+This file explicitly says:
+`Real Compose surfaces + guest HTTP client; synthetic server, never Private Real.`
+
+Run at minimum:
+- `GuestHomeDigitalInvitationTest`
+- `GuestInvitationNavigationTest`
+- `GuestPassEligibilityTest.attendingCardOpensVerifiedServerPassAndWeddingDay`
+- pending/declined Pass tests.
+
+Capture visible evidence from the instrumentation run.
+
+### HARD FAILURE
+
+If either platform's attending-Guest final-surface test unexpectedly enters Shadow:
+STOP and investigate the dispatcher/launch configuration.
+
+Do not patch the UI until the misroute is understood.
+
+# 4. SECOND GATE — RE-PROVE THE REAL C&K GUEST ENTRY ON PRODUCTION_PREVIEW
+
+Use the existing real C&K invitation credential from the owner's secure local file.
+
+Do not print it.
+
+Use explicit:
 `production_preview`
 
-not:
+Never omit the environment.
+
+Never use:
 `shadow`
-not:
 `sanitized_shadow`
-not:
 `private_real_shadow`.
 
-A production-preview launch must prove:
-- `NativeDataEnvironment.PRODUCTION`;
+Use the current read-only integration Preview.
+
+## iOS real Guest
+
+Build/install:
+`apps/ios/Wewed`
+DEBUG `pro.wewed.app.dev`.
+
+Prove before launch:
+- exact branch SHA;
+- app bundle id;
 - exact Preview origin;
-- no PersonaPicker;
-- no `Switch Persona`;
-- no `Sanitized Shadow` badge;
-- no `DevelopmentPersona` identity.
+- `WEWED_NATIVE_ENV=production_preview`;
+- no other `wewed://` handler if possible.
 
-Note: DEBUG with no explicit native environment defaults to Sanitized Shadow by design. Therefore every production-shaped runtime test MUST pass an explicit environment.
+Launch the real private invitation.
 
-Do not change that default merely to hide a test mistake unless a concrete product requirement demands it.
+Required visible sequence:
+`Wewed splash -> ornate Ivory CLOSED -> OPENING -> OPEN -> DETAILS`
 
-# 3. FIX THE PRODUCTION WORKSPACE SELECTOR — IOS + ANDROID
-
-Current defects:
-- iOS `GrantSelectionView.swift` uses default Button presentation and appears as blue links;
-- Android counterpart is similarly minimal;
-- the fallback displays raw `grantId`, causing strings like `planner-<uuid>` to appear.
-
-Implement Wewed production styling:
-- ivory background;
-- serif Wewed heading;
-- champagne/forest accents;
-- card/surface rows;
-- role/scope label;
-- human-readable wedding/business/portfolio name;
-- selected/tappable affordance consistent with the production Planner shell;
-- explicit Sign out secondary action.
-
-No default system-blue link presentation.
-
-No raw:
-- grant id;
-- accessUserId;
-- UUID;
-- businessAccountId;
-- vendorId
-may appear as the primary label.
-
-Human label policy:
-1. wedding title when present;
-2. presentation-only business/vendor name from the already-authorized authority document when available;
-3. safe role/scope label such as `Planner Portfolio`, `Vendor Business`, `Wewed Administration`, `Coordinator Workspace`;
-4. never a raw identifier fallback.
-
-It is acceptable to change `GrantSelectionView` / `GrantSelectionScreen` to receive the full `ProductionAuthority` or a presentation-label resolver. Presentation data must not become authority.
-
-# 4. FIX THE PRODUCTION CONTEXT SWITCHER — IOS + ANDROID
-
-Apply the same Wewed visual language to:
-- iOS `ContextSwitcherSheet.swift`;
-- Android `ContextSwitcherDialog`.
-
-Requirements:
-- no default-blue link list;
-- no raw grant IDs in visible labels;
-- human role + wedding/business label;
-- current context clearly marked;
-- Gate options say Gate name + wedding;
-- preserve the same selection authority functions — styling must not invent or broaden grants.
-
-# 5. MAKE SANITIZED SHADOW UNMISTAKABLY SYNTHETIC
-
-Current Shadow fixture improperly mirrors Charity & Kudzie.
-
-Remove real C&K identity from the Sanitized Shadow test graph/personas.
-
-At minimum, Shadow must not use:
-- real C&K wedding id;
-- `Charity & Kudzie`;
-- `Imba Manor`;
-- the real 2026-12-23 date;
-- real Planner/account names where those names make Shadow look like production.
-
-Use unmistakably synthetic values, for example:
-- wedding id `wewed-shadow-wedding-001`;
-- title `Wewed Shadow Wedding`;
-- venue `Wewed Test Garden`;
-- future synthetic date;
-- `Shadow Planner`, `Shadow Vendor`, etc.
-
-Update:
-- iOS/Android `DevelopmentPersona` definitions;
-- `mobile/fixtures/shadow-reference/reference-wedding-sanitized.json`;
-- platform Shadow repositories/fixture mappings that duplicate those values;
-- affected tests/snapshots.
-
-Do not change Private Real Shadow or Production data to accomplish this.
-
-Do not use a real customer/wedding identity as a “sanitized” visual fixture.
-
-# 6. SHADOW RAW-DATE GAP
-
-The Shadow Invitation surface currently emits the stored raw date.
-
-Even though Shadow is no longer production evidence, fix the shared presentation debt:
-- render a human date through the existing native date-display helper;
-- no `2026-12-23 14:00:00` / ISO-like raw timestamps in UI.
-
-Do not change server authority/date values.
-
-# 7. PRODUCTION UI REGRESSION TESTS
-
-Add deterministic tests proving:
-
-1. `production_preview` resolves `NativeDataEnvironment.PRODUCTION` on both platforms.
-2. production / production_preview cannot expose PersonaPicker / `Switch Persona`.
-3. Shadow persona files cannot satisfy a test named/declared as production UI qualification.
-4. live production Guest dispatch uses:
-   - iOS `LiveGuestShellView`;
-   - Android `LiveGuestShell`;
-   and does not dispatch to Shadow `GuestShellView` / `GuestShell`.
-5. production Planner dispatch reaches real `PlannerShellView` / `PlannerShell` after authority/grant selection.
-6. Grant selector visible labels never fall back to `grantId`.
-7. Grant selector/context switcher source does not use unstyled/default blue as its intended Wewed presentation.
-8. Sanitized Shadow fixture contains no Charity & Kudzie ID/name/venue/date.
-9. Shadow Invitation date is human-formatted.
-
-Keep existing Shadow tests, but name/classify them explicitly as Shadow test-harness tests.
-
-# 8. VISIBLE IOS PROOF
-
-Use a dedicated iOS DEBUG build from this exact branch.
-
-### Real Planner
-
-Launch explicitly with:
-`WEWED_NATIVE_ENV=production_preview`
-
-using the current authorized integration Preview origin and the real Planner account from the existing secure credential file.
-
-Prove:
-- no Shadow entry/persona;
+Required negative assertions:
 - no `Sanitized Shadow`;
-- environment badge = `Production`;
-- styled `Choose a workspace`;
-- no blue raw-link list;
-- no raw `planner-<uuid>`;
-- choose Charity & Kudzie;
-- arrive at the polished `Professional Planner` shell;
-- `Our Wedding Plan` / real role workspace visible.
+- no `Private Real Shadow`;
+- no `Switch Persona`;
+- no Shadow Guest fixture name/id;
+- no generic Botanical card;
+- no raw ISO date.
+
+Because the certified C&K Guest remains RSVP pending, do **not** mutate RSVP merely to enter Home.
+
+For this real-data track, proving invitation + RSVP-required state is sufficient.
+
+## Android real Guest
+
+Build/install:
+`apps/android/app`
+DEBUG `pro.wewed.app.dev`.
+
+Use explicit component routing to:
+`pro.wewed.app.dev/pro.wewed.app.MainActivity`
+
+Pass:
+`wewed_native_env=production_preview`
+plus the approved Preview origin/bypass.
+
+Launch the same real invitation.
+
+Assert the same sequence and negative conditions as iOS.
+
+Do not let top-level `android/` TWA/UAT intercept the link.
+
+# 5. THIRD GATE — REAL PLANNER ON THE FINAL PRODUCTION ROLE UI
+
+Use only the final native apps:
+- iOS `apps/ios/Wewed`
+- Android `apps/android/app`
+
+Launch explicitly in:
+`production_preview`
+
+Use the real Planner credential from the existing secure local file.
 
 Read-only only.
 
-### Real Guest
+Expected route:
+`native sign-in -> production authority -> grant/context selection if required -> PlannerShell`
 
-Use the existing real C&K Guest invitation credential through `production_preview`.
+Required final destination:
+- `Professional Planner`
+- `Production` environment marker
+- C&K selected
+- `Our Wedding Plan`
+- native Planner navigation
 
-Prove:
-- splash;
-- approved ornate Ivory closed invitation;
-- open/details;
-- live Guest persistent shell;
-- `Home | Invitation | Pass | Wedding Day | More`;
-- no `Sanitized Shadow`;
+There must be:
 - no PersonaPicker;
-- no Shadow Guest G007/G011 fixture identity;
-- C&K Guest authority remains real and unchanged.
+- no `Sanitized Shadow`;
+- no `Private Real Shadow`;
+- no Shadow persona identity.
 
-Do not change RSVP.
+# 6. FIX ONLY THE CONFIRMED PRODUCTION UI DEFECT: WORKSPACE/CONTEXT SELECTION
 
-# 9. VISIBLE ANDROID PROOF
+The owner supplied proof that the real production-native account flow can show an unfinished selector with default-blue links and a raw id such as:
+`planner-<uuid>`.
 
-Repeat the same two production-shaped paths:
-- Planner real account in explicit `production_preview`;
-- real invitation-bound Guest in explicit `production_preview`.
+This is a real product defect.
+
+Relevant files include:
+- iOS `apps/ios/Wewed/Views/GrantSelectionView.swift`
+- iOS `apps/ios/Wewed/Views/ContextSwitcherSheet.swift`
+- Android production grant/context selector counterparts.
+
+Fix these on both platforms.
+
+Requirements:
+- use the same Wewed ivory/champagne/forest visual language as the polished Planner shell;
+- no default system-blue link list;
+- no raw `grantId`, `accessUserId`, UUID, businessAccountId or vendorId as a user-facing title;
+- show human-readable wedding/business/role context;
+- show role/scope clearly;
+- show selected/current context clearly;
+- retain explicit Sign out;
+- preserve authority/selection behavior exactly.
+
+Presentation must not become authority.
+
+Preferred label policy:
+1. wedding title when available;
+2. authorized business/vendor presentation name when already available;
+3. safe human role label such as `Planner Portfolio`, `Vendor Business`, `Coordinator Workspace`, `Wewed Administration`;
+4. never expose an internal id as fallback UI text.
+
+Do not redesign the Planner shell itself unless a concrete regression is observed.
+
+# 7. DO NOT SPEND THIS UNIT REBUILDING SHADOW
+
+Shadow cleanup is secondary hygiene.
+
+For this unit:
+- do not rename every Shadow fixture;
+- do not redesign Shadow;
+- do not port final UI into Shadow;
+- do not remove Shadow infrastructure.
+
+Only make a Shadow-side change if necessary to prevent a production test from accidentally accepting Shadow as final evidence.
+
+The priority is correct final native UI qualification.
+
+# 8. REGRESSION TESTS TO ADD
+
+Add deterministic tests that fail if this mistake happens again.
 
 Required:
-- production environment;
-- no Shadow/persona;
-- styled workspace selector;
-- production Planner shell;
-- live Guest shell;
-- no raw grant id;
-- no Shadow fixture identity.
 
-Use exact component routing so another installed build cannot intercept the link.
+1. `production_preview` resolves to `NativeDataEnvironment.PRODUCTION` on iOS/Android.
+2. Production/production_preview cannot apply `DevelopmentPersona`.
+3. Production/production_preview cannot present PersonaPicker/`Switch Persona`.
+4. The real invitation-bound Guest route dispatches to:
+   - iOS `GuestOnlyInvitationShellView / LiveGuestShellView`;
+   - Android `GuestOnlyInvitationShell / LiveGuestShell`.
+5. It does not dispatch to Shadow `GuestShellView / GuestShell`.
+6. The existing GuestProfile tests are explicitly classified as FINAL NATIVE GUEST SURFACE tests, not Shadow.
+7. Any Maestro file declaring `wewed_native_env: shadow` is rejected from the production-UI certification command/list.
+8. Grant selection visible label cannot fall back to raw `grantId`.
+9. Context switcher visible label cannot expose internal identifiers.
+10. Top-level `android/` TWA/UAT wrapper is not invoked by the native-app qualification scripts.
 
-# 10. PASS/GATE VISUAL PROOF
+# 9. GATE UI IN THIS UNIT
 
-QRO04 backend WW2 X/revoke/Y contract is already accepted under D-084.
+QRO04 backend/crypto Gate convergence is already accepted.
 
-Do NOT mutate C&K to obtain an active Pass.
+Do not create a real C&K Gate or real usher merely for visual proof.
 
-For active Wedding Pass/Gate visual UI:
-- use a local/disposable synthetic authority;
-- launch native in the production-shaped lane (`production_preview` against approved loopback origin) if supported;
-- do not use DevelopmentPersona/Shadow for the final visual evidence.
+If an existing production-shaped synthetic Gate UI test can run through final native role/authority components without Shadow, run it.
 
-If a production-shaped local Gate account/authority cannot be constructed without changing architecture or creating a real live account, classify that visual subcheck `BLOCKED-ENV` and return to moderator. Do not fall back to Shadow and call it production.
+If not, classify Gate visual proof:
+`BLOCKED-ENV — no production-shaped disposable Gate account/authority harness yet`
 
-# 11. QRO04 WORKFLOW FIX
+and return that exact gap to moderator.
 
-Preserve the QRO04 accepted workflow correction:
+Do not substitute Shadow Usher and call it production.
+
+# 10. PRESERVE QRO04 BACKEND RESULT
+
+Do not rerun or redesign X/revoke/Y unless a UI change touches Pass/Gate code.
+
+Preserve:
 `.github/workflows/wedding-pass-convergence-ci.yml`
 
-The valid Guest-session path filter must remain:
-`src/app/api/weddings/*/guest-session/**`.
+and its corrected path:
+`src/app/api/weddings/*/guest-session/**`
 
-Re-run Wedding Pass convergence CI after this closure.
+Run the workflow once on the closure branch as regression confirmation.
 
-# 12. LIVE WW2 MIGRATION FREEZE
+# 11. SAFETY / LIVE DATA
 
-Do not apply:
-`20260924000000_wedding_day_ww2_authority`
-or any other migration to the live database in this unit.
+Charity & Kudzie remains real owner data.
 
-Do not enable WW2 in production/shared Preview.
+This unit is read-only against C&K.
 
-The live schema activation decision comes only after this UI closure returns to the moderator.
+Forbidden:
+- RSVP change;
+- wedding-date change;
+- invitation style/token change;
+- Pass issuance;
+- WW2 activation;
+- Gate creation;
+- check-in;
+- production deploy;
+- live migration;
+- main merge;
+- store publish;
+- Admin credentials.
 
-# 13. RECEIPT
+Expected C&K business-data writes:
+`0`
+
+# 12. EVIDENCE PACKAGE
 
 Create:
-`docs/QRO04_UI01_PRODUCTION_NATIVE_UI_AUTHORITY_SHADOW_SEPARATION_RECEIPT_20260927.md`
+`docs/QRO04_UI01_FINAL_NATIVE_UI_RECERT_RECEIPT_20260927.md`
 
 Include:
-- start/final SHA;
-- exact diff;
-- canonical UI map;
-- Shadow-vs-production launch proof;
-- list of Shadow identity values removed;
-- iOS/Android grant selector before/after evidence;
-- no raw identifier proof;
-- production Planner visible proof;
-- production live Guest visible proof;
-- Gate visual result/classification;
-- date-format proof;
-- unit/build results;
-- Maestro/runtime results;
-- Wedding Pass CI run;
-- C&K business-data writes = 0;
-- production mutations = 0;
-- migration changes = 0;
-- secret scan.
+
+## Source identity
+- base SHA `60c1af51...`
+- final SHA
+- exact diff
+
+## Three-system classification
+- final native apps = `apps/ios` + `apps/android`
+- Shadow = dev/test only
+- top-level `android/` = legacy TWA/PWA wrapper
+
+## Attending Guest final-surface evidence
+iOS:
+- GuestProfile UITest result
+- screenshots/video of final bottom nav, Pass, Wedding Day
+- no Shadow markers
+
+Android:
+- GuestProfile instrumentation result
+- screenshots/video of final bottom nav, Pass, Wedding Day
+- no Shadow markers
+
+## Real C&K production_preview evidence
+Both platforms:
+- exact app id
+- exact source SHA
+- exact Preview origin
+- explicit production_preview
+- splash -> Ivory invitation
+- no Shadow
+- 0 writes
+
+## Planner evidence
+Both platforms:
+- styled grant selector
+- no blue fallback
+- no raw id
+- production Planner shell reached
+- `Our Wedding Plan` visible
+
+## Gate visual classification
+PROVEN on production-shaped disposable authority, or exact BLOCKED-ENV reason.
+
+## Regression
+- iOS tests
+- Android tests
+- build results
+- Wedding Pass CI
+- secret scan
 
 Do not commit screenshots containing a real Guest's name unless redacted.
 
-## Success
+# 13. STOP CONDITIONS
 
-`QRO04-UI01 PRODUCTION NATIVE UI AUTHORITY CONVERGED — SHADOW TEST HARNESS SEPARATED FROM PRODUCTION — PLANNER + LIVE GUEST USE CANONICAL ROLE UI ON IOS/ANDROID — RAW WORKSPACE IDS/BLUE FALLBACK REMOVED — CHARITY & KUDZIE UNCHANGED — RETURNING TO MODERATOR.`
+STOP and return to moderator if:
+- current final Guest shell source differs unexpectedly from the known-good blobs before your edits;
+- a production_preview launch resolves Shadow;
+- fixing the route requires architecture changes;
+- live C&K mutation would be required;
+- live WW2 migration would be required;
+- production deploy/main merge would be required;
+- a real Gate operator must be created.
 
-## Failure
+Do not improvise around those boundaries.
 
-`QRO04-UI01 <NOT PROVEN|BLOCKED-ENV|FALSE / STALE> — <exact one-line reason> — SHADOW NOT ACCEPTED AS PRODUCTION EVIDENCE — RETURNING TO MODERATOR.`
+# 14. SUCCESS LINE
 
-# 14. SAFETY FREEZE
+`QRO04-UI01 FINAL NATIVE UI RE-CERTIFIED — IOS/ANDROID ATTENDING GUEST USE LIVE GUEST SHELL, REAL C&K ENTRY USES PRODUCTION_PREVIEW, PLANNER USES PRODUCTION ROLE SHELL, RAW/BLUE WORKSPACE SELECTOR CLOSED — SHADOW/TWA EXCLUDED FROM PRODUCT EVIDENCE — 0 C&K WRITES — RETURNING TO MODERATOR.`
 
-Do not:
-- merge to main;
-- deploy production;
-- apply live WW2 migrations;
-- activate WW2 live;
-- change C&K RSVP/date/style/token;
-- issue C&K Pass;
-- create C&K Gate/check-in;
-- create real Coordinator/Usher accounts;
-- read Admin credentials;
-- publish native apps.
+Failure:
 
-Coordinator/account-class work remains blocked until QRO04-UI01 is reviewed.
+`QRO04-UI01 <NOT PROVEN|BLOCKED-ENV|FALSE / STALE> — <exact reason> — FINAL NATIVE UI NOT REPLACED BY SHADOW — 0 C&K WRITES — RETURNING TO MODERATOR.`
