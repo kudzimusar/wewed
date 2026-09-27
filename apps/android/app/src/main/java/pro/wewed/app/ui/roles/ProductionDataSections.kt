@@ -274,8 +274,15 @@ fun SongbookSection(
 fun InvitationsQrSection(
     destinations: List<QrDestination>,
     invitationCardStyle: String? = null,
-    testTagPrefix: String = "invitations-qr"
+    testTagPrefix: String = "invitations-qr",
+    /** False where the data source never loads QR destinations (production native, QRO04-UI01-RC02). */
+    destinationsLoaded: Boolean = true,
 ) {
+    if (!destinationsLoaded) {
+        // Never claim "none configured" for data that was not asked for.
+        IAEmptySourceSection("Invitations & QR", "Printed-invitation and scan QR destinations are managed in Wewed on the web. The app does not load them yet.", "$testTagPrefix-not-loaded")
+        return
+    }
     if (destinations.isEmpty()) {
         IAEmptySourceSection(
             "Invitations & QR",

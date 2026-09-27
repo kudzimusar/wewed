@@ -323,7 +323,9 @@ struct PlannerMoreSection: View {
     var body: some View {
         switch section {
         case "Client Profile": PlannerClientProfileSection(graph: graph)
-        case "Invitations & QR": InvitationsQrSection(destinations: graph.qrDestinations)
+        case "Invitations & QR":
+            // The production native data source does not load QRDestination rows yet.
+            InvitationsQrSection(destinations: graph.qrDestinations, destinationsLoaded: context.environment != .production)
         case "Intelligence": PlannerIntelligenceSection(graph: graph)
         case "Team Hub": PlannerTeamHubSection(graph: graph)
         case "Files / Documents": PlannerMediaArchiveSection(graph: graph)

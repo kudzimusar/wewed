@@ -172,6 +172,13 @@ class FinalNativeUiLaneRegressionTest {
         val root = source("ui/RootScreen.kt")
         assertEquals(2, Regex("applySystemBarInsets = true").findAll(root).count())
     }
+
+    @Test fun productionInvitationsQrNeverClaimsNoneConfiguredForUnloadedData() {
+        val workspaces = source("ui/roles/RoleWorkspaces.kt")
+        assertTrue(workspaces.contains("destinationsLoaded = appViewModel.dataEnvironment != NativeDataEnvironment.PRODUCTION"))
+        val sections = source("ui/roles/ProductionDataSections.kt")
+        assertTrue(sections.indexOf("if (!destinationsLoaded)") < sections.indexOf("\"No scan destinations are configured for this wedding.\""))
+    }
     private fun source(relative: String): String {
         var dir: File? = File(System.getProperty("user.dir") ?: ".").absoluteFile
         while (dir != null) {

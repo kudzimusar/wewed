@@ -308,7 +308,9 @@ private fun PlannerMoreSection(
         "Client Profile" -> PlannerClientProfileSection(graph)
         "Invitations & QR" -> InvitationsQrSection(
             destinations = graph.qrDestinations,
-            invitationCardStyle = null
+            invitationCardStyle = null,
+            // The production native data source does not load QRDestination rows yet.
+            destinationsLoaded = appViewModel.dataEnvironment != NativeDataEnvironment.PRODUCTION
         )
         "Intelligence" -> PlannerIntelligenceSection(graph)
         "Team Hub" -> PlannerTeamHubSection(graph)

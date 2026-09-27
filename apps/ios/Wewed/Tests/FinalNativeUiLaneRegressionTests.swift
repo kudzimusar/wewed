@@ -142,6 +142,15 @@ final class FinalNativeUiLaneRegressionTests: XCTestCase {
         XCTAssertEqual(WorkspaceGrantPresentation.roleLabel(kind: .planner, scope: .portfolio), "Professional Planner")
         XCTAssertEqual(WorkspaceGrantPresentation.scopeLabel(.portfolio), "All weddings in your portfolio")
     }
+
+    func testProductionInvitationsQrNeverClaimsNoneConfiguredForUnloadedData() throws {
+        let workspaces = try source("Views/Roles/RoleWorkspaces.swift")
+        XCTAssertTrue(workspaces.contains("destinationsLoaded: context.environment != .production"))
+        let sections = try source("Views/Roles/ProductionDataSections.swift")
+        let notLoaded = try XCTUnwrap(sections.range(of: "if !destinationsLoaded {"))
+        let noneConfigured = try XCTUnwrap(sections.range(of: "No scan destinations are configured for this wedding."))
+        XCTAssertLessThan(notLoaded.lowerBound, noneConfigured.lowerBound)
+    }
     // MARK: helpers
 
     private func assertNoIdentifier(_ p: WorkspaceGrantPresentation, _ g: ProductionWorkspaceGrant, file: StaticString = #filePath, line: UInt = #line) {

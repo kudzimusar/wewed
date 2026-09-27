@@ -174,16 +174,24 @@ public struct InvitationsQrSection: View {
     private let destinations: [QrDestination]
     private let invitationCardStyle: String?
     private let testIdPrefix: String
+    /// False where the data source never loads QR destinations (production native, QRO04-UI01-RC02).
+    private let destinationsLoaded: Bool
 
     public init(destinations: [QrDestination], invitationCardStyle: String? = nil,
-                testIdPrefix: String = "invitations-qr") {
+                testIdPrefix: String = "invitations-qr", destinationsLoaded: Bool = true) {
         self.destinations = destinations
         self.invitationCardStyle = invitationCardStyle
         self.testIdPrefix = testIdPrefix
+        self.destinationsLoaded = destinationsLoaded
     }
 
     public var body: some View {
-        if destinations.isEmpty {
+        if !destinationsLoaded {
+            // Never claim "none configured" for data that was not asked for.
+            IAEmptySourceSection(title: "Invitations & QR",
+                                 reason: "Printed-invitation and scan QR destinations are managed in Wewed on the web. The app does not load them yet.",
+                                 testIdPrefix: "\(testIdPrefix)-not-loaded")
+        } else if destinations.isEmpty {
             IAEmptySourceSection(title: "Invitations & QR",
                                  reason: "No scan destinations are configured for this wedding.",
                                  testIdPrefix: testIdPrefix)
