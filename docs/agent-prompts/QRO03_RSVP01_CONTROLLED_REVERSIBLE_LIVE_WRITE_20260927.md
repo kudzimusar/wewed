@@ -10,19 +10,19 @@ Authoritative integration branch:
 
 Required starting HEAD:
 
-`38a59ad73e5de89051144fb625253e38f0101df6`
+`fadc62feaa11acc69a3bf1aa4fdb428255c4f37d`
 
 Required starting Preview:
 
-`dpl_5dNPfgevPH43Ksn9HyReqfL2kWL9`
+`dpl_3pbzmgGW35aB4T2Gc7boxocPzbo1`
 
 Expected Preview URL:
 
-`wewed-ks9kthy96-11-11.vercel.app`
+`wewed-pwc2l9wee-11-11.vercel.app`
 
 Moderator decision:
 
-**D-080 — QRO03 first attempt clean-stop accepted; native RSVP message projection closed; QRO03 re-released**
+**D-081 — PR202 stale corridor identified as synthetic UAT; destructive deletion not required; QRO03 re-released**
 
 ## Agent role
 
@@ -104,8 +104,8 @@ Before any environment or data mutation:
 
 1. fetch remote;
 2. verify integration HEAD is exactly:
-   `38a59ad73e5de89051144fb625253e38f0101df6`;
-3. verify Preview `dpl_5dNPfgevPH43Ksn9HyReqfL2kWL9` is READY and serves exact `38a59ad73e5de89051144fb625253e38f0101df6`;
+   `fadc62feaa11acc69a3bf1aa4fdb428255c4f37d`;
+3. verify Preview `dpl_3pbzmgGW35aB4T2Gc7boxocPzbo1` is READY and serves exact `fadc62feaa11acc69a3bf1aa4fdb428255c4f37d`;
 4. verify production main remains `646f08421d778cf6f85bf12195581228ae3fbccc`;
 5. verify Charity & Kudzie authority:
    - wedding ID = the same certified QRO02B2 wedding;
@@ -131,31 +131,38 @@ Before any environment or data mutation:
 
 If the pre-state differs materially from the QRO02B2 certified state, STOP and return moderator before mutation.
 
-## Pre-corridor stale Preview write-authority cleanup
+## Pre-corridor PR202 residual — RESOLVED BY MODERATOR
 
-The stopped QRO03 attempt reported a 15-day-old branch-scoped Preview `WEWED_PREVIEW_WRITABLE_WEDDING_ID` for:
+Do not delete the 313 historical PR202 deployments as part of QRO03.
 
-`feature/private-invitation-android-delivery-20260912`
+Moderator forensics has identified the old branch-scoped writable wedding as:
 
-This exact Vercel environment claim could not be independently enumerated through the moderator's connected read surface, so you must inspect it safely before opening QRO03's new write corridor.
+`wewed-pr202-uat-20260912`
 
-Required:
+Title:
 
-1. use authorized Vercel CLI/account tooling to list Preview environment entries and their branch scopes without printing secret values;
-2. determine whether that old branch still has `WEWED_PREVIEW_WRITABLE_WEDDING_ID`;
-3. if absent, record safe proof and continue;
-4. if present:
-   - record branch scope and non-secret metadata;
-   - remove that stale branch-scoped environment entry;
-   - identify deployment IDs built while it was present;
-   - preserve safe deployment/log metadata needed for the receipt;
-   - determine whether any such deployment is still reachable and therefore still writable;
-5. if stale writable deployments are clearly obsolete and can be safely retired without touching production or an active qualification task, retire them;
-6. if retirement requires an uncertain/destructive action, STOP and return to moderator before enabling a new writable corridor.
+`Wewed PR 202 — Synthetic UAT`
 
-Do not rotate production credentials or change Deployment Protection as a workaround.
+Evidence:
+- PR #202;
+- commit `7c81726e25d68fd220e72363008d13fc0cb421ff`;
+- `docs/PR202_UAT_SETUP.md`;
+- `scripts/provision-pr202-uat.ts`;
+- `src/app/api/uat/assetlinks/route.ts`.
 
-No new QRO03 write corridor may be opened while an unexplained stale live-data writable Preview remains.
+The old environment entry has already been removed, so future builds cannot inherit it.
+
+The old built deployments are accepted as a bounded historical UAT residual because:
+- they are limited to the synthetic PR202 wedding;
+- the newest was proven to return 423 for Charity & Kudzie;
+- they remain behind Deployment Protection.
+
+Before opening the new QRO03 corridor, record this moderator disposition in the receipt and confirm:
+1. no current Preview environment entry remains for that old branch;
+2. the current integration branch still has no writable wedding configured;
+3. Charity & Kudzie still returns `423 PREVIEW_WRITE_BLOCKED`.
+
+Do not spend time deleting historical PR202 deployments.
 
 ## Authorized Preview write corridor
 
