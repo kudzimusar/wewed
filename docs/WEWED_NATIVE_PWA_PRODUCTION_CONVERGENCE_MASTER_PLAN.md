@@ -5802,3 +5802,75 @@ These use the **real final Guest surfaces** with a loopback synthetic server and
 - Shadow and legacy TWA/UAT screenshots cannot satisfy final native UI acceptance.
 
 Coordinator/account-class work and live WW2 migration remain blocked until this corrected UI closure is reviewed.
+
+
+### D-086 — QRO04-UI01 partial return triaged; RSVP-first contract preserved; bounded UI closure awaiting re-certification (2026-09-27)
+**MODERATOR REVIEW — PARTIALLY ACCEPTED RETURN; SEVEN FAILURES CLASSIFIED AS STALE TEST EXPECTATIONS, NOT A FINAL-UI REGRESSION. ORDINARY BOUNDED DEFECTS PATCHED; RE-CERTIFICATION REQUIRED BEFORE MERGE.**
+
+QRO04-UI01 returned:
+- branch `closure/phase13-qro04-final-native-ui-recert-ui01-20260927`;
+- code `5ef6c7a66461b8fc8f57a7601daa03d191b3cba4`;
+- receipt/head `830d98e2a6af122b2606362c1242183a9adaf905`.
+
+Independent source review confirmed:
+1. the final Live Guest shells were not replaced by Shadow;
+2. real C&K `production_preview` Guest entry and real Planner production-role UI were proven on both platforms by the implementation agent;
+3. the workspace selector raw-id/default-blue defect was genuinely closed by `5ef6c7a6`;
+4. the 7 failing GuestProfile tests were stale against the current RSVP-first product contract:
+   - commit `28d80c550c68a9f63df35f8c0c932ac518150bb9` deliberately removed the Ivory `invitation-continue` control;
+   - `GuestCapabilityPolicy.mayEnterPersistentExperience` intentionally requires a non-null attendance decision;
+   - pending Guests therefore remain on Invitation/RSVP and must not be pushed into Home/Pass/Wedding Day;
+5. the product must **not** resurrect Continue merely to satisfy those tests.
+
+The agent also exposed bounded real defects:
+- a remembered pending Guest could trap a shared device in Guest mode because the only “forget wedding” action lived inside the persistent shell that pending Guests cannot enter;
+- the iOS production-lane UI smoke could restore the preceding synthetic loopback Guest session and send a harmless but invalid `guest-ui` GET to production;
+- iOS LoginView's container identifier masked child identifiers;
+- Wedding Pass cards returned a raw bare `yyyy-MM-dd` value when that exact server shape was supplied;
+- the remaining production read-only workspace placeholder still exposed raw permission keys and default-blue actions.
+
+Moderator closure branch:
+`closure/phase13-qro04-ui01-m1-pending-contract-20260927`
+
+Closure head before re-certification:
+`9c79da8269f04c6d8e3a53e909d99146e030d877`
+
+PR:
+`#221` -> `closure/phase13-qro04-final-native-ui-recert-ui01-20260927`
+
+Bounded closure preserves the final Guest shells and RSVP-first policy while:
+- adding a pending-only “Not your invitation? Leave this wedding” action;
+- clearing only the local Guest relationship, never account identity or wedding business data;
+- returning iOS/Android to normal account welcome/sign-in/workspace after that local Guest exit;
+- preserving production_preview when Android restarts after leaving Guest mode;
+- re-staging a warm replacement invitation correctly on Android;
+- updating the stale GuestProfile tests to:
+  - use answered Guests for persistent-shell/Home/Pass navigation;
+  - require a pending Guest to remain invitation-bound;
+  - require pending Pass CTA to open RSVP rather than admission;
+- adding a DEBUG-only iOS UI-test seam that clears the synthetic Guest session before the production-lane smoke;
+- formatting bare/ISO Wedding Pass dates;
+- fixing iOS LoginView accessibility identifier masking;
+- styling the production read-only placeholder and replacing raw permission-key output with a human access summary.
+
+No C&K business-data mutation is authorized or performed by this closure.
+No live WW2 migration/activation.
+No Gate creation.
+No main merge.
+
+Classification:
+- QRO04 backend/WW2/Gate cryptographic result: unchanged from D-084, accepted;
+- final Guest UI architecture: accepted as preserved;
+- QRO04-UI01 real C&K Guest and Planner evidence: provisionally accepted, must be re-certified on closure head;
+- seven stale test failures: **FALSE / STALE tests**, product rule retained;
+- pending-device lock: **bounded product defect patched**;
+- production synthetic Guest GET leak: **bounded test-isolation defect patched**;
+- remaining blue/raw read-only placeholder: **bounded presentation defect patched**;
+- Gate production-shaped visual harness: still **BLOCKED-ENV**.
+
+PR #221 must not merge until QRO04-UI01-RC01 independently proves the native builds/tests and runtime behavior at exact closure head.
+
+Next active unit:
+`QRO04-UI01-RC01 — FINAL NATIVE UI CLOSURE RE-CERTIFICATION`.
+
+After RC01 passes, moderator merges PR #221 into the QRO04-UI01 branch and immediately issues the Gate production-shaped disposable visual-harness unit if Gate UI remains BLOCKED-ENV.
