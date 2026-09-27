@@ -22,18 +22,17 @@ describe('wedding identity isolation', () => {
     // The canonical renderer is seeded with the already-authorized wedding
     // projection on the server. This prevents a neutral/other-wedding first
     // paint while preserving the same renderer for every slug.
-    expect(home).toContain('<WeddingDataProvider slug={slug} initialData={initialData}>')
+    expect(home).toContain('<WeddingDataProvider slug={slug} initialData={initialData} canEditSite={canEditSite}>')
     expect(home).toContain('initialData?: WeddingData | null')
     expect(page).toContain('const initialData = await loadWeddingDataBySlug(slug)')
     expect(page).toContain('initialData={initialData}')
 
-    expect(home).toContain('<HeroSection />')
-    expect(home).toContain('<OurStory />')
-    expect(home).toContain('<VenueSection />')
-    expect(home).toContain('<TheDay />')
-    expect(home).toContain('<SongbookEnhanced />')
-    expect(home).toContain('<PhotoGallery />')
-    expect(home).toContain('<MemoryCapsule />')
+    expect(home).toContain('<SiteHero />')
+    expect(home).toContain('<SiteStory />')
+    expect(home).toContain('<SiteVenue />')
+    expect(home).toContain('<SiteTheDay />')
+    expect(home).toContain('<SiteSongbook />')
+    expect(home).toContain('<SiteGallery />')
     expect(home).toContain(
       '<GlobalWeddingTools accessKind={accessKind} viewerRole={viewerRole} />',
     )
@@ -43,8 +42,7 @@ describe('wedding identity isolation', () => {
       ).length - 1,
     ).toBe(1)
     expect(home).toContain("const canContribute = accessKind !== 'public' && accessKind !== null")
-    expect(home).toContain('{canContribute && <MediaUpload />}')
-    expect(home).toContain('<LiveWall canPost={canContribute} />')
+    expect(home).toContain('{canContribute ? <MediaUpload /> : null}')
     expect(tracker).toContain('useWeddingContextSafe')
     expect(tracker).toContain('coupleNames(context?.wedding)')
     expect(tracker).toContain('activeSectionId')
@@ -52,31 +50,11 @@ describe('wedding identity isolation', () => {
     expect(tracker).not.toContain("livewall: 'Live from Imba Manor'")
   })
 
-  test('the retained legacy reduced renderer is neutral and is not mounted', () => {
+  test('the retired reduced renderer is gone and not mounted', () => {
     const home = source('src/components/wedding/wedding-home.tsx')
-    const generic = source(
-      'src/components/wedding/data-backed-wedding-experience.tsx',
-    )
-
-    expect(home).not.toContain('data-backed-wedding-experience')
+    const { existsSync } = require('node:fs') as typeof import('node:fs')
+    expect(existsSync('src/components/wedding/data-backed-wedding-experience.tsx')).toBe(false)
     expect(home).not.toContain('DataBackedWeddingExperience')
-
-    for (const forbidden of [
-      'Charity',
-      'Kudzie',
-      'Imba Manor',
-      '23.12.26',
-      'Musarurwa',
-      '@wewedcharitykudzie',
-    ]) {
-      expect(generic).not.toContain(forbidden)
-    }
-
-    expect(generic).toContain('{wedding.title}')
-    expect(generic).toContain('wedding.couple.partner1')
-    expect(generic).toContain('wedding.couple.partner2')
-    expect(generic).toContain('{formatDate(wedding.date)}')
-    expect(generic).toContain('{wedding.venue}')
   })
 
   test('the browser gate verifies selected wedding identity and forbids flagship leakage', () => {

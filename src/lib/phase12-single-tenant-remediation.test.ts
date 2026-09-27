@@ -238,11 +238,10 @@ describe('Phase 12: Single-Tenant and Unsafe PWA Remnants Remediation', () => {
 
   // ── Invariant 8: Multi-Wedding Separation Intact ───────────────────────────
   describe('Invariant 8: Multi-wedding separation remains intact with zero leaks', () => {
-    test('inline-content-db.ts has no hardcoded WEDDING_SLUG', () => {
-      const inlineSource = source('src/lib/inline-content-db.ts')
-      expect(inlineSource).not.toContain("const WEDDING_SLUG = 'charity-and-kudzie'")
-      expect(inlineSource).not.toContain("const WEDDING_SLUG = \"charity-and-kudzie\"")
-      expect(inlineSource).toContain('weddingSlug')
+    test('the browser-local inline content stores are retired', () => {
+      const { existsSync } = require('node:fs') as typeof import('node:fs')
+      expect(existsSync('src/lib/inline-content-db.ts')).toBe(false)
+      expect(existsSync('src/lib/inline-content.ts')).toBe(false)
     })
 
     test('admin-dashboard.tsx has no hardcoded couple greeting', () => {

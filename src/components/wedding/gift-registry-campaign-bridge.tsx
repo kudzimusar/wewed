@@ -5,8 +5,8 @@ import { ArrowRight, Gift, HandHeart, Heart, Plane } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { GuestContributionPledgeForm } from '@/components/wedding/guest-contribution-pledge-form'
-import { GiftRegistry } from '@/components/wedding/gift-registry'
 import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provider'
+import { isSafeHttpUrl } from '@/components/wedding/site/primitives'
 import type { ContributionType } from '@/lib/contributions'
 
 interface PublicCampaign {
@@ -29,6 +29,8 @@ interface PublicCampaign {
 }
 
 interface PublicContributionPayload {
+  /** QRO07: true only when the campaign API could not be read — never shown as the couple's choice. */
+  unavailable?: boolean
   acceptingContributions: boolean
   disabledMessage: string | null
   campaigns: PublicCampaign[]
@@ -49,6 +51,7 @@ export function GiftRegistryCampaignBridge() {
     let cancelled = false
     void fetch(`/api/contribution-campaigns/public?weddingSlug=${encodeURIComponent(slug)}`, { cache: 'no-store' })
       .then(async (response) => {
+        if (!response.ok) throw new Error(`campaigns ${response.status}`)
         const body = await response.json()
         if (cancelled) return
         setPayload({
@@ -58,7 +61,7 @@ export function GiftRegistryCampaignBridge() {
         })
       })
       .catch(() => {
-        if (!cancelled) setPayload({ acceptingContributions: false, disabledMessage: 'Contribution information is temporarily unavailable.', campaigns: [] })
+        if (!cancelled) setPayload({ unavailable: true, acceptingContributions: false, disabledMessage: null, campaigns: [] })
       })
     return () => { cancelled = true }
   }, [slug])
@@ -96,6 +99,16 @@ export function GiftRegistryCampaignBridge() {
     )
   }
 
+  if (payload.unavailable) {
+    return (
+      <section id="registry" data-registry-configured="unavailable" className="wewed-section bg-champagne py-16 md:py-24">
+        <div className="mx-auto max-w-2xl px-4 text-center font-sans text-sm text-espresso/60">
+          Gift and contribution details couldn&apos;t be loaded just now. Please try again later.
+        </div>
+      </section>
+    )
+  }
+
   if (!payload.acceptingContributions) {
     return (
       <section id="registry" data-registry-configured="disabled" data-testid="contributions-disabled-state" className="wewed-section bg-champagne py-20 md:py-32">
@@ -105,14 +118,42 @@ export function GiftRegistryCampaignBridge() {
           <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-gold/20 bg-ivory/65 px-6 py-8">
             <Gift className="mx-auto size-7 text-gold-muted" strokeWidth={1.25} />
             <p className="mt-3 font-serif text-xl font-light text-espresso">The couple is not accepting contributions at the moment.</p>
-            <p className="mt-2 font-sans text-sm leading-6 text-espresso/60">{payload.disabledMessage || 'Your presence and good wishes are more than enough.'}</p>
+            {payload.disabledMessage ? <p className="mt-2 font-sans text-sm leading-6 text-espresso/60">{payload.disabledMessage}</p> : null}
           </div>
         </div>
       </section>
     )
   }
 
-  if (payload.campaigns.length === 0) return <GiftRegistry />
+  if (payload.campaigns.length === 0) {
+    // QRO07: without campaigns, only the couple's own published registry cards are shown.
+    const cards = context?.siteItems('gifts') ?? []
+    if (!cards.length) return null
+    return (
+      <section id="registry" data-registry-configured="cards" className="wewed-section bg-champagne py-20 md:py-32">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+          <div className="mb-12 text-center">
+            <p className="font-sans text-[10px] uppercase tracking-[0.24em] text-gold-muted">Gifts</p>
+            <h2 className="wewed-heading mt-3 text-3xl font-light text-espresso sm:text-4xl">{context?.content.registry?.heading || 'Gifts'}</h2>
+            {context?.content.registry?.subtitle ? <p className="mx-auto mt-5 max-w-2xl font-sans text-sm leading-6 text-espresso/60">{context.content.registry.subtitle}</p> : null}
+          </div>
+          <ul className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {cards.map((card) => (
+              <li key={card.id} className="flex h-full flex-col rounded-2xl border border-gold/25 bg-ivory/70 p-6">
+                <h3 className="font-serif text-2xl font-light text-espresso">{card.title}</h3>
+                {card.body ? <p className="mt-3 flex-1 whitespace-pre-line font-sans text-sm leading-6 text-espresso/65">{card.body}</p> : null}
+                {card.url && isSafeHttpUrl(card.url) ? (
+                  <Button asChild variant="outline" className="mt-5 min-h-11 w-full border-gold/30 bg-gold/5 text-espresso hover:bg-gold/15">
+                    <a href={card.url} target="_blank" rel="noopener noreferrer">View details<ArrowRight className="ml-2 size-4" /></a>
+                  </Button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section id="registry" data-registry-configured="true" className="wewed-section bg-champagne py-20 md:py-32">

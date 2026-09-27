@@ -27,8 +27,6 @@ export const SITE_SECTION_KEYS = [
   'gifts',
   'gallery',
   'songbook',
-  'wall',
-  'village',
   'faq',
   'share',
 ] as const
@@ -49,8 +47,6 @@ export const SITE_SECTION_LABELS: Record<SiteSectionKey, string> = {
   gifts: 'Gifts & Contributions',
   gallery: 'Gallery',
   songbook: 'Songbook',
-  wall: 'Guest Wall',
-  village: 'Our Village',
   faq: 'Questions & Answers',
   share: 'Share',
 }
@@ -79,19 +75,16 @@ export function isSiteItemKind(value: unknown): value is SiteItemKind {
  */
 export const PUBLIC_SCALAR_FIELDS: Readonly<Record<string, readonly string[]>> = {
   hero: ['imageUrl'],
-  story: ['heading', 'subtitle', 'title', 'body', 'introduction', 'familyTitle', 'familyNames', 'familyImageUrl'],
+  story: ['heading', 'subtitle', 'title', 'introduction', 'body'],
   party: ['heading', 'subtitle'],
   venue: ['heading', 'subtitle', 'description', 'imageUrl'],
   theday: ['heading', 'dressCode', 'dressCodeNote', 'venueDescription'],
   travel: ['heading', 'subtitle'],
-  guide: ['heading', 'subtitle'],
-  registry: ['heading', 'subtitle', 'culturalNote'],
+  guide: ['heading'],
+  registry: ['heading', 'subtitle'],
   gallery: ['heading', 'subtitle'],
   songbook: ['heading', 'subtitle'],
-  wall: ['welcomeMessage'],
   faq: ['heading', 'subtitle'],
-  social: ['telegramUrl', 'telegramHandle'],
-  after: ['heading', 'highlightVideoUrl'],
 }
 
 export function isPublicScalarField(section: string, field: string): boolean {
@@ -167,4 +160,30 @@ export function resolveSections(
       layoutVariant: row?.layoutVariant ?? null,
     }
   }).sort((a, b) => (a.order === b.order ? SITE_SECTION_KEYS.indexOf(a.key) - SITE_SECTION_KEYS.indexOf(b.key) : a.order - b.order))
+}
+
+export interface EditorSiteProjection {
+  sections: PublicSiteSection[]
+  items: EditorSiteItem[]
+  announcements: EditorAnnouncement[]
+  /** Published site copy (only allowlisted public fields) with each row's version stamp. */
+  scalars: Array<{ section: string; field: string; value: string; updatedAt: string }>
+  /** Latest unpublished draft per public field. */
+  drafts: Array<{ id: string; section: string; field: string; value: string; updatedAt: string }>
+  core: CoreFacts
+  media: Array<{ id: string; url: string; thumbnailUrl: string | null; caption: string | null; type: string }>
+}
+
+export interface CoreFacts {
+  partner1: string
+  partner2: string
+  date: string
+  venue: string
+  venueCity: string
+  venueCountry: string
+  venueMapUrl: string | null
+  tagline: string | null
+  monogram: string | null
+  weddingUpdatedAt: string
+  coupleUpdatedAt: string
 }

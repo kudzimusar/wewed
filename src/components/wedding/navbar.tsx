@@ -12,7 +12,6 @@ import {
   LogOut,
   MoreHorizontal,
   MoreVertical,
-  Search,
   Share2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -25,12 +24,11 @@ import {
   DropdownMenuTrigger,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
-import { BeforeAfterToggle } from '@/components/wedding/before-after-toggle';
 import { LanguageToggle } from '@/components/wedding/language-toggle';
 import { PlannerTrigger } from '@/components/wedding/planner-trigger';
 import { ThemeToggle } from '@/components/wedding/theme-toggle';
 import { QrGateway, QrGatewayTrigger } from '@/components/wedding/qr-gateway';
-import { useLocale, useT } from '@/lib/i18n';
+import { useLocale, useT, type TranslationKey } from '@/lib/i18n';
 import { logoutAdmin } from '@/lib/admin-auth';
 import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provider';
 import type {
@@ -38,30 +36,14 @@ import type {
   WeddingViewerRole,
 } from '@/lib/wedding-access-kind';
 
-const PRIMARY_NAV = [
-  { key: 'nav.story', href: '#story' },
-  { key: 'nav.theday', href: '#theday' },
-  { key: 'nav.rsvp', href: '#rsvp' },
-  { key: 'nav.songbook', href: '#songbook' },
-  { key: 'nav.guests', href: '#guests' },
-  { key: 'nav.faq', href: '#faq' },
-] as const;
-
-const SECONDARY_NAV = [
-  { key: 'nav.home', href: '#home' },
-  { key: 'nav.venue', href: '#venue' },
-  { key: 'nav.travel', href: '#travel' },
-] as const;
-
-const MOBILE_DRAWER_NAV = [
-  { key: 'nav.story', href: '#story' },
-  { key: 'nav.theday', href: '#theday' },
-  { key: 'nav.venue', href: '#venue' },
-  { key: 'nav.travel', href: '#travel' },
-  { key: 'nav.songbook', href: '#songbook' },
-  { key: 'nav.guests', href: '#guests' },
-  { key: 'nav.faq', href: '#faq' },
-] as const;
+/**
+ * QRO07-SHIP01: navigation is derived by the page from the sections that actually render for this
+ * wedding (see wedding-home), so a link can never point at a hidden or missing section.
+ */
+export interface WeddingNavLink {
+  key: TranslationKey;
+  href: string;
+}
 
 interface GuestWeddingSummary {
   weddingId: string;
@@ -116,7 +98,9 @@ export function Navbar({
   viewerRole = null,
   showMyWedding = false,
   onMyWedding,
+  links = [],
 }: {
+  links?: WeddingNavLink[];
   slug: string;
   accessKind?: PublicWeddingAccessKind;
   viewerRole?: WeddingViewerRole;
@@ -133,6 +117,10 @@ export function Navbar({
   const [switchingWedding, setSwitchingWedding] = useState<string | null>(null);
   const t = useT();
   useLocale();
+  const PRIMARY_NAV = links.filter((link) => link.href !== '#home').slice(0, 6);
+  const SECONDARY_NAV = links.filter((link) => !PRIMARY_NAV.includes(link));
+  const MOBILE_DRAWER_NAV = links.filter((link) => link.href !== '#home');
+  const linkSignature = links.map((link) => link.href).join(',');
 
   const ctx = useWeddingContextSafe();
   const wedding = ctx?.wedding;
@@ -199,8 +187,7 @@ export function Navbar({
   }, [accessKind, slug]);
 
   useEffect(() => {
-    const allLinks = [...PRIMARY_NAV, ...SECONDARY_NAV];
-    const sectionIds = allLinks.map((l) => l.href.slice(1));
+    const sectionIds = linkSignature ? linkSignature.split(',').map((href) => href.slice(1)) : [];
     const sections = sectionIds
       .map((id) => document.getElementById(id))
       .filter((el): el is HTMLElement => el !== null);
@@ -230,7 +217,7 @@ export function Navbar({
     );
     sections.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, []);
+  }, [linkSignature]);
 
   const handleLogout = () => {
     logoutAdmin();
@@ -315,12 +302,6 @@ export function Navbar({
           <span className="font-sans text-xs uppercase tracking-[0.15em]">My Wedding</span>
         </DropdownMenuItem>
       )}
-      <DropdownMenuItem asChild className="cursor-pointer focus:bg-gold/10 focus:text-gold">
-        <a href="/planners">
-          <Search className="mr-2 h-4 w-4 text-gold/70" />
-          <span className="font-sans text-xs uppercase tracking-[0.15em]">Find a Planner</span>
-        </a>
-      </DropdownMenuItem>
       <DropdownMenuItem asChild className="cursor-pointer focus:bg-gold/10 focus:text-gold">
         <a href="/guest-access-help">
           <CircleHelp className="mr-2 h-4 w-4 text-gold/70" />
@@ -455,9 +436,9 @@ export function Navbar({
                   e.preventDefault();
                   handleNavClick('#home');
                 }}
-                className="font-serif text-2xl font-light tracking-wider text-champagne transition-colors hover:text-gold"
+                className="font-serif text-xl font-light tracking-wider text-champagne transition-colors hover:text-gold"
               >
-                wewed
+                {coupleNames}
               </a>
               <span className="wewed-monogram text-[9px] font-sans opacity-60">{monogram}</span>
             </div>
@@ -491,7 +472,6 @@ export function Navbar({
 
             <div className="flex items-center gap-2">
               {isCoupleOwner && <PlannerTrigger />}
-              <BeforeAfterToggle />
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -679,15 +659,8 @@ export function Navbar({
 
             <div className="px-3 py-5">
               <p className="px-3 pb-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-gold/65">
-                Wewed
+                Help
               </p>
-              <a
-                href="/planners"
-                className="flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm text-champagne/88 transition hover:bg-white/5 hover:text-gold"
-              >
-                <Search className="h-[18px] w-[18px] text-gold/75" aria-hidden="true" />
-                <span>Find a Planner</span>
-              </a>
               <a
                 href="/guest-access-help"
                 className="flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm text-champagne/88 transition hover:bg-white/5 hover:text-gold"
@@ -714,7 +687,6 @@ export function Navbar({
               <div className="mb-4 flex items-center gap-3 border-t border-gold/15 pt-4">
                 <ThemeToggle />
                 <LanguageToggle size="sm" />
-                <BeforeAfterToggle />
               </div>
 
               {showAdminLogout && (

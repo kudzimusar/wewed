@@ -180,31 +180,8 @@ export async function loadPublishedAnnouncements(
     }))
 }
 
-export interface EditorSiteProjection {
-  sections: ReturnType<typeof resolveSections>
-  items: EditorSiteItem[]
-  announcements: EditorAnnouncement[]
-  /** Published site copy (only allowlisted public fields) with each row's version stamp. */
-  scalars: Array<{ section: string; field: string; value: string; updatedAt: string }>
-  /** Latest unpublished draft per public field. */
-  drafts: Array<{ id: string; section: string; field: string; value: string; updatedAt: string }>
-  core: CoreFacts
-  media: Array<{ id: string; url: string; thumbnailUrl: string | null; caption: string | null; type: string }>
-}
-
-export interface CoreFacts {
-  partner1: string
-  partner2: string
-  date: string
-  venue: string
-  venueCity: string
-  venueCountry: string
-  venueMapUrl: string | null
-  tagline: string | null
-  monogram: string | null
-  weddingUpdatedAt: string
-  coupleUpdatedAt: string
-}
+import type { EditorSiteProjection, CoreFacts } from '@/lib/wedding-site/model'
+export type { EditorSiteProjection, CoreFacts }
 
 export async function loadEditorSite(weddingId: string): Promise<EditorSiteProjection> {
   const [wedding, sectionRows, itemRows, announcementRows, scalarRows, draftRows, mediaRows] = await Promise.all([

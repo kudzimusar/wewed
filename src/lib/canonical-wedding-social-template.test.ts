@@ -9,19 +9,22 @@ async function source(relativePath: string): Promise<string> {
 }
 
 describe('canonical wedding social template', () => {
-  test('all weddings use the rich classic canonical renderer', async () => {
+  test('every wedding mounts the same canonical, data-driven site renderer', async () => {
     const home = await source('src/components/wedding/wedding-home.tsx')
     expect(home).not.toContain('DataBackedWeddingExperience')
-    expect(home).not.toContain('if (!isFlagship)')
+    expect(home).not.toContain('isFlagship')
     expect(home).toContain('data-canonical-template="classic"')
-    expect(home).toContain('<OurStory />')
-    expect(home).toContain('<VenueSection />')
-    expect(home).toContain('<TheDay />')
-    expect(home).toContain('<SongbookEnhanced />')
-    expect(home).toContain('<PhotoGallery />')
-    expect(home).toContain('<MemoryCapsule />')
-    expect(home).toContain('<VendorMarketplace />')
-    expect(home).toContain('<AfterSections canPost={canContribute} />')
+    expect(home).toContain('<SiteHero />')
+    expect(home).toContain('<SiteAnnouncements />')
+    // Section order and visibility come from the wedding's WeddingSiteSection rows.
+    expect(home).toContain('site.sections.filter((section) => section.enabled)')
+    for (const component of ['<SiteStory />', '<SiteVenue />', '<SiteTheDay />', '<GiftRegistryCampaignBridge />', '<SiteGallery />', '<SiteFaq />', '<ShareSection />']) {
+      expect(home).toContain(component)
+    }
+    // QRO07: marketing, vendor promotion and fabricated experiences are not part of a wedding site.
+    for (const removed of ['WewedPricingCatalog', 'PlatformVision', 'MerchTeaser', 'VendorMarketplace', 'MemoryCapsule', 'AfterSections', 'PlannerMarketplaceInvitation', 'CountdownBanner', 'BeforeAfterToggle']) {
+      expect(home).not.toContain(removed)
+    }
   })
 
   test('the first render is seeded from the authoritative wedding database projection', async () => {
@@ -55,71 +58,22 @@ describe('canonical wedding social template', () => {
     expect(api).toContain('const data = await loadWeddingDataBySlug(slug)')
   })
 
-  test('classic high-value presentation and interactions cannot be reduced to generic cards', async () => {
-    const [gallery, capsule, uploader, wall, after, vendors, guests, travel, registry, vision] = await Promise.all([
-      source('src/components/wedding/photo-gallery.tsx'),
-      source('src/components/wedding/memory-capsule.tsx'),
+  test('the site is editorial, accessible and reduced-motion aware', async () => {
+    const [primitives, hero, gallery, uploader] = await Promise.all([
+      source('src/components/wedding/site/primitives.tsx'),
+      source('src/components/wedding/site/site-hero.tsx'),
+      source('src/components/wedding/site/site-gallery.tsx'),
       source('src/components/wedding/media-upload.tsx'),
-      source('src/components/wedding/live-wall.tsx'),
-      source('src/components/wedding/after-sections.tsx'),
-      source('src/components/wedding/vendor-marketplace.tsx'),
-      source('src/components/wedding/guests.tsx'),
-      source('src/components/wedding/travel-stay.tsx'),
-      source('src/components/wedding/gift-registry.tsx'),
-      source('src/components/wedding/platform-vision.tsx'),
     ])
-
-    expect(gallery).toContain('data-classic-section="gallery"')
-    expect(gallery).toContain('[column-count:1]')
-    expect(gallery).toContain('function Lightbox(')
-    expect(gallery).toContain("event.key === 'ArrowRight'")
-    expect(gallery).toContain('group-hover:scale-105')
-    expect(gallery).toContain('Load More')
-
-    expect(capsule).toContain('data-classic-section="memory-capsule"')
-    expect(capsule).toContain("type CapsuleState = 'idle' | 'recording' | 'preview' | 'sent'")
-    expect(capsule).toContain('function ProgressRing(')
-    expect(capsule).toContain('Re-record')
-    expect(capsule).toContain('Send to Capsule')
-
+    expect(primitives).toContain('useReducedMotion()')
+    expect(primitives).toContain('aria-labelledby={headingId}')
+    expect(hero).toContain('useReducedMotion()')
+    // The countdown is blank until the browser clock is known: no after-state flash for future dates.
+    expect(hero).toContain('if (now === null) return <div')
+    expect(gallery).toContain('role="dialog"')
+    expect(gallery).toContain("event.key === 'Escape'")
     expect(uploader).toContain('data-classic-section="media-upload"')
     expect(uploader).toContain('onDrop={handleDrop}')
-    expect(uploader).toContain('multiple')
-    expect(uploader).toContain('<Progress')
-    expect(uploader).toContain('Default moment')
-
-    expect(wall).toContain('data-classic-section="live-wall"')
-    expect(wall).toContain('Send applause')
-    expect(wall).toContain('<Avatar')
-    expect(wall).toContain('canPost')
-
-    expect(after).toContain('data-classic-section="after-wedding-suite"')
-    expect(after).toContain('data-classic-section="after-recap"')
-    expect(after).toContain('data-classic-section="after-gallery"')
-    expect(after).toContain('data-classic-section="after-playback"')
-    expect(after).toContain('data-classic-section="after-guest-wall"')
-    expect(after).toContain('data-classic-section="after-keepsakes"')
-
-    expect(vendors).toContain('data-classic-section="vendor-marketplace"')
-    expect(vendors).toContain('Featured')
-    expect(vendors).toContain('View Profile')
-    expect(vendors).toContain('Apply as Vendor')
-
-    expect(guests).toContain('data-classic-section="wedding-party"')
-    expect(guests).toContain('member.isKid ?')
-    expect(guests).toContain("member.side === 'bride'")
-    expect(guests).toContain("member.side === 'groom'")
-
-    expect(travel).toContain('data-classic-section="travel-stay"')
-    expect(travel).toContain("color === 'clay'")
-    expect(travel).toContain('/night')
-
-    expect(registry).toContain('data-classic-section="gift-registry"')
-    expect(registry).toContain('Curated homeware & timeless pieces')
-
-    expect(vision).toContain('data-classic-section="platform-vision"')
-    expect(vision).toContain('-bottom-20 -left-20')
-    expect(vision).toContain('lg:text-5xl')
   })
 
   test('guest chrome cannot reveal couple planner admin edit or AI tools', async () => {
@@ -159,23 +113,19 @@ describe('canonical wedding social template', () => {
     }
   })
 
-  test('classic contribution surfaces use only wedding-scoped APIs', async () => {
-    const [gallery, uploader, wall, after, songs] = await Promise.all([
-      source('src/components/wedding/photo-gallery.tsx'),
+  test('guest contribution surfaces use only wedding-scoped APIs', async () => {
+    const [gallery, uploader, gifts] = await Promise.all([
+      source('src/components/wedding/site/site-gallery.tsx'),
       source('src/components/wedding/media-upload.tsx'),
-      source('src/components/wedding/live-wall.tsx'),
-      source('src/components/wedding/after-sections.tsx'),
-      source('src/components/wedding/songbook.tsx'),
+      source('src/components/wedding/gift-registry-campaign-bridge.tsx'),
     ])
-
     expect(gallery).toContain('/api/media?slug=')
     expect(uploader).toContain("form.append('slug', ctx.slug)")
     expect(uploader).toContain("fetch('/api/media'")
-    expect(wall).toContain('/api/messages?slug=')
-    expect(wall).toContain("slug: ctx.slug")
-    expect(after).toContain('/api/messages?slug=')
-    expect(after).toContain("slug: ctx.slug")
-    expect(songs).toContain("slug: ctx.slug")
+    expect(gifts).toContain('/api/contribution-campaigns/public?weddingSlug=')
+    // An API failure is never presented as the couple's decision.
+    expect(gifts).toContain("if (!response.ok) throw new Error")
+    expect(gifts).toContain('data-registry-configured="unavailable"')
   })
 
   test('shared content edits require the active wedding and membership', async () => {
@@ -215,51 +165,11 @@ describe('canonical wedding social template', () => {
     expect(live).toContain('if (!LIVE_SCOPED_ENABLED)')
   })
 
-  test('reusable flagship-quality components contain no Charity-specific identity or venue copy', async () => {
-    const files = [
-      'src/components/wedding/hero-section.tsx',
-      'src/components/wedding/our-story.tsx',
-      'src/components/wedding/the-day.tsx',
-      'src/components/wedding/travel-stay.tsx',
-      'src/components/wedding/venue-section.tsx',
-      'src/components/wedding/gift-registry.tsx',
-      'src/components/wedding/songbook.tsx',
-      'src/components/wedding/songbook-live.tsx',
-      'src/components/wedding/guests.tsx',
-      'src/components/wedding/vendor-marketplace.tsx',
-      'src/components/wedding/faq-section.tsx',
-      'src/components/wedding/live-wall.tsx',
-      'src/components/wedding/photo-gallery.tsx',
-      'src/components/wedding/media-upload.tsx',
-      'src/components/wedding/memory-capsule.tsx',
-      'src/components/wedding/after-sections.tsx',
-      'src/components/wedding/telegram-widget.tsx',
-      'src/components/wedding/platform-vision.tsx',
-      'src/components/wedding/merch-teaser.tsx',
-    ]
-    const forbidden = [
-      'Charity',
-      'Kudzie',
-      'Musarurwa',
-      'Imba Manor',
-      '23.12.26',
-      '@wewedcharitykudzie',
-    ]
-
-    for (const file of files) {
-      const text = await source(file)
-      for (const term of forbidden) expect(text).not.toContain(term)
-      expect(text).not.toContain('isFlagship')
-    }
-  })
-
-  test('empty weddings receive explicit neutral starter guidance', async () => {
+  test('empty weddings are hidden or honest — never example content', async () => {
     const defaults = await source('src/lib/wedding-template-defaults.ts')
-    expect(defaults).toContain('WEDDING_SOCIAL_TEMPLATE_VERSION = 1')
-    expect(defaults).toContain('Example:')
-    expect(defaults).toContain('Replace this')
-    expect(defaults).not.toContain('Charity')
-    expect(defaults).not.toContain('Kudzie')
-    expect(defaults).not.toContain('Imba Manor')
+    expect(defaults).not.toContain('STARTER_')
+    expect(defaults).not.toContain('Example')
+    const theDay = await source('src/components/wedding/site/site-the-day.tsx')
+    expect(theDay).toContain('data-testid="site-programme-pending"')
   })
 })

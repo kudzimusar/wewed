@@ -233,7 +233,16 @@ export interface WeddingContext {
 export async function getWeddingContext(
   request: NextRequest
 ): Promise<WeddingContext | null> {
-  const session = readAppSession(request)
+  return getWeddingContextForSession(readAppSession(request))
+}
+
+/**
+ * Same resolution as getWeddingContext for an already-verified app session — used by server
+ * components (e.g. /w/[slug]) that read the session cookie through next/headers.
+ */
+export async function getWeddingContextForSession(
+  session: ReturnType<typeof readAppSession>
+): Promise<WeddingContext | null> {
   if (!session?.activeWeddingId) return null
 
   // Genuine platform administrators stay system-scoped. A legacy dashboard

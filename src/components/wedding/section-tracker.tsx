@@ -35,25 +35,20 @@ import { coupleNames } from '@/lib/wedding-template-defaults'
 // identity into this page.
 const DEFAULT_SECTION_LABELS: Record<string, string> = {
   home: 'Our Wedding',
+  announcements: 'Announcements',
   story: 'Our Story',
+  party: 'Wedding Party',
   venue: 'The Venue',
   theday: 'The Day',
   rsvp: 'RSVP',
-  travel: 'Travel & Stay',
-  registry: 'Gifts & Gratitude',
-  songbook: 'The Songbook',
-  'songbook-enhanced': 'The Songbook',
-  guests: 'Meet Our Village',
-  vendors: 'The Makings of a Perfect Day',
   checkin: 'Check In',
-  'gallery-enhanced': 'Moments That Matter',
+  travel: 'Travel & Stay',
+  registry: 'Gifts',
   gallery: 'Gallery',
   share: 'Share Your Moments',
-  capsule: 'Memory Time Capsule',
-  livewall: 'Live from the celebration',
+  songbook: 'Songbook',
   faq: 'Questions & Answers',
-  'share-wedding': 'Spread the Love',
-  pricing: 'Your Forever, Preserved',
+  'share-wedding': 'Share',
 }
 
 const HERO_HEIGHT_PX = 600 // Below this, show the tracker
