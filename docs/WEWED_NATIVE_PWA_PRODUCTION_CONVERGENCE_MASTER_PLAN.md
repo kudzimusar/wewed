@@ -5560,3 +5560,80 @@ Next unit:
 `QRO03-CLEAN01 — RETIRE TEMPORARY CHARITY & KUDZIE WRITABLE PREVIEW`.
 
 After QRO03-CLEAN01 is accepted, the moderator must immediately release QRO04 Wedding Pass/Gate convergence.
+
+
+### D-083 — QRO03 cleanup accepted; QRO04 Wedding Pass/Gate qualification released (2026-09-27)
+**MODERATOR REVIEW — QRO03-CLEAN01 ACCEPTED. QRO04 RELEASED WITH ZERO CHARITY & KUDZIE PASS/GATE MUTATION.**
+
+Independent moderator verification confirmed:
+- active integration HEAD:
+  `fa7284fd9b60f927ab28eb6ec627d3ac4a38d4cd`;
+- `2e002fcadcb31c55fb355ce4d9934650a5500791 -> fa7284fd...` is exactly one docs-only commit;
+- only `docs/QRO03_CLEAN01_WRITABLE_PREVIEW_RETIREMENT_RECEIPT_20260927.md` was added;
+- the exact temporary writable deployment `dpl_q6QdpTUsP1BHtSnAhiMheu2YWNVu` no longer resolves through the Vercel deployment API;
+- production deployment `dpl_ApFS83c3F2MtqNFvCQEF8Pdg1UwL` remains READY at `main@646f08421d778cf6f85bf12195581228ae3fbccc`;
+- the current integration branch alias resolves to:
+  `dpl_GG31VmHJUcTeYorQy6EPBNmehhAn`,
+  READY, exact source `fa7284fd9b60f927ab28eb6ec627d3ac4a38d4cd`;
+- no Charity & Kudzie RSVP/Guest/invitation/Pass/Gate/date mutation occurred in CLEAN01;
+- QRO03 business objective and safety closure are now both accepted.
+
+**QRO03 = ACCEPTED AND CLOSED.**
+
+## QRO04 release boundary
+
+Charity & Kudzie is a real wedding dated 2026-12-23. On 2026-09-27 it is well outside the canonical Wedding Pass issuance window.
+
+Canonical WW2 policy remains:
+- issuance opens at T-14 days;
+- issuance cutoff = wedding +24h;
+- credential expiry ceiling = wedding +36h;
+- no wedding date may be changed to manufacture eligibility.
+
+Charity & Kudzie also currently has RSVP `pending` for the designated Guest and Wedding Day is globally disabled in the qualification Preview. Those facts are real product state and must not be altered merely to force a Pass test.
+
+Therefore QRO04 has two independent evidence tracks:
+
+1. **Real Charity & Kudzie read-only readiness**
+   - prove the real wedding/date/Guest/RSVP remain unchanged;
+   - prove the Planner/Couple Pass metadata path is read-only and creates no credential;
+   - prove Wedding Day activation remains blocked/disabled;
+   - prove no C&K WeddingPassCredential, WeddingCheckIn or Gate write is created by qualification;
+   - do not call any path that can issue a credential after enabling Wedding Day.
+
+2. **Isolated disposable Wedding Pass/Gate lifecycle qualification**
+   - use a disposable PostgreSQL database and ephemeral P-256 test keys only;
+   - use the existing synthetic Wedding Pass convergence architecture with a wedding inside the issuance window;
+   - prove canonical X -> revoke X -> Y lifecycle;
+   - prove exact token equality across Guest, Planner/Couple and Gate authority using safe digests in receipts;
+   - prove old X is rejected after revocation and fresh Y is accepted;
+   - prove exact-token Gate admission, offline reconciliation and serial-only rejection;
+   - prove RSVP/party/arrival behavior and the T-14/+24h/+36h policy;
+   - prove iOS and Android token verification/availability behavior against the same WW2 contract;
+   - never use production/live signing keys;
+   - never create a real Gate operator account or Gate assignment.
+
+The existing repository already contains the intended disposable qualification basis:
+- `.github/workflows/wedding-pass-convergence-ci.yml`;
+- `src/lib/wedding-day.integration.test.ts`;
+- `src/lib/global-qr-convergence.integration.test.ts`;
+- `src/lib/wedding-day-routes.integration.test.ts`;
+- `src/lib/wedding-day-activation-rehearsal.integration.test.ts`;
+- native Wedding Pass tests for iOS and Android.
+
+Those fixtures create synthetic weddings inside the issuance window, synthetic Guests/Gates/operator identities, ephemeral P-256 signing/root keys and clean up their own disposable database rows. They never require production data or production keys.
+
+**QRO04 is released only on that boundary.**
+
+No live C&K date change.
+No C&K RSVP acceptance.
+No C&K Pass issuance.
+No live Gate creation.
+No real Gate operator creation.
+No WW2 activation on production/shared Preview.
+No production/private signing key use.
+
+Next active unit:
+`QRO04 / PASSGATE01 — ISOLATED WW2 WEDDING PASS + GATE CONVERGENCE QUALIFICATION`.
+
+After QRO04 returns, moderator must independently review and, if accepted, proceed to the Coordinator/account-class decisions and the next Phase-13 stakeholder unit. Phase14 remains blocked.
