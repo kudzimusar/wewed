@@ -148,6 +148,15 @@ class GuestPassEligibilityTest : GuestUiTestBase() {
         compose.onNodeWithTag("guest-programme-ceremony").assertExists()
         compose.onNodeWithTag("guest-announcement-welcome").assertExists()
         compose.onNodeWithTag("guest-day-table").assertExists()
+
+        tap("nav-guest-more")
+        waitFor("live-guest-profile-email")
+        compose.onNodeWithTag("live-guest-profile-seating").assertExists()
+        compose.onNodeWithTag("live-guest-profile-party").assertTextContains("UI Plus One", substring = true)
+        compose.onNodeWithTag("live-guest-profile-party").assertTextContains("2 children", substring = true)
+        compose.onNodeWithTag("live-guest-profile-meal").assertTextContains("Chicken", substring = true)
+        compose.onNodeWithTag("live-guest-profile-dietary").assertTextContains("No peanuts", substring = true)
+        compose.onNodeWithTag("live-guest-profile-message").assertExists()
     }
 
     @Test fun pendingHasNoAdmissionCredential() {
