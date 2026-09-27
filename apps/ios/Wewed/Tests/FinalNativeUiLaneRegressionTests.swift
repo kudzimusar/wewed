@@ -134,6 +134,14 @@ final class FinalNativeUiLaneRegressionTests: XCTestCase {
         }
     }
 
+
+    func testReadOnlyWorkspaceShowsHumanRoleAndScopeNotWireValues() throws {
+        let content = try source("Views/Roles/ProductionReadOnlyWorkspaceContent.swift")
+        XCTAssertFalse(content.contains("snapshot.workspaceKind.capitalized) · \\(snapshot.scopeKind)"))
+        XCTAssertTrue(content.contains("WorkspaceGrantPresentation.roleLabel(kind: GrantWorkspaceKind(wire: snapshot.workspaceKind)"))
+        XCTAssertEqual(WorkspaceGrantPresentation.roleLabel(kind: .planner, scope: .portfolio), "Professional Planner")
+        XCTAssertEqual(WorkspaceGrantPresentation.scopeLabel(.portfolio), "All weddings in your portfolio")
+    }
     // MARK: helpers
 
     private func assertNoIdentifier(_ p: WorkspaceGrantPresentation, _ g: ProductionWorkspaceGrant, file: StaticString = #filePath, line: UInt = #line) {

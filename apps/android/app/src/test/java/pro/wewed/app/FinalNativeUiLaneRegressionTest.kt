@@ -151,6 +151,27 @@ class FinalNativeUiLaneRegressionTest {
         serviceEngagementIds = emptyList(), permissions = emptyList(), platformRoles = emptyList(),
     )
 
+
+    @Test fun rsvpFormConsumesSystemBackInsteadOfClosingTheApp() {
+        val screen = source("ui/invitation/LiveGuestInvitationScreen.kt")
+        val form = screen.substring(screen.indexOf("fun LiveRsvpForm("))
+        assertTrue("the RSVP form must close on Back, not finish the Activity",
+            form.contains("BackHandler(enabled = !isSubmitting, onBack = onDismiss)"))
+    }
+
+    @Test fun workspaceSelectorKeepsContentOutOfTheSystemBars() {
+        val selection = source("ui/workspace/WorkspaceSelection.kt")
+        val screen = selection.substring(selection.indexOf("fun WorkspaceGrantSelectionScreen("), selection.indexOf("fun WorkspaceContextSwitcherDialog("))
+        assertTrue(screen.contains(".statusBarsPadding()") && screen.contains(".navigationBarsPadding()"))
+    }
+
+    @Test fun fullScreenReadOnlyWorkspaceIsInsetAndShowsNoWireKinds() {
+        val content = source("ui/roles/ProductionReadOnlyWorkspaceContent.kt")
+        assertTrue(content.contains("if (applySystemBarInsets) Modifier.statusBarsPadding().navigationBarsPadding() else Modifier"))
+        assertFalse("wire kind/scope must not be shown", content.contains("\${snapshot.workspaceKind.replaceFirstChar"))
+        val root = source("ui/RootScreen.kt")
+        assertEquals(2, Regex("applySystemBarInsets = true").findAll(root).count())
+    }
     private fun source(relative: String): String {
         var dir: File? = File(System.getProperty("user.dir") ?: ".").absoluteFile
         while (dir != null) {
