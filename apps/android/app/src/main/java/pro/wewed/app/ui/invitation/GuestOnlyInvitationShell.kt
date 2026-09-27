@@ -70,7 +70,7 @@ fun GuestOnlyInvitationShell(
     // A replacement link restages it: Guest B arriving is a new arrival, and dropping them
     // straight into a card that just said someone else's name reads as a glitch.
     var splashComplete by remember(entry) { mutableStateOf(false) }
-    if (!splashComplete && hasIncomingInvitation) {
+    if (!splashComplete && (hasIncomingInvitation || entry != null)) {
         WewedAnimatedSplash(
             destination = SplashDestination.INVITATION,
             onFinished = { splashComplete = true }
