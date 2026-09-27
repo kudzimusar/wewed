@@ -35,6 +35,8 @@ let NextRequest: typeof import('next/server')['NextRequest']
 
 const run = randomUUID().slice(0, 8)
 const id = (name: string) => `q5-${run}-${name}`
+// Per-run printed code so the suite can be re-run against the same disposable database.
+const PRINTED_CODE = `QR${run.toUpperCase()}`
 const ORIGIN = 'http://localhost'
 const exec = (sql: string, ...params: unknown[]) => db.$executeRawUnsafe(sql, ...params)
 
@@ -119,8 +121,8 @@ describeLocal('QRO05-PIQR01 native Invitations & QR read parity', () => {
     ids.noToken = await guest('no-token', ids.A, 'no-rsvp')
     await guest('b-guest', ids.B, null)
     await exec(`INSERT INTO public."QRDestination" (id, label, url, type, "scanCount", "isActive", "weddingId", "updatedAt")
-                VALUES ($1, 'Printed invitation', 'https://wewed.pro/i/ABCDEFGH23', 'physical_invitation', 7, true, $2, now())`,
-      physicalInvitationDestinationId('ABCDEFGH23'), ids.A)
+                VALUES ($1, 'Printed invitation', $3, 'physical_invitation', 7, true, $2, now())`,
+      physicalInvitationDestinationId(PRINTED_CODE), ids.A, `https://wewed.pro/i/${PRINTED_CODE}`)
 
     actors.planner = await user('planner', 'planner')
     await membership('planner-A', actors.planner, ids.A, 'planner')
@@ -172,7 +174,7 @@ describeLocal('QRO05-PIQR01 native Invitations & QR read parity', () => {
     const n = await native.json(), d = await desktop.json()
     expect(n).toEqual(d)
     expect(n.configured).toBe(true)
-    expect(n.accessUrl).toBe('https://wewed.pro/i/ABCDEFGH23')
+    expect(n.accessUrl).toBe(`https://wewed.pro/i/${PRINTED_CODE}`)
     expect(n.scanCount).toBe(7)
     expect(n.invitedCount).toBe(4)
     // A wedding with no active physical destination is reported unconfigured, identically.

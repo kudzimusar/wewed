@@ -78,12 +78,16 @@ describe('digital invitation card delivery', () => {
 
   test('the invitation API produces secure smart-card URLs, CSV delivery data and audited design updates', () => {
     const route = source('src/app/api/planner/guests/invitations/route.ts')
-    expect(route).toContain('buildSmartInvitationUrl')
-    expect(route).toContain('weddingSlug: wedding.slug')
-    expect(route).toContain('token: guest.rsvp.token')
-    expect(route).toContain('const style = normalizeInvitationCardStyle(wedding.invitationCardStyle)')
-    expect(route).toContain('style,')
-    expect(route).toContain('buildDigitalInvitationMessage')
+    // QRO05-PIQR01: the read projection (links, style, share message) is shared with the native
+    // route through planner-invitation-projection.ts; the desktop route reads it from there.
+    const projection = source('src/lib/planner-invitation-projection.ts')
+    expect(route).toContain('loadPlannerInvitationProjection(')
+    expect(projection).toContain('buildSmartInvitationUrl')
+    expect(projection).toContain('weddingSlug: wedding.slug')
+    expect(projection).toContain('token: guest.rsvp.token')
+    expect(projection).toContain('const style = normalizeInvitationCardStyle(wedding.invitationCardStyle)')
+    expect(projection).toContain('style,')
+    expect(projection).toContain('buildDigitalInvitationMessage')
     expect(route).toContain('Card Style,Digital Invitation URL,Share Message')
     expect(route).toContain("action: 'wedding.invitation_card_updated'")
     expect(route).toContain('export async function PUT')
@@ -95,9 +99,11 @@ describe('digital invitation card delivery', () => {
     expect(route).toContain('function privateNoStore')
     expect(route).toContain("'Cache-Control', 'private, no-store, max-age=0'")
     expect(route).toContain("response.headers.set('Vary', 'Cookie')")
-    expect(route).toContain('const missingTokens = guests.filter')
+    const projection = source('src/lib/planner-invitation-projection.ts')
+    expect(projection).toContain('const missingTokens = guests.filter')
     expect(route).toContain('if (access.error) return privateNoStore(access.error)')
     expect(route).not.toContain('token: guest.rsvp?.token ?? null')
+    expect(projection).not.toContain('token: guest.rsvp?.token ?? null')
   })
 
   test('the shared dashboard API proxy prevents authenticated responses from shared caching', () => {

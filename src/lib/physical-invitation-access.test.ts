@@ -154,9 +154,10 @@ describe('bulk physical invitation access', () => {
     const component = source(
       'src/components/wedding/physical-invitation-qr.tsx',
     )
-    const api = source(
-      'src/app/api/planner/guests/invitations/physical/route.ts',
-    )
+    // QRO05-PIQR01: the read projection is shared with the native route.
+    const api =
+      source('src/app/api/planner/guests/invitations/physical/route.ts') +
+      source('src/lib/planner-invitation-projection.ts')
     expect(component).toContain('One clean QR for every printed invitation')
     expect(component).toContain("errorCorrectionLevel: 'H'")
     expect(component).toContain('margin: 4')

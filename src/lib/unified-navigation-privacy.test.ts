@@ -39,7 +39,9 @@ describe('unified Wewed navigation and wedding privacy', () => {
     const exchange = await source(
       'src/app/api/weddings/[slug]/guest-session/exchange/route.ts',
     )
-    const invitations = await source('src/app/api/planner/guests/invitations/route.ts')
+    // QRO05-PIQR01: link building lives in the projection both desktop and native routes read.
+    const invitations = (await source('src/app/api/planner/guests/invitations/route.ts'))
+      + (await source('src/lib/planner-invitation-projection.ts'))
     const smartLinks = await source('src/lib/invitation-links.ts')
     const legacySharedToken = await source('src/app/api/privacy/verify-token/route.ts')
 
