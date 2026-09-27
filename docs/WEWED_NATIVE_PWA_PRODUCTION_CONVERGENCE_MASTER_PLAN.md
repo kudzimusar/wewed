@@ -5379,3 +5379,53 @@ The integration Preview may become writable for Charity & Kudzie only through br
 After restoration, that authorization must be removed and the Preview must be proven read-only again.
 
 QRO04 Wedding Pass/Gate remains unreleased until QRO03 is independently accepted.
+
+
+### D-080 — QRO03 first attempt clean-stop accepted; native RSVP message projection closed; QRO03 re-released (2026-09-27)
+**MODERATOR REVIEW — CLEAN STOP ACCEPTED. ZERO WRITES. BLOCKER CLOSED BEFORE RE-RUN.**
+
+QRO03 first attempt returned integration HEAD `80babf116cbb63441017fc8b5ae5b472ab09ec9a`.
+
+Independent moderator verification confirmed:
+- `fb2e2f2483c15c99e63e3a3e7219a6f63b821e17 -> 80babf11...` is exactly one docs-only commit;
+- only `docs/QRO03_RSVP01_CONTROLLED_REVERSIBLE_LIVE_WRITE_RECEIPT_20260927.md` was added;
+- no product/test source changed in the stopped qualification;
+- no write corridor was opened;
+- the receipt records test writes = 0, restoration writes = 0, other wedding business-data writes = 0;
+- `src/app/api/native/wedding/guests/route.ts` independently confirmed the blocker: the route loaded `rsvp: true` but projected only `rsvpStatus`, `partySize`, and `checkedIn`; no existing native account route exposed `RSVP.message`.
+
+Moderator chose closure option (a), not a weakened proof contract.
+
+Bounded closure:
+- branch `closure/qro03-native-rsvp-message-projection-20260927`;
+- PR #220;
+- changed only:
+  - `src/app/api/native/wedding/guests/route.ts`;
+  - `src/lib/native-domain-context.integration.test.ts`;
+- native Planner/Couple Guest projection now returns:
+  `rsvpMessage: guest.rsvp?.message ?? null`;
+- this is permission-gated by the existing real `guests.view` grant and exposes data already available to the same authorized Planner through the desktop Guest API;
+- disposable migrated-DB integration coverage seeds a real RSVP message and asserts the native Guest projection returns it;
+- closure Preview `dpl_BffWk3xDs3WdjfJ2ro7vifB9z7Hf` is READY at exact SHA `a54e7cec39e1f011613e2e6d0a419906bbee2dd8`;
+- PR #220 merged into integration as:
+  `38a59ad73e5de89051144fb625253e38f0101df6`;
+- integration Preview `dpl_5dNPfgevPH43Ksn9HyReqfL2kWL9` is READY and serves exact `38a59ad7...`.
+
+QRO03 is therefore re-released against `38a59ad7...`.
+
+Additional safety finding from the stopped run:
+- the agent reported a pre-existing branch-scoped Preview `WEWED_PREVIEW_WRITABLE_WEDDING_ID` on `feature/private-invitation-android-delivery-20260912`;
+- current moderator-connected Vercel tooling cannot independently enumerate environment-variable scopes, so that exact inventory claim is **NOT PROVEN independently**;
+- however, any stale Preview deployment retaining live-database write authority violates the Phase-13 Preview invariant and must be resolved before opening the new QRO03 write corridor.
+
+Re-release rule:
+1. inspect that old branch safely with Vercel CLI/account tooling;
+2. if the writable variable is absent, record proof and continue;
+3. if present, remove the branch-scoped variable and identify every still-accessible deployment built with it;
+4. preserve deployment metadata/log evidence first;
+5. retire stale writable deployment(s) if safe and clearly unrelated to any active task;
+6. if retirement would require a destructive or uncertain action, STOP and return moderator rather than opening the new corridor.
+
+The new controlled corridor remains limited to one QRO03 test write plus one mandatory restoration write, both on the same Charity & Kudzie RSVP message field only.
+
+QRO04 remains unreleased.
