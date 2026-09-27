@@ -5637,3 +5637,125 @@ Next active unit:
 `QRO04 / PASSGATE01 — ISOLATED WW2 WEDDING PASS + GATE CONVERGENCE QUALIFICATION`.
 
 After QRO04 returns, moderator must independently review and, if accepted, proceed to the Coordinator/account-class decisions and the next Phase-13 stakeholder unit. Phase14 remains blocked.
+
+
+### D-084 — Shadow UI is not production UI evidence; QRO04 visual certification reopened (2026-09-27)
+**OWNER OBSERVATION / MODERATOR SOURCE REVIEW — QRO04 SERVER/WW2 CONTRACT PARTIALLY ACCEPTED; NATIVE PRODUCTION UI VISUAL CERTIFICATION NOT PROVEN.**
+
+The owner supplied screenshots showing:
+- the development-only `Switch Persona` sheet;
+- Guest screens carrying `Sanitized Shadow`;
+- Shadow Guest G007 / party-of-four data;
+- a separate polished `Professional Planner` screen carrying a `Production` badge;
+- a production `Choose a workspace` selector using unstyled/default-blue controls and exposing a raw grant id.
+
+Independent source review establishes that these are different runtime paths, not one UI accidentally overwritten by QRO04.
+
+#### A. Sanitized Shadow is an explicit test harness
+
+`NativeDataEnvironment` separates:
+- `shadow` / `sanitized_shadow`;
+- `private_real_shadow`;
+- `production_read_verify`;
+- `production`.
+
+Only development/Shadow environments permit `DevelopmentPersona` switching. Production does not.
+
+Both native launch resolvers deliberately map an unspecified DEBUG launch to Sanitized Shadow. An explicit DEBUG:
+`production_preview`
+launch instead uses:
+`NativeDataEnvironment.PRODUCTION`
+with the real production authority/client stack against the allowlisted Preview origin and **no persona path**.
+
+Therefore a DEBUG screenshot is not production-shaped evidence unless the launch lane is explicitly proven as `production_preview` (or production).
+
+#### B. QRO04's visible iOS/Android flows were intentionally Shadow flows
+
+The exact QRO04 runtime files are:
+- `.maestro/ios/ios-guest-pass-identity.yaml`;
+- `.maestro/native-guest-pass-identity.yaml`.
+
+Both explicitly launch:
+`wewed_native_env: "shadow"`
+and a hard-coded `wewed_native_persona`.
+
+The QRO04 receipt also explicitly says those simulator/emulator flows ran against the bundled local Shadow dataset and no server.
+
+Therefore:
+- they are valid evidence for Shadow credential/identity isolation;
+- they are **not evidence of the production/native Guest or Gate UI**;
+- the moderator's QRO04 prompt was insufficiently strict in allowing isolated Shadow UI flows to be presented alongside production convergence evidence.
+
+#### C. QRO04 did not overwrite product UI
+
+Independent branch diff:
+`fa7284fd... -> 60c1af51...`
+
+contains only:
+- one workflow path-filter line;
+- the QRO04 receipt.
+
+No iOS or Android product UI source changed in QRO04.
+
+Thus the current Shadow screenshots are not a regression introduced by the QRO04 code patch. They are the result of the test lane the agent launched.
+
+#### D. The real native UI authority is role/path specific
+
+**Planner/Couple/Coordinator/Vendor/Admin account workspaces**
+- Production uses the shared RoleWorkspaces shells backed by real production repositories.
+- For Planner this is `PlannerShellView` / Android `PlannerShell`.
+- The owner's screenshot headed `Professional Planner` with a `Production` badge and the wedding-plan cards is the production-role UI family and the correct visual direction.
+
+**Guest**
+- The production invitation-bound Guest does **not** use the Shadow `GuestShellView` / `GuestShell`.
+- Canonical production Guest UI:
+  - iOS `apps/ios/Wewed/Views/Invitation/LiveGuestShellView.swift`;
+  - Android `apps/android/app/src/main/java/pro/wewed/app/ui/invitation/LiveGuestShell.kt`.
+- The iOS source explicitly states that the live Guest shell does not reuse the Shadow guest shell because the latter depends on the development wedding graph/persona context.
+- The real Guest route is:
+  `private invite -> Ivory invitation -> RSVP/details -> LiveGuestShell (Home | Invitation | Pass | Wedding Day | More)`.
+
+**Gate/Usher**
+- Shadow `DevelopmentPersona.gate_usher` is qualification-only.
+- Production Gate authority comes from a real server-resolved `WeddingGateAssignment` / operational grant and the production Gate authority surface.
+- Shadow Usher must not be used as final Gate UI evidence.
+
+#### E. Two real UI defects were confirmed
+
+1. **Production GrantSelection is unfinished.**
+   - iOS `GrantSelectionView.swift` explicitly describes itself as a “plain, functional list rather than a designed surface”.
+   - Android `GrantSelectionScreen` carries the same minimal implementation.
+   - iOS uses default Button styling, explaining the blue links seen by the owner.
+   - its fallback label is `grantId`, explaining the visible raw `planner-...` identifier.
+   - this Phase-5/Phase-8 visual debt is still present in Phase 13 and must be closed now.
+
+2. **Sanitized Shadow impersonates the real C&K visual identity too closely.**
+   - `DevelopmentPersona` records and `mobile/fixtures/shadow-reference/reference-wedding-sanitized.json` use C&K's real wedding name/id/venue/date while only Guest names are pseudonymous.
+   - this creates exactly the false visual equivalence the owner observed.
+   - Shadow must be unmistakably synthetic and must never be accepted as real C&K UI evidence.
+
+#### F. QRO04 classification
+
+Independent GitHub Actions verification:
+- workflow run `36289886247`;
+- job `108537821602` = `Wedding Pass authority convergence`;
+- conclusion = **success**;
+- clean migrations and all listed WW2/Pass/Guest-session/Preview-safety suites completed successfully.
+
+Classification:
+- QRO04 one-line workflow fix: **ACCEPTED**.
+- isolated PostgreSQL WW2 X -> revoke -> Y / exact-token Gate contract: **ACCEPTED to CI + receipt/source evidence**.
+- T-14 / +24h / +36h policy: **ACCEPTED**.
+- QRO04 native unit-test contract results: **PARTIALLY ACCEPTED to receipt; no contrary evidence**.
+- QRO04 Shadow persona UI runs: **ACCEPTED only as Shadow test-harness evidence**.
+- production Planner UI: **existing and source-identified; visual quality gap at grant/context selection remains**.
+- production invitation-bound Guest UI: **canonical source identified; QRO04 production visual re-certification required**.
+- production Gate UI: **QRO04 production visual re-certification required**.
+- QRO04 overall: **PARTIALLY ACCEPTED — backend/cryptographic Pass-Gate convergence proven; production-native UI convergence NOT PROVEN**.
+
+Do not apply WW2 live migrations yet. Do not advance into Coordinator/account-class stakeholder qualification until UI authority is converged and re-certified.
+
+Next active unit:
+`QRO04-UI01 — PRODUCTION NATIVE UI AUTHORITY + SHADOW SEPARATION CLOSURE`.
+
+This unit must fix the production workspace selector/context selector, remove real C&K identity from Sanitized Shadow, and re-run visible qualification in the correct `production_preview`/live Guest paths. Shadow screens may remain as development tools but cannot satisfy production UI acceptance.
