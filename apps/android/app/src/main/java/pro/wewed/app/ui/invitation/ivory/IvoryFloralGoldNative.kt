@@ -577,11 +577,33 @@ fun IvoryFloralGoldNative(
                         "A Note from Us", "invitation-cta-note", actions.onNote
                     )
 
-                    Row(
+                    Column(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
                             .padding(horizontal = 14.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                    // QRO06: web Ivory's "Visit Couple Website" — through the authorized Guest handoff.
+                    actions.onVisitCoupleSite?.let { onVisitCoupleSite ->
+                        OutlinedButton(
+                            onClick = onVisitCoupleSite,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(13.dp),
+                            border = BorderStroke(1.dp, WeddingIdentityPalette.ChampagneDeep),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = WeddingIdentityPalette.IvorySoft.copy(alpha = 0.96f),
+                                contentColor = WeddingIdentityPalette.ChampagneDeep
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .testTag("invitation-cta-couple-site")
+                        ) {
+                            Text("Visit Couple Website", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -645,6 +667,7 @@ fun IvoryFloralGoldNative(
                                 }
                             }
                         }
+                    }
                     }
                 }
             }

@@ -262,4 +262,23 @@ final class GuestWeddingPassAvailabilityTests: XCTestCase {
         XCTAssertNil(LiveGuestShellView.passAvailableFromLabel(
             WeddingPassAvailability(state: .issuanceClosed, opensAt: "2026-12-20T14:00:00.000Z")))
     }
+
+    // QRO06 — Home never claims a pass is ready unless the server issued one.
+    func testHomePassSummaryFollowsTheServerNotAttendanceAlone() {
+        let notYet = WeddingPassAvailability(state: .notYetIssuable, code: "PASS_NOT_YET_ISSUABLE",
+                                             opensAt: "2026-12-10T14:00:00.000Z")
+        let early = LiveGuestShellView.homePassSummary(attending: true, status: .unavailable(notYet))
+        XCTAssertFalse(early.subtitle.contains("ready"))
+        XCTAssertTrue(early.subtitle.hasPrefix("Your Wedding Pass will be available closer to the wedding."))
+        XCTAssertTrue(early.subtitle.contains("Available from "))
+        XCTAssertEqual(early.trailing, "Not yet")
+        XCTAssertEqual(LiveGuestShellView.homePassSummary(attending: true, status: .issued).trailing, "Ready")
+        XCTAssertNotEqual(LiveGuestShellView.homePassSummary(attending: true, status: nil).trailing, "Ready")
+        XCTAssertNotEqual(LiveGuestShellView.homePassSummary(attending: true, status: .unknown).trailing, "Ready")
+        for state in [WeddingPassAvailability.State.issuanceClosed, .revoked] {
+            XCTAssertEqual(LiveGuestShellView.homePassSummary(attending: true, status: .unavailable(WeddingPassAvailability(state: state))).trailing, "Unavailable")
+        }
+        XCTAssertEqual(LiveGuestShellView.homePassSummary(attending: false, status: .issued).trailing, "No admission")
+        XCTAssertEqual(LiveGuestShellView.homePassSummary(attending: nil, status: nil).trailing, "No admission")
+    }
 }

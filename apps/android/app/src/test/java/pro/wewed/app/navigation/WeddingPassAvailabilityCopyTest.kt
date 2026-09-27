@@ -98,4 +98,24 @@ class WeddingPassAvailabilityCopyTest {
         assertTrue(source.contains("WeddingPassAvailabilityCopy.availableFrom("))
         assertTrue(source.contains("coordinator.weddingPass(profile.guestId)"))
     }
+
+    // QRO06 — Home never claims a pass is ready unless the server issued one.
+    @Test fun homePassSummaryFollowsTheServerNotAttendanceAlone() {
+        val utc = TimeZone.getTimeZone("UTC")
+        val early = WeddingPassAvailabilityCopy.homeSummary(
+            true,
+            WeddingPassAvailabilityCopy.HomePassStatus.Unavailable(
+                WeddingPassAvailability(state = WeddingPassAvailabilityState.NOT_YET_ISSUABLE, code = "PASS_NOT_YET_ISSUABLE", opensAt = "2026-12-10T14:00:00.000Z")
+            ),
+            utc,
+        )
+        assertTrue(!early.first.contains("ready"))
+        assertEquals("Your Wedding Pass will be available closer to the wedding. Available from 10 December 2026.", early.first)
+        assertEquals("Not yet", early.second)
+        assertEquals("Ready", WeddingPassAvailabilityCopy.homeSummary(true, WeddingPassAvailabilityCopy.HomePassStatus.Issued).second)
+        assertTrue(WeddingPassAvailabilityCopy.homeSummary(true, null).second != "Ready")
+        assertTrue(WeddingPassAvailabilityCopy.homeSummary(true, WeddingPassAvailabilityCopy.HomePassStatus.Unknown).second != "Ready")
+        assertEquals("No admission", WeddingPassAvailabilityCopy.homeSummary(false, WeddingPassAvailabilityCopy.HomePassStatus.Issued).second)
+        assertEquals("No admission", WeddingPassAvailabilityCopy.homeSummary(null, null).second)
+    }
 }

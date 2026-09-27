@@ -131,16 +131,16 @@ sealed interface GuestSessionError {
 enum class GuestBrowserDestination(val wire: String) { COUPLE_SITE("site"), REGISTRY("registry") }
 
 /**
- * Accepts only `/api/weddings/{slug}/guest-browser-handoff/redeem?h=…` — nothing absolute, no other
- * query parameter, no fragment — and joins it to the lane origin.
+ * Accepts only `/guest-handoff/{slug}#h=…` — nothing absolute, no query (so nothing a server or log
+ * would see), one `h` in the fragment — and joins it to the lane origin.
  */
 internal fun acceptedHandoffUrl(path: String?, baseUrl: String, weddingSlug: String): String? {
     if (path.isNullOrBlank() || !path.startsWith("/") || path.startsWith("//")) return null
     val uri = runCatching { java.net.URI(path) }.getOrNull() ?: return null
-    if (uri.scheme != null || uri.rawAuthority != null || uri.rawFragment != null) return null
-    if (uri.path != "/api/weddings/$weddingSlug/guest-browser-handoff/redeem") return null
-    val query = uri.rawQuery ?: return null
-    if (!query.startsWith("h=") || query.length <= 2 || query.contains('&')) return null
+    if (uri.scheme != null || uri.rawAuthority != null || uri.rawQuery != null) return null
+    if (uri.path != "/guest-handoff/$weddingSlug") return null
+    val fragment = uri.rawFragment ?: return null
+    if (!fragment.startsWith("h=") || fragment.length <= 2 || fragment.contains('&')) return null
     return baseUrl.trimEnd('/') + path
 }
 
@@ -423,7 +423,7 @@ class GuestSessionClient(
     /**
      * QRO06 — a short-lived, server-signed exchange that lets the system browser open the Couple
      * Website or Registry as THIS Guest. The server identifies the Guest from the stored session;
-     * this sends only the destination key. The server answers with a RELATIVE redeem path, joined
+     * this sends only the destination key. The server answers with a RELATIVE entry path (exchange in its fragment), joined
      * here to this lane's own origin — a response can never send the Guest's browser elsewhere.
      * The URL is handed straight to the browser: never logged, stored or shown.
      */

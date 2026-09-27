@@ -279,28 +279,39 @@ private fun addWeddingToCalendar(
     context: android.content.Context,
     presentation: LiveInvitationPresentation
 ) {
-    val start = parseWeddingInstant(presentation.weddingDate.orEmpty()) ?: return
+    // QRO06: like web Ivory's calendar file — an all-day event on the wedding's calendar date,
+    // titled "<couple> Wedding". The server's ISO instant (with fractional seconds and Z) is parsed
+    // exactly; the old lenient parse silently dropped the zone.
+    val day = weddingCalendarDayUtcMillis(presentation.weddingDate.orEmpty()) ?: return
     val intent = Intent(Intent.ACTION_INSERT)
         .setData(android.provider.CalendarContract.Events.CONTENT_URI)
-        .putExtra(android.provider.CalendarContract.Events.TITLE, presentation.coupleNames)
+        .putExtra(android.provider.CalendarContract.Events.TITLE, "${presentation.coupleNames} Wedding")
         .putExtra(
             android.provider.CalendarContract.Events.EVENT_LOCATION,
             listOfNotNull(presentation.venue, presentation.venueCityCountry.takeIf { it.isNotBlank() })
                 .joinToString(", ")
         )
-        .putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, start)
-        .putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, start + 6 * 60 * 60 * 1000L)
+        .putExtra(android.provider.CalendarContract.EXTRA_EVENT_ALL_DAY, true)
+        .putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, day)
+        .putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, day + 24 * 60 * 60 * 1000L)
     runCatching { context.startActivity(intent) }
 }
 
-private fun parseWeddingInstant(raw: String): Long? {
-    listOf("yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm", "yyyy-MM-dd")
-        .forEach { pattern ->
-            runCatching {
-                java.text.SimpleDateFormat(pattern, java.util.Locale.US).parse(raw.trim())
-            }.getOrNull()?.let { return it.time }
-        }
-    return null
+/** The wedding's UTC calendar date at UTC midnight — how Android all-day events are expressed. */
+internal fun weddingCalendarDayUtcMillis(raw: String): Long? {
+    val value = raw.trim()
+    if (value.isEmpty()) return null
+    val instant = pro.wewed.app.services.parseWeddingDayIsoDate(value)
+        ?: runCatching { java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC"); isLenient = false
+        }.parse(value.take(10)) }.getOrNull()
+        ?: return null
+    val utc = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")).apply {
+        time = instant
+        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+    }
+    return utc.timeInMillis
 }
 
 /**

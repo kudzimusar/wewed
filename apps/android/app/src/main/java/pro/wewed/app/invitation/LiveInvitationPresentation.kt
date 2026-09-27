@@ -139,6 +139,31 @@ object WeddingPassAvailabilityCopy {
             ?.let { "live-guest-pass-state-${it.wireValue}" }
             ?: "live-guest-pass-unavailable"
 
+    /** QRO06 — what Home knows about the Pass: only a server-issued pass is "ready". */
+    sealed interface HomePassStatus {
+        data object Issued : HomePassStatus
+        data class Unavailable(val availability: WeddingPassAvailability?) : HomePassStatus
+        data object Unknown : HomePassStatus
+    }
+
+    /**
+     * Home's Wedding Pass line. Attending alone never means "ready": before the issuance window the
+     * server's not-yet-issuable state and opening date are shown instead.
+     */
+    fun homeSummary(attending: Boolean?, status: HomePassStatus?, timeZone: TimeZone = TimeZone.getDefault()): Pair<String, String> {
+        if (attending != true) return "No venue admission pass is currently issued." to "No admission"
+        return when (status) {
+            HomePassStatus.Issued -> "Your admission pass is ready." to "Ready"
+            is HomePassStatus.Unavailable -> {
+                val from = status.availability?.let { availableFrom(it, timeZone) }?.let { " $it." } ?: ""
+                (message(status.availability) + from) to
+                    (if (status.availability?.state == WeddingPassAvailabilityState.NOT_YET_ISSUABLE) "Not yet" else "Unavailable")
+            }
+            HomePassStatus.Unknown -> "Open Pass to see your admission pass." to "View"
+            null -> "Checking your Wedding Pass…" to "…"
+        }
+    }
+
     /** "Available from 16 December 2026" for a not-yet-issuable pass whose opening time parses. */
     fun availableFrom(
         availability: WeddingPassAvailability,

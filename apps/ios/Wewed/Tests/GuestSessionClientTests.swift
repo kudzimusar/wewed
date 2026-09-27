@@ -495,10 +495,10 @@ final class GuestSessionClientTests: XCTestCase {
         _ = try await client.exchangePrivateInvitation(weddingSlug: "synthetic", rsvpToken: rawToken)
         Stub.routes["POST /api/weddings/synthetic/guest-browser-handoff"] = Reply(
             status: 200,
-            body: #"{"success":true,"path":"/api/weddings/synthetic/guest-browser-handoff/redeem?h=signed.exchange","expiresAt":"2026-09-27T00:00:00Z"}"#
+            body: #"{"success":true,"path":"/guest-handoff/synthetic#h=signed.exchange","expiresAt":"2026-09-27T00:00:00Z"}"#
         )
         let url = try await client.browserHandoffURL(weddingSlug: "synthetic", destination: .registry)
-        XCTAssertEqual(url.absoluteString, "https://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=signed.exchange")
+        XCTAssertEqual(url.absoluteString, "https://wewed.pro/guest-handoff/synthetic#h=signed.exchange")
         XCTAssertEqual(Stub.seenCookies.last, "\(GuestSessionClient.sessionCookie)=\(guestASession)")
         XCTAssertEqual(Stub.seenBodies.last, #"{"destination":"registry"}"#)
         XCTAssertFalse(Stub.seenBodies.last!.contains(rawToken))
@@ -506,21 +506,22 @@ final class GuestSessionClientTests: XCTestCase {
         XCTAssertFalse(url.absoluteString.contains(guestASession))
     }
 
-    func testBrowserHandoffRefusesAnythingButTheRelativeRedeemPath() {
+    func testBrowserHandoffRefusesAnythingButTheFragmentEntryPath() {
         let base = URL(string: "https://wewed.pro")!
         XCTAssertEqual(
-            GuestSessionClient.acceptedHandoffURL(path: "/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y", baseUrl: base, weddingSlug: "synthetic")?.absoluteString,
-            "https://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y")
+            GuestSessionClient.acceptedHandoffURL(path: "/guest-handoff/synthetic#h=x.y", baseUrl: base, weddingSlug: "synthetic")?.absoluteString,
+            "https://wewed.pro/guest-handoff/synthetic#h=x.y")
         for bad in [
-            "https://evil.example/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y",
-            "//evil.example/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y",
-            "/api/weddings/other/guest-browser-handoff/redeem?h=x.y",
+            "https://evil.example/guest-handoff/synthetic#h=x.y",
+            "//evil.example/guest-handoff/synthetic#h=x.y",
+            "/guest-handoff/other#h=x.y",
+            "/guest-handoff/synthetic?h=x.y",
+            "/guest-handoff/synthetic?next=https://evil.example#h=x.y",
+            "/guest-handoff/synthetic#h=",
+            "/guest-handoff/synthetic#h=x.y&next=https://evil.example",
+            "/guest-handoff/synthetic",
             "/w/synthetic",
-            "/api/weddings/synthetic/guest-browser-handoff/redeem",
-            "/api/weddings/synthetic/guest-browser-handoff/redeem?h=",
-            "/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y&next=https://evil.example",
-            "/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y#frag",
-            "api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y",
+            "guest-handoff/synthetic#h=x.y",
         ] {
             XCTAssertNil(GuestSessionClient.acceptedHandoffURL(path: bad, baseUrl: base, weddingSlug: "synthetic"), bad)
         }

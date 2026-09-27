@@ -82,6 +82,8 @@ public struct LiveGuestInvitationView: View {
     @State private var childrenNotAllowed = false
     @State private var showNote = false
     @State private var browserHandoffFailed = false
+    @State private var calendarStart: Date?
+    @State private var calendarUnavailable = false
 
     public init(
         presentation: LiveInvitationPresentation,
@@ -210,6 +212,26 @@ public struct LiveGuestInvitationView: View {
                 }
             }
         }
+        #if canImport(EventKitUI)
+        .sheet(isPresented: Binding(get: { calendarStart != nil }, set: { if !$0 { calendarStart = nil } })) {
+            if let start = calendarStart {
+                WeddingEventEditor(
+                    title: "\(presentation.coupleNames) Wedding",
+                    location: [presentation.venue, presentation.venueCityCountry]
+                        .compactMap { $0?.isEmpty == false ? $0 : nil }
+                        .joined(separator: ", "),
+                    start: start,
+                    onDone: { calendarStart = nil }
+                )
+                .ignoresSafeArea()
+            }
+        }
+        #endif
+        .alert("Couldn't add this to your calendar", isPresented: $calendarUnavailable) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("The wedding date isn't available yet.")
+        }
         .alert("Couldn't open this page", isPresented: $browserHandoffFailed) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -274,40 +296,16 @@ public struct LiveGuestInvitationView: View {
     /// The date arrives as ISO from the graph; older shapes use a space separator. Both are the
     /// same instant, and a parser that accepted only one silently produced no event at all.
     private func addWeddingToCalendar() {
-        guard let start = Self.weddingInstant(presentation.weddingDate ?? "") else { return }
-        let stamp = DateFormatter()
-        stamp.locale = Locale(identifier: "en_US_POSIX")
-        stamp.dateFormat = "yyyyMMdd'T'HHmmss"
-        let location = [presentation.venue, presentation.venueCityCountry]
-            .compactMap { $0?.isEmpty == false ? $0 : nil }
-            .joined(separator: ", ")
-        let ics = """
-        BEGIN:VCALENDAR\r
-        VERSION:2.0\r
-        BEGIN:VEVENT\r
-        SUMMARY:\(presentation.coupleNames)\r
-        LOCATION:\(location)\r
-        DTSTART:\(stamp.string(from: start))\r
-        DTEND:\(stamp.string(from: start.addingTimeInterval(6 * 3600)))\r
-        END:VEVENT\r
-        END:VCALENDAR\r
-        """
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("wedding.ics")
-        try? ics.data(using: .utf8)?.write(to: url)
-        open(url.absoluteString)
+        // QRO06: the server's ISO instant (with fractional seconds) is parsed by the shared parser.
+        guard let start = GuestWeddingInstant.calendarDay(presentation.weddingDate) else {
+            calendarUnavailable = true
+            return
+        }
+        calendarStart = start
     }
 
     static func weddingInstant(_ raw: String) -> Date? {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        for pattern in ["yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss",
-                        "yyyy-MM-dd'T'HH:mm", "yyyy-MM-dd"] {
-            formatter.dateFormat = pattern
-            if let date = formatter.date(from: raw.trimmingCharacters(in: .whitespaces)) {
-                return date
-            }
-        }
-        return nil
+        GuestWeddingInstant.parse(raw)
     }
 
     /// The couple's own note. Shown only when `invitationCardMessage` is set, because the

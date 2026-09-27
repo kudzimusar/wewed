@@ -48,6 +48,8 @@ public struct LiveGuestShellView: View {
     @State private var story = ""
     @State private var browserHandoffFailed = false
     @State private var homeDay: GuestWeddingDay?
+    /// QRO06 — Home reports the SERVER's pass state; attending alone never means "ready".
+    @State private var homePass: HomePassStatus?
     private let coordinator: LiveGuestInvitationCoordinator
     private let profile: LiveInvitationPresentation
     private let onOpenInvitation: () -> Void
@@ -172,12 +174,11 @@ public struct LiveGuestShellView: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("guest-home-directions")
 
+            let passSummary = Self.homePassSummary(attending: profile.attending, status: homePass)
             IACard(
                 "Wedding Pass",
-                profile.attending == true
-                    ? "Your admission pass is ready."
-                    : "No venue admission pass is currently issued.",
-                trailing: profile.attending == true ? "Ready" : "No admission",
+                passSummary.subtitle,
+                trailing: passSummary.trailing,
                 status: profile.attending == true ? "Attending" : nil,
                 testId: "guest-home-pass",
                 onTap: { onSelect(.pass) }
@@ -211,6 +212,18 @@ public struct LiveGuestShellView: View {
                     status: "Announcement",
                     testId: "guest-home-announcement"
                 )
+            }
+        }
+        .task(id: "pass|\(profile.guestId)|\(String(describing: profile.attending))") {
+            homePass = nil
+            guard profile.attending == true else { return }
+            do {
+                _ = try await coordinator.weddingPass(guestId: profile.guestId)
+                homePass = .issued
+            } catch GuestSessionError.passUnavailable(let availability) {
+                homePass = .unavailable(availability)
+            } catch {
+                homePass = .unknown
             }
         }
         .task(id: "\(profile.guestId)|\(String(describing: profile.attending))") {
@@ -255,6 +268,13 @@ public struct LiveGuestShellView: View {
                 Text(Self.formatWeddingDate(profile.weddingDate))
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.white)
+                if let venue = profile.venue, !venue.isEmpty {
+                    Text(venue)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.92))
+                        .lineLimit(1)
+                        .accessibilityIdentifier("live-guest-venue")
+                }
 
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     if let countdown = Self.countdown(from: profile.weddingDate, now: context.date) {
@@ -587,16 +607,7 @@ public struct LiveGuestShellView: View {
     }
 
     private static func weddingInstant(_ raw: String?) -> Date? {
-        guard let raw, !raw.isEmpty else { return nil }
-        let iso = ISO8601DateFormatter()
-        if let value = iso.date(from: raw) { return value }
-        for format in ["yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm", "yyyy-MM-dd"] {
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            formatter.dateFormat = format
-            if let value = formatter.date(from: raw) { return value }
-        }
-        return nil
+        GuestWeddingInstant.parse(raw)
     }
 }
 
@@ -610,6 +621,26 @@ extension LiveGuestShellView {
         case .declined: return "You declined this invitation, so no Wedding Pass is issued."
         case .rsvpRequired: return "Confirm your attendance to receive your Wedding Pass."
         case .active: return nil
+        }
+    }
+
+    enum HomePassStatus: Equatable { case issued, unavailable(WeddingPassAvailability), unknown }
+
+    /// Home's Wedding Pass line. Only a pass the server actually issued is "ready"; attending
+    /// before the issuance window shows the server's not-yet-issuable state and opening date.
+    static func homePassSummary(attending: Bool?, status: HomePassStatus?) -> (subtitle: String, trailing: String) {
+        guard attending == true else { return ("No venue admission pass is currently issued.", "No admission") }
+        switch status {
+        case .issued:
+            return ("Your admission pass is ready.", "Ready")
+        case let .unavailable(availability):
+            let copy = passAvailabilityCopy(availability) ?? "Your Wedding Pass is not available right now."
+            let from = passAvailableFromLabel(availability).map { " \($0)." } ?? ""
+            return (copy + from, availability.state == .notYetIssuable ? "Not yet" : "Unavailable")
+        case .unknown:
+            return ("Open Pass to see your admission pass.", "View")
+        case nil:
+            return ("Checking your Wedding Pass…", "…")
         }
     }
 

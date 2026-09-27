@@ -191,6 +191,25 @@ private fun LiveGuestHome(
 ) {
     val context = LocalContext.current
     var day by remember(profile.guestId) { mutableStateOf<org.json.JSONObject?>(null) }
+    // QRO06 — Home reports the SERVER's pass state; attending alone never means "ready".
+    var homePass by remember(profile.guestId, profile.attending) {
+        mutableStateOf<WeddingPassAvailabilityCopy.HomePassStatus?>(null)
+    }
+    LaunchedEffect(profile.guestId, profile.attending) {
+        if (profile.attending != true) return@LaunchedEffect
+        homePass = try {
+            coordinator.weddingPass(profile.guestId)
+            WeddingPassAvailabilityCopy.HomePassStatus.Issued
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: GuestSessionException) {
+            (error.error as? GuestSessionError.PassUnavailable)
+                ?.let { WeddingPassAvailabilityCopy.HomePassStatus.Unavailable(it.availability) }
+                ?: WeddingPassAvailabilityCopy.HomePassStatus.Unknown
+        } catch (_: Exception) {
+            WeddingPassAvailabilityCopy.HomePassStatus.Unknown
+        }
+    }
 
     LaunchedEffect(profile.guestId, capabilities) {
         if (GuestCapability.WEDDING_DAY_PROGRAMME in capabilities) {
@@ -224,13 +243,11 @@ private fun LiveGuestHome(
         Text("Directions to Venue", fontWeight = FontWeight.SemiBold)
     }
 
+    val passSummary = WeddingPassAvailabilityCopy.homeSummary(profile.attending, homePass)
     IACard(
         title = "Wedding Pass",
-        subtitle = if (profile.attending == true)
-            "Your admission pass is ready."
-        else
-            "No venue admission pass is currently issued.",
-        trailing = if (profile.attending == true) "Ready" else "No admission",
+        subtitle = passSummary.first,
+        trailing = passSummary.second,
         status = if (profile.attending == true) "Attending" else null,
         testTag = "guest-home-pass",
         onClick = onOpenPass
@@ -343,6 +360,16 @@ private fun LiveGuestHero(profile: LiveInvitationPresentation) {
                 fontWeight = FontWeight.SemiBold,
                 color = Color.White
             )
+            profile.venue?.takeIf { it.isNotBlank() }?.let { venue ->
+                Text(
+                    venue,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White.copy(alpha = 0.92f),
+                    maxLines = 1,
+                    modifier = Modifier.testTag("live-guest-venue")
+                )
+            }
             countdown?.let { remaining ->
                 Row(
                     modifier = Modifier
@@ -392,7 +419,9 @@ private data class GuestCountdown(
 private fun guestCountdownFrom(raw: String?): GuestCountdown? {
     val source = raw.orEmpty().trim()
     if (source.isEmpty()) return null
-    val target = listOf(
+    // QRO06: the server's ISO instant (fractional seconds + Z) parses exactly; the lenient
+    // fallbacks below would silently drop the zone.
+    val target = pro.wewed.app.services.parseWeddingDayIsoDate(source) ?: listOf(
         "yyyy-MM-dd'T'HH:mm:ssXXX",
         "yyyy-MM-dd'T'HH:mm:ss",
         "yyyy-MM-dd HH:mm:ss",

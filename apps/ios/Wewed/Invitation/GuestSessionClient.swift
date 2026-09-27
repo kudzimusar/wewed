@@ -481,7 +481,7 @@ public actor GuestSessionClient {
 
     /// QRO06 — a short-lived, server-signed exchange that lets the system browser open the Couple
     /// Website or Registry as THIS Guest. The server identifies the Guest from the stored session;
-    /// this sends only the destination key. The server answers with a RELATIVE redeem path, which is
+    /// this sends only the destination key. The server answers with a RELATIVE entry path (exchange in its fragment), which is
     /// joined to this lane's own origin — a response can never send the Guest's browser elsewhere.
     /// The URL is handed straight to the browser: it is never logged, stored or shown.
     public func browserHandoffURL(weddingSlug: String, destination: GuestBrowserDestination) async throws -> URL {
@@ -497,16 +497,15 @@ public actor GuestSessionClient {
         return url
     }
 
-    /// Accepts only `/api/weddings/{slug}/guest-browser-handoff/redeem?h=…` — nothing absolute, no
-    /// other query item, no fragment — and joins it to the lane origin.
+    /// Accepts only `/guest-handoff/{slug}#h=…` — nothing absolute, no query (so nothing a server or
+    /// log would see), one `h` in the fragment — and joins it to the lane origin.
     static func acceptedHandoffURL(path: String, baseUrl: URL, weddingSlug: String) -> URL? {
         guard path.hasPrefix("/"), !path.hasPrefix("//"),
               let components = URLComponents(string: path),
-              components.scheme == nil, components.host == nil,
-              components.path == "/api/weddings/\(weddingSlug)/guest-browser-handoff/redeem",
-              let items = components.queryItems, items.count == 1, items[0].name == "h",
-              let h = items[0].value, !h.isEmpty,
-              components.fragment == nil
+              components.scheme == nil, components.host == nil, components.query == nil,
+              components.path == "/guest-handoff/\(weddingSlug)",
+              let fragment = components.fragment, fragment.hasPrefix("h="), fragment.count > 2,
+              !fragment.contains("&")
         else { return nil }
         return URL(string: baseUrl.absoluteString.trimmingTrailingSlash() + path)
     }
