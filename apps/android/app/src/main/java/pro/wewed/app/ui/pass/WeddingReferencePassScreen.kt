@@ -320,7 +320,19 @@ fun WeddingReferencePassScreen(
 }
 
 private fun displayPassDate(raw: String): String {
-    val parser = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
-    val date = runCatching { parser.parse(raw) }.getOrNull() ?: return raw
-    return SimpleDateFormat("MMM d, yyyy • HH:mm", Locale.US).format(date)
+    val trimmed = raw.trim()
+    val patterns = listOf(
+        "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+        "yyyy-MM-dd'T'HH:mm:ssXXX",
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd"
+    )
+    val date = patterns.firstNotNullOfOrNull { pattern ->
+        runCatching {
+            SimpleDateFormat(pattern, Locale.US).apply { isLenient = false }.parse(trimmed)
+        }.getOrNull()
+    } ?: return raw
+    val output = if (trimmed.length <= 10) "MMM d, yyyy" else "MMM d, yyyy • HH:mm"
+    return SimpleDateFormat(output, Locale.US).format(date)
 }
