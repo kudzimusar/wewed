@@ -104,7 +104,7 @@ Before any environment or data mutation:
 
 1. fetch remote;
 2. verify integration HEAD is exactly:
-   `38a59ad783c15c99e63e3a3e7219a6f63b821e17`;
+   `38a59ad73e5de89051144fb625253e38f0101df6`;
 3. verify Preview `dpl_5dNPfgevPH43Ksn9HyReqfL2kWL9` is READY and serves exact `38a59ad73e5de89051144fb625253e38f0101df6`;
 4. verify production main remains `646f08421d778cf6f85bf12195581228ae3fbccc`;
 5. verify Charity & Kudzie authority:
