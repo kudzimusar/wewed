@@ -98,7 +98,7 @@ final class GuestViewportClosureTests: XCTestCase {
         )
         let start = try XCTUnwrap(source.range(of: "private func noteFromTheCouple"))
         let end = try XCTUnwrap(
-            source.range(of: "/// The public couple site", range: start.upperBound..<source.endIndex)
+            source.range(of: "/// QRO06 — Couple Website / Registry open in the system browser", range: start.upperBound..<source.endIndex)
         )
         let note = String(source[start.lowerBound..<end.lowerBound])
 

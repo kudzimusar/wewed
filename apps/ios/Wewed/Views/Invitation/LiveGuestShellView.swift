@@ -46,6 +46,7 @@ public enum GuestSection: String, CaseIterable, Hashable, Sendable {
 public struct LiveGuestShellView: View {
     @Environment(\.openURL) private var openURL
     @State private var story = ""
+    @State private var browserHandoffFailed = false
     @State private var homeDay: GuestWeddingDay?
     private let coordinator: LiveGuestInvitationCoordinator
     private let profile: LiveInvitationPresentation
@@ -414,14 +415,14 @@ public struct LiveGuestShellView: View {
                 "Open the couple's public wedding site.",
                 trailing: "Open",
                 testId: "guest-profile-couple-site",
-                onTap: { openGuestWebPath("/w/\(encodedWeddingSlug)") }
+                onTap: { openInBrowser(.coupleSite) }
             )
             IACard(
                 "Gift & Contribution Info",
                 "View the couple's published registry and contribution information.",
                 trailing: "Open",
                 testId: "guest-more-gifts",
-                onTap: { openGuestWebPath("/w/\(encodedWeddingSlug)#registry") }
+                onTap: { openInBrowser(.registry) }
             )
             IACard(
                 "Help",
@@ -482,11 +483,23 @@ public struct LiveGuestShellView: View {
         .task(id: profile.guestId) {
             story = (try? await coordinator.publishedStory(slug: profile.weddingSlug)) ?? ""
         }
+        .alert("Couldn't open this page", isPresented: $browserHandoffFailed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Check your connection and try again.")
+        }
     }
 
-    private var encodedWeddingSlug: String {
-        profile.weddingSlug.addingPercentEncoding(withAllowedCharacters: .alphanumerics)
-            ?? profile.weddingSlug
+    /// QRO06 — Couple Website / Registry through the server-authorized Guest handoff (never a plain
+    /// URL that a `link_only` wedding would refuse in the browser).
+    private func openInBrowser(_ destination: GuestBrowserDestination) {
+        Task {
+            do {
+                openURL(try await coordinator.browserHandoff(weddingSlug: profile.weddingSlug, destination: destination))
+            } catch {
+                browserHandoffFailed = true
+            }
+        }
     }
 
     private func openGuestWebPath(_ path: String) {

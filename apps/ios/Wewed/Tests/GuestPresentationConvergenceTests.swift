@@ -118,7 +118,11 @@ final class GuestPresentationConvergenceTests: XCTestCase {
             XCTAssertFalse(home.contains(forbidden), "Home must not become Profile again via \(forbidden)")
         }
 
-        let more = section("private var guestProfile: some View", "private var encodedWeddingSlug")
+        let more = section("private var guestProfile: some View", "private func openInBrowser")
+        // QRO06: Couple Website / Gifts carry Guest authority into the browser via the handoff.
+        XCTAssertTrue(more.contains("onTap: { openInBrowser(.coupleSite) }"))
+        XCTAssertTrue(more.contains("onTap: { openInBrowser(.registry) }"))
+        XCTAssertFalse(more.contains("#registry"), "Gifts must never open a plain unauthorized URL")
         for expected in ["Our Story", "Couple Website", "Gift & Contribution Info", "Help",
                          "Privacy & Legal", "My details", "This device"] {
             XCTAssertTrue(more.contains(expected), "More is missing \(expected)")

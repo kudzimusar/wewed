@@ -127,6 +127,22 @@ sealed interface GuestSessionError {
     data class PassUnavailable(val availability: WeddingPassAvailability) : GuestSessionError
 }
 
+/** QRO06 — the only browser destinations a native Guest handoff may request. */
+enum class GuestBrowserDestination(val wire: String) { COUPLE_SITE("site"), REGISTRY("registry") }
+
+/** Accepts a handoff URL only on this lane's own origin and the wedding's redeem path, `?h=` only. */
+internal fun acceptedHandoffUrl(raw: String?, baseUrl: String, weddingSlug: String): String? {
+    if (raw.isNullOrBlank()) return null
+    val url = runCatching { java.net.URI(raw) }.getOrNull() ?: return null
+    val base = runCatching { java.net.URI(baseUrl.trimEnd('/')) }.getOrNull() ?: return null
+    val query = url.rawQuery ?: return null
+    return raw.takeIf {
+        url.scheme == base.scheme && url.host == base.host && url.port == base.port &&
+            url.path == "/api/weddings/$weddingSlug/guest-browser-handoff/redeem" &&
+            url.rawFragment == null && query.startsWith("h=") && !query.contains('&')
+    }
+}
+
 class GuestSessionException(val error: GuestSessionError) : Exception("guest session unavailable")
 
 /**
@@ -402,6 +418,25 @@ class GuestSessionClient(
             else -> RsvpSaveResult.Failed(status)
         }
     }
+
+    /**
+     * QRO06 — a short-lived, server-signed exchange that lets the system browser open the Couple
+     * Website or Registry as THIS Guest. The server identifies the Guest from the stored session;
+     * this sends only the destination key. The returned URL is accepted only if it points back at
+     * this lane's own origin and redeem path. It is handed straight to the browser: never logged,
+     * stored or shown.
+     */
+    suspend fun browserHandoffUrl(weddingSlug: String, destination: GuestBrowserDestination): String =
+        withContext(Dispatchers.IO) {
+            val body = JSONObject().put("destination", destination.wire).toString()
+            val response = request("POST", "/api/weddings/${encode(weddingSlug)}/guest-browser-handoff", body, withSession = true)
+            if (response.status == 401) throw GuestSessionException(GuestSessionError.Unauthorized)
+            val raw = if (response.status == 200) {
+                runCatching { JSONObject(response.body ?: "").optString("url") }.getOrNull()
+            } else null
+            acceptedHandoffUrl(raw, baseUrl, weddingSlug)
+                ?: throw GuestSessionException(GuestSessionError.Transport(response.status))
+        }
 
     suspend fun publishedStory(slug: String): String = withContext(Dispatchers.IO) {
         val content = guestData("/api/wedding-content?slug=${encode(slug)}").optJSONObject("content")?.optJSONObject("story")

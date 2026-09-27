@@ -100,6 +100,9 @@ class LiveGuestInvitationCoordinator(
     suspend fun publishedStory(slug: String) = client.publishedStory(slug)
     suspend fun weddingDay(guestId: String) = client.loadWeddingDay(guestId)
     suspend fun weddingPass(guestId: String) = client.loadWeddingPass(guestId)
+    /** QRO06 — the Couple Website / Registry, opened in the browser as this same Guest. */
+    suspend fun browserHandoff(weddingSlug: String, destination: GuestBrowserDestination) =
+        client.browserHandoffUrl(weddingSlug, destination)
 
     /**
      * The wedding of the card currently presented — the presentation, not the stored session.

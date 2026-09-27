@@ -645,6 +645,7 @@ private fun LiveGuestMore(
     coordinator: LiveGuestInvitationCoordinator
 ) {
     val context = LocalContext.current
+    val openInBrowser = rememberGuestBrowserOpener(coordinator, profile.weddingSlug)
     var story by remember(profile.guestId) { mutableStateOf("") }
 
     LaunchedEffect(profile.guestId) {
@@ -672,28 +673,14 @@ private fun LiveGuestMore(
             subtitle = "Open the couple's public wedding site.",
             trailing = "Open",
             testTag = "guest-profile-couple-site",
-            onClick = {
-                context.startActivity(
-                    Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse(guestWebUrl("/w/${Uri.encode(profile.weddingSlug)}"))
-                    )
-                )
-            }
+            onClick = { openInBrowser(GuestBrowserDestination.COUPLE_SITE) }
         )
         IACard(
             title = "Gift & Contribution Info",
             subtitle = "View the couple's published registry and contribution information.",
             trailing = "Open",
             testTag = "guest-more-gifts",
-            onClick = {
-                context.startActivity(
-                    Intent(
-                        Intent.ACTION_VIEW,
-                        Uri.parse(guestWebUrl("/w/${Uri.encode(profile.weddingSlug)}#registry"))
-                    )
-                )
-            }
+            onClick = { openInBrowser(GuestBrowserDestination.REGISTRY) }
         )
         IACard(
             title = "Help",

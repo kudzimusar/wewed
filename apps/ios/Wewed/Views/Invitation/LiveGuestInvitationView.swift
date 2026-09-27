@@ -81,6 +81,7 @@ public struct LiveGuestInvitationView: View {
     @State private var staleOrReplacedGuest = false
     @State private var childrenNotAllowed = false
     @State private var showNote = false
+    @State private var browserHandoffFailed = false
 
     public init(
         presentation: LiveInvitationPresentation,
@@ -174,11 +175,11 @@ public struct LiveGuestInvitationView: View {
                     },
                     onAddToCalendar: { addWeddingToCalendar() },
                     onOpenVenue: { open(venueDestination) },
-                    onGifts: { open(coupleSite(fragment: "#registry")) },
+                    onGifts: { openInBrowser(.registry) },
                     onNote: (presentation.invitationCardMessage?.isEmpty == false)
                         ? { showNote = true } : nil,
                     onViewPass: onViewPass,
-                    onVisitCoupleSite: { open(coupleSite(fragment: nil)) },
+                    onVisitCoupleSite: { openInBrowser(.coupleSite) },
                     onContinue: presentation.attending == nil ? nil : onContinue
                 )
             )
@@ -208,6 +209,11 @@ public struct LiveGuestInvitationView: View {
                     noteFromTheCouple(note)
                 }
             }
+        }
+        .alert("Couldn't open this page", isPresented: $browserHandoffFailed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Check your connection and try again.")
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             if let onBackToWedding {
@@ -396,14 +402,20 @@ public struct LiveGuestInvitationView: View {
         }
     }
 
-    /// The public couple site. Safe to share; the private invitation link is not.
-    private func coupleSite(fragment: String?) -> String {
-        let slug = presentation.weddingSlug
-            .addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? presentation.weddingSlug
-        let origin = NativeServerOrigin.active.origin.absoluteString.trimmingCharacters(
-            in: CharacterSet(charactersIn: "/")
-        )
-        return "\(origin)/w/\(slug)\(fragment ?? "")"
+    /// QRO06 — Couple Website / Registry open in the system browser through the server-authorized
+    /// Guest handoff, so a `link_only` wedding still recognises this Guest there. A failed handoff
+    /// is said plainly; the app never falls back to an unauthorized plain URL.
+    private func openInBrowser(_ destination: GuestBrowserDestination) {
+        Task {
+            do {
+                let url = try await coordinator.browserHandoff(weddingSlug: presentation.weddingSlug, destination: destination)
+                #if canImport(UIKit)
+                await UIApplication.shared.open(url)
+                #endif
+            } catch {
+                browserHandoffFailed = true
+            }
+        }
     }
 
     private func open(_ url: String) {

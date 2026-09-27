@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import pro.wewed.app.invitation.*
 import pro.wewed.app.models.RSVPStatus
-import pro.wewed.app.state.NativeServerOrigin
 import pro.wewed.app.theme.WeddingBrandMark
 import pro.wewed.app.theme.WeddingIdentityPalette
 import pro.wewed.app.theme.WeddingOrnamentBackdrop
@@ -59,6 +58,7 @@ fun LiveGuestInvitationScreen(
     onLeaveWedding: (() -> Unit)? = null
 ) {
     val scope = rememberCoroutineScope()
+    val openInBrowser = rememberGuestBrowserOpener(coordinator, presentation.weddingSlug)
     val context = LocalContext.current
     var rsvpPrompt by remember { mutableStateOf(false) }
     var rsvpEditorPresentation by remember { mutableStateOf<LiveInvitationPresentation?>(null) }
@@ -201,14 +201,12 @@ fun LiveGuestInvitationScreen(
                                 context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(target)))
                             }
                         },
-                        onGifts = { openCoupleSite(context, presentation.weddingSlug, "#registry") },
+                        onGifts = { openInBrowser(GuestBrowserDestination.REGISTRY) },
                         onNote = presentation.invitationCardMessage
                             ?.takeIf { it.isNotBlank() }
                             ?.let { { showNote = true } },
                         onViewPass = onViewPass,
-                        onVisitCoupleSite = {
-                            openCoupleSite(context, presentation.weddingSlug, null)
-                        },
+                        onVisitCoupleSite = { openInBrowser(GuestBrowserDestination.COUPLE_SITE) },
                         onContinue = if (presentation.attending == null) null else onContinue
                     )
                 )
@@ -397,13 +395,6 @@ private fun NoteFromTheCouple(note: String, onDismiss: () -> Unit) {
             }
         }
     }
-}
-
-/** The public couple site. Safe to share; the private invitation link is not. */
-private fun openCoupleSite(context: android.content.Context, slug: String, fragment: String?) {
-    val base = NativeServerOrigin.active.origin.trimEnd('/')
-    val url = "$base/w/" + Uri.encode(slug) + (fragment ?: "")
-    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
 }
 
 private fun LiveInvitationPresentation.toIvoryData(): IvoryInvitationData {

@@ -215,6 +215,19 @@ class FinalNativeUiLaneRegressionTest {
         lines.forEach { assertTrue("invitation routes are GET-only: $it", it.trim().startsWith("runGet(\"")) }
     }
 
+    // QRO06 — Couple Website / Gifts carry Guest authority into the browser via the handoff.
+    @Test fun guestWebCtasUseTheServerAuthorizedBrowserHandoff() {
+        val shell = source("ui/invitation/LiveGuestShell.kt")
+        val invitation = source("ui/invitation/LiveGuestInvitationScreen.kt")
+        assertTrue(shell.contains("onClick = { openInBrowser(GuestBrowserDestination.COUPLE_SITE) }"))
+        assertTrue(shell.contains("onClick = { openInBrowser(GuestBrowserDestination.REGISTRY) }"))
+        assertTrue(invitation.contains("onGifts = { openInBrowser(GuestBrowserDestination.REGISTRY) }"))
+        assertTrue(invitation.contains("onVisitCoupleSite = { openInBrowser(GuestBrowserDestination.COUPLE_SITE) }"))
+        for (text in listOf(shell, invitation)) {
+            assertFalse("no plain unauthorized Couple Site / Registry URL", text.contains("#registry") || text.contains("\"/w/"))
+        }
+    }
+
     private fun source(relative: String): String {
         var dir: File? = File(System.getProperty("user.dir") ?: ".").absoluteFile
         while (dir != null) {

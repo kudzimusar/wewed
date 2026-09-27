@@ -648,4 +648,56 @@ class GuestSessionClientTest {
             seenPaths.contains("GET /api/wedding-day/pass")
         )
     }
+
+    // QRO06 native → browser Guest handoff
+
+    private fun origin() = "http://127.0.0.1:${server.localPort}"
+
+    @Test
+    fun `browser handoff sends only the destination with the stored session`() = runBlocking {
+        exchangeSucceeds("synthetic", "a", "Synthetic", guestASession)
+        client.exchangePrivateInvitation("synthetic", rawToken)
+        val redeem = "${origin()}/api/weddings/synthetic/guest-browser-handoff/redeem?h=signed.exchange"
+        routes["POST /api/weddings/synthetic/guest-browser-handoff"] = Reply(200, """{"success":true,"url":"$redeem"}""")
+        val url = client.browserHandoffUrl("synthetic", pro.wewed.app.invitation.GuestBrowserDestination.REGISTRY)
+        assertEquals(redeem, url)
+        assertEquals("${GuestSessionClient.SESSION_COOKIE}=$guestASession", seenCookies.last())
+        assertEquals("""{"destination":"registry"}""", seenBodies.last())
+        assertFalse(seenBodies.last().contains(rawToken))
+        assertFalse(url.contains(rawToken) || url.contains(guestASession))
+    }
+
+    @Test
+    fun `browser handoff refuses any url off the lane or redeem path`() {
+        val base = "https://wewed.pro"
+        assertNotNull(pro.wewed.app.invitation.acceptedHandoffUrl(
+            "https://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y", base, "synthetic"))
+        for (bad in listOf(
+            "https://evil.example/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y",
+            "http://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y",
+            "https://wewed.pro:8443/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y",
+            "https://wewed.pro/api/weddings/other/guest-browser-handoff/redeem?h=x.y",
+            "https://wewed.pro/w/synthetic",
+            "https://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y&next=https://evil.example",
+            "https://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y#frag",
+            "not a url",
+            null,
+        )) {
+            assertNull(bad, pro.wewed.app.invitation.acceptedHandoffUrl(bad, base, "synthetic"))
+        }
+    }
+
+    @Test
+    fun `browser handoff without guest authority fails and clears the session`() = runBlocking {
+        exchangeSucceeds("synthetic", "a", "Synthetic", guestASession)
+        client.exchangePrivateInvitation("synthetic", rawToken)
+        routes["POST /api/weddings/synthetic/guest-browser-handoff"] = Reply(401, """{"success":false}""")
+        try {
+            client.browserHandoffUrl("synthetic", pro.wewed.app.invitation.GuestBrowserDestination.COUPLE_SITE)
+            fail("an unauthorized handoff must not yield a URL")
+        } catch (error: GuestSessionException) {
+            assertEquals(GuestSessionError.Unauthorized, error.error)
+        }
+        assertFalse(client.hasActiveSession())
+    }
 }

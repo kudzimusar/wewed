@@ -487,4 +487,58 @@ final class GuestSessionClientTests: XCTestCase {
         XCTAssertNil(snapshot.invitationCardMessage)
         XCTAssertNil(snapshot.rsvpDeadline)
     }
+
+    // MARK: QRO06 native → browser Guest handoff
+
+    func testBrowserHandoffSendsOnlyTheDestinationWithTheStoredSession() async throws {
+        exchangeSucceeds(slug: "synthetic", guestId: "a", name: "Synthetic", session: guestASession)
+        _ = try await client.exchangePrivateInvitation(weddingSlug: "synthetic", rsvpToken: rawToken)
+        Stub.routes["POST /api/weddings/synthetic/guest-browser-handoff"] = Reply(
+            status: 200,
+            body: #"{"success":true,"url":"https://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=signed.exchange","expiresAt":"2026-09-27T00:00:00Z"}"#
+        )
+        let url = try await client.browserHandoffURL(weddingSlug: "synthetic", destination: .registry)
+        XCTAssertEqual(url.absoluteString, "https://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=signed.exchange")
+        XCTAssertEqual(Stub.seenCookies.last, "\(GuestSessionClient.sessionCookie)=\(guestASession)")
+        XCTAssertEqual(Stub.seenBodies.last, #"{"destination":"registry"}"#)
+        XCTAssertFalse(Stub.seenBodies.last!.contains(rawToken))
+        XCTAssertFalse(url.absoluteString.contains(rawToken))
+        XCTAssertFalse(url.absoluteString.contains(guestASession))
+    }
+
+    func testBrowserHandoffRefusesAnyUrlOffTheLaneOrRedeemPath() {
+        let base = URL(string: "https://wewed.pro")!
+        let good = "https://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y"
+        XCTAssertNotNil(GuestSessionClient.acceptedHandoffURL(good, baseUrl: base, weddingSlug: "synthetic"))
+        for bad in [
+            "https://evil.example/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y",
+            "http://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y",
+            "https://wewed.pro:8443/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y",
+            "https://wewed.pro/api/weddings/other/guest-browser-handoff/redeem?h=x.y",
+            "https://wewed.pro/w/synthetic",
+            "https://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y&next=https://evil.example",
+            "https://wewed.pro/api/weddings/synthetic/guest-browser-handoff/redeem?h=x.y#frag",
+            "not a url",
+        ] {
+            XCTAssertNil(GuestSessionClient.acceptedHandoffURL(bad, baseUrl: base, weddingSlug: "synthetic"), bad)
+        }
+    }
+
+    func testBrowserHandoffWithoutGuestAuthorityFailsAndClearsTheSession() async throws {
+        exchangeSucceeds(slug: "synthetic", guestId: "a", name: "Synthetic", session: guestASession)
+        _ = try await client.exchangePrivateInvitation(weddingSlug: "synthetic", rsvpToken: rawToken)
+        Stub.routes["POST /api/weddings/synthetic/guest-browser-handoff"] = Reply(status: 401, body: #"{"success":false}"#)
+        do {
+            _ = try await client.browserHandoffURL(weddingSlug: "synthetic", destination: .coupleSite)
+            XCTFail("an unauthorized handoff must not yield a URL")
+        } catch GuestSessionError.unauthorized {}
+        let active = await client.hasActiveSession()
+        XCTAssertFalse(active)
+        Stub.routes["POST /api/weddings/synthetic/guest-browser-handoff"] = Reply(
+            status: 200, body: #"{"success":true,"url":"https://evil.example/x?h=1"}"#)
+        do {
+            _ = try await client.browserHandoffURL(weddingSlug: "synthetic", destination: .coupleSite)
+            XCTFail("an off-origin handoff URL must be refused")
+        } catch {}
+    }
 }

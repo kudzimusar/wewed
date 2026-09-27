@@ -208,6 +208,12 @@ public struct WeddingPassAvailability: Equatable, Sendable {
     }
 }
 
+/// QRO06 — the only browser destinations a native Guest handoff may request.
+public enum GuestBrowserDestination: String, Sendable {
+    case coupleSite = "site"
+    case registry = "registry"
+}
+
 public enum GuestSessionError: Error, Equatable, Sendable {
     case unauthorized
     case transport(status: Int)
@@ -471,6 +477,36 @@ public actor GuestSessionClient {
         default:
             return .failed(status: response.status)
         }
+    }
+
+    /// QRO06 — a short-lived, server-signed exchange that lets the system browser open the Couple
+    /// Website or Registry as THIS Guest. The server identifies the Guest from the stored session;
+    /// this sends only the destination key. The returned URL is accepted only if it points back at
+    /// this lane's own origin and redeem path, so a response can never redirect the Guest elsewhere.
+    /// The URL is handed straight to the browser: it is never logged, stored or shown.
+    public func browserHandoffURL(weddingSlug: String, destination: GuestBrowserDestination) async throws -> URL {
+        let body = try JSONSerialization.data(withJSONObject: ["destination": destination.rawValue])
+        let path = "/api/weddings/\(encode(weddingSlug))/guest-browser-handoff"
+        let response = try await perform(method: "POST", path: path, body: body, withSession: true)
+        if response.status == 401 { throw GuestSessionError.unauthorized }
+        guard response.status == 200, let data = response.body,
+              let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let raw = json["url"] as? String,
+              let url = Self.acceptedHandoffURL(raw, baseUrl: baseUrl, weddingSlug: weddingSlug)
+        else { throw GuestSessionError.transport(status: response.status) }
+        return url
+    }
+
+    static func acceptedHandoffURL(_ raw: String, baseUrl: URL, weddingSlug: String) -> URL? {
+        guard let url = URL(string: raw),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let base = URLComponents(url: baseUrl, resolvingAgainstBaseURL: false),
+              components.scheme == base.scheme, components.host == base.host, components.port == base.port,
+              components.path == "/api/weddings/\(weddingSlug)/guest-browser-handoff/redeem",
+              components.queryItems?.map(\.name) == ["h"],
+              components.fragment == nil
+        else { return nil }
+        return url
     }
 
     public func publishedStory(slug: String) async throws -> String {

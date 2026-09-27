@@ -71,6 +71,10 @@ public actor LiveGuestInvitationCoordinator {
     public func publishedStory(slug: String) async throws -> String { try await client.publishedStory(slug: slug) }
     public func weddingDay(guestId: String) async throws -> GuestWeddingDay { try await client.loadWeddingDay(originGuestId: guestId) }
     public func weddingPass(guestId: String) async throws -> WeddingPass { try await client.loadWeddingPass(originGuestId: guestId) }
+    /// QRO06 — the Couple Website / Registry, opened in the browser as this same Guest.
+    public func browserHandoff(weddingSlug: String, destination: GuestBrowserDestination) async throws -> URL {
+        try await client.browserHandoffURL(weddingSlug: weddingSlug, destination: destination)
+    }
 
     let client: GuestSessionClient
 
