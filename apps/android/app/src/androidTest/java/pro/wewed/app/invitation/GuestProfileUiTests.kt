@@ -23,6 +23,7 @@ open class GuestUiTestBase {
     protected lateinit var storage: AndroidKeystoreSecureStorage
     @Volatile private var running = true
     protected var attendance: Boolean? = null
+    protected val guestSessionExchanges = java.util.concurrent.atomic.AtomicInteger(0)
 
     @Before fun prepare() {
         GuestOnlyEntryState.reset()
@@ -34,6 +35,7 @@ open class GuestUiTestBase {
                 server.accept().use { socket ->
                     val input = socket.getInputStream().bufferedReader()
                     val request = input.readLine().orEmpty()
+                    if (request.startsWith("POST ") && request.contains("/guest-session")) guestSessionExchanges.incrementAndGet()
                     var line = input.readLine()
                     var length = 0
                     var cookieHeader = ""
@@ -88,7 +90,7 @@ class GuestHomeDigitalInvitationTest : GuestUiTestBase() {
         waitFor("invitation-open-button")
         tap("invitation-back-to-wedding")
         compose.onNodeWithTag("nav-guest-home").assertIsSelected()
-        compose.onNodeWithTag("live-guest-name").assertTextEquals("UI Guest A")
+        compose.onNodeWithTag("live-guest-name").assertTextContains("UI Guest A", substring = true)
     }
 }
 
@@ -96,30 +98,40 @@ class GuestInvitationNavigationTest : GuestUiTestBase() {
     @Test fun secondInvitationReplacesFirstOnSameDevice() {
         attendance = true
         launch(); waitFor("live-guest-name")
-        compose.onNodeWithTag("live-guest-name").assertTextEquals("UI Guest A")
+        compose.onNodeWithTag("live-guest-name").assertTextContains("UI Guest A", substring = true)
         compose.runOnIdle { GuestOnlyEntryState.publish("https://wewed.pro/invite/guest-ui?rsvp=second-entry") }
         // A newly received link is a fresh ceremonial arrival, even on a warm process.
         waitFor("invitation-open-button")
-        openCard()
-        compose.waitUntil(15_000) { compose.onAllNodesWithText("UI Guest B").fetchSemanticsNodes().isNotEmpty() }
+        tap("invitation-open-button")
+        // The OPEN card is personalised ("Especially for …"); the details view carries no Guest name.
+        compose.waitUntil(15_000) { compose.onAllNodesWithText("UI Guest B", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.onAllNodesWithText("UI Guest A", substring = true).assertCountEquals(0)
+        tap("invitation-details-button")
         tap("invitation-cta-pass")
         tap("nav-guest-home")
-        compose.onNodeWithTag("live-guest-name").assertTextEquals("UI Guest B")
-        compose.onAllNodesWithText("UI Guest A").assertCountEquals(0)
+        compose.onNodeWithTag("live-guest-name").assertTextContains("UI Guest B", substring = true)
+        compose.onAllNodesWithText("UI Guest A", substring = true).assertCountEquals(0)
+        // Exactly one exchange for Guest A and one for Guest B: the warm replacement is not replayed.
+        Assert.assertEquals(2, guestSessionExchanges.get())
     }
 
     @Test fun profileAndPassReturnToPreviousDestination() {
+        // Final Guest IA: Invitation is a first-class destination; More has no invitation entry.
         attendance = false
         launch()
         tap("nav-guest-more")
-        tap("guest-profile-digital-invitation")
+        waitFor("live-guest-profile-name")
+        tap("nav-guest-invitation")
         waitFor("invitation-open-button")
         tap("invitation-back-to-wedding")
         compose.onNodeWithTag("nav-guest-more").assertIsSelected()
+        waitFor("live-guest-profile-name")
         tap("nav-guest-pass")
+        waitFor("live-guest-pass-declined")
         tap("nav-guest-invitation")
         tap("invitation-back-to-wedding")
         compose.onNodeWithTag("nav-guest-pass").assertIsSelected()
+        waitFor("live-guest-pass-declined")
     }
 }
 
