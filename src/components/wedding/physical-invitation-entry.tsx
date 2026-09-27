@@ -62,6 +62,13 @@ export function PhysicalInvitationEntry({
       return
     }
     if (/Android/i.test(navigator.userAgent)) {
+      // QRO06: a printed invitation must never dead-end on Android. Without the secure deferred
+      // install transport, the shared invitation continues straight to the browser claim — the
+      // same verified shared-invitation context, no credential in any URL.
+      if (!deferredInstallEnabled) {
+        setMode('web')
+        return
+      }
       setMode('android-web')
     } else if (isAppleMobileClient()) {
       setMode('ios-web')
@@ -88,7 +95,7 @@ export function PhysicalInvitationEntry({
       })
       .catch(() => undefined)
     return () => { cancelled = true }
-  }, [insideWewed])
+  }, [insideWewed, deferredInstallEnabled])
 
   async function prepare(action: 'install' | 'open') {
     if (!deferredInstallEnabled || preparingRef.current) return null
@@ -264,20 +271,24 @@ export function PhysicalInvitationEntry({
             </button>
           )}
 
-          {!deferredInstallEnabled && mode === 'android-web' && (
-            <p role="alert" className="rounded-2xl border border-[#c97866]/50 bg-[#3a201c] px-4 py-3 text-sm leading-6 text-[#f3d8d1]">
-              Secure Android invitation handoff is not available yet. Your private invitation remains locked until the production Wewed release is available.
-            </p>
-          )}
           {error && (
             <p role="alert" className="rounded-2xl border border-[#c97866]/50 bg-[#3a201c] px-4 py-3 text-sm leading-6 text-[#f3d8d1]">
               {error}
             </p>
           )}
+
+          <button
+            type="button"
+            data-testid="physical-android-continue-in-browser"
+            onClick={() => setMode('web')}
+            className="flex min-h-12 w-full items-center justify-center rounded-2xl border border-[#b89155]/35 px-5 py-3 text-sm font-semibold text-[#d6cec5]"
+          >
+            Continue in browser instead
+          </button>
         </div>
 
         <p className="mt-5 text-center text-xs leading-5 text-[#9f958a]">
-          The floral invitation is revealed only after Wewed opens. Google Play receives only a short-lived encrypted handoff; no guest name or RSVP token is placed in the download referrer.
+          Wewed is preferred on Android; the invitation also opens securely in this browser. Google Play receives only a short-lived encrypted handoff; no guest name or RSVP token is placed in the download referrer.
         </p>
       </section>
     </main>

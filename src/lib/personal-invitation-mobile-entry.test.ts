@@ -84,4 +84,16 @@ describe('personal invitation mobile entry', () => {
     expect(route).not.toContain('ATTENDANCE_DECLINED')
   })
 
+
+  test('QRO06: the shared printed invitation also continues in the browser on Android', () => {
+    const entry = source('src/components/wedding/physical-invitation-entry.tsx')
+
+    // No deferred transport: straight to the verified browser claim, never a locked dead end.
+    expect(entry).toContain("if (!deferredInstallEnabled) {\n        setMode('web')")
+    expect(entry).not.toContain('Your private invitation remains locked')
+    // With the transport: Open/Get Wewed stays primary, browser continuation stays available.
+    expect(entry).toContain('data-testid="physical-android-continue-in-browser"')
+    expect(entry).toContain("onClick={() => setMode('web')}")
+    expect(entry).toContain('Continue in browser instead')
+  })
 })
