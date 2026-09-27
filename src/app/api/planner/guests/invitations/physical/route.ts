@@ -1,16 +1,12 @@
 import { randomInt } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import {
-  formatPhysicalInvitationCode,
-  physicalInvitationCodeFromDestinationId,
-  physicalInvitationDestinationId,
-} from '@/lib/physical-invitation-code'
+import { physicalInvitationDestinationId } from '@/lib/physical-invitation-code'
 import { requireWeddingPermission } from '@/lib/wedding-access'
+import { loadPhysicalInvitationProjection } from '@/lib/planner-invitation-projection'
 
 const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
 const CODE_LENGTH = 10
-const CANONICAL_WEWED_ORIGIN = 'https://wewed.pro'
 
 function privateNoStore(response: NextResponse): NextResponse {
   response.headers.set('Cache-Control', 'private, no-store, max-age=0')
@@ -32,58 +28,12 @@ function generateCode(): string {
   ).join('')
 }
 
-async function physicalInvitationPayload(
-  _request: NextRequest,
-  weddingId: string,
-) {
-  const [wedding, invitedCount, destination] = await Promise.all([
-    db.wedding.findUnique({
-      where: { id: weddingId },
-      select: { slug: true, title: true },
-    }),
-    db.guest.count({ where: { weddingId } }),
-    db.qRDestination.findFirst({
-      where: {
-        weddingId,
-        type: 'physical_invitation',
-        isActive: true,
-      },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        scanCount: true,
-        createdAt: true,
-      },
-    }),
-  ])
-
-  if (!wedding) return null
-
-  const code = destination
-    ? physicalInvitationCodeFromDestinationId(destination.id)
-    : null
-
-  return {
-    wedding: { slug: wedding.slug, title: wedding.title },
-    configured: Boolean(destination && code),
-    code: code ? formatPhysicalInvitationCode(code) : null,
-    rawCode: code,
-    accessUrl: code ? `${CANONICAL_WEWED_ORIGIN}/i/${code}` : null,
-    scanCount: destination?.scanCount ?? 0,
-    invitedCount,
-    createdAt: destination?.createdAt?.toISOString() ?? null,
-  }
-}
-
 export async function GET(request: NextRequest) {
   const access = await requireWeddingPermission(request, 'guests.view')
   if (access.error) return privateNoStore(access.error)
 
   try {
-    const payload = await physicalInvitationPayload(
-      request,
-      access.context.weddingId,
-    )
+    const payload = await loadPhysicalInvitationProjection(access.context.weddingId)
     if (!payload) {
       return privateJson({ success: false, error: 'Wedding not found.' }, 404)
     }
@@ -162,10 +112,7 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const payload = await physicalInvitationPayload(
-      request,
-      access.context.weddingId,
-    )
+    const payload = await loadPhysicalInvitationProjection(access.context.weddingId)
     if (!payload) {
       return privateJson({ success: false, error: 'Wedding not found.' }, 404)
     }
