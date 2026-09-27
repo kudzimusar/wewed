@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
       ...guestSeatingIdentity(guest.seatingTable, scope.weddingId),
       rsvpStatus: guestRsvpStatus(guest.rsvp?.attending),
       partySize: guestPartySize(guest.rsvp),
+      rsvpMessage: guest.rsvp?.message ?? null,
       checkedIn: guest.rsvp?.checkedIn ?? false,
       createdAt: guest.createdAt.toISOString(),
       updatedAt: guest.updatedAt.toISOString(),
