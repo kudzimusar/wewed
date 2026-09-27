@@ -135,7 +135,7 @@ def chrome_page(expect, what):
     end = time.time() + 90
     while time.time() < end:
         r = dump()
-        for label in ("Accept & continue", "No thanks", "Use without an account", "Got it"):
+        for label in ("Accept & continue", "No thanks", "Use without an account", "Got it", "Stay signed out"):
             b = by_text(r, label, exact=True)
             if b is not None:
                 tap(b)
@@ -161,12 +161,13 @@ r, _ = open_details("Tariro")
 # the unsupported-style fallback plus its own tri-fold detail hits.
 assert by_id(r, "invitation-style-unsupported") is None and by_id(r, "invitation-cta-note") is not None
 for cta in ["invitation-cta-rsvp", "invitation-cta-calendar", "invitation-cta-venue", "invitation-cta-registry",
-            "invitation-cta-note", "invitation-cta-pass", "invitation-cta-couple-site"]:
+            "invitation-cta-note", "invitation-cta-pass"]:
     assert by_id(r, cta) is not None, f"{cta} missing"
 assert by_id(r, "live-guest-shell") is None
+assert by_id(r, "invitation-cta-couple-site") is None  # NM03: the Couple Website lives in More
 no_credentials(r, "pending-details")
 shot("pending-details")
-ok("pending: Ivory Floral Gold personalised for Tariro; all 7 CTAs present; invitation-bound")
+ok("pending: Ivory Floral Gold personalised for Tariro; RSVP/Calendar/Venue/Gifts/Note/Pass present; invitation-bound")
 
 tap(by_id(r, "invitation-cta-note"))
 wait_text("celebrate with us", 10)
@@ -187,11 +188,6 @@ sh("shell", "input", "keyevent", "4")
 time.sleep(1.5)
 assert PKG in focused(), "Back from RSVP left the app"
 
-r, n = wait_id("invitation-cta-couple-site")
-tap(n, 3)
-chrome_page("Qualification Manor", "pending-couple-site")
-ok("Visit Couple Website → Chrome shows the site as this Guest (handoff)")
-back_to_app()
 r, n = wait_id("invitation-cta-registry")
 tap(n, 3)
 chrome_page("No contribution options have been published yet", "pending-gifts")

@@ -50,7 +50,12 @@ class GuestPresentationConvergenceTest {
         assertTrue(source.contains("R.drawable.hero_wedding"))
         assertTrue(source.contains("WeddingReferencePassScreen"))
         assertTrue(source.contains("GuestSection.PASS && profile.attending == true"))
-        assertTrue(source.contains("No venue admission pass is currently issued"))
+        // QRO06: Home's pass line is derived from the server state in one shared place.
+        assertTrue(source.contains("WeddingPassAvailabilityCopy.homeSummary(profile.attending, homePass)"))
+        assertTrue(
+            repositoryFile("apps/android/app/src/main/java/pro/wewed/app/invitation/LiveInvitationPresentation.kt")
+                .readText().contains("No venue admission pass is currently issued")
+        )
 
         listOf(
             "WeddingGraphState",

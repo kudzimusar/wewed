@@ -39,7 +39,7 @@ final class ProductionGuestReadUITests: XCTestCase {
         XCTAssertTrue(element("invitation-guest-personalization").waitForExistence(timeout: 15), "personalized card")
         shot("prod-native-opened")
         tap("invitation-details-button")
-        for cta in ["rsvp", "calendar", "venue", "registry", "pass", "couple-site"] {
+        for cta in ["rsvp", "calendar", "venue", "registry", "pass"] {
             XCTAssertTrue(element("invitation-cta-\(cta)").waitForExistence(timeout: 10), cta)
         }
         let hasNote = element("invitation-cta-note").exists
@@ -56,7 +56,7 @@ final class ProductionGuestReadUITests: XCTestCase {
         XCTAssertFalse(element("wedding-pass-qr").exists, "no admission QR")
         shot("prod-native-pass-requires-rsvp")
         // Dismiss the RSVP form without saving anything.
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.06)).tap()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.10)).tap()
         XCTAssertTrue(element("invitation-cta-rsvp").waitForExistence(timeout: 15))
         XCTAssertFalse(element("invitation-rsvp-save").exists, "RSVP form closed without saving")
         print("QRO06-REAL note-present=\(hasNote)")

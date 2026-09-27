@@ -120,10 +120,14 @@ final class GuestLaunchLaneUITests: XCTestCase {
         openInvitationDetails(personalizedFor: "Tariro")
         screenshot("qro06-pending-details")
         for cta in ["invitation-cta-rsvp", "invitation-cta-calendar", "invitation-cta-venue", "invitation-cta-note",
-                    "invitation-cta-pass", "invitation-cta-couple-site"] {
+                    "invitation-cta-pass"] {
             XCTAssertTrue(element(cta).exists, "\(cta) missing")
         }
         XCTAssertTrue(element("invitation-cta-gifts").exists || element("invitation-cta-registry").exists, "Gift / Contributions CTA")
+        // NM03 (accepted): the native Ivory gateway holds only View Invitation + Guest Pass; the
+        // Couple Website lives in More.
+        XCTAssertTrue(element("invitation-back-to-invitation").exists)
+        XCTAssertFalse(element("invitation-cta-couple-site").exists)
         XCTAssertFalse(element("live-guest-shell").exists, "pending stays invitation-bound")
         assertNoCredentialOnScreen()
 
@@ -143,8 +147,6 @@ final class GuestLaunchLaneUITests: XCTestCase {
     func testPendingGuestBrowserCtasKeepGuestAuthority() throws {
         launch(try link("PENDING"))
         openInvitationDetails()
-        tap("invitation-cta-couple-site")
-        assertBrowserShowsAuthorizedSite(expect: "Rudo", "qro06-pending-couple-site-browser")
         let gifts = element("invitation-cta-gifts").exists ? "invitation-cta-gifts" : "invitation-cta-registry"
         tap(gifts)
         assertBrowserShowsAuthorizedSite(expect: env["WEWED_QRO06_REGISTRY_TEXT"] ?? "With Gratitude", "qro06-pending-gifts-browser")
@@ -191,7 +193,6 @@ final class GuestLaunchLaneUITests: XCTestCase {
         launch(try link("ATTENDING"))
         openInvitationDetails(personalizedFor: "Chipo")
         XCTAssertTrue(text("Update RSVP", in: app).exists, "an answered Guest can update RSVP")
-        XCTAssertTrue(element("invitation-cta-couple-site").exists)
         tap("invitation-cta-pass")
         XCTAssertTrue(element("live-guest-shell").waitForExistence(timeout: 20))
 

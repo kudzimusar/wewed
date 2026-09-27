@@ -501,25 +501,6 @@ public struct IvoryFloralGoldNative: View {
             VStack {
                 Spacer()
                 let footerWidth = IvoryViewportGeometry.detailFooterContentWidth(stageWidth: w)
-                // QRO06: web Ivory's "Visit Couple Website" — through the authorized Guest handoff.
-                if let onVisitCoupleSite = actions.onVisitCoupleSite {
-                    Button(action: onVisitCoupleSite) {
-                        Text("Visit Couple Website")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(WeddingIdentityPalette.champagneDeep)
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .background(WeddingIdentityPalette.ivorySoft.opacity(0.96))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 13)
-                                    .stroke(WeddingIdentityPalette.champagneDeep, lineWidth: 1)
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 13))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("invitation-cta-couple-site")
-                    .frame(width: footerWidth)
-                    .padding(.horizontal, IvoryViewportGeometry.detailFooterInset)
-                }
                 HStack(spacing: IvoryViewportGeometry.detailFooterSpacing) {
                     Button { view = .open } label: {
                         Text("View Invitation")
