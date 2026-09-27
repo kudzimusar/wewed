@@ -361,7 +361,7 @@ export function Navbar({
         className={`fixed left-0 right-0 top-0 z-50 pt-[env(safe-area-inset-top)] transition-all duration-500 lg:pt-0 ${
           scrolled
             ? 'bg-[#dec37e] shadow-lg backdrop-blur-xl lg:bg-espresso/95'
-            : 'bg-[#ead8a9] shadow-sm backdrop-blur-md lg:bg-gradient-to-b lg:from-espresso/75 lg:via-espresso/30 lg:to-transparent lg:shadow-none lg:backdrop-blur-[2px]'
+            : 'bg-[#ead8a9] shadow-sm backdrop-blur-md lg:bg-transparent lg:bg-gradient-to-b lg:from-espresso/75 lg:via-espresso/30 lg:to-transparent lg:shadow-none lg:backdrop-blur-[2px]'
         }`}
       >
         <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-2.5 sm:px-6 lg:px-8" aria-label="Wedding navigation">

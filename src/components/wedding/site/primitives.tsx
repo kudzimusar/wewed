@@ -68,6 +68,8 @@ export function SiteSection({
   labelledBy?: string
 }) {
   const headingId = labelledBy ?? `${id}-heading`
+  // An eyebrow that merely repeats the heading adds noise; show it only when it adds context.
+  const showEyebrow = Boolean(eyebrow && eyebrow.trim().toLowerCase() !== heading.trim().toLowerCase())
   const surface =
     tone === 'espresso'
       ? 'bg-espresso text-champagne'
@@ -83,7 +85,7 @@ export function SiteSection({
     >
       <div className="mx-auto max-w-5xl px-5 sm:px-8">
         <Reveal className="mb-12 text-center sm:mb-16">
-          {eyebrow ? (
+          {showEyebrow ? (
             <p
               className={`mb-4 font-sans text-[11px] font-medium uppercase tracking-[0.32em] ${
                 tone === 'espresso' ? 'text-gold/80' : 'text-gold-muted'
