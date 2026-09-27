@@ -330,13 +330,23 @@ public struct WeddingReferencePassView: View {
     private func displayDate(_ raw: String) -> String {
         let input = DateFormatter()
         input.locale = Locale(identifier: "en_US_POSIX")
-        input.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        guard let date = input.date(from: raw) else { return raw }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let patterns = [
+            "yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX",
+            "yyyy-MM-dd'T'HH:mm:ssXXXXX",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd",
+        ]
+        guard let date = patterns.lazy.compactMap({ pattern -> Date? in
+            input.dateFormat = pattern
+            return input.date(from: trimmed)
+        }).first else { return raw }
 
         let output = DateFormatter()
         output.locale = Locale(identifier: "en_US_POSIX")
         output.dateStyle = .medium
-        output.timeStyle = .short
+        output.timeStyle = trimmed.count <= 10 ? .none : .short
         return output.string(from: date)
     }
 }
