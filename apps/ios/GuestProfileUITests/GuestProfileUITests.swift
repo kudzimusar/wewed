@@ -44,12 +44,18 @@ final class GuestProfileUITests: XCTestCase {
     }
     func testProfileAndPassReturnToPreviousSurface() {
         enterAnsweredGuest("declined")
-        tap("nav-guest-more"); tap("guest-profile-digital-invitation")
+
+        tap("nav-guest-more")
+        XCTAssertTrue(element("live-guest-profile-name").waitForExistence(timeout: 10))
+        tap("nav-guest-invitation")
         tap("invitation-back-to-wedding")
-        XCTAssertTrue(element("guest-profile-digital-invitation").exists)
-        tap("nav-guest-pass"); tap("nav-guest-invitation")
+        XCTAssertTrue(element("live-guest-profile-name").waitForExistence(timeout: 10))
+
+        tap("nav-guest-pass")
+        XCTAssertTrue(element("live-guest-pass-declined").waitForExistence(timeout: 10))
+        tap("nav-guest-invitation")
         tap("invitation-back-to-wedding")
-        XCTAssertTrue(element("live-guest-pass-pending").exists)
+        XCTAssertTrue(element("live-guest-pass-declined").waitForExistence(timeout: 10))
     }
     func testAttendingCardOpensServerPassAndWeddingDay() {
         start("attending")
