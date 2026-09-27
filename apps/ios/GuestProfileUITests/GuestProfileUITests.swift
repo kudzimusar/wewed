@@ -57,6 +57,8 @@ final class GuestProfileUITests: XCTestCase {
         let qrExists = element("wedding-pass-qr").waitForExistence(timeout: 20)
         if !qrExists { print(app.debugDescription) }
         XCTAssertTrue(qrExists)
+        XCTAssertFalse(app.staticTexts["2027-06-12"].exists, "Pass must not expose a raw database date")
+        XCTAssertTrue(app.staticTexts["Jun 12, 2027"].exists, "Pass must format a date-only wedding date")
         tap("nav-guest-wedding_day")
         XCTAssertTrue(element("guest-programme-ceremony").waitForExistence(timeout: 20))
         XCTAssertTrue(element("guest-announcement-welcome").exists)
@@ -69,6 +71,7 @@ final class GuestProfileUITests: XCTestCase {
         tap("invitation-details-button")
         XCTAssertFalse(element("invitation-continue").exists)
         XCTAssertFalse(element("live-guest-shell").exists)
+        XCTAssertTrue(element("invitation-leave-wedding").exists)
         tap("invitation-cta-pass")
         XCTAssertTrue(element("invitation-rsvp-prompt").waitForExistence(timeout: 10))
         XCTAssertFalse(element("wedding-pass-qr").exists)
@@ -88,11 +91,12 @@ final class GuestProfileUITests: XCTestCase {
         prodApp.launchEnvironment.removeValue(forKey: "WEWED_GUEST_UI_LINK")
         prodApp.launch()
         XCTAssertTrue(prodApp.wait(for: .runningForeground, timeout: 15))
+        let welcome = prodApp.descendants(matching: .any).matching(identifier: "welcome-root").firstMatch
         let unavailable = prodApp.descendants(matching: .any).matching(identifier: "invitation-unavailable").firstMatch
         let awaitingLink = prodApp.descendants(matching: .any).matching(identifier: "invitation-awaiting-link").firstMatch
         let shell = prodApp.descendants(matching: .any).matching(identifier: "live-guest-shell").firstMatch
         let exchanging = prodApp.descendants(matching: .any).matching(identifier: "invitation-exchanging").firstMatch
-        XCTAssertTrue(unavailable.waitForExistence(timeout: 10) || awaitingLink.waitForExistence(timeout: 5) || shell.waitForExistence(timeout: 5) || exchanging.waitForExistence(timeout: 5))
+        XCTAssertTrue(welcome.waitForExistence(timeout: 10) || unavailable.waitForExistence(timeout: 5) || awaitingLink.waitForExistence(timeout: 5) || shell.waitForExistence(timeout: 5) || exchanging.waitForExistence(timeout: 5))
     }
 }
 
