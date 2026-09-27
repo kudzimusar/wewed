@@ -96,10 +96,7 @@ class MainActivity : ComponentActivity() {
                         Box(modifier = Modifier.semantics { testTagsAsResourceId = true }) {
                             GuestOnlyInvitationShell(
                                 hasIncomingInvitation = hasInvitation,
-                                onForgetWedding = {
-                                    GuestInvitationBootstrap.forgetGuest(applicationContext)
-                                    finish()
-                                },
+                                onForgetWedding = { leaveGuestMode() },
                                 coordinator = GuestInvitationBootstrap.coordinator(
                                     context = applicationContext,
                                     baseUrl = guestBaseUrl
@@ -141,12 +138,7 @@ class MainActivity : ComponentActivity() {
                         Box(modifier = Modifier.semantics { testTagsAsResourceId = true }) {
                             GuestOnlyInvitationShell(
                                 hasIncomingInvitation = hasInvitation,
-                                onForgetWedding = {
-                                    // Ends the wedding relationship on this device. Deliberately
-                                    // not Sign Out: no account session is touched.
-                                    GuestInvitationBootstrap.forgetGuest(applicationContext)
-                                    finish()
-                                },
+                                onForgetWedding = { leaveGuestMode() },
                                 coordinator = GuestInvitationBootstrap.coordinator(
                                     context = applicationContext,
                                     // The launch lane's origin (always wewed.pro in a release
@@ -218,6 +210,26 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * Ends only the remembered Guest relationship, then restarts this same native app without an
+     * invitation payload so the normal account welcome/sign-in/workspace path can render.
+     *
+     * The qualification lane is preserved; no account session is cleared and no invitation
+     * credential is retained on the restart Intent.
+     */
+    private fun leaveGuestMode() {
+        GuestInvitationBootstrap.forgetGuest(applicationContext)
+        val restart = Intent(this, MainActivity::class.java).apply {
+            intent.getStringExtra(EXTRA_NATIVE_ENV)?.let { putExtra(EXTRA_NATIVE_ENV, it) }
+            intent.getStringExtra(EXTRA_PREVIEW_ORIGIN)?.let { putExtra(EXTRA_PREVIEW_ORIGIN, it) }
+            intent.getStringExtra(EXTRA_PREVIEW_PROTECTION_BYPASS)
+                ?.let { putExtra(EXTRA_PREVIEW_PROTECTION_BYPASS, it) }
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        startActivity(restart)
+        finish()
     }
 
     override fun onNewIntent(intent: Intent) {
