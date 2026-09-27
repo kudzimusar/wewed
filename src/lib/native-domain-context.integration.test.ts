@@ -111,6 +111,16 @@ async function guest(name: string, weddingId: string) {
   return id(name)
 }
 
+async function rsvp(name: string, guestId: string, message: string | null = null) {
+  await db.rSVP.create({
+    data: {
+      token: `${id(name)}-token`,
+      guestId,
+      message,
+    },
+  })
+}
+
 async function seatingTable(name: string, weddingId: string) {
   await exec(
     `INSERT INTO public."SeatingTable" (id, name, "weddingId", "updatedAt") VALUES ($1, $2, $3, now())`,
@@ -298,6 +308,7 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     ids.taskA = await task('task-a', ids.A)
     ids.budgetA = await budgetItem('budget-a', ids.A)
     ids.guestA = await guest('guest-a', ids.A)
+    await rsvp('guest-a-rsvp', ids.guestA, 'Native planner RSVP message')
     ids.tableA = await seatingTable('table-a', ids.A)
     ids.programmeA = await programmeItem('programme-a', ids.A)
     ids.vendorA = await vendorRow('vendor-a', ids.A)
@@ -446,7 +457,9 @@ describeLocal('Phase 8 — native domain adapters against a disposable migrated 
     expect(budgetBody.totals.totalEstimated).toBe(1000)
 
     const guestsRes = await GET_GUESTS(await req('/api/native/wedding/guests'))
-    expect((await guestsRes.json()).data.map((g: { id: string }) => g.id)).toEqual([ids.guestA])
+    const guestsBody = await guestsRes.json()
+    expect(guestsBody.data.map((g: { id: string }) => g.id)).toEqual([ids.guestA])
+    expect(guestsBody.data[0].rsvpMessage).toBe('Native planner RSVP message')
 
     const seatingRes = await GET_SEATING(await req('/api/native/wedding/seating'))
     expect((await seatingRes.json()).data.map((t: { id: string }) => t.id)).toEqual([ids.tableA])
