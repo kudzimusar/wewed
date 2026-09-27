@@ -17,7 +17,7 @@ class Handler(BaseHTTPRequestHandler):
         self.respond(status)
     def respond(self, status, issue=False):
         self.path = unquote(self.path)
-        data = {'success': True, 'authorized': True, 'wedding': {'slug': 'guest-ui', 'title': 'Alex & Sam', 'date': '2027-06-12', 'venue': 'Test Venue', 'invitationCardStyle': 'ivory-floral-gold'}, 'guest': {'id': 'ui-guest-a', 'name': 'UI Guest A', 'tableName': 'Acacia'}, 'rsvp': {'attending': {'attending': True, 'declined': False}.get(status), 'plusOne': False, 'kidsAttending': False, 'kidsCount': 0, 'checkedIn': False}}
+        data = {'success': True, 'authorized': True, 'wedding': {'slug': 'guest-ui', 'title': 'Alex & Sam', 'date': '2027-06-12', 'venue': 'Test Venue', 'invitationCardStyle': 'ivory-floral-gold'}, 'guest': {'id': 'ui-guest-a', 'name': 'UI Guest A', 'email': 'guest-a@example.invalid', 'tableNumber': 1, 'tableName': 'Acacia'}, 'rsvp': {'attending': {'attending': True, 'declined': False}.get(status), 'mealChoice': 'Chicken', 'plusOne': True, 'plusOneName': 'UI Plus One', 'kidsAttending': True, 'kidsCount': 2, 'dietaryNotes': 'No peanuts', 'message': 'Looking forward to celebrating with you.', 'checkedIn': False}}
         if self.path == '/api/wedding-day/pass':
             if status != 'attending': self.send_error(409); return
             data = {'success': True, 'data': PASS}
