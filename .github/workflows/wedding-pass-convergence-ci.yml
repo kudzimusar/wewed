@@ -23,7 +23,7 @@ on:
       - 'src/app/api/wedding-day/**'
       - 'src/app/api/native/gate/wedding-day/**'
       - 'src/app/api/planner/wedding-passes/**'
-      - 'src/app/api/weddings/[[]slug]/guest-session/**'
+      - 'src/app/api/weddings/*/guest-session/**'
       - 'prisma/migrations/2026092*/**'
       - '.github/workflows/wedding-pass-convergence-ci.yml'
   workflow_dispatch:
