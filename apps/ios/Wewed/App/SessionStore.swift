@@ -91,12 +91,19 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
     public init(
         storage: SecureStorageProtocol = InMemorySecureStorage(),
         environment: NativeDataEnvironment = .production,
-        authorityClient: ProductionAuthorityClient? = nil
+        authorityClient: ProductionAuthorityClient? = nil,
+        restoreImmediately: Bool = true
     ) {
         self.storage = storage
         self.environment = environment
         self.authorityClient = authorityClient
-        restoreSession()
+        if restoreImmediately {
+            restoreSession()
+        } else {
+            // A remembered Guest owns the front door until they explicitly leave that wedding.
+            // Keep the account client available without restoring an unrelated account behind them.
+            sessionRestored = true
+        }
     }
 
     /// Reads the stored identity session.
@@ -117,6 +124,9 @@ public final class SessionStore: ObservableObject, @unchecked Sendable {
             self.sessionRestored = true
             return
         }
+        // restoreSession may be invoked after leaving remembered-Guest mode in the same process.
+        // Mark resolution pending again so the workspace cannot flash a signed-out state.
+        self.sessionRestored = false
         Task { @MainActor in
             await self.restoreFromServer(client: client, storedToken: storedToken)
             self.sessionRestored = true
