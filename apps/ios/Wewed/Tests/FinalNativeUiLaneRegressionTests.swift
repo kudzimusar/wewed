@@ -64,6 +64,35 @@ final class FinalNativeUiLaneRegressionTests: XCTestCase {
         XCTAssertTrue(root.contains("LiveGuestInvitationView(\n                    presentation: LiveInvitationPresentation.from(snapshot)"))
     }
 
+    func testPendingGuestCannotBypassRsvpAndCanLeaveRememberedWedding() throws {
+        let invitation = try source("Views/Invitation/LiveGuestInvitationView.swift")
+        XCTAssertTrue(invitation.contains("onContinue: presentation.attending == nil ? nil : onContinue"))
+        XCTAssertTrue(invitation.contains("invitation-leave-wedding"))
+        XCTAssertTrue(invitation.contains("presentation.attending == nil"))
+
+        let shell = try source("Views/Invitation/GuestOnlyInvitationShellView.swift")
+        XCTAssertTrue(shell.contains("GuestCapabilityPolicy.mayEnterPersistentExperience"))
+        XCTAssertTrue(shell.contains("onLeaveWedding: forgetWedding"))
+        XCTAssertTrue(shell.contains("onLeaveGuestMode?()"))
+
+        let main = try source("AppTarget/WewedMainApp.swift")
+        XCTAssertTrue(main.contains("restoreImmediately: !rememberedGuest"))
+        XCTAssertTrue(main.contains("WEWED_GUEST_UI_CLEAR_SESSION"))
+    }
+
+    func testProductionReadOnlySurfaceDoesNotExposeRawPermissionKeysOrBlueFallbackLinks() throws {
+        let readOnly = try source("Views/Roles/ProductionReadOnlyWorkspaceContent.swift")
+        XCTAssertFalse(readOnly.contains("snapshot.permissions.joined"))
+        XCTAssertTrue(readOnly.contains("authorized capabilities"))
+        XCTAssertTrue(readOnly.contains(".buttonStyle(.plain)"))
+        let login = try source("Views/Auth/LoginView.swift")
+        XCTAssertTrue(login.contains("Color.clear"))
+        XCTAssertTrue(login.contains("sign-in-root"))
+        XCTAssertTrue(login.contains("sign-in-email"))
+        XCTAssertTrue(login.contains("sign-in-password"))
+        XCTAssertTrue(login.contains("sign-in-submit"))
+    }
+
     // MARK: workspace selector / context switcher never show internal identifiers
 
     func testGrantTitlesPreferHumanNamesAndNeverFallBackToIdentifiers() throws {
