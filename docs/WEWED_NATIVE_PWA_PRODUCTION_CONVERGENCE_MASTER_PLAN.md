@@ -5430,3 +5430,53 @@ Re-release rule:
 The new controlled corridor remains limited to one QRO03 test write plus one mandatory restoration write, both on the same Charity & Kudzie RSVP message field only.
 
 QRO04 remains unreleased.
+
+
+### D-081 — PR202 stale corridor identified as synthetic UAT; destructive deletion not required; QRO03 re-released (2026-09-27)
+**MODERATOR FORENSIC REVIEW — BLOCKED-ENV CLEARED WITHOUT DESTRUCTIVE DEPLOYMENT DELETION.**
+
+QRO03 attempt 2 stopped before opening the new write corridor because 313 older Preview deployments retained a baked-in `WEWED_PREVIEW_WRITABLE_WEDDING_ID` from branch:
+`feature/private-invitation-android-delivery-20260912`.
+
+The agent could not recover the sensitive environment value from Vercel and therefore correctly treated the writable wedding as unknown.
+
+Independent moderator repository forensics identified the original corridor exactly:
+
+- PR #202 = `Invitation Android delivery recovery qualification`;
+- branch = `feature/private-invitation-android-delivery-20260912`;
+- commit `7c81726e25d68fd220e72363008d13fc0cb421ff` = `fix(uat): isolate invitation writes and prepare PR 202 test host`;
+- that commit added `docs/PR202_UAT_SETUP.md`, which explicitly states:
+  `Set WEWED_PREVIEW_WRITABLE_WEDDING_ID=wewed-pr202-uat-20260912 for this preview branch only.`;
+- the same document identifies fixture:
+  `wewed-pr202-uat-20260912`, title `Wewed PR 202 — Synthetic UAT`;
+- the same commit added `scripts/provision-pr202-uat.ts`, hard-coding:
+  `const weddingId = 'wewed-pr202-uat-20260912'`;
+- that provisioner creates only the synthetic UAT Wedding, synthetic Couple, synthetic Guests A/B and synthetic physical invitation QR, and refuses identity collisions;
+- `src/app/api/uat/assetlinks/route.ts` from the same commit explicitly requires:
+  `process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === 'wewed-pr202-uat-20260912'`;
+- the agent independently proved the newest stale deployment returns `423 PREVIEW_WRITE_BLOCKED` for the real Charity & Kudzie Guest;
+- the stale branch-scoped env entry has now been removed, so future builds cannot inherit it;
+- all stale deployments remain behind Deployment Protection.
+
+Moderator conclusion:
+- the old 313 deployments are **not an unexplained real-wedding write corridor**;
+- their permitted wedding is the isolated synthetic qualification wedding `wewed-pr202-uat-20260912`;
+- Charity & Kudzie is not writable through them;
+- destructive deletion of 313 deployments and their logs is **not required to proceed with QRO03**;
+- the old deployments remain a bounded historical UAT residual and may be retired later under a dedicated housekeeping task if desired.
+
+QRO03 attempt 2 repository return:
+- integration advanced from `38a59ad73e5de89051144fb625253e38f0101df6` to `fadc62feaa11acc69a3bf1aa4fdb428255c4f37d` by exactly one docs-only receipt update;
+- no product/test source changed;
+- current integration Preview:
+  `dpl_3pbzmgGW35aB4T2Gc7boxocPzbo1`;
+- Preview URL:
+  `wewed-pwc2l9wee-11-11.vercel.app`;
+- state: READY;
+- exact source: `fadc62feaa11acc69a3bf1aa4fdb428255c4f37d`.
+
+**QRO03 IS RE-RELEASED.**
+
+The agent may now open the new, branch-scoped Charity & Kudzie write corridor exactly as previously authorized, perform one message-only test write plus one mandatory restoration write, then remove the corridor and prove the integration Preview is read-only again.
+
+QRO04 remains unreleased.
