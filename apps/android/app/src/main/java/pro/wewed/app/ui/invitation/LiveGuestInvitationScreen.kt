@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import pro.wewed.app.invitation.*
 import pro.wewed.app.models.RSVPStatus
+import pro.wewed.app.state.NativeServerOrigin
 import pro.wewed.app.theme.WeddingBrandMark
 import pro.wewed.app.theme.WeddingIdentityPalette
 import pro.wewed.app.theme.WeddingOrnamentBackdrop
@@ -400,7 +401,8 @@ private fun NoteFromTheCouple(note: String, onDismiss: () -> Unit) {
 
 /** The public couple site. Safe to share; the private invitation link is not. */
 private fun openCoupleSite(context: android.content.Context, slug: String, fragment: String?) {
-    val url = "https://wewed.pro/w/" + Uri.encode(slug) + (fragment ?: "")
+    val base = NativeServerOrigin.active.origin.trimEnd('/')
+    val url = "$base/w/" + Uri.encode(slug) + (fragment ?: "")
     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
 }
 
