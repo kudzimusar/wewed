@@ -69,6 +69,14 @@ final class GuestProfileUITests: XCTestCase {
         XCTAssertTrue(element("guest-programme-ceremony").waitForExistence(timeout: 20))
         XCTAssertTrue(element("guest-announcement-welcome").exists)
         XCTAssertTrue(element("guest-day-table").exists)
+
+        tap("nav-guest-more")
+        XCTAssertTrue(element("live-guest-profile-email").waitForExistence(timeout: 10))
+        XCTAssertTrue(element("live-guest-profile-seating").exists)
+        XCTAssertTrue(element("live-guest-profile-party").exists)
+        XCTAssertTrue(element("live-guest-profile-meal").exists)
+        XCTAssertTrue(element("live-guest-profile-dietary").exists)
+        XCTAssertTrue(element("live-guest-profile-message").exists)
     }
     func testPendingAndDeclinedDoNotGetPass() {
         // Pending is intentionally invitation-only until RSVP completion.
