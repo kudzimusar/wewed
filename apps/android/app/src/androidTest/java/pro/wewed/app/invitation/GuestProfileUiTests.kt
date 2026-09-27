@@ -78,9 +78,11 @@ open class GuestUiTestBase {
 
 class GuestHomeDigitalInvitationTest : GuestUiTestBase() {
     @Test fun linkThenHomeThenSameInteractiveStationery() {
+        attendance = true
         launch(arrival = true)
         openCard()
-        tap("invitation-continue")
+        tap("invitation-cta-pass")
+        tap("nav-guest-home")
         tap("guest-home-digital-invitation")
         compose.onNodeWithTag("nav-guest-invitation").assertIsSelected()
         waitFor("invitation-open-button")
@@ -92,19 +94,22 @@ class GuestHomeDigitalInvitationTest : GuestUiTestBase() {
 
 class GuestInvitationNavigationTest : GuestUiTestBase() {
     @Test fun secondInvitationReplacesFirstOnSameDevice() {
+        attendance = true
         launch(); waitFor("live-guest-name")
         compose.onNodeWithTag("live-guest-name").assertTextEquals("UI Guest A")
         compose.runOnIdle { GuestOnlyEntryState.publish("https://wewed.pro/invite/guest-ui?rsvp=second-entry") }
-        // A newly received link must take the canonical invitation destination.
-        waitFor("live-guest-name")
+        // A newly received link is a fresh ceremonial arrival, even on a warm process.
+        waitFor("invitation-open-button")
+        openCard()
         compose.waitUntil(15_000) { compose.onAllNodesWithText("UI Guest B").fetchSemanticsNodes().isNotEmpty() }
-        tap("guest-home-digital-invitation"); waitFor("invitation-open-button")
-        tap("invitation-back-to-wedding")
+        tap("invitation-cta-pass")
+        tap("nav-guest-home")
         compose.onNodeWithTag("live-guest-name").assertTextEquals("UI Guest B")
         compose.onAllNodesWithText("UI Guest A").assertCountEquals(0)
     }
 
     @Test fun profileAndPassReturnToPreviousDestination() {
+        attendance = false
         launch()
         tap("nav-guest-more")
         tap("guest-profile-digital-invitation")
@@ -132,8 +137,12 @@ class GuestPassEligibilityTest : GuestUiTestBase() {
     }
 
     @Test fun pendingHasNoAdmissionCredential() {
-        launch(); tap("nav-guest-pass")
-        compose.onNodeWithTag("live-guest-pass-pending").assertExists()
+        launch()
+        openCard()
+        compose.onNodeWithTag("live-guest-shell").assertDoesNotExist()
+        compose.onNodeWithTag("invitation-continue").assertDoesNotExist()
+        tap("invitation-cta-pass")
+        waitFor("invitation-rsvp-prompt")
         compose.onNodeWithTag("wedding-pass-qr").assertDoesNotExist()
     }
     @Test fun declinedHasNoAdmissionCredential() {
