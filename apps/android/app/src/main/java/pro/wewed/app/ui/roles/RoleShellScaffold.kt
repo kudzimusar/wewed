@@ -239,7 +239,7 @@ private fun RoleContextBar(
     onSwitchPersona: (() -> Unit)?
 ) {
     Surface(color = WeddingIdentityPalette.IvorySoft) {
-        Column {
+        Column(modifier = Modifier.statusBarsPadding()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
