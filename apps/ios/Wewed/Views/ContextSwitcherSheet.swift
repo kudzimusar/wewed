@@ -7,8 +7,8 @@ import SwiftUI
 /// Selecting one calls the same `SessionStore.selectGrant` that already replaces same-kind
 /// selections singularly and clears stale workspace state (§9, §14) — this sheet only makes that
 /// existing, tested mechanism reachable from an open workspace, and adds no new authority logic.
-/// Deliberately minimal; full visual redesign remains Phase 8. The Android counterpart is
-/// `ContextSwitcherDialog`.
+/// Labels come from `WorkspaceGrantPresentation`: never an internal identifier (QRO04-UI01). The
+/// Android counterpart is `WorkspaceContextSwitcherDialog`.
 public struct ContextSwitcherSheet: View {
     let authority: ProductionAuthority
     let activeGrantId: String?
@@ -31,66 +31,67 @@ public struct ContextSwitcherSheet: View {
         self.onSelectGate = onSelectGate
     }
 
-    private func label(for grant: ProductionWorkspaceGrant) -> String {
-        let kind = grant.workspaceKindWire.prefix(1).uppercased() + grant.workspaceKindWire.dropFirst()
-        if grant.scopeKind == .system { return "\(kind) · Wewed platform" }
-        if let title = grant.weddingTitle { return "\(kind) · \(title)" }
-        if let vendorId = grant.vendorId, let vendorName = authority.vendorNamesById[vendorId] {
-            return "\(kind) · \(vendorName)"
-        }
-        if let businessId = grant.businessAccountId, let businessName = authority.businessNamesById[businessId] {
-            return "\(kind) · \(businessName)"
-        }
-        if let business = grant.businessAccountId { return "\(kind) · \(business)" }
-        return "\(kind) · \(grant.grantId)"
-    }
-
     public var body: some View {
         NavigationStack {
-            List {
-                ForEach(authority.workspaceGrants, id: \.grantId) { grant in
-                    Button {
-                        onSelect(grant.grantId)
-                        dismiss()
-                    } label: {
-                        HStack {
-                            Text(label(for: grant))
-                                .foregroundColor(.primary)
-                            Spacer()
-                            if grant.grantId == activeGrantId {
-                                Text("Current").font(.caption2).foregroundColor(.secondary)
-                            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Choose the workspace to open. Your current workspace is marked.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(WeddingIdentityPalette.muted)
+                        .padding(.bottom, 4)
+                    ForEach(authority.workspaceGrants, id: \.grantId) { grant in
+                        let presentation = WorkspaceGrantPresentation(
+                            grant: grant,
+                            vendorNamesById: authority.vendorNamesById,
+                            businessNamesById: authority.businessNamesById
+                        )
+                        let isCurrent = grant.grantId == activeGrantId
+                        Button {
+                            onSelect(grant.grantId)
+                            dismiss()
+                        } label: {
+                            WorkspaceGrantCard(presentation: presentation, isCurrent: isCurrent)
                         }
+                        .buttonStyle(.plain)
+                        .disabled(isCurrent)
+                        .accessibilityLabel("\(presentation.title), \(presentation.roleLabel)\(isCurrent ? ", current" : "")")
+                        .accessibilityIdentifier("context-switch-option-\(grant.grantId)")
                     }
-                    .disabled(grant.grantId == activeGrantId)
-                    .accessibilityIdentifier("context-switch-option-\(grant.grantId)")
-                }
-                ForEach(authority.operationalGrants, id: \.grantId) { grant in
-                    Button {
-                        onSelectGate(grant.grantId)
-                        dismiss()
-                    } label: {
-                        HStack {
-                            Text("Usher · \(grant.gateName) · \(grant.weddingTitle)")
-                                .foregroundColor(.primary)
-                            Spacer()
-                            if grant.grantId == activeGateGrantId {
-                                Text("Current").font(.caption2).foregroundColor(.secondary)
-                            }
+                    ForEach(authority.operationalGrants, id: \.grantId) { grant in
+                        let isCurrent = grant.grantId == activeGateGrantId
+                        Button {
+                            onSelectGate(grant.grantId)
+                            dismiss()
+                        } label: {
+                            WorkspaceGrantCard(
+                                presentation: WorkspaceGrantPresentation.gate(gateName: grant.gateName, weddingTitle: grant.weddingTitle),
+                                isCurrent: isCurrent
+                            )
                         }
+                        .buttonStyle(.plain)
+                        .disabled(isCurrent)
+                        .accessibilityIdentifier("context-switch-option-\(grant.grantId)")
                     }
-                    .disabled(grant.grantId == activeGateGrantId)
-                    .accessibilityIdentifier("context-switch-option-\(grant.grantId)")
                 }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+                .wewedBoundedWidth()
             }
-            .navigationTitle("Switch context")
+            .background(WeddingIdentityPalette.ivory.ignoresSafeArea())
+            .navigationTitle("Switch workspace")
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(WeddingIdentityPalette.champagneDeep)
                         .accessibilityIdentifier("context-switch-close")
                 }
             }
         }
+        .tint(WeddingIdentityPalette.champagneDeep)
         .accessibilityIdentifier("context-switcher")
     }
 }

@@ -12,7 +12,10 @@ import pro.wewed.app.ui.invitation.GuestOnlyInvitationShell
 import java.net.ServerSocket
 import kotlin.concurrent.thread
 
-/** Real Compose surfaces + guest HTTP client; synthetic server, never Private Real. */
+/**
+ * FINAL NATIVE GUEST SURFACE tests (QRO04-UI01). Real Compose surfaces + guest HTTP client;
+ * synthetic server, never Private Real, never Shadow, never a DevelopmentPersona.
+ */
 open class GuestUiTestBase {
     @get:Rule val compose = createAndroidComposeRule<ComponentActivity>()
     private lateinit var server: ServerSocket

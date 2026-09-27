@@ -1,5 +1,7 @@
 package pro.wewed.app.ui
 
+import pro.wewed.app.ui.workspace.WorkspaceContextSwitcherDialog
+import pro.wewed.app.ui.workspace.WorkspaceGrantSelectionScreen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -446,8 +448,10 @@ fun RootScreen(
         pendingGrantSelection(productionAuthority, currentRole, selectedGrantIds)
     }
     if (pendingGrantChoice.isNotEmpty()) {
-        GrantSelectionScreen(
+        WorkspaceGrantSelectionScreen(
             grants = pendingGrantChoice,
+            vendorNamesById = productionAuthority?.vendorNamesById ?: emptyMap(),
+            businessNamesById = productionAuthority?.businessNamesById ?: emptyMap(),
             onSelect = { grantId -> sessionViewModel.selectGrant(grantId) },
             onSignOut = { sessionViewModel.signOut() }
         )
@@ -478,7 +482,7 @@ fun RootScreen(
         ((productionAuthority?.grants?.size ?: 0) + (productionAuthority?.operationalGrants?.size ?: 0)) > 1
     productionAuthority?.let { authority ->
         if (showContextSwitcher) {
-            ContextSwitcherDialog(
+            WorkspaceContextSwitcherDialog(
                 authority = authority,
                 activeGrantId = activeGrantId,
                 activeGateGrantId = selectedGateGrantId.takeIf { currentRole == AppRole.USHER },
@@ -1095,121 +1099,6 @@ private fun pendingGrantSelection(
     return authority.grants.filter { it.grantId in ids }
 }
 
-/**
- * The real context selector master plan §9 requires: the account holds more than one grant of the
- * same kind (typically a Planner or Coordinator on several weddings), and none is chosen on their
- * behalf. Deliberately minimal — a plain, functional list rather than a designed surface; visual
- * polish for this screen belongs to Phase 8, same as the rest of native feature parity.
- */
-@OptIn(ExperimentalComposeUiApi::class)
-@Composable
-private fun GrantSelectionScreen(
-    grants: List<ProductionWorkspaceGrant>,
-    onSelect: (String) -> Unit,
-    onSignOut: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(WeddingIdentityPalette.Ivory)
-            .semantics { testTagsAsResourceId = true }
-            .testTag("grant-selection"),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text("Choose a workspace", fontSize = 22.sp, fontWeight = FontWeight.Medium)
-            Text(
-                "Your account has more than one authorized context. Choose which workspace to open.",
-                fontSize = 13.sp,
-                color = WeddingIdentityPalette.Muted
-            )
-            grants.forEach { grant ->
-                OutlinedButton(
-                    onClick = { onSelect(grant.grantId) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("grant-option-${grant.grantId}")
-                ) {
-                    Text(grant.weddingTitle ?: grant.businessAccountId ?: grant.grantId)
-                }
-            }
-            TextButton(onClick = onSignOut, modifier = Modifier.testTag("grant-selection-sign-out")) {
-                Text("Sign out")
-            }
-        }
-    }
-}
-
-/**
- * Explicit production context switcher (master plan Phase 6 §1, §2, §11) — reachable AFTER a
- * workspace is already open, unlike [GrantSelectionScreen] which only forces a pre-workspace
- * choice. Lists every grant the account currently holds, of every workspace kind: a Planner's
- * wedding A/B/C, a second axis such as Admin/system, a Coordinator's assigned wedding, and so on.
- * Selecting one calls the same [pro.wewed.app.state.SessionViewModel.selectGrant] that already
- * replaces same-kind selections singularly and clears stale workspace state (§9, §14) — this
- * dialog only makes that existing, tested mechanism reachable from an open workspace, and adds no
- * new authority logic. Deliberately minimal; full visual redesign remains Phase 8.
- */
-@Composable
-fun ContextSwitcherDialog(
-    authority: ProductionAuthority,
-    activeGrantId: String?,
-    activeGateGrantId: String?,
-    onSelect: (String) -> Unit,
-    onSelectGate: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Switch context") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                authority.grants.forEach { grant ->
-                    val kindLabel = grant.workspaceKindWire.replaceFirstChar { it.uppercase() }
-                    val safeBusinessName = grant.businessAccountId?.let(authority.businessNamesById::get)
-                    val safeVendorName = grant.vendorId?.let(authority.vendorNamesById::get)
-                    val label = when {
-                        grant.scopeKind == GrantScopeKind.SYSTEM -> "$kindLabel · Wewed platform"
-                        grant.weddingTitle != null -> "$kindLabel · ${grant.weddingTitle}"
-                        safeVendorName != null -> "$kindLabel · $safeVendorName"
-                        safeBusinessName != null -> "$kindLabel · $safeBusinessName"
-                        grant.businessAccountId != null -> "$kindLabel · ${grant.businessAccountId}"
-                        else -> "$kindLabel · ${grant.grantId}"
-                    }
-                    OutlinedButton(
-                        onClick = { onSelect(grant.grantId); onDismiss() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("context-switch-option-${grant.grantId}"),
-                        enabled = grant.grantId != activeGrantId,
-                    ) {
-                        Text(if (grant.grantId == activeGrantId) "$label (current)" else label)
-                    }
-                }
-                authority.operationalGrants.forEach { grant ->
-                    val label = "Usher · ${grant.gateName} · ${grant.weddingTitle}"
-                    OutlinedButton(
-                        onClick = { onSelectGate(grant.grantId); onDismiss() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("context-switch-option-${grant.grantId}"),
-                        enabled = grant.grantId != activeGateGrantId,
-                    ) {
-                        Text(if (grant.grantId == activeGateGrantId) "$label (current)" else label)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss, modifier = Modifier.testTag("context-switch-close")) { Text("Close") }
-        },
-        modifier = Modifier.testTag("context-switcher"),
-    )
-}
 
 
 @OptIn(ExperimentalComposeUiApi::class)

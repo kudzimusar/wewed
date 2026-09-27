@@ -376,6 +376,8 @@ public struct RootView: View {
             } else if session.isAuthenticated && !pendingGrantSelection.isEmpty {
                 GrantSelectionView(
                     grants: pendingGrantSelection,
+                    vendorNamesById: session.productionAuthority?.vendorNamesById ?? [:],
+                    businessNamesById: session.productionAuthority?.businessNamesById ?? [:],
                     onSelect: { grantId in session.selectGrant(grantId) },
                     onSignOut: { session.signOut() }
                 )

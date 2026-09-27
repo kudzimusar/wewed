@@ -1,5 +1,9 @@
 import XCTest
 
+// FINAL NATIVE GUEST SURFACE tests (QRO04-UI01): real final Guest components (GuestOnlyInvitationShellView,
+// LiveGuestInvitationView, LiveGuestShellView) against the loopback synthetic server
+// scripts/native-mobile/guest-profile-ui-server.py. Never Shadow, never a DevelopmentPersona.
+
 final class GuestProfileUITests: XCTestCase {
     private var app: XCUIApplication!
     override func setUp() {
