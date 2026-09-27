@@ -233,7 +233,11 @@ fun RootScreen(
                     presentation = LiveInvitationPresentation.from(live.snapshot),
                     coordinator = liveCoordinator,
                     onRefreshed = { liveInvitation = it },
-                    onContinue = { liveInvitation = LiveInvitationState.Idle }
+                    onContinue = { liveInvitation = LiveInvitationState.Idle },
+                    onLeaveWedding = {
+                        liveCoordinator.forgetGuest()
+                        liveInvitation = LiveInvitationState.Idle
+                    }
                 )
             }
             return
