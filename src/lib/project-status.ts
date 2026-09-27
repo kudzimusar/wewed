@@ -91,7 +91,6 @@ export const PROJECT_STATUS: StatusItem[] = [
   { id: 'be-messages', name: 'Messages API', category: 'backend', status: 'done', progress: 100, notes: 'src/app/api/messages/route.ts (guest wall)' },
   { id: 'be-qrcode', name: 'QR Code API', category: 'backend', status: 'done', progress: 100, notes: 'src/app/api/qrcode/route.ts (PNG data URL)' },
   { id: 'be-wedding', name: 'Wedding API', category: 'backend', status: 'done', progress: 100, notes: 'src/app/api/wedding/route.ts (flagship public data)' },
-  { id: 'be-seed', name: 'Seed API', category: 'backend', status: 'done', progress: 100, notes: 'src/app/api/seed/route.ts (idempotent)' },
   { id: 'be-privacy', name: 'Privacy API', category: 'backend', status: 'done', progress: 100, notes: 'src/app/api/privacy/route.ts + verify-token/route.ts' },
   { id: 'be-planner-tasks', name: 'Planner Tasks API', category: 'backend', status: 'done', progress: 100, notes: 'src/app/api/planner/tasks/route.ts + [id]/route.ts (80+ tasks, 18 categories)' },
   { id: 'be-planner-budget', name: 'Planner Budget API', category: 'backend', status: 'done', progress: 100, notes: 'src/app/api/planner/budget/route.ts + [id]/route.ts' },
@@ -140,7 +139,7 @@ export const PROJECT_STATUS: StatusItem[] = [
   // ── Infrastructure (6 items, all done) ────────────────────────────────
   { id: 'inf-schema', name: 'Prisma multi-couple schema (22 models)', category: 'infrastructure', status: 'done', progress: 100, notes: 'prisma/schema.prisma — 14 original + 8 additive (User, ImportJob, ContentRevision, AuditEvent, etc.)' },
   { id: 'inf-auth', name: 'Admin auth + couple login', category: 'infrastructure', status: 'done', progress: 100, notes: 'src/lib/admin-auth.ts + couple-login.tsx (8-hour session, constant-time compare)' },
-  { id: 'inf-canon', name: 'Canon privacy system', category: 'infrastructure', status: 'done', progress: 100, notes: 'src/lib/privacy.ts + privacy-badge/vault-lock-screen/canon-seal' },
+  { id: 'inf-canon', name: 'Canon privacy system', category: 'infrastructure', status: 'done', progress: 100, notes: 'src/lib/privacy.ts + privacy-badge/canon-seal' },
   { id: 'inf-admin', name: 'Admin dashboard (5 tabs)', category: 'infrastructure', status: 'done', progress: 100, notes: 'src/components/wedding/admin-dashboard.tsx (Overview, RSVPs, Songs, Messages, Ceremony)' },
   { id: 'inf-audit', name: 'Audit logging', category: 'infrastructure', status: 'done', progress: 100, notes: 'src/lib/audit.ts (logAuditEvent + getAuditEvents)' },
   { id: 'inf-import-engine', name: 'Import engine (10 modules)', category: 'infrastructure', status: 'done', progress: 100, notes: 'src/lib/import-engine/ (11 files: types, schemas, parser, mapper, validator, preview, executor, template, exporter)' },

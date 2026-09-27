@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/admin-gate'
+import { requireWeddingPermission } from '@/lib/wedding-access'
+import { applyRevisionPublication } from '@/lib/wedding-site/server'
 import { db } from '@/lib/db'
-import {
-  isRevisionStatus,
-  mapsToWeddingField,
-  syncWeddingField,
-} from '@/lib/content/wedding-fields'
+import { isRevisionStatus } from '@/lib/content/wedding-fields'
 
 /* ============================================================
    /api/content/[id]/restore
@@ -59,12 +56,13 @@ function formatRevision(r: {
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
-  const gateFail = requireAdmin(request)
-  if (gateFail) return gateFail
+  // QRO07: wedding-scoped content.edit — never merely "some session exists".
+  const access = await requireWeddingPermission(request, 'content.edit')
+  if (access.error) return access.error
 
   try {
     const { id } = await context.params
-    const source = await db.contentRevision.findUnique({ where: { id } })
+    const source = await db.contentRevision.findFirst({ where: { id, weddingId: access.context.weddingId } })
     if (!source) {
       return NextResponse.json({ success: false, error: 'Revision not found' }, { status: 404 })
     }
@@ -104,42 +102,24 @@ export async function POST(request: NextRequest, context: RouteContext) {
     })
 
     const now = new Date()
-    const restored = await db.contentRevision.create({
-      data: {
-        section: source.section,
-        fieldKey: source.fieldKey,
-        value: source.value,
-        status,
-        previousValue: previous?.value ?? null,
-        weddingId: source.weddingId,
-        publishedAt: status === 'published' ? now : null,
-      },
+    // The restored revision and — when published — its effects on the public site and the Wedding
+    // row land in ONE transaction.
+    const restored = await db.$transaction(async (tx) => {
+      const created = await tx.contentRevision.create({
+        data: {
+          section: source.section,
+          fieldKey: source.fieldKey,
+          value: source.value,
+          status,
+          previousValue: previous?.value ?? null,
+          weddingId: source.weddingId,
+          authorId: access.context.session.userId ?? null,
+          publishedAt: status === 'published' ? now : null,
+        },
+      })
+      if (status === 'published') await applyRevisionPublication(tx, created)
+      return created
     })
-
-    if (status === 'published') {
-      try {
-        await db.contentRevision.updateMany({
-          where: {
-            weddingId: restored.weddingId,
-            section: restored.section,
-            fieldKey: restored.fieldKey,
-            status: 'published',
-            id: { not: restored.id },
-          },
-          data: { status: 'archived' },
-        })
-      } catch (err) {
-        console.warn('[CONTENT RESTORE] could not archive previous published revisions:', err)
-      }
-
-      if (mapsToWeddingField(restored.section, restored.fieldKey)) {
-        try {
-          await syncWeddingField(restored.weddingId, restored.section, restored.fieldKey, restored.value)
-        } catch (err) {
-          console.warn('[CONTENT RESTORE] could not sync Wedding field:', err)
-        }
-      }
-    }
 
     return NextResponse.json(
       {

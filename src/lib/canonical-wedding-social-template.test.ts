@@ -35,7 +35,10 @@ describe('canonical wedding social template', () => {
 
     expect(serverData).toContain("import 'server-only'")
     expect(serverData).toContain('export async function loadWeddingDataBySlug')
-    expect(serverData).toContain('contentItems: true')
+    // QRO07: guests receive an allowlisted projection, never every WeddingContent row.
+    expect(serverData).toContain('contentItems: {')
+    expect(serverData).toContain('if (!isPublicScalarField(row.section, row.field)) continue')
+    expect(serverData).toContain('loadPublicSiteStructure(wedding.id)')
     expect(serverData).toContain('programmeItems:')
     expect(serverData).toContain('songs:')
 
@@ -177,10 +180,10 @@ describe('canonical wedding social template', () => {
 
   test('shared content edits require the active wedding and membership', async () => {
     const route = await source('src/app/api/wedding-content/route.ts')
-    expect(route).toContain('session.activeWeddingId !== wedding.id')
-    expect(route).toContain("hasPermission(request, 'content.edit')")
-    expect(route).toContain('db.weddingMembership.findFirst')
-    expect(route).toContain("membership.role === 'owner'")
+    expect(route).toContain("requireWeddingPermission(request, 'content.edit')")
+    expect(route).toContain('wedding.id !== access.context.weddingId')
+    expect(route).toContain('isPublicScalarField(section, field)')
+    expect(route).toContain('await publishScalar(')
   })
 
   test('production migration workflow permits pending migrations but rejects rewritten history', async () => {

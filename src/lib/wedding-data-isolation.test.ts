@@ -10,9 +10,11 @@ describe('wedding identity isolation', () => {
     const page = source('src/app/w/[slug]/page.tsx')
     const tracker = source('src/components/wedding/section-tracker.tsx')
 
-    // The provider may retain a flagship marker for migrated fixture/media
-    // compatibility, but renderer selection must never depend on it.
-    expect(provider).toContain('isFlagship: activeSlug === FLAGSHIP_WEDDING_SLUG')
+    // QRO07: there is no flagship wedding. A route without a wedding identity fails closed.
+    expect(provider).not.toContain('FLAGSHIP_WEDDING_SLUG')
+    expect(provider).not.toContain('isFlagship')
+    expect(source('src/lib/wedding-data.ts')).not.toContain('FLAGSHIP_WEDDING_SLUG')
+    expect(source('src/lib/wedding-data.ts')).toContain('No wedding was specified.')
     expect(home).not.toContain('if (!isFlagship) {')
     expect(home).not.toContain('DataBackedWeddingExperience')
     expect(home).not.toContain('isFlagship')

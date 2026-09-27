@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 import { db } from '@/lib/db'
+import { applyRevisionPublication } from '@/lib/wedding-site/server'
 import {
   isRevisionStatus,
-  mapsToWeddingField,
-  syncWeddingField,
 } from '@/lib/content/wedding-fields'
 
 /* ============================================================
@@ -230,45 +229,24 @@ export async function POST(request: NextRequest) {
 
     // Create the new revision. If publishing, set publishedAt too.
     const now = new Date()
-    const revision = await db.contentRevision.create({
-      data: {
-        section,
-        fieldKey,
-        value,
-        status,
-        previousValue,
-        weddingId,
-        publishedAt: status === 'published' ? now : null,
-      },
+    // Revision + publication effects (archive, Wedding sync, public-site materialization) in ONE
+    // transaction — the public projection changes exactly when the revision is published.
+    const revision = await db.$transaction(async (tx) => {
+      const created = await tx.contentRevision.create({
+        data: {
+          section,
+          fieldKey,
+          value,
+          status,
+          previousValue,
+          weddingId,
+          authorId: access.context.session.userId ?? null,
+          publishedAt: status === 'published' ? now : null,
+        },
+      })
+      if (status === 'published') await applyRevisionPublication(tx, created)
+      return created
     })
-
-    // If publishing, archive previously-published revisions of the
-    // same section+fieldKey (excluding the one we just created),
-    // and sync the Wedding row if applicable.
-    if (status === 'published') {
-      try {
-        await db.contentRevision.updateMany({
-          where: {
-            weddingId,
-            section,
-            fieldKey,
-            status: 'published',
-            id: { not: revision.id },
-          },
-          data: { status: 'archived' },
-        })
-      } catch (err) {
-        console.warn('[CONTENT POST] could not archive previous published revisions:', err)
-      }
-
-      if (mapsToWeddingField(section, fieldKey)) {
-        try {
-          await syncWeddingField(weddingId, section, fieldKey, value)
-        } catch (err) {
-          console.warn('[CONTENT POST] could not sync Wedding field:', err)
-        }
-      }
-    }
 
     return NextResponse.json(
       { success: true, data: formatRevision(revision) },

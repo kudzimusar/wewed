@@ -165,55 +165,16 @@ describe('Phase 12: Single-Tenant and Unsafe PWA Remnants Remediation', () => {
     })
   })
 
-  // ── Invariant 4: Seed Routes Reject Anonymous & Non-Platform-Admin ────────
-  describe('Invariant 4: /api/seed and /api/wedding-content/seed reject unauthorized callers and cannot execute in production', () => {
-    test('POST /api/seed rejects anonymous caller with 401', async () => {
-      const { POST } = await import('@/app/api/seed/route')
-      const req = new NextRequest('http://localhost/api/seed', { method: 'POST' })
-      const res = await POST(req)
-      expect(res.status).toBe(401)
-    })
-
-    test('POST /api/wedding-content/seed rejects anonymous caller with 401', async () => {
-      const { POST } = await import('@/app/api/wedding-content/seed/route')
-      const req = new NextRequest('http://localhost/api/wedding-content/seed', { method: 'POST' })
-      const res = await POST(req)
-      expect(res.status).toBe(401)
-    })
-
-    test('POST /api/seed rejects ordinary couple/guest/planner with 403', async () => {
-      const { APP_SESSION_COOKIE } = await getSessionHelpers()
-      const { POST } = await import('@/app/api/seed/route')
-      const coupleCookie = await createValidSessionToken('couple')
-      const req = new NextRequest('http://localhost/api/seed', {
-        method: 'POST',
-        headers: { cookie: `${APP_SESSION_COOKIE}=${coupleCookie}` },
-      })
-      const res = await POST(req)
-      expect(res.status).toBe(403)
-    })
-
-    test('POST /api/wedding-content/seed rejects ordinary couple/guest/planner with 403', async () => {
-      const { APP_SESSION_COOKIE } = await getSessionHelpers()
-      const { POST } = await import('@/app/api/wedding-content/seed/route')
-      const plannerCookie = await createValidSessionToken('planner')
-      const req = new NextRequest('http://localhost/api/wedding-content/seed', {
-        method: 'POST',
-        headers: { cookie: `${APP_SESSION_COOKIE}=${plannerCookie}` },
-      })
-      const res = await POST(req)
-      expect(res.status).toBe(403)
-    })
-
-    test('both seed routes guard against production execution', () => {
-      const seedSource = source('src/app/api/seed/route.ts')
-      const wcSeedSource = source('src/app/api/wedding-content/seed/route.ts')
-
-      for (const src of [seedSource, wcSeedSource]) {
-        expect(src).toContain('isProductionRuntime()')
-        expect(src).toContain("NODE_ENV === \"production\"")
-        expect(src).toContain("Database seeding is disabled in production.")
-      }
+  // ── Invariant 4: Seed Routes Retired ───────────────────────────────────────
+  // QRO07-SHIP01: both routes wrote fabricated Charity & Kudzie content (programme, venue prose,
+  // guest messages) into the real wedding slug. They are deleted, not merely production-gated.
+  describe('Invariant 4: /api/seed and /api/wedding-content/seed no longer exist', () => {
+    test('neither seed route is present in the app tree or the proxy matcher', () => {
+      const { existsSync } = require('node:fs') as typeof import('node:fs')
+      expect(existsSync('src/app/api/seed/route.ts')).toBe(false)
+      expect(existsSync('src/app/api/wedding-content/seed/route.ts')).toBe(false)
+      expect(source('src/proxy.ts')).not.toContain('/api/seed')
+      expect(source('src/lib/wedding-content-seed.ts')).not.toContain('charity-and-kudzie')
     })
   })
 

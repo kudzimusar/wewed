@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { isPublicScalarField } from '@/lib/wedding-site/model'
+import { publishScalar } from '@/lib/wedding-site/server'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 import { loadWeddingDataBySlug } from '@/lib/wedding-data-server'
 import {
@@ -87,30 +89,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    let metadata: string | null = null
-    if (body?.metadata != null) {
-      metadata =
-        typeof body.metadata === 'string'
-          ? body.metadata
-          : JSON.stringify(body.metadata)
+    // QRO07: only public site copy may be written here, and it is PUBLISHED through the same
+    // transactional lifecycle as the site editor (revision recorded, WeddingContent materialized).
+    // Private sections and core facts (names/date/venue live on Couple/Wedding) are refused.
+    if (!isPublicScalarField(section, field)) {
+      return NextResponse.json(
+        { success: false, error: 'That field is not editable site copy.' },
+        { status: 400 },
+      )
     }
-
-    await db.weddingContent.upsert({
-      where: { weddingId_section_field: { weddingId: wedding.id, section, field } },
-      update: {
-        value: typeof body?.value === 'string' ? body.value : '',
-        order: typeof body?.order === 'number' ? Math.max(0, Math.floor(body.order)) : 0,
-        metadata,
-      },
-      create: {
-        weddingId: wedding.id,
-        section,
-        field,
-        value: typeof body?.value === 'string' ? body.value : '',
-        order: typeof body?.order === 'number' ? Math.max(0, Math.floor(body.order)) : 0,
-        metadata,
-      },
-    })
+    await publishScalar(
+      wedding.id,
+      access.context.session.userId ?? null,
+      section,
+      field,
+      typeof body?.value === 'string' ? body.value : '',
+      undefined,
+    )
 
     return NextResponse.json({ success: true })
   } catch (error) {

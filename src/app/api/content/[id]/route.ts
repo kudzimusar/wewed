@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/admin-gate'
+import { requireWeddingPermission } from '@/lib/wedding-access'
+import { applyRevisionPublication, retractRevisionPublication } from '@/lib/wedding-site/server'
 import { db } from '@/lib/db'
-import {
-  isRevisionStatus,
-  mapsToWeddingField,
-  syncWeddingField,
-} from '@/lib/content/wedding-fields'
+import { isRevisionStatus } from '@/lib/content/wedding-fields'
 
 /* ============================================================
    /api/content/[id]
@@ -62,12 +59,13 @@ function formatRevision(r: {
 
 // ─── GET /api/content/[id] ───────────────────────────────────
 export async function GET(request: NextRequest, context: RouteContext) {
-  const gateFail = requireAdmin(request)
-  if (gateFail) return gateFail
+  // QRO07: wedding-scoped content.edit — never merely "some session exists".
+  const access = await requireWeddingPermission(request, 'content.edit')
+  if (access.error) return access.error
 
   try {
     const { id } = await context.params
-    const revision = await db.contentRevision.findUnique({ where: { id } })
+    const revision = await db.contentRevision.findFirst({ where: { id, weddingId: access.context.weddingId } })
     if (!revision) {
       return NextResponse.json({ success: false, error: 'Revision not found' }, { status: 404 })
     }
@@ -88,12 +86,13 @@ interface PatchBody {
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
-  const gateFail = requireAdmin(request)
-  if (gateFail) return gateFail
+  // QRO07: wedding-scoped content.edit — never merely "some session exists".
+  const access = await requireWeddingPermission(request, 'content.edit')
+  if (access.error) return access.error
 
   try {
     const { id } = await context.params
-    const revision = await db.contentRevision.findUnique({ where: { id } })
+    const revision = await db.contentRevision.findFirst({ where: { id, weddingId: access.context.weddingId } })
     if (!revision) {
       return NextResponse.json({ success: false, error: 'Revision not found' }, { status: 404 })
     }
@@ -147,38 +146,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       )
     }
 
-    const updated = await db.contentRevision.update({
-      where: { id },
-      data,
+    // Publishing/unpublishing and its effects happen in ONE transaction, so the public site, the
+    // Wedding row and the revision history never disagree.
+    const updated = await db.$transaction(async (tx) => {
+      const next = await tx.contentRevision.update({ where: { id: revision.id }, data })
+      if (data.status === 'published') await applyRevisionPublication(tx, next)
+      else if (data.status && revision.status === 'published') await retractRevisionPublication(tx, next)
+      return next
     })
-
-    // If this PATCH transitioned the revision to published, archive
-    // other published revisions of the same section+fieldKey and
-    // sync the Wedding row.
-    if (data.status === 'published') {
-      try {
-        await db.contentRevision.updateMany({
-          where: {
-            weddingId: updated.weddingId,
-            section: updated.section,
-            fieldKey: updated.fieldKey,
-            status: 'published',
-            id: { not: updated.id },
-          },
-          data: { status: 'archived' },
-        })
-      } catch (err) {
-        console.warn('[CONTENT PATCH] could not archive previous published revisions:', err)
-      }
-
-      if (mapsToWeddingField(updated.section, updated.fieldKey)) {
-        try {
-          await syncWeddingField(updated.weddingId, updated.section, updated.fieldKey, updated.value)
-        } catch (err) {
-          console.warn('[CONTENT PATCH] could not sync Wedding field:', err)
-        }
-      }
-    }
 
     return NextResponse.json({ success: true, data: formatRevision(updated) })
   } catch (err) {
@@ -192,12 +167,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
 // ─── DELETE /api/content/[id] ────────────────────────────────
 export async function DELETE(request: NextRequest, context: RouteContext) {
-  const gateFail = requireAdmin(request)
-  if (gateFail) return gateFail
+  // QRO07: wedding-scoped content.edit — never merely "some session exists".
+  const access = await requireWeddingPermission(request, 'content.edit')
+  if (access.error) return access.error
 
   try {
     const { id } = await context.params
-    const revision = await db.contentRevision.findUnique({ where: { id } })
+    const revision = await db.contentRevision.findFirst({ where: { id, weddingId: access.context.weddingId } })
     if (!revision) {
       return NextResponse.json({ success: false, error: 'Revision not found' }, { status: 404 })
     }

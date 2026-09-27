@@ -9,14 +9,14 @@ datasource db {
 }
 
 model Couple {
-  id                 String  @id @default(cuid())
-  slug               String  @unique
+  id                 String   @id @default(cuid())
+  slug               String   @unique
   partner1           String
   partner2           String
   surname            String?
   photo              String?
   userId             String?
-  subscriptionStatus String  @default("free")
+  subscriptionStatus String   @default("free")
 
   weddings    Wedding[]
   kids        Kid[]
@@ -28,8 +28,8 @@ model Couple {
 }
 
 model Wedding {
-  id           String   @id @default(cuid())
-  slug         String   @unique
+  id           String  @id @default(cuid())
+  slug         String  @unique
   title        String
   monogram     String?
   tagline      String?
@@ -83,7 +83,7 @@ model Wedding {
   announcements           WeddingAnnouncement[]
   comments                Comment[]
   memberships             WeddingMembership[]
-  currentForUsers         User[]                   @relation("CurrentWedding")
+  currentForUsers         User[] @relation("CurrentWedding")
   notifications           Notification[]
   reminders               Reminder[]
   gates                   WeddingGate[]
@@ -97,18 +97,18 @@ model Wedding {
 }
 
 model Guest {
-  id                 String        @id @default(cuid())
+  id                 String  @id @default(cuid())
   name               String
   email              String?
   phone              String?
-  role               String        @default("guest")
+  role               String  @default("guest")
   roleDetail         String?
   side               String?
   tableNumber        Int?
   seatingTableId     String?
   seatingTable       SeatingTable? @relation(fields: [seatingTableId], references: [id])
-  contributionToken  String?       @unique
-  contributionStatus String?       @default("none")
+  contributionToken  String? @unique
+  contributionStatus String? @default("none")
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
@@ -125,19 +125,19 @@ model Guest {
 }
 
 model RSVP {
-  id            String    @id @default(cuid())
-  token         String    @unique
+  id            String   @id @default(cuid())
+  token         String   @unique
   attending     Boolean?
   mealChoice    String?
-  plusOne       Boolean   @default(false)
+  plusOne       Boolean  @default(false)
   plusOneName   String?
   plusOneMeal   String?
-  kidsAttending Boolean   @default(false)
-  kidsCount     Int       @default(0)
+  kidsAttending Boolean  @default(false)
+  kidsCount     Int      @default(0)
   songRequests  String?
   dietaryNotes  String?
   message       String?
-  checkedIn     Boolean   @default(false)
+  checkedIn     Boolean  @default(false)
   checkedInAt   DateTime?
 
   guestId String @unique
@@ -168,21 +168,21 @@ model Song {
 }
 
 model MediaItem {
-  id           String       @id @default(cuid())
+  id           String    @id @default(cuid())
   type         String
   url          String
   thumbnailUrl String?
   caption      String?
   moment       String?
-  isCurated    Boolean      @default(false)
-  isHero       Boolean      @default(false)
+  isCurated    Boolean   @default(false)
+  isHero       Boolean   @default(false)
   uploaderId   String?
   userId       String?
   user         UserProfile? @relation(fields: [userId], references: [id])
   uploadedAt   DateTime?
 
   weddingId String
-  wedding   Wedding           @relation(fields: [weddingId], references: [id])
+  wedding   Wedding @relation(fields: [weddingId], references: [id])
   siteItems WeddingSiteItem[]
 
   createdAt DateTime @default(now())
@@ -190,14 +190,14 @@ model MediaItem {
 }
 
 model Message {
-  id          String       @id @default(cuid())
+  id          String    @id @default(cuid())
   type        String
   content     String
   authorName  String
   authorToken String?
   userId      String?
   user        UserProfile? @relation(fields: [userId], references: [id])
-  isPublic    Boolean      @default(true)
+  isPublic    Boolean   @default(true)
   revealedAt  DateTime?
 
   weddingId String
@@ -253,7 +253,7 @@ model Vendor {
 }
 
 model ProgrammeItem {
-  id          String  @id @default(cuid())
+  id          String @id @default(cuid())
   time        String
   title       String
   description String?
@@ -261,7 +261,7 @@ model ProgrammeItem {
   duration    String?
   location    String?
   displayIcon String?
-  order       Int     @default(0)
+  order       Int    @default(0)
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
@@ -271,7 +271,7 @@ model ProgrammeItem {
 }
 
 model Kid {
-  id       String  @id @default(cuid())
+  id       String @id @default(cuid())
   name     String
   gender   String
   age      Int?
@@ -285,17 +285,17 @@ model Kid {
 }
 
 model PlannerTask {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   title          String
   description    String?
   category       String
-  status         String    @default("todo")
-  priority       String    @default("medium")
+  status         String   @default("todo")
+  priority       String   @default("medium")
   dueDate        DateTime?
   assignee       String?
   assigneeUserId String?
-  assigneeUser   User?     @relation("PlannerTaskAssignee", fields: [assigneeUserId], references: [id], onDelete: SetNull)
-  order          Int       @default(0)
+  assigneeUser   User?    @relation("PlannerTaskAssignee", fields: [assigneeUserId], references: [id], onDelete: SetNull)
+  order          Int      @default(0)
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
@@ -307,13 +307,13 @@ model PlannerTask {
 }
 
 model BudgetItem {
-  id                  String    @id @default(cuid())
+  id                  String   @id @default(cuid())
   category            String
   description         String
   estimatedCost       Float
   actualCost          Float?
-  paidAmount          Float     @default(0)
-  currency            String    @default("USD")
+  paidAmount          Float    @default(0)
+  currency            String   @default("USD")
   vendorId            String?
   vendorName          String?
   notes               String?
@@ -334,26 +334,26 @@ model BudgetItem {
 }
 
 model ServiceEngagement {
-  id                         String    @id @default(cuid())
-  origin                     String    @default("historical")
-  recordMode                 String    @default("record_only")
-  lifecycleStatus            String    @default("historical_capture")
+  id                         String   @id @default(cuid())
+  origin                     String   @default("historical")
+  recordMode                 String   @default("record_only")
+  lifecycleStatus            String   @default("historical_capture")
   serviceCategory            String
   serviceDescription         String?
-  agreedAmount               Decimal?  @db.Decimal(14, 2)
-  currency                   String    @default("USD")
+  agreedAmount               Decimal? @db.Decimal(14, 2)
+  currency                   String   @default("USD")
   serviceDate                DateTime?
   serviceLocation            String?
-  externalAgreementStatus    String    @default("unknown")
+  externalAgreementStatus    String   @default("unknown")
   externalAgreementReference String?
   historicalBasis            String?
   recordedById               String?
   createdById                String?
 
-  weddingId String
-  wedding   Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
-  vendorId  String
-  vendor    Vendor  @relation(fields: [vendorId, weddingId], references: [id, weddingId], onDelete: Restrict)
+  weddingId   String
+  wedding     Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  vendorId    String
+  vendor      Vendor  @relation(fields: [vendorId, weddingId], references: [id, weddingId], onDelete: Restrict)
 
   budgetItems BudgetItem[]
   payments    EngagementPayment[]
@@ -371,9 +371,9 @@ model ServiceEngagement {
 }
 
 model EngagementPayment {
-  id                  String            @id @default(cuid())
-  amount              Decimal           @db.Decimal(14, 2)
-  currency            String            @default("USD")
+  id                  String   @id @default(cuid())
+  amount              Decimal  @db.Decimal(14, 2)
+  currency            String   @default("USD")
   paidAt              DateTime?
   method              String?
   reference           String?
@@ -390,9 +390,9 @@ model EngagementPayment {
 }
 
 model VaultObject {
-  id               String    @id @default(cuid())
+  id               String   @id @default(cuid())
   storageProvider  String
-  objectKey        String    @unique
+  objectKey        String   @unique
   originalFilename String
   displayName      String
   mimeType         String
@@ -401,18 +401,18 @@ model VaultObject {
   checksumSha256   String
   uploaderActorId  String?
   uploadSource     String
-  storageState     String    @default("registered")
-  scanState        String    @default("pending")
-  retentionClass   String    @default("wedding_record")
-  legalHold        Boolean   @default(false)
-  sensitivity      String    @default("private")
-  publicationState String    @default("private")
+  storageState     String   @default("registered")
+  scanState        String   @default("pending")
+  retentionClass   String   @default("wedding_record")
+  legalHold        Boolean  @default(false)
+  sensitivity      String   @default("private")
+  publicationState String   @default("private")
   metadata         String?
   archivedAt       DateTime?
   deletedAt        DateTime?
 
   weddingId String
-  wedding   Wedding     @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  wedding   Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
   links     VaultLink[]
 
   createdAt DateTime @default(now())
@@ -425,7 +425,7 @@ model VaultObject {
 }
 
 model VaultLink {
-  id            String  @id @default(cuid())
+  id            String @id @default(cuid())
   vaultObjectId String
   weddingId     String
   entityType    String
@@ -443,7 +443,7 @@ model VaultLink {
 }
 
 model EngagementParty {
-  id                  String  @id @default(cuid())
+  id                  String @id @default(cuid())
   serviceEngagementId String
   weddingId           String
   partyRole           String
@@ -459,7 +459,7 @@ model EngagementParty {
   status              String  @default("active")
   createdById         String?
 
-  serviceEngagement ServiceEngagement     @relation(fields: [serviceEngagementId, weddingId], references: [id, weddingId], onDelete: Cascade)
+  serviceEngagement ServiceEngagement @relation(fields: [serviceEngagementId, weddingId], references: [id, weddingId], onDelete: Cascade)
   reviewGrants      ContractReviewGrant[]
 
   createdAt DateTime @default(now())
@@ -471,22 +471,22 @@ model EngagementParty {
 }
 
 model ContractTemplate {
-  id               String    @id @default(cuid())
-  code             String
-  title            String
-  serviceCategory  String
-  marketCode       String    @default("GLOBAL")
-  jurisdictionCode String?
-  language         String    @default("en")
-  semanticVersion  String
-  status           String    @default("internal_review")
-  reviewStatus     String    @default("operator_review")
-  effectiveFrom    DateTime?
-  retiredAt        DateTime?
-  summary          String?
-  templateHash     String
-  metadata         String?
-  createdById      String?
+  id                 String   @id @default(cuid())
+  code               String
+  title               String
+  serviceCategory    String
+  marketCode         String   @default("GLOBAL")
+  jurisdictionCode   String?
+  language           String   @default("en")
+  semanticVersion    String
+  status              String   @default("internal_review")
+  reviewStatus        String   @default("operator_review")
+  effectiveFrom       DateTime?
+  retiredAt           DateTime?
+  summary             String?
+  templateHash        String
+  metadata            String?
+  createdById         String?
 
   clauses   ContractTemplateClause[]
   contracts Contract[]
@@ -499,14 +499,14 @@ model ContractTemplate {
 }
 
 model ContractClause {
-  id           String  @id @default(cuid())
+  id           String @id @default(cuid())
   code         String
   version      String
   title        String
   clauseFamily String
-  body         String  @db.Text
-  status       String  @default("internal_review")
-  reviewStatus String  @default("operator_review")
+  body         String @db.Text
+  status       String @default("internal_review")
+  reviewStatus String @default("operator_review")
   contentHash  String
   createdById  String?
 
@@ -520,7 +520,7 @@ model ContractClause {
 }
 
 model ContractTemplateClause {
-  id            String  @id @default(cuid())
+  id            String @id @default(cuid())
   templateId    String
   clauseId      String
   position      Int     @default(0)
@@ -538,20 +538,20 @@ model ContractTemplateClause {
 }
 
 model Contract {
-  id                   String    @id @default(cuid())
-  contractNumber       String    @unique
+  id                   String @id @default(cuid())
+  contractNumber       String @unique
   serviceEngagementId  String
   weddingId            String
   templateId           String
-  status               String    @default("DRAFT")
-  currentVersionNumber Int       @default(0)
+  status               String @default("DRAFT")
+  currentVersionNumber Int    @default(0)
   title                String
   createdById          String?
   issuedAt             DateTime?
   closedAt             DateTime?
 
-  serviceEngagement ServiceEngagement     @relation(fields: [serviceEngagementId, weddingId], references: [id, weddingId], onDelete: Restrict)
-  template          ContractTemplate      @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  serviceEngagement ServiceEngagement @relation(fields: [serviceEngagementId, weddingId], references: [id, weddingId], onDelete: Restrict)
+  template          ContractTemplate  @relation(fields: [templateId], references: [id], onDelete: Restrict)
   versions          ContractVersion[]
   reviewGrants      ContractReviewGrant[]
   events            ContractEvent[]
@@ -567,14 +567,14 @@ model Contract {
 }
 
 model ContractVersion {
-  id                      String    @id @default(cuid())
+  id                      String @id @default(cuid())
   contractId              String
   weddingId               String
   versionNumber           Int
-  status                  String    @default("DRAFT")
+  status                  String @default("DRAFT")
   templateSemanticVersion String
-  canonicalJson           String    @db.Text
-  renderedHtml            String    @db.Text
+  canonicalJson           String @db.Text
+  renderedHtml            String @db.Text
   contentSha256           String?
   artifactVaultObjectId   String?
   artifactSha256          String?
@@ -595,17 +595,17 @@ model ContractVersion {
 }
 
 model ContractReviewGrant {
-  id                String    @id @default(cuid())
-  contractId        String
-  contractVersionId String
-  engagementPartyId String?
-  role              String
-  tokenHash         String    @unique
-  status            String    @default("ACTIVE")
-  expiresAt         DateTime
-  revokedAt         DateTime?
-  lastAccessedAt    DateTime?
-  createdById       String?
+  id                  String @id @default(cuid())
+  contractId          String
+  contractVersionId   String
+  engagementPartyId   String?
+  role                String
+  tokenHash           String @unique
+  status              String @default("ACTIVE")
+  expiresAt           DateTime
+  revokedAt           DateTime?
+  lastAccessedAt      DateTime?
+  createdById         String?
 
   contract        Contract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
   contractVersion ContractVersion  @relation(fields: [contractVersionId, contractId], references: [id, contractId], onDelete: Cascade)
@@ -620,7 +620,7 @@ model ContractReviewGrant {
 }
 
 model ContractEvent {
-  id         String  @id @default(cuid())
+  id         String @id @default(cuid())
   contractId String
   versionId  String?
   eventType  String
@@ -649,34 +649,34 @@ model SeatingTable {
 }
 
 model User {
-  id               String    @id @default(cuid())
-  email            String    @unique
+  id               String   @id @default(cuid())
+  email            String   @unique
   name             String?
   passwordHash     String?
-  role             String    @default("viewer")
+  role             String   @default("viewer")
   coupleId         String?
-  couple           Couple?   @relation(fields: [coupleId], references: [id])
+  couple           Couple?  @relation(fields: [coupleId], references: [id])
   currentWeddingId String?
-  currentWedding   Wedding?  @relation("CurrentWedding", fields: [currentWeddingId], references: [id], onDelete: SetNull)
-  isActive         Boolean   @default(true)
+  currentWedding   Wedding? @relation("CurrentWedding", fields: [currentWeddingId], references: [id], onDelete: SetNull)
+  isActive         Boolean  @default(true)
   lastLoginAt      DateTime?
 
   auditEvents             AuditEvent[]
   contentRevisions        ContentRevision[]
   contentSubmissions      ContentSubmission[]
-  memberships             WeddingMembership[]      @relation("MembershipUser")
-  invitationsSent         WeddingMembership[]      @relation("MembershipInviter")
-  assignedPlannerTasks    PlannerTask[]            @relation("PlannerTaskAssignee")
-  notificationsReceived   Notification[]           @relation("NotificationRecipient")
-  notificationsActed      Notification[]           @relation("NotificationActor")
-  remindersOwned          Reminder[]               @relation("ReminderOwner")
-  remindersReceived       Reminder[]               @relation("ReminderRecipient")
+  memberships             WeddingMembership[] @relation("MembershipUser")
+  invitationsSent         WeddingMembership[] @relation("MembershipInviter")
+  assignedPlannerTasks    PlannerTask[] @relation("PlannerTaskAssignee")
+  notificationsReceived   Notification[] @relation("NotificationRecipient")
+  notificationsActed      Notification[] @relation("NotificationActor")
+  remindersOwned          Reminder[] @relation("ReminderOwner")
+  remindersReceived       Reminder[] @relation("ReminderRecipient")
   notificationPreferences NotificationPreference[]
   pushSubscriptions       PushSubscription[]
-  gateAssignments         WeddingGateAssignment[]  @relation("GateOperatorUser")
-  gateAssignmentsCreated  WeddingGateAssignment[]  @relation("GateAssignmentCreator")
-  gateAssignmentsRevoked  WeddingGateAssignment[]  @relation("GateAssignmentRevoker")
-  checkInsAdmitted        WeddingCheckIn[]         @relation("AdmittedCheckIns")
+  gateAssignments         WeddingGateAssignment[] @relation("GateOperatorUser")
+  gateAssignmentsCreated  WeddingGateAssignment[] @relation("GateAssignmentCreator")
+  gateAssignmentsRevoked  WeddingGateAssignment[] @relation("GateAssignmentRevoker")
+  checkInsAdmitted        WeddingCheckIn[]        @relation("AdmittedCheckIns")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -685,7 +685,7 @@ model User {
 }
 
 model Notification {
-  id              String    @id
+  id             String  @id
   recipientUserId String
   weddingId       String?
   actorUserId     String?
@@ -693,14 +693,14 @@ model Notification {
   sourceId        String?
   eventType       String
   category        String
-  severity        String    @default("normal")
+  severity        String  @default("normal")
   title           String
   body            String
-  metadata        Json?     @db.JsonB
+  metadata        Json?   @db.JsonB
   deepLink        String?
   actionType      String?
-  requiresAction  Boolean   @default(false)
-  state           String    @default("active")
+  requiresAction  Boolean @default(false)
+  state           String  @default("active")
   readAt          DateTime? @db.Timestamptz(6)
   acknowledgedAt  DateTime? @db.Timestamptz(6)
   resolvedAt      DateTime? @db.Timestamptz(6)
@@ -708,14 +708,14 @@ model Notification {
   snoozedUntil    DateTime? @db.Timestamptz(6)
   expiresAt       DateTime? @db.Timestamptz(6)
   dedupeKey       String?
-  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
-  recipient          User                          @relation("NotificationRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "Notification_recipientUserId_fkey")
-  wedding            Wedding?                      @relation(fields: [weddingId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "Notification_weddingId_fkey")
-  actor              User?                         @relation("NotificationActor", fields: [actorUserId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "Notification_actorUserId_fkey")
+  recipient          User   @relation("NotificationRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "Notification_recipientUserId_fkey")
+  wedding            Wedding? @relation(fields: [weddingId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "Notification_weddingId_fkey")
+  actor              User?  @relation("NotificationActor", fields: [actorUserId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "Notification_actorUserId_fkey")
   deliveryAttempts   NotificationDeliveryAttempt[]
-  generatedReminders Reminder[]                    @relation("ReminderGeneratedNotification")
+  generatedReminders Reminder[] @relation("ReminderGeneratedNotification")
 
   @@index([recipientUserId, state, createdAt(sort: Desc)], map: "Notification_recipient_state_created_idx")
   @@index([recipientUserId, readAt, createdAt(sort: Desc)], map: "Notification_recipient_read_created_idx")
@@ -724,31 +724,31 @@ model Notification {
 }
 
 model Reminder {
-  id                      String    @id
+  id                      String @id
   ownerUserId             String
   recipientUserId         String
   weddingId               String?
   sourceType              String
   sourceId                String?
-  triggerAt               DateTime  @db.Timestamptz(6)
-  timezone                String    @default("UTC")
-  state                   String    @default("scheduled")
-  deliveryPolicy          Json?     @db.JsonB
+  triggerAt               DateTime @db.Timestamptz(6)
+  timezone                String @default("UTC")
+  state                   String @default("scheduled")
+  deliveryPolicy          Json? @db.JsonB
   dedupeKey               String?
   generatedNotificationId String?
   snoozedFromReminderId   String?
   triggeredAt             DateTime? @db.Timestamptz(6)
   cancelledAt             DateTime? @db.Timestamptz(6)
   lastError               String?
-  createdAt               DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt               DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  createdAt               DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt               DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
-  owner                 User          @relation("ReminderOwner", fields: [ownerUserId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "Reminder_ownerUserId_fkey")
-  recipient             User          @relation("ReminderRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "Reminder_recipientUserId_fkey")
-  wedding               Wedding?      @relation(fields: [weddingId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "Reminder_weddingId_fkey")
+  owner                 User @relation("ReminderOwner", fields: [ownerUserId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "Reminder_ownerUserId_fkey")
+  recipient             User @relation("ReminderRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "Reminder_recipientUserId_fkey")
+  wedding               Wedding? @relation(fields: [weddingId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "Reminder_weddingId_fkey")
   generatedNotification Notification? @relation("ReminderGeneratedNotification", fields: [generatedNotificationId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "Reminder_generatedNotificationId_fkey")
-  snoozedFromReminder   Reminder?     @relation("ReminderSnooze", fields: [snoozedFromReminderId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "Reminder_snoozedFromReminderId_fkey")
-  snoozedReminders      Reminder[]    @relation("ReminderSnooze")
+  snoozedFromReminder   Reminder? @relation("ReminderSnooze", fields: [snoozedFromReminderId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "Reminder_snoozedFromReminderId_fkey")
+  snoozedReminders      Reminder[] @relation("ReminderSnooze")
 
   @@index([state, triggerAt], map: "Reminder_schedule_idx")
   @@index([recipientUserId, state, triggerAt], map: "Reminder_recipient_schedule_idx")
@@ -757,17 +757,17 @@ model Reminder {
 }
 
 model NotificationPreference {
-  id              String   @id
+  id              String @id
   userId          String
-  scopeKey        String   @default("global")
-  inAppEnabled    Boolean  @default(true)
-  pushEnabled     Boolean  @default(false)
-  emailEnabled    Boolean  @default(false)
-  whatsAppEnabled Boolean  @default(false)
-  timezone        String   @default("UTC")
+  scopeKey        String @default("global")
+  inAppEnabled    Boolean @default(true)
+  pushEnabled     Boolean @default(false)
+  emailEnabled    Boolean @default(false)
+  whatsAppEnabled Boolean @default(false)
+  timezone        String @default("UTC")
   quietStart      String?
   quietEnd        String?
-  digestMode      String   @default("none")
+  digestMode      String @default("none")
   createdAt       DateTime @default(now()) @db.Timestamptz(6)
   updatedAt       DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
@@ -778,10 +778,10 @@ model NotificationPreference {
 }
 
 model NotificationDeliveryAttempt {
-  id             String    @id
+  id             String @id
   notificationId String
   channel        String
-  state          String    @default("queued")
+  state          String @default("queued")
   providerRef    String?
   errorCode      String?
   errorMessage   String?
@@ -789,8 +789,8 @@ model NotificationDeliveryAttempt {
   sentAt         DateTime? @db.Timestamptz(6)
   deliveredAt    DateTime? @db.Timestamptz(6)
   readAt         DateTime? @db.Timestamptz(6)
-  createdAt      DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
   notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "NotificationDeliveryAttempt_notificationId_fkey")
 
@@ -799,17 +799,17 @@ model NotificationDeliveryAttempt {
 }
 
 model PushSubscription {
-  id             String    @id
+  id             String @id
   userId         String
-  endpoint       String    @unique(map: "PushSubscription_endpoint_unique")
+  endpoint       String @unique(map: "PushSubscription_endpoint_unique")
   p256dh         String
   auth           String
   expirationTime BigInt?
   userAgent      String?
   disabledAt     DateTime? @db.Timestamptz(6)
-  lastSeenAt     DateTime  @default(now()) @db.Timestamptz(6)
-  createdAt      DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt      DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  lastSeenAt     DateTime @default(now()) @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "PushSubscription_userId_fkey")
 
@@ -817,20 +817,20 @@ model PushSubscription {
 }
 
 model WeddingMembership {
-  id          String    @id @default(cuid())
+  id          String @id @default(cuid())
   userId      String
-  user        User      @relation("MembershipUser", fields: [userId], references: [id], onDelete: Cascade)
+  user        User   @relation("MembershipUser", fields: [userId], references: [id], onDelete: Cascade)
   weddingId   String
-  wedding     Wedding   @relation(fields: [weddingId], references: [id], onDelete: Cascade)
-  role        String    @default("planner")
-  status      String    @default("invited")
+  wedding     Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  role        String @default("planner")
+  status      String @default("invited")
   permissions String?
   invitedById String?
-  invitedBy   User?     @relation("MembershipInviter", fields: [invitedById], references: [id], onDelete: SetNull)
+  invitedBy   User?  @relation("MembershipInviter", fields: [invitedById], references: [id], onDelete: SetNull)
   acceptedAt  DateTime?
   revokedAt   DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([userId, weddingId])
   @@index([weddingId, status])
@@ -838,16 +838,16 @@ model WeddingMembership {
 }
 
 model ImportJob {
-  id              String  @id @default(cuid())
+  id              String @id @default(cuid())
   moduleKey       String
   fileName        String
   templateVersion String?
-  status          String  @default("preview")
-  totalRows       Int     @default(0)
-  createdCount    Int     @default(0)
-  updatedCount    Int     @default(0)
-  skippedCount    Int     @default(0)
-  errorCount      Int     @default(0)
+  status          String @default("preview")
+  totalRows       Int    @default(0)
+  createdCount    Int    @default(0)
+  updatedCount    Int    @default(0)
+  skippedCount    Int    @default(0)
+  errorCount      Int    @default(0)
   errorReport     String?
   rollbackToken   String?
   rollbackData    String?
@@ -863,11 +863,11 @@ model ImportJob {
 }
 
 model ContentRevision {
-  id            String  @id @default(cuid())
+  id            String   @id @default(cuid())
   section       String
   fieldKey      String
   value         String
-  status        String  @default("draft")
+  status        String   @default("draft")
   previousValue String?
 
   weddingId String
@@ -877,17 +877,17 @@ model ContentRevision {
 
   publishedAt  DateTime?
   scheduledFor DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model ContentSubmission {
-  id             String  @id @default(cuid())
+  id             String   @id @default(cuid())
   type           String
   content        String
   authorName     String
   authorEmail    String?
-  status         String  @default("pending")
+  status         String   @default("pending")
   moderatorNotes String?
 
   weddingId String
@@ -897,12 +897,12 @@ model ContentSubmission {
 
   reviewedBy String?
   reviewedAt DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model AuditEvent {
-  id           String  @id @default(cuid())
+  id           String @id @default(cuid())
   action       String
   resourceType String
   resourceId   String?
@@ -920,7 +920,7 @@ model AuditEvent {
 }
 
 model GoogleSheetsConnection {
-  id              String    @id @default(cuid())
+  id              String   @id @default(cuid())
   spreadsheetId   String
   spreadsheetName String?
   sheetTab        String?
@@ -931,7 +931,7 @@ model GoogleSheetsConnection {
   lastSyncAt      DateTime?
   lastSyncStatus  String?
   lastSyncError   String?
-  isActive        Boolean   @default(true)
+  isActive        Boolean  @default(true)
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
@@ -956,8 +956,8 @@ model QRDestination {
 }
 
 model ThemePreference {
-  id        String   @id @default(cuid())
-  theme     String   @default("system")
+  id        String @id @default(cuid())
+  theme     String @default("system")
   userId    String?
   weddingId String?
   wedding   Wedding? @relation(fields: [weddingId], references: [id])
@@ -967,23 +967,23 @@ model ThemePreference {
 }
 
 model GuestContribution {
-  id              String    @id @default(cuid())
-  guestId         String    @unique
-  guest           Guest     @relation(fields: [guestId], references: [id])
+  id              String @id @default(cuid())
+  guestId         String @unique
+  guest           Guest  @relation(fields: [guestId], references: [id])
   weddingId       String
-  wedding         Wedding   @relation(fields: [weddingId], references: [id])
-  type            String    @default("memory")
+  wedding         Wedding @relation(fields: [weddingId], references: [id])
+  type            String @default("memory")
   displayName     String
   relationship    String?
   message         String
   photoUrl        String?
   favoriteSong    String?
-  privacy         String    @default("public")
-  status          String    @default("draft")
+  privacy         String @default("public")
+  status          String @default("draft")
   moderatorNotes  String?
-  wordCount       Int       @default(0)
-  charCount       Int       @default(0)
-  editCount       Int       @default(0)
+  wordCount       Int @default(0)
+  charCount       Int @default(0)
+  editCount       Int @default(0)
   revisionHistory String?
   submittedAt     DateTime?
   reviewedAt      DateTime?
@@ -994,13 +994,13 @@ model GuestContribution {
 }
 
 model WeddingContent {
-  id        String  @id @default(cuid())
+  id        String @id @default(cuid())
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
   section   String
   field     String
   value     String
-  order     Int     @default(0)
+  order     Int    @default(0)
   metadata  String?
 
   createdAt DateTime @default(now())
@@ -1010,17 +1010,17 @@ model WeddingContent {
 }
 
 model UserProfile {
-  id                 String    @id
-  email              String    @unique
+  id                 String @id
+  email              String @unique
   displayName        String?
   avatarUrl          String?
   bio                String?
-  role               String    @default("viewer")
-  coupleId           String?   @unique
-  couple             Couple?   @relation(fields: [coupleId], references: [id])
-  emailNotifications Boolean   @default(true)
-  marketingEmails    Boolean   @default(false)
-  isBanned           Boolean   @default(false)
+  role               String @default("viewer")
+  coupleId           String? @unique
+  couple             Couple? @relation(fields: [coupleId], references: [id])
+  emailNotifications Boolean @default(true)
+  marketingEmails    Boolean @default(false)
+  isBanned           Boolean @default(false)
   bannedAt           DateTime?
   banReason          String?
   lastLoginAt        DateTime?
@@ -1034,23 +1034,23 @@ model UserProfile {
 }
 
 model Comment {
-  id         String      @id @default(cuid())
+  id         String @id @default(cuid())
   body       String
   targetType String
   targetId   String
   weddingId  String
-  wedding    Wedding     @relation(fields: [weddingId], references: [id])
+  wedding    Wedding @relation(fields: [weddingId], references: [id])
   authorId   String
   author     UserProfile @relation(fields: [authorId], references: [id])
   parentId   String?
-  parent     Comment?    @relation("CommentReplies", fields: [parentId], references: [id])
-  replies    Comment[]   @relation("CommentReplies")
-  status     String      @default("published")
+  parent     Comment? @relation("CommentReplies", fields: [parentId], references: [id])
+  replies    Comment[] @relation("CommentReplies")
+  status     String @default("published")
   flaggedAt  DateTime?
   flagReason String?
   hiddenAt   DateTime?
   hiddenBy   String?
-  likeCount  Int         @default(0)
+  likeCount  Int @default(0)
   likedBy    String?
 
   createdAt DateTime @default(now())
@@ -1129,7 +1129,7 @@ model WeddingPassKey {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @default(now()) @updatedAt
 
-  credentials WeddingPassCredential[]
+  credentials        WeddingPassCredential[]
 
   @@unique([weddingId, keyId])
   @@unique([id, weddingId])
@@ -1160,7 +1160,7 @@ model WeddingPassCredential {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @default(now()) @updatedAt
 
-  checkIns WeddingCheckIn[]
+  checkIns         WeddingCheckIn[]
 
   @@unique([weddingId, passSerial])
   @@unique([id, weddingId])
@@ -1202,7 +1202,6 @@ model WeddingCheckIn {
   @@index([gateId, weddingId])
   @@index([admittedByUserId])
 }
-
 /// QRO07 — a wedding website section the couple/planner controls (enabled + order + layout).
 /// Absence of a row means "default": enabled, default order. Always wedding-scoped.
 model WeddingSiteSection {

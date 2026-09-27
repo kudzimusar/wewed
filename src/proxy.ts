@@ -55,7 +55,6 @@ function requiresDashboardSession(request: NextRequest): boolean {
   if (isProtectedPlannerPage(pathname)) return true
   if (pathname.startsWith('/api/planner/')) return true
   if (pathname === '/api/planner') return true
-  if (pathname === '/api/seed' || pathname === '/api/wedding-content/seed') return true
   if (pathname === '/api/auth/wedding') return true
 
   // Invitation exchange, guest-session self-service, the shared physical-session
@@ -123,8 +122,6 @@ export const config = {
     '/api/rsvp',
     '/api/rsvp/:path*',
     '/api/royalty/:path*',
-    '/api/seed',
-    '/api/wedding-content/seed',
     '/api/auth/wedding',
     '/api/weddings/:path*',
   ],
