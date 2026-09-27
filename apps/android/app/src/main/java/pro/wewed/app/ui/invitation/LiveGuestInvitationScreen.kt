@@ -322,6 +322,8 @@ internal fun weddingCalendarDayUtcMillis(raw: String): Long? {
  */
 @Composable
 private fun NoteFromTheCouple(note: String, onDismiss: () -> Unit) {
+    // QRO06: system Back closes the note; it must not leave the invitation (or the app).
+    BackHandler(onBack = onDismiss)
     Box(
         modifier = Modifier
             .fillMaxSize()

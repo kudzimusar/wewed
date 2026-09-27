@@ -228,6 +228,12 @@ class FinalNativeUiLaneRegressionTest {
         }
     }
 
+    @Test fun systemBackClosesTheCouplesNoteInsteadOfLeavingTheInvitation() {
+        val screen = source("ui/invitation/LiveGuestInvitationScreen.kt")
+        val note = screen.substring(screen.indexOf("private fun NoteFromTheCouple("))
+        assertTrue(note.substring(0, 400).contains("BackHandler(onBack = onDismiss)"))
+    }
+
     private fun source(relative: String): String {
         var dir: File? = File(System.getProperty("user.dir") ?: ".").absoluteFile
         while (dir != null) {
