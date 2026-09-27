@@ -86,6 +86,15 @@ class FinalNativeUiLaneRegressionTest {
         assertTrue(readOnly.contains("WeddingIdentityPalette.Champagne"))
     }
 
+    @Test fun sharedRoleHeaderRespectsAndroidStatusBarInsets() {
+        val shell = source("ui/roles/RoleShellScaffold.kt")
+        assertTrue(
+            "the shared role header must stay below camera/status-bar insets",
+            shell.contains("Column(modifier = Modifier.statusBarsPadding())")
+        )
+    }
+
+
     @Test fun grantTitlesPreferHumanNamesAndNeverFallBackToIdentifiers() {
         val portfolio = grant("planner-dea0757e-cc3d-42f6-a394-abf18e9cf742", GrantWorkspaceKind.PLANNER, GrantScopeKind.PORTFOLIO,
             business = "planner-dea0757e-cc3d-42f6-a394-abf18e9cf742")
