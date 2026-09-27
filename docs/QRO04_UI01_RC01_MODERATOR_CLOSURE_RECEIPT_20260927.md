@@ -12,7 +12,7 @@ The RC01 certifier returned two ordinary bounded defects at `9c79da82` / receipt
 | PR | #221, open and unmerged |
 | Returned receipt head | `e1546d68e994bf90864071cac46f1eff72c6734e` |
 | Android closure commit | `119a08f6ceb81f1d25c2ca43b74b13db43af7896` |
-| iOS closure commit | `b0a4cc6b46b97648e62562aaf5795284e99d4c54` |
+| iOS closure commit | `b0a4cc6b46b97648e62562aaf5795284e99d4c54` |\n| Android shared-role safe-area commit | `3d0787d62011edbcf468878086a96906b376dbce` |\n| Android safe-area regression guard | `ccecb5231aee690af6f22640bfc78210ba81d138` |
 
 ## 2. Defect closure
 
@@ -65,6 +65,29 @@ duplicates the first-class Invitation destination. The persistent Guest navigati
 `Home | Invitation | Pass | Wedding Day | More`
 
 For declined Guests the final Pass surface is `live-guest-pass-declined`, not the pending surface.
+
+## 3A. Visual defect discovered from Android Planner runtime screenshot — PATCHED
+
+A visible Android Professional Planner screenshot showed the shared role header entering the system
+status-bar/display-cutout area: the role title, active wedding and Production badge were positioned
+under the camera/system icons.
+
+This is not Planner-specific. `RoleContextBar` is the common IA V2 role header used by the shared
+role shell, and it did not consume any Android status-bar inset while the app targets SDK 36.
+
+Patched:
+
+- `apps/android/app/src/main/java/pro/wewed/app/ui/roles/RoleShellScaffold.kt`
+- commit `3d0787d62011edbcf468878086a96906b376dbce`
+- `RoleContextBar` now places its content inside `Modifier.statusBarsPadding()`.
+
+Regression guard added:
+
+- `apps/android/app/src/test/java/pro/wewed/app/FinalNativeUiLaneRegressionTest.kt`
+- commit `ccecb5231aee690af6f22640bfc78210ba81d138`
+- source guard prevents the shared role header from losing its status-bar inset again.
+
+This fix deliberately targets the shared role chrome rather than adding a Planner-only fixed margin.
 
 ## 4. Qualification status
 
