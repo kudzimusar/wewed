@@ -715,12 +715,44 @@ private fun LiveGuestMore(
 
         GuestSectionHeading("My details", "guest-more-my-details")
         IACard("Name", profile.guestName, testTag = "live-guest-profile-name")
+        profile.email?.takeIf { it.isNotBlank() }?.let {
+            IACard("Invitation contact", it, testTag = "live-guest-profile-email")
+        }
         IACard(
             "RSVP",
             rsvpLabel(profile.attending),
-            status = if (profile.attending == true) "Attending" else "Not attending",
+            status = when (profile.attending) {
+                true -> "Attending"
+                false -> "Not attending"
+                null -> "Awaiting reply"
+            },
             testTag = "live-guest-profile-rsvp"
         )
+
+        if (profile.attending == true) {
+            val seating = profile.tableName?.takeIf { it.isNotBlank() }
+                ?: profile.tableNumber?.let { "Table $it" }
+            seating?.let {
+                IACard("Seating", it, testTag = "live-guest-profile-seating")
+            }
+
+            IACard(
+                "Party",
+                guestPartySummary(profile),
+                testTag = "live-guest-profile-party"
+            )
+
+            profile.mealChoice?.takeIf { it.isNotBlank() }?.let {
+                IACard("Meal choice", it, testTag = "live-guest-profile-meal")
+            }
+            profile.dietaryNotes?.takeIf { it.isNotBlank() }?.let {
+                IACard("Dietary notes", it, testTag = "live-guest-profile-dietary")
+            }
+        }
+
+        profile.message?.takeIf { it.isNotBlank() }?.let {
+            IACard("Message to the couple", it, testTag = "live-guest-profile-message")
+        }
 
         GuestSectionHeading("This device", "guest-more-device")
         IACard(
@@ -775,6 +807,19 @@ private fun rsvpLabel(attending: Boolean?): String = when (attending) {
     false -> "Response recorded — not attending"
     null -> "Awaiting your reply"
 }
+
+private fun guestPartySummary(profile: LiveInvitationPresentation): String {
+    val parts = mutableListOf("You")
+    if (profile.plusOne) {
+        parts += profile.plusOneName?.takeIf { it.isNotBlank() } ?: "Plus one"
+    }
+    if (profile.kidsAttending && (profile.kidsCount ?: 0) > 0) {
+        val count = profile.kidsCount ?: 0
+        parts += if (count == 1) "1 child" else "$count children"
+    }
+    return parts.joinToString(" · ")
+}
+
 
 /** "23 December 2026" from whatever shape the graph returned. */
 private fun formatWeddingDate(raw: String?): String {
