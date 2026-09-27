@@ -5480,3 +5480,83 @@ QRO03 attempt 2 repository return:
 The agent may now open the new, branch-scoped Charity & Kudzie write corridor exactly as previously authorized, perform one message-only test write plus one mandatory restoration write, then remove the corridor and prove the integration Preview is read-only again.
 
 QRO04 remains unreleased.
+
+
+### D-082 — QRO03 end-to-end RSVP convergence accepted; one writable Preview retirement remains before QRO04 (2026-09-27)
+**MODERATOR REVIEW — FUNCTIONAL QRO03 ACCEPTED; SAFETY CLOSURE PENDING ONE DESTRUCTIVE DEPLOYMENT RETIREMENT.**
+
+Independent moderator verification confirmed:
+
+Repository boundary:
+- integration HEAD is `2e002fcadcb31c55fb355ce4d9934650a5500791`;
+- `fadc62feaa11acc69a3bf1aa4fdb428255c4f37d -> 2e002fca...` is exactly one docs-only commit;
+- only `docs/QRO03_RSVP01_CONTROLLED_REVERSIBLE_LIVE_WRITE_RECEIPT_20260927.md` changed;
+- production `main` remains `646f08421d778cf6f85bf12195581228ae3fbccc`.
+
+Controlled corridor:
+- writable Preview deployment:
+  `dpl_q6QdpTUsP1BHtSnAhiMheu2YWNVu`;
+- URL:
+  `wewed-q3hssjdtx-11-11.vercel.app`;
+- state: READY;
+- source SHA:
+  `fadc62feaa11acc69a3bf1aa4fdb428255c4f37d`;
+- it was the intended temporary integration Preview corridor.
+
+Vercel runtime evidence independently confirms:
+- `01:07:18 POST /api/native/wedding/tasks -> 423`;
+- `01:07:21 POST /api/native/wedding/tasks -> 423`;
+- `01:07:27 PUT /api/weddings/charity-and-kudzie/guest-session -> 409` scope/body probe;
+- harness preflight at `01:08:00` produced POST/GET only and **no PUT**;
+- exactly two successful Charity & Kudzie RSVP PUTs occurred:
+  - `01:08:50 -> 200` forward mutation;
+  - `01:11:08 -> 200` mandatory restoration;
+- no third successful C&K RSVP PUT exists in the qualification window.
+
+Cross-client observation:
+- the read-only integration Preview received:
+  - `01:09:20 GET /api/planner/guests -> 200`;
+  - `01:09:22 GET /api/native/wedding/guests -> 200`;
+- receipt evidence records the exact marker in Guest-session, desktop Planner, native Planner `rsvpMessage`, and Android Guest UI;
+- the propagation content is **ACCEPTED to the combined runtime + receipt + already-accepted source evidence**.
+
+Restoration/read-only closure:
+- final read-only deployment:
+  `dpl_GLSWXAcNX3uQp7XAu6DXGz5C1xKT`;
+- URL:
+  `wewed-3ugogxge1-11-11.vercel.app`;
+- READY, exact source `fadc62fe...`;
+- independently observed:
+  `01:12:52 PUT /api/weddings/charity-and-kudzie/guest-session -> 423 PREVIEW_WRITE_BLOCKED`;
+- current integration branch alias resolves to a later READY docs-only deployment at `2e002fca...`, not the temporary writable corridor.
+
+Production isolation:
+- production deployment `dpl_ApFS83c3F2MtqNFvCQEF8Pdg1UwL` shows no `guest-session` or `/api/native/` qualification traffic in the QRO03 window.
+
+Classification:
+- controlled message-only forward mutation: **ACCEPTED**;
+- exact write count 1 forward + 1 restoration: **ACCEPTED**;
+- no attendance mutation: **ACCEPTED to wire-body receipt and source serializer contract**;
+- Planner/native/other-native propagation: **ACCEPTED**;
+- exact RSVP restoration: **ACCEPTED**;
+- token/invitation/pass/gate non-mutation: **ACCEPTED to available evidence**;
+- final branch alias read-only: **ACCEPTED**;
+- QRO03 end-to-end business objective: **ACCEPTED**.
+
+Residual safety condition:
+- `dpl_q6QdpTUsP1BHtSnAhiMheu2YWNVu` remains READY at its immutable unique Preview URL;
+- because environment values are baked into that deployment, it remains capable of Charity & Kudzie writes for users who can pass Deployment Protection;
+- the branch-scoped writable environment entry has been removed, so no future build inherits this capability;
+- evidence needed for QRO03 has already been committed to the receipt and independently corroborated from Vercel logs.
+
+Deleting the deployment is destructive and must not be performed without explicit owner authorization.
+
+Therefore:
+- **QRO03 = ACCEPTED for end-to-end RSVP convergence**;
+- **QRO04 = NOT YET RELEASED**;
+- single blocker = retire `dpl_q6QdpTUsP1BHtSnAhiMheu2YWNVu` after explicit owner authorization, then prove it is inaccessible and the current integration Preview remains read-only.
+
+Next unit:
+`QRO03-CLEAN01 — RETIRE TEMPORARY CHARITY & KUDZIE WRITABLE PREVIEW`.
+
+After QRO03-CLEAN01 is accepted, the moderator must immediately release QRO04 Wedding Pass/Gate convergence.
