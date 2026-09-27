@@ -66,6 +66,26 @@ class FinalNativeUiLaneRegressionTest {
         assertTrue(root.contains("LiveGuestInvitationScreen(\n                    presentation = LiveInvitationPresentation.from(live.snapshot)"))
     }
 
+    @Test fun pendingGuestCannotBypassRsvpAndCanLeaveRememberedWedding() {
+        val invitation = source("ui/invitation/LiveGuestInvitationScreen.kt")
+        assertTrue(invitation.contains("onContinue = if (presentation.attending == null) null else onContinue"))
+        assertTrue(invitation.contains("invitation-leave-wedding"))
+        val shell = source("ui/invitation/GuestOnlyInvitationShell.kt")
+        assertTrue(shell.contains("GuestCapabilityPolicy.mayEnterPersistentExperience"))
+        assertTrue(shell.contains("onLeaveWedding = onForgetWedding"))
+        val activity = source("MainActivity.kt")
+        assertTrue(activity.contains("private fun leaveGuestMode()"))
+        assertTrue(activity.contains("GuestInvitationBootstrap.forgetGuest(applicationContext)"))
+    }
+
+    @Test fun productionReadOnlySurfaceDoesNotExposeRawPermissionKeysOrBlueFallbackLinks() {
+        val readOnly = source("ui/roles/ProductionReadOnlyWorkspaceContent.kt")
+        assertFalse(readOnly.contains("snapshot.permissions.joinToString"))
+        assertTrue(readOnly.contains("authorized capabilities"))
+        assertTrue(readOnly.contains("Switch workspace"))
+        assertTrue(readOnly.contains("WeddingIdentityPalette.Champagne"))
+    }
+
     @Test fun grantTitlesPreferHumanNamesAndNeverFallBackToIdentifiers() {
         val portfolio = grant("planner-dea0757e-cc3d-42f6-a394-abf18e9cf742", GrantWorkspaceKind.PLANNER, GrantScopeKind.PORTFOLIO,
             business = "planner-dea0757e-cc3d-42f6-a394-abf18e9cf742")
