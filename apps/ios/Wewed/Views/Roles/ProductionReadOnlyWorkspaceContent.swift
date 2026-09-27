@@ -30,7 +30,8 @@ public struct ProductionReadOnlyWorkspaceContent: View {
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(WeddingIdentityPalette.ink)
 
-                Text("\(snapshot.workspaceKind.capitalized) · \(snapshot.scopeKind)")
+                // Human role and scope, never the wire values (e.g. "planner · portfolio").
+                Text("\(WorkspaceGrantPresentation.roleLabel(kind: GrantWorkspaceKind(wire: snapshot.workspaceKind), scope: GrantScopeKind(wire: snapshot.scopeKind))) · \(WorkspaceGrantPresentation.scopeLabel(GrantScopeKind(wire: snapshot.scopeKind)))")
                     .font(.system(size: 12))
                     .foregroundStyle(WeddingIdentityPalette.muted)
 

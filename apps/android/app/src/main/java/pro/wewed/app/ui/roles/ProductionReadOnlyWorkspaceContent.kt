@@ -1,5 +1,10 @@
 package pro.wewed.app.ui.roles
 
+import pro.wewed.app.ui.workspace.WorkspaceGrantPresentation
+import pro.wewed.app.navigation.GrantWorkspaceKind
+import pro.wewed.app.navigation.GrantScopeKind
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -24,11 +29,14 @@ fun ProductionReadOnlyWorkspaceContent(
     onSignOut: (() -> Unit)? = null,
     onSwitchContext: (() -> Unit)? = null,
     onSelectEngagement: ((String) -> Unit)? = null,
+    /** True where this is the whole screen (no role header above it): keep clear of the system bars. */
+    applySystemBarInsets: Boolean = false,
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(WeddingIdentityPalette.Ivory)
+            .then(if (applySystemBarInsets) Modifier.statusBarsPadding().navigationBarsPadding() else Modifier)
             .padding(20.dp)
             .testTag("production-readonly-workspace"),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -40,7 +48,9 @@ fun ProductionReadOnlyWorkspaceContent(
             color = WeddingIdentityPalette.Ink
         )
         Text(
-            "${snapshot.workspaceKind.replaceFirstChar { it.uppercase() }} · ${snapshot.scopeKind}",
+            // Human role and scope, never the wire values (e.g. "planner · portfolio").
+            "${WorkspaceGrantPresentation.roleLabel(GrantWorkspaceKind.fromWire(snapshot.workspaceKind), GrantScopeKind.fromWire(snapshot.scopeKind))} · " +
+                WorkspaceGrantPresentation.scopeLabel(GrantScopeKind.fromWire(snapshot.scopeKind)),
             fontSize = 12.sp,
             color = WeddingIdentityPalette.Muted
         )

@@ -559,6 +559,7 @@ fun RootScreen(
             snapshot = snapshot,
             onSignOut = { sessionViewModel.signOut() },
             onSwitchContext = onOpenContextSwitcher,
+            applySystemBarInsets = true,
         )
         return
     }
@@ -787,6 +788,7 @@ fun RootScreen(
             ProductionReadOnlyWorkspaceContent(
                 snapshot = snapshot,
                 onSelectEngagement = { engagementId -> sessionViewModel.selectEngagement(engagementId) },
+                applySystemBarInsets = true,
             )
             return
         }
