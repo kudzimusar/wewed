@@ -74,8 +74,13 @@ fun ProductionReadOnlyWorkspaceContent(
                 OutlinedButton(
                     onClick = { onSelectEngagement(option.id) },
                     modifier = Modifier.fillMaxWidth().testTag("engagement-option-${option.id}"),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = WeddingIdentityPalette.Ink),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, WeddingIdentityPalette.Champagne)
                 ) {
-                    Text(option.serviceCategory + (option.serviceDescription?.let { " · $it" } ?: ""))
+                    Text(
+                        option.serviceCategory + (option.serviceDescription?.let { " · $it" } ?: ""),
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }
