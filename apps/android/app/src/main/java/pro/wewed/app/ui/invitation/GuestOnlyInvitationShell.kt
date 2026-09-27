@@ -131,7 +131,8 @@ fun GuestOnlyInvitationShell(
                         if (mayEnterPersistentExperience) {
                             navigation = navigation.select(GuestSection.PASS)
                         }
-                    }
+                    },
+                    onLeaveWedding = onForgetWedding
                 )
             } else {
                 LiveGuestShell(
@@ -149,7 +150,8 @@ fun GuestOnlyInvitationShell(
                             onRefreshed = { state = it },
                             onContinue = { navigation = navigation.back() },
                             onBackToWedding = { navigation = navigation.back() },
-                            onViewPass = { navigation = navigation.select(GuestSection.PASS) }
+                            onViewPass = { navigation = navigation.select(GuestSection.PASS) },
+                            onLeaveWedding = onForgetWedding
                         )
                     },
                     onForgetWedding = onForgetWedding
