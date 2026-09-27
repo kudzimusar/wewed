@@ -35,6 +35,7 @@ import pro.wewed.app.invitation.*
 import pro.wewed.app.theme.WeddingBrandMark
 import pro.wewed.app.theme.WeddingIdentityPalette
 import pro.wewed.app.theme.WewedColors
+import pro.wewed.app.state.NativeServerOrigin
 import pro.wewed.app.ui.roles.IACard
 import pro.wewed.app.ui.roles.IASectionList
 import java.text.SimpleDateFormat
@@ -675,7 +676,7 @@ private fun LiveGuestMore(
                 context.startActivity(
                     Intent(
                         Intent.ACTION_VIEW,
-                        Uri.parse("https://wewed.pro/w/${Uri.encode(profile.weddingSlug)}")
+                        Uri.parse(guestWebUrl("/w/${Uri.encode(profile.weddingSlug)}"))
                     )
                 )
             }
@@ -689,7 +690,7 @@ private fun LiveGuestMore(
                 context.startActivity(
                     Intent(
                         Intent.ACTION_VIEW,
-                        Uri.parse("https://wewed.pro/w/${Uri.encode(profile.weddingSlug)}#registry")
+                        Uri.parse(guestWebUrl("/w/${Uri.encode(profile.weddingSlug)}#registry"))
                     )
                 )
             }
@@ -700,7 +701,7 @@ private fun LiveGuestMore(
             trailing = "Open",
             testTag = "guest-more-help",
             onClick = {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wewed.pro/help")))
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(guestWebUrl("/help"))))
             }
         )
         IACard(
@@ -709,7 +710,7 @@ private fun LiveGuestMore(
             trailing = "Open",
             testTag = "guest-more-privacy",
             onClick = {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://wewed.pro/legal")))
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(guestWebUrl("/legal"))))
             }
         )
 
@@ -807,6 +808,10 @@ private fun rsvpLabel(attending: Boolean?): String = when (attending) {
     false -> "Response recorded — not attending"
     null -> "Awaiting your reply"
 }
+
+private fun guestWebUrl(path: String): String =
+    NativeServerOrigin.active.origin.trimEnd('/') + path
+
 
 private fun guestPartySummary(profile: LiveInvitationPresentation): String {
     val parts = mutableListOf("You")
