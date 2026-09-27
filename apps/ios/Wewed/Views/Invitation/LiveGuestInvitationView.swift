@@ -400,7 +400,10 @@ public struct LiveGuestInvitationView: View {
     private func coupleSite(fragment: String?) -> String {
         let slug = presentation.weddingSlug
             .addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? presentation.weddingSlug
-        return "https://wewed.pro/w/\(slug)\(fragment ?? "")"
+        let origin = NativeServerOrigin.active.origin.absoluteString.trimmingCharacters(
+            in: CharacterSet(charactersIn: "/")
+        )
+        return "\(origin)/w/\(slug)\(fragment ?? "")"
     }
 
     private func open(_ url: String) {
