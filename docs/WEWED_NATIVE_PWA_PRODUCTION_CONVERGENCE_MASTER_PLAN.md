@@ -5392,6 +5392,7 @@ Independent moderator verification confirmed:
 - no product/test source changed in the stopped qualification;
 - no write corridor was opened;
 - the receipt records test writes = 0, restoration writes = 0, other wedding business-data writes = 0;
+- Vercel independently corroborates the only Guest-session PUT in the stopped-run window: `00:10:24 PUT /api/weddings/charity-and-kudzie/guest-session -> 423` on Preview `dpl_93NtUPp41dmQQExo2MUDjLkuHi74`; production had no Guest-session/native qualification requests in the same window;
 - `src/app/api/native/wedding/guests/route.ts` independently confirmed the blocker: the route loaded `rsvp: true` but projected only `rsvpStatus`, `partySize`, and `checkedIn`; no existing native account route exposed `RSVP.message`.
 
 Moderator chose closure option (a), not a weakened proof contract.
