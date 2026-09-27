@@ -162,16 +162,10 @@ export function GiftRegistry() {
   const rows = ctx?.getOrdered('registry', 'card-') ?? [];
   const cards = rows.map((row, index) => cardFromContent(row.value, row.metadata, index));
   const heading = ctx?.getContent('registry', 'heading', 'With Gratitude') ?? 'With Gratitude';
-  const subtitle = ctx?.getContent(
-    'registry',
-    'subtitle',
-    'Your presence is the greatest gift. Add any optional gifting information you would like guests to know.',
-  ) ?? 'Your presence is the greatest gift. Add any optional gifting information you would like guests to know.';
-  const culturalNote = ctx?.getContent(
-    'registry',
-    'culturalNote',
-    'Add any family, cultural or gifting tradition you would like to share. This section is optional.',
-  ) ?? 'Add any family, cultural or gifting tradition you would like to share. This section is optional.';
+  // QRO06: guest-facing defaults. The couple's editor prompts ("Add any …") never reach Guests;
+  // an unwritten cultural note is simply not shown.
+  const subtitle = ctx?.getContent('registry', 'subtitle', 'Your presence is the greatest gift.') ?? 'Your presence is the greatest gift.';
+  const culturalNote = (ctx?.getContent('registry', 'culturalNote', '') ?? '').trim();
   const footerMark = [wedding?.monogram || coupleNames(wedding), compactWeddingDate(wedding?.date)].filter(Boolean).join(' · ');
 
   return (
@@ -208,11 +202,13 @@ export function GiftRegistry() {
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
           className="mt-16 text-center"
         >
-          <div className="mx-auto flex max-w-2xl items-center justify-center gap-4">
-            <span className="hidden h-px w-12 bg-gradient-to-r from-transparent to-gold/40 sm:block" />
-            <p className="font-serif text-base italic leading-relaxed text-espresso/70 sm:text-lg">&ldquo;{culturalNote}&rdquo;</p>
-            <span className="hidden h-px w-12 bg-gradient-to-l from-transparent to-gold/40 sm:block" />
-          </div>
+          {culturalNote && (
+            <div className="mx-auto flex max-w-2xl items-center justify-center gap-4">
+              <span className="hidden h-px w-12 bg-gradient-to-r from-transparent to-gold/40 sm:block" />
+              <p className="font-serif text-base italic leading-relaxed text-espresso/70 sm:text-lg">&ldquo;{culturalNote}&rdquo;</p>
+              <span className="hidden h-px w-12 bg-gradient-to-l from-transparent to-gold/40 sm:block" />
+            </div>
+          )}
           {footerMark && <p className="mt-6 wewed-monogram text-xs">{footerMark}</p>}
         </motion.div>
       </div>

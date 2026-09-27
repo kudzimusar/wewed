@@ -35,7 +35,7 @@ let verifyWeddingGuestSessionToken: typeof import('@/lib/wedding-guest-session')
 let invitationVersionFingerprint: typeof import('@/lib/wedding-guest-session')['invitationVersionFingerprint']
 let createGuestBrowserHandoffToken: typeof import('@/lib/guest-browser-handoff')['createGuestBrowserHandoffToken']
 let ISSUE: typeof import('@/app/api/weddings/[slug]/guest-browser-handoff/route')['POST']
-let REDEEM: typeof import('@/app/api/weddings/[slug]/guest-browser-handoff/redeem/route')['GET']
+let REDEEM: typeof import('@/app/api/weddings/[slug]/guest-browser-handoff/redeem/route')['POST']
 
 const run = randomUUID().slice(0, 8)
 const id = (name: string) => `q6-${run}-${name}`
@@ -72,9 +72,23 @@ async function issue(slug: string, guestId: string, weddingId: string, destinati
   )
   return res
 }
-async function redeem(slug: string, exchange: string) {
-  const res = await REDEEM(new NextRequest(new URL(exchange, ORIGIN)), { params: Promise.resolve({ slug }) })
+/** The exchange from an issue response's entry path (it lives in the URL fragment). */
+function exchangeFrom(path: string): string {
+  return new URLSearchParams(path.split('#')[1] ?? '').get('h') ?? ''
+}
+async function redeem(slug: string, h: string) {
+  const res = await REDEEM(
+    new NextRequest(`${ORIGIN}/api/weddings/${slug}/guest-browser-handoff/redeem`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ h }),
+    }),
+    { params: Promise.resolve({ slug }) },
+  )
   return res
+}
+async function landing(res: Response): Promise<string> {
+  return (await res.clone().json()).path
 }
 function setCookies(res: Response): string[] {
   return res.headers.getSetCookie?.() ?? []
@@ -108,7 +122,7 @@ describeLocal('QRO06 native → browser Guest handoff', () => {
     ;({ createWeddingGuestSessionToken, verifyWeddingGuestSessionToken, invitationVersionFingerprint } = await import('@/lib/wedding-guest-session'))
     ;({ createGuestBrowserHandoffToken } = await import('@/lib/guest-browser-handoff'))
     ;({ POST: ISSUE } = await import('@/app/api/weddings/[slug]/guest-browser-handoff/route'))
-    ;({ GET: REDEEM } = await import('@/app/api/weddings/[slug]/guest-browser-handoff/redeem/route'))
+    ;({ POST: REDEEM } = await import('@/app/api/weddings/[slug]/guest-browser-handoff/redeem/route'))
 
     w.A = await wedding('A', 'link_only')
     w.B = await wedding('B', 'link_only')
@@ -135,23 +149,24 @@ describeLocal('QRO06 native → browser Guest handoff', () => {
     // A body-supplied guest identity is ignored: the server-resolved Guest is always used.
     const spoof = await ISSUE(issueRequest(w.A, { destination: 'site', guestId: g.rotated }, valid), { params: Promise.resolve({ slug: w.A }) })
     const spoofBody = await spoof.json()
-    const redeemed = await redeem(w.A, spoofBody.path)
+    const redeemed = await redeem(w.A, exchangeFrom(spoofBody.path))
     expect(verifyWeddingGuestSessionToken(guestCookieFrom(redeemed)!)?.guestId).toBe(g.a)
     const privateWedding = await issue(w.P, g.p, w.P, 'site')
     expect(privateWedding.status).toBe(403)
   })
 
-  test('issue: the exchange URL carries no RSVP token and no session cookie, is private and short-lived', async () => {
+  test('issue: the entry path carries the exchange only in its fragment, no token or cookie, short-lived', async () => {
     const res = await issue(w.A, g.a, w.A, 'registry')
     expect(res.status).toBe(200)
     expect(res.headers.get('cache-control')).toBe('private, no-store, max-age=0')
     const body = await res.json()
-    expect(body.path.startsWith('/')).toBe(true)
     expect(body.url).toBeUndefined()
-    const exchange = new URL(body.path, ORIGIN)
-    expect(exchange.pathname).toBe(`/api/weddings/${w.A}/guest-browser-handoff/redeem`)
-    expect([...exchange.searchParams.keys()]).toEqual(['h'])
-    const h = exchange.searchParams.get('h')!
+    const entry = new URL(body.path, ORIGIN)
+    expect(body.path.startsWith(`/guest-handoff/${w.A}#`)).toBe(true)
+    expect(entry.pathname).toBe(`/guest-handoff/${w.A}`)
+    // Nothing a server, proxy or log would ever see: no query at all.
+    expect(entry.search).toBe('')
+    const h = exchangeFrom(body.path)
     const decoded = Buffer.from(h.split('.')[0], 'base64url').toString('utf8')
     for (const text of [body.path, decoded]) {
       expect(text).not.toContain(`${g.a}-rsvp-token`)
@@ -163,13 +178,11 @@ describeLocal('QRO06 native → browser Guest handoff', () => {
   })
 
   test('redeem: establishes the same Guest browser session and lands only on the allowlisted path', async () => {
-    for (const [destination, path] of [['site', `/w/${w.A}`], ['registry', `/w/${w.A}#registry`]] as const) {
-      const exchange = (await (await issue(w.A, g.a, w.A, destination)).json()).path
-      const res = await redeem(w.A, exchange)
-      expect(res.status).toBe(303)
-      expect(res.headers.get('location')).toBe(path)
-      expect(res.headers.get('referrer-policy')).toBe('no-referrer')
-      expect(res.headers.get('cache-control')).toBe('no-store, max-age=0')
+    for (const [destination, path] of [['site', `/w/${w.A}?view=site`], ['registry', `/w/${w.A}?view=site#registry`]] as const) {
+      const res = await redeem(w.A, exchangeFrom((await (await issue(w.A, g.a, w.A, destination)).json()).path))
+      expect(res.status).toBe(200)
+      expect(await landing(res)).toBe(path)
+      expect(res.headers.get('cache-control')).toBe('private, no-store, max-age=0')
       const session = verifyWeddingGuestSessionToken(guestCookieFrom(res)!)
       expect(session?.weddingId).toBe(w.A)
       expect(session?.guestId).toBe(g.a)
@@ -181,46 +194,45 @@ describeLocal('QRO06 native → browser Guest handoff', () => {
 
   test('redeem: tampered, expired, cross-wedding, rotated and now-private exchanges fail closed', async () => {
     const gateway = (slug: string) => `/w/${slug}?accessError=handoff`
-    const exchange = new URL((await (await issue(w.A, g.a, w.A, 'site')).json()).path, ORIGIN)
-    const h = exchange.searchParams.get('h')!
+    const h = exchangeFrom((await (await issue(w.A, g.a, w.A, 'site')).json()).path)
 
-    // Tampered destination/guest inside the signed payload.
+    // Tampered guest inside the signed payload.
     const [payload, signature] = h.split('.')
     const forged = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'))
     forged.g = g.rotated
     const tampered = `${Buffer.from(JSON.stringify(forged)).toString('base64url')}.${signature}`
-    const cases: Array<[string, string]> = [
-      [w.A, `${ORIGIN}/api/weddings/${w.A}/guest-browser-handoff/redeem?h=${encodeURIComponent(tampered)}`],
-      [w.A, `${ORIGIN}/api/weddings/${w.A}/guest-browser-handoff/redeem?h=garbage`],
-      [w.A, `${ORIGIN}/api/weddings/${w.A}/guest-browser-handoff/redeem`],
-      // A valid exchange for wedding A presented under wedding B's slug.
-      [w.B, `${ORIGIN}/api/weddings/${w.B}/guest-browser-handoff/redeem?h=${encodeURIComponent(h)}`],
-    ]
     const expired = createGuestBrowserHandoffToken({
       weddingId: w.A, guestId: g.a, destination: 'site',
       invitationVersion: invitationVersionFingerprint({ weddingId: w.A, guestId: g.a, rsvpToken: `${g.a}-rsvp-token` }),
     }, Date.now() - 5 * 60_000).token
-    cases.push([w.A, `${ORIGIN}/api/weddings/${w.A}/guest-browser-handoff/redeem?h=${encodeURIComponent(expired)}`])
-    for (const [slug, target] of cases) {
-      const res = await redeem(slug, target)
-      expect(res.status).toBe(303)
-      expect(res.headers.get('location')).toBe(gateway(slug))
+    const cases: Array<[string, string]> = [
+      [w.A, tampered],
+      [w.A, 'garbage'],
+      [w.A, ''],
+      [w.A, expired],
+      // A valid exchange for wedding A presented under wedding B's slug.
+      [w.B, h],
+    ]
+    for (const [slug, exchange] of cases) {
+      const res = await redeem(slug, exchange)
+      expect(res.status).toBe(401)
+      expect(await landing(res)).toBe(gateway(slug))
       expect(guestCookieFrom(res)).toBeNull()
     }
 
     // The invitation is rotated after issue: the outstanding exchange dies with the old link.
-    const rotatedExchange = (await (await issue(w.A, g.rotated, w.A, 'site')).json()).path
+    const rotated = exchangeFrom((await (await issue(w.A, g.rotated, w.A, 'site')).json()).path)
     await exec(`UPDATE public."RSVP" SET token = $1 WHERE "guestId" = $2`, `${g.rotated}-rotated`, g.rotated)
-    const afterRotation = await redeem(w.A, rotatedExchange)
-    expect(afterRotation.headers.get('location')).toBe(gateway(w.A))
+    const afterRotation = await redeem(w.A, rotated)
+    expect(await landing(afterRotation)).toBe(gateway(w.A))
     expect(guestCookieFrom(afterRotation)).toBeNull()
     await exec(`UPDATE public."RSVP" SET token = $1 WHERE "guestId" = $2`, `${g.rotated}-rsvp-token`, g.rotated)
 
     // The wedding is made private after issue.
-    const beforePrivate = (await (await issue(w.B, g.b, w.B, 'site')).json()).path
+    const beforePrivate = exchangeFrom((await (await issue(w.B, g.b, w.B, 'site')).json()).path)
     await exec(`UPDATE public."Wedding" SET privacy = 'private' WHERE id = $1`, w.B)
     const afterPrivate = await redeem(w.B, beforePrivate)
-    expect(afterPrivate.headers.get('location')).toBe(gateway(w.B))
+    expect(await landing(afterPrivate)).toBe(gateway(w.B))
     expect(guestCookieFrom(afterPrivate)).toBeNull()
     await exec(`UPDATE public."Wedding" SET privacy = 'link_only' WHERE id = $1`, w.B)
   })
@@ -228,8 +240,7 @@ describeLocal('QRO06 native → browser Guest handoff', () => {
   test('issue + redeem never mutate RSVP, Guest, Wedding or audit state', async () => {
     const before = await fingerprint([w.A])
     for (const destination of ['site', 'registry']) {
-      const exchange = (await (await issue(w.A, g.a, w.A, destination)).json()).path
-      await redeem(w.A, exchange)
+      await redeem(w.A, exchangeFrom((await (await issue(w.A, g.a, w.A, destination)).json()).path))
     }
     expect(await fingerprint([w.A])).toEqual(before)
   })
@@ -238,6 +249,6 @@ describeLocal('QRO06 native → browser Guest handoff', () => {
     const issueModule = await import('@/app/api/weddings/[slug]/guest-browser-handoff/route')
     const redeemModule = await import('@/app/api/weddings/[slug]/guest-browser-handoff/redeem/route')
     expect(Object.keys(issueModule).filter((k) => /^[A-Z]+$/.test(k))).toEqual(['POST'])
-    expect(Object.keys(redeemModule).filter((k) => /^[A-Z]+$/.test(k))).toEqual(['GET'])
+    expect(Object.keys(redeemModule).filter((k) => /^[A-Z]+$/.test(k))).toEqual(['POST'])
   })
 })

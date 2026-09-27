@@ -37,11 +37,11 @@ function isPhysicalInvitationClaimRoute(
 }
 
 // QRO06: the native → browser Guest handoff authenticates inside its own handlers — issue with
-// the signed Guest session cookie, redeem with the short-lived signed exchange.
+// the signed Guest session cookie, redeem with the short-lived signed exchange (POST body).
 function isGuestBrowserHandoffRoute(pathname: string, method: string): boolean {
   return (
-    (method === 'POST' && /^\/api\/weddings\/[^/]+\/guest-browser-handoff$/.test(pathname)) ||
-    (method === 'GET' && /^\/api\/weddings\/[^/]+\/guest-browser-handoff\/redeem$/.test(pathname))
+    method === 'POST' &&
+    /^\/api\/weddings\/[^/]+\/guest-browser-handoff(?:\/redeem)?$/.test(pathname)
   )
 }
 

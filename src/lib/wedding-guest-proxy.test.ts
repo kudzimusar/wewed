@@ -26,10 +26,10 @@ describe('wedding guest API proxy boundary', () => {
     const blocked = async (method: string, path: string) =>
       (await proxy(new NextRequest(`http://localhost${path}`, { method })))?.status === 401
     expect(await blocked('POST', '/api/weddings/w/guest-browser-handoff')).toBe(false)
-    expect(await blocked('GET', '/api/weddings/w/guest-browser-handoff/redeem')).toBe(false)
+    expect(await blocked('POST', '/api/weddings/w/guest-browser-handoff/redeem')).toBe(false)
     for (const [method, path] of [
       ['GET', '/api/weddings/w/guest-browser-handoff'],
-      ['POST', '/api/weddings/w/guest-browser-handoff/redeem'],
+      ['GET', '/api/weddings/w/guest-browser-handoff/redeem'],
       ['POST', '/api/weddings/w/guest-browser-handoff/extra'],
       ['GET', '/api/weddings/w/guest-browser-handoff/redeem/x'],
       ['GET', '/api/weddings/w/guests'],

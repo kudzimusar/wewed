@@ -152,7 +152,15 @@ function WeddingHomeContent({
         nextVisible = true
       } else {
         const skipOnce = window.sessionStorage.getItem(invitationSkipKey) === '1'
-        if (skipOnce) {
+        // QRO06: a native app's Couple Website / Gifts handoff lands with `view=site` — an explicit
+        // request for the site, honoured once and stripped so a reload still shows the invitation.
+        const url = new URL(window.location.href)
+        const siteRequested = url.searchParams.get('view') === 'site'
+        if (siteRequested) {
+          url.searchParams.delete('view')
+          window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+        }
+        if (skipOnce || siteRequested) {
           window.sessionStorage.removeItem(invitationSkipKey)
         } else {
           // A full wedding-site entry with an existing invited-guest session is a fresh

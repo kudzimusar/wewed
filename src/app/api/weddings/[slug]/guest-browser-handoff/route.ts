@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import {
   createGuestBrowserHandoffToken,
+  guestBrowserHandoffEntryPath,
   isGuestBrowserHandoffDestination,
 } from '@/lib/guest-browser-handoff'
 import { invitationVersionFingerprint, readWeddingGuestSession } from '@/lib/wedding-guest-session'
@@ -51,7 +52,8 @@ export async function POST(request: NextRequest, { params }: Params) {
     destination: body.destination,
   })
   // A RELATIVE path: each client joins it to the one origin it already trusts (its lane), so the
-  // response can never point the Guest's browser at another host.
-  const path = `/api/weddings/${encodeURIComponent(wedding.slug)}/guest-browser-handoff/redeem?${new URLSearchParams({ h: token })}`
+  // response can never point the Guest's browser at another host. The exchange rides in the
+  // fragment, so it never appears in a request line or log.
+  const path = guestBrowserHandoffEntryPath(wedding.slug, token)
   return noStore({ success: true, path, expiresAt: new Date(expiresAt).toISOString() }, 200)
 }

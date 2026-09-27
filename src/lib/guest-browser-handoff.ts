@@ -16,11 +16,13 @@ import { primarySessionSigningSecret } from '@/lib/session-signing-secret'
  *  1. The native app, holding an ALREADY VALID Guest session, asks
  *     `POST /api/weddings/{slug}/guest-browser-handoff` for one allowlisted destination KEY.
  *     The Guest is identified from that server-verified session only — never from a UI value.
- *  2. The server returns a short-lived signed exchange URL. It carries no RSVP token and no
+ *  2. The server returns a short-lived signed exchange, carried in the URL fragment of a Wewed
+ *     entry page (never sent to a server, so never in request logs). It carries no RSVP token and no
  *     session cookie: only the wedding + Guest identifiers, the HMAC invitation-version
  *     fingerprint (itself keyed; it does not reveal the token), the destination key, an expiry and
  *     a nonce, signed with a domain-separated key.
- *  3. The browser opens `…/guest-browser-handoff/redeem?h=…`. Redemption re-reads the wedding,
+ *  3. The browser opens `/guest-handoff/{slug}#h=…`, which POSTs the exchange to
+ *     `…/guest-browser-handoff/redeem`. Redemption re-reads the wedding,
  *     the Guest and the CURRENT invitation: a rotated token, a Guest moved to another wedding, a
  *     wedding made `private`, an expired or tampered exchange all fail closed to the access
  *     gateway. Success issues Wewed's normal browser Guest session and redirects to a path the
@@ -40,10 +42,23 @@ export function isGuestBrowserHandoffDestination(value: unknown): value is Guest
   return typeof value === 'string' && (GUEST_BROWSER_HANDOFF_DESTINATIONS as readonly string[]).includes(value)
 }
 
-/** The only places a redeemed handoff may land. Server-derived; never taken from a request. */
+/**
+ * The only places a redeemed handoff may land. Server-derived; never taken from a request.
+ * `view=site` tells the wedding page this entry is an explicit request for the Couple Website, so
+ * it skips the invitation cover once (the page strips the marker immediately).
+ */
 export function guestBrowserHandoffDestinationPath(slug: string, destination: GuestBrowserHandoffDestination): string {
-  const base = `/w/${encodeURIComponent(slug)}`
+  const base = `/w/${encodeURIComponent(slug)}?view=site`
   return destination === 'registry' ? `${base}#registry` : base
+}
+
+/**
+ * The browser entry the native app opens. The signed exchange travels in the URL FRAGMENT, which
+ * browsers never send to a server — so it cannot reach request logs, proxies or a Referer. The page
+ * removes it from history and POSTs it to the redeem endpoint.
+ */
+export function guestBrowserHandoffEntryPath(slug: string, token: string): string {
+  return `/guest-handoff/${encodeURIComponent(slug)}#${new URLSearchParams({ h: token })}`
 }
 
 export interface GuestBrowserHandoffClaims {
