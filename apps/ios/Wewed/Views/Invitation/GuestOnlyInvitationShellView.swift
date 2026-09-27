@@ -12,6 +12,7 @@ import SwiftUI
 public struct GuestOnlyInvitationShellView: View {
     private let coordinator: LiveGuestInvitationCoordinator
     private let initialURL: URL?
+    private let onLeaveGuestMode: (() -> Void)?
 
     @State private var requestVersion = 0
     @State private var state: LiveInvitationState = .idle
@@ -43,9 +44,14 @@ public struct GuestOnlyInvitationShellView: View {
         ceremonial = false
     }
 
-    public init(coordinator: LiveGuestInvitationCoordinator = GuestInvitationBootstrap.coordinator(), initialURL: URL? = nil) {
+    public init(
+        coordinator: LiveGuestInvitationCoordinator = GuestInvitationBootstrap.coordinator(),
+        initialURL: URL? = nil,
+        onLeaveGuestMode: (() -> Void)? = nil
+    ) {
         self.initialURL = initialURL
         self.coordinator = coordinator
+        self.onLeaveGuestMode = onLeaveGuestMode
     }
 
     private func handle(_ url: URL) {
@@ -134,6 +140,7 @@ public struct GuestOnlyInvitationShellView: View {
         returnDestination = .home
         ceremonial = true
             state = .idle
+            onLeaveGuestMode?()
         }
     }
 
@@ -163,7 +170,8 @@ public struct GuestOnlyInvitationShellView: View {
                             selectedDestination = .pass
                             ceremonial = false
                         }
-                    }
+                    },
+                    onLeaveWedding: forgetWedding
                 )
             } else {
                 LiveGuestShellView(
@@ -178,7 +186,8 @@ public struct GuestOnlyInvitationShellView: View {
                             onRefreshed: { state = $0 },
                             onContinue: backToWedding,
                             onBackToWedding: backToWedding,
-                            onViewPass: { selectedDestination = .pass; ceremonial = false }
+                            onViewPass: { selectedDestination = .pass; ceremonial = false },
+                            onLeaveWedding: forgetWedding
                         ))
                     },
                     onForgetWedding: forgetWedding

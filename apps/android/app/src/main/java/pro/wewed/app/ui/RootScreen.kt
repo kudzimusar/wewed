@@ -233,7 +233,11 @@ fun RootScreen(
                     presentation = LiveInvitationPresentation.from(live.snapshot),
                     coordinator = liveCoordinator,
                     onRefreshed = { liveInvitation = it },
-                    onContinue = { liveInvitation = LiveInvitationState.Idle }
+                    onContinue = { liveInvitation = LiveInvitationState.Idle },
+                    onLeaveWedding = {
+                        GuestInvitationBootstrap.forgetGuest(androidContext)
+                        liveInvitation = LiveInvitationState.Idle
+                    }
                 )
             }
             return
@@ -555,6 +559,7 @@ fun RootScreen(
             snapshot = snapshot,
             onSignOut = { sessionViewModel.signOut() },
             onSwitchContext = onOpenContextSwitcher,
+            applySystemBarInsets = true,
         )
         return
     }
@@ -783,6 +788,7 @@ fun RootScreen(
             ProductionReadOnlyWorkspaceContent(
                 snapshot = snapshot,
                 onSelectEngagement = { engagementId -> sessionViewModel.selectEngagement(engagementId) },
+                applySystemBarInsets = true,
             )
             return
         }

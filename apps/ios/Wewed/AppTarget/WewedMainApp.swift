@@ -38,6 +38,7 @@ private struct PreviewOriginRejectedView: View {
 @main
 struct WewedMainApp: App {
     @StateObject private var session: SessionStore
+    @State private var guestOnlyActive: Bool
     private let mode: AppLaunchMode
     private let previewOriginRejection: NativePreviewOriginRejection?
 
@@ -46,11 +47,17 @@ struct WewedMainApp: App {
         // One server for every real client in this process, chosen before any client exists.
         // Release is always https://wewed.pro.
         NativeServerOrigin.activate(launch.lane)
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["WEWED_GUEST_UI_CLEAR_SESSION"] == "1" {
+            GuestInvitationBootstrap.clearRememberedGuestForUITest()
+        }
+        #endif
         previewOriginRejection = launch.previewOriginRejection
         if previewOriginRejection != nil {
             // Fail closed before any client exists: an empty session with no authority client, and
             // no workspace (the body renders PreviewOriginRejectedView instead of any mode).
             _session = StateObject(wrappedValue: SessionStore(environment: .production))
+            _guestOnlyActive = State(initialValue: false)
             self.mode = .guestOnly
             return
         }
@@ -63,11 +70,12 @@ struct WewedMainApp: App {
         // persona may be applied at all. It starts empty: no identity, role or wedding until
         // something with authority supplies one (master plan §8.2).
         let store: SessionStore
-        if launch.environment == .production && !rememberedGuest {
+        if launch.environment == .production {
             store = SessionStore(
                 storage: KeychainSecureStorage(service: launch.lane.keychainService("pro.wewed.app.account-session")),
                 environment: .production,
-                authorityClient: ProductionAuthorityClient(baseURL: launch.lane.origin)
+                authorityClient: ProductionAuthorityClient(baseURL: launch.lane.origin),
+                restoreImmediately: !rememberedGuest
             )
         } else {
             store = SessionStore(environment: launch.environment)
@@ -82,15 +90,13 @@ struct WewedMainApp: App {
         }
         _session = StateObject(wrappedValue: store)
 
+        _guestOnlyActive = State(initialValue: rememberedGuest)
+
         do {
-            // Remembered Guest identity stays a separate front door. An ordinary production icon
-            // launch with a Guest session goes to Guest Home; otherwise Phase-5 account bootstrap
-            // owns the production workspace.
-            if rememberedGuest {
-                self.mode = .guestOnly
-            } else {
-                self.mode = try AppLaunchModeResolver.resolve(configuration: launch)
-            }
+            // Always construct the production workspace mode too. A remembered Guest owns the
+            // visible front door, but may explicitly leave that wedding and return to account
+            // sign-in/workspace without force-quitting the app.
+            self.mode = try AppLaunchModeResolver.resolve(configuration: launch)
         } catch {
             preconditionFailure("Wewed repository initialization failed for \(launch.environment): \(error)")
         }
@@ -123,13 +129,20 @@ struct WewedMainApp: App {
     }
 
     @ViewBuilder private var modeContent: some View {
-        switch mode {
-        case let .workspace(appState):
-            WorkspaceHostView(appState: appState, session: session)
-        case .guestOnly:
-            // Guest-only: no planner, couple, vendor or admin surface exists in this shell,
-            // because it has no repository with which to reach one.
-            GuestOnlyInvitationShellView()
+        if guestOnlyActive {
+            // Guest identity remains a separate front door. Leaving this wedding clears only the
+            // Guest session, then resumes the normal account bootstrap in this same process.
+            GuestOnlyInvitationShellView(onLeaveGuestMode: {
+                guestOnlyActive = false
+                session.restoreSession()
+            })
+        } else {
+            switch mode {
+            case let .workspace(appState):
+                WorkspaceHostView(appState: appState, session: session)
+            case .guestOnly:
+                GuestOnlyInvitationShellView()
+            }
         }
     }
 }

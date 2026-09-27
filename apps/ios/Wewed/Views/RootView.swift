@@ -341,7 +341,13 @@ public struct RootView: View {
                     presentation: LiveInvitationPresentation.from(snapshot),
                     coordinator: liveCoordinator,
                     onRefreshed: { liveInvitation = $0 },
-                    onContinue: { liveInvitation = .idle }
+                    onContinue: { liveInvitation = .idle },
+                    onLeaveWedding: {
+                        Task {
+                            await liveCoordinator.forgetGuest()
+                            liveInvitation = .idle
+                        }
+                    }
                 )
             } else if case let .refused(reason) = liveInvitation {
                 // Refused and unavailable mean opposite things to a guest, so they are never

@@ -66,6 +66,35 @@ class FinalNativeUiLaneRegressionTest {
         assertTrue(root.contains("LiveGuestInvitationScreen(\n                    presentation = LiveInvitationPresentation.from(live.snapshot)"))
     }
 
+    @Test fun pendingGuestCannotBypassRsvpAndCanLeaveRememberedWedding() {
+        val invitation = source("ui/invitation/LiveGuestInvitationScreen.kt")
+        assertTrue(invitation.contains("onContinue = if (presentation.attending == null) null else onContinue"))
+        assertTrue(invitation.contains("invitation-leave-wedding"))
+        val shell = source("ui/invitation/GuestOnlyInvitationShell.kt")
+        assertTrue(shell.contains("GuestCapabilityPolicy.mayEnterPersistentExperience"))
+        assertTrue(shell.contains("onLeaveWedding = onForgetWedding"))
+        val activity = source("MainActivity.kt")
+        assertTrue(activity.contains("private fun leaveGuestMode()"))
+        assertTrue(activity.contains("GuestInvitationBootstrap.forgetGuest(applicationContext)"))
+    }
+
+    @Test fun productionReadOnlySurfaceDoesNotExposeRawPermissionKeysOrBlueFallbackLinks() {
+        val readOnly = source("ui/roles/ProductionReadOnlyWorkspaceContent.kt")
+        assertFalse(readOnly.contains("snapshot.permissions.joinToString"))
+        assertTrue(readOnly.contains("authorized capabilities"))
+        assertTrue(readOnly.contains("Switch workspace"))
+        assertTrue(readOnly.contains("WeddingIdentityPalette.Champagne"))
+    }
+
+    @Test fun sharedRoleHeaderRespectsAndroidStatusBarInsets() {
+        val shell = source("ui/roles/RoleShellScaffold.kt")
+        assertTrue(
+            "the shared role header must stay below camera/status-bar insets",
+            shell.contains("Column(modifier = Modifier.statusBarsPadding())")
+        )
+    }
+
+
     @Test fun grantTitlesPreferHumanNamesAndNeverFallBackToIdentifiers() {
         val portfolio = grant("planner-dea0757e-cc3d-42f6-a394-abf18e9cf742", GrantWorkspaceKind.PLANNER, GrantScopeKind.PORTFOLIO,
             business = "planner-dea0757e-cc3d-42f6-a394-abf18e9cf742")
@@ -122,6 +151,34 @@ class FinalNativeUiLaneRegressionTest {
         serviceEngagementIds = emptyList(), permissions = emptyList(), platformRoles = emptyList(),
     )
 
+
+    @Test fun rsvpFormConsumesSystemBackInsteadOfClosingTheApp() {
+        val screen = source("ui/invitation/LiveGuestInvitationScreen.kt")
+        val form = screen.substring(screen.indexOf("fun LiveRsvpForm("))
+        assertTrue("the RSVP form must close on Back, not finish the Activity",
+            form.contains("BackHandler(enabled = !isSubmitting, onBack = onDismiss)"))
+    }
+
+    @Test fun workspaceSelectorKeepsContentOutOfTheSystemBars() {
+        val selection = source("ui/workspace/WorkspaceSelection.kt")
+        val screen = selection.substring(selection.indexOf("fun WorkspaceGrantSelectionScreen("), selection.indexOf("fun WorkspaceContextSwitcherDialog("))
+        assertTrue(screen.contains(".statusBarsPadding()") && screen.contains(".navigationBarsPadding()"))
+    }
+
+    @Test fun fullScreenReadOnlyWorkspaceIsInsetAndShowsNoWireKinds() {
+        val content = source("ui/roles/ProductionReadOnlyWorkspaceContent.kt")
+        assertTrue(content.contains("if (applySystemBarInsets) Modifier.statusBarsPadding().navigationBarsPadding() else Modifier"))
+        assertFalse("wire kind/scope must not be shown", content.contains("\${snapshot.workspaceKind.replaceFirstChar"))
+        val root = source("ui/RootScreen.kt")
+        assertEquals(2, Regex("applySystemBarInsets = true").findAll(root).count())
+    }
+
+    @Test fun productionInvitationsQrNeverClaimsNoneConfiguredForUnloadedData() {
+        val workspaces = source("ui/roles/RoleWorkspaces.kt")
+        assertTrue(workspaces.contains("destinationsLoaded = appViewModel.dataEnvironment != NativeDataEnvironment.PRODUCTION"))
+        val sections = source("ui/roles/ProductionDataSections.kt")
+        assertTrue(sections.indexOf("if (!destinationsLoaded)") < sections.indexOf("\"No scan destinations are configured for this wedding.\""))
+    }
     private fun source(relative: String): String {
         var dir: File? = File(System.getProperty("user.dir") ?: ".").absoluteFile
         while (dir != null) {

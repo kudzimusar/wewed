@@ -1,5 +1,10 @@
 package pro.wewed.app.ui.roles
 
+import pro.wewed.app.ui.workspace.WorkspaceGrantPresentation
+import pro.wewed.app.navigation.GrantWorkspaceKind
+import pro.wewed.app.navigation.GrantScopeKind
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -24,11 +29,14 @@ fun ProductionReadOnlyWorkspaceContent(
     onSignOut: (() -> Unit)? = null,
     onSwitchContext: (() -> Unit)? = null,
     onSelectEngagement: ((String) -> Unit)? = null,
+    /** True where this is the whole screen (no role header above it): keep clear of the system bars. */
+    applySystemBarInsets: Boolean = false,
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(WeddingIdentityPalette.Ivory)
+            .then(if (applySystemBarInsets) Modifier.statusBarsPadding().navigationBarsPadding() else Modifier)
             .padding(20.dp)
             .testTag("production-readonly-workspace"),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -40,7 +48,9 @@ fun ProductionReadOnlyWorkspaceContent(
             color = WeddingIdentityPalette.Ink
         )
         Text(
-            "${snapshot.workspaceKind.replaceFirstChar { it.uppercase() }} · ${snapshot.scopeKind}",
+            // Human role and scope, never the wire values (e.g. "planner · portfolio").
+            "${WorkspaceGrantPresentation.roleLabel(GrantWorkspaceKind.fromWire(snapshot.workspaceKind), GrantScopeKind.fromWire(snapshot.scopeKind))} · " +
+                WorkspaceGrantPresentation.scopeLabel(GrantScopeKind.fromWire(snapshot.scopeKind)),
             fontSize = 12.sp,
             color = WeddingIdentityPalette.Muted
         )
@@ -51,12 +61,15 @@ fun ProductionReadOnlyWorkspaceContent(
             ReadOnlyRow("Venue", listOf(wedding.venue, wedding.venueCity, wedding.venueCountry).filter { it.isNotBlank() }.joinToString(", "))
             ReadOnlyRow("Lifecycle", wedding.lifecycle)
         } ?: run {
-            (snapshot.businessName ?: snapshot.businessAccountId)?.let { ReadOnlyRow("Business", it) }
-            if (snapshot.scopeKind == "system") ReadOnlyRow("Scope", "Wewed platform")
+            if (snapshot.scopeKind == "system") {
+                ReadOnlyRow("Scope", "Wewed platform")
+            } else {
+                ReadOnlyRow("Business", snapshot.businessName?.takeIf { it.isNotBlank() } ?: "Business workspace")
+            }
         }
 
         if (snapshot.permissions.isNotEmpty()) {
-            ReadOnlyRow("Permissions", snapshot.permissions.joinToString(", "))
+            ReadOnlyRow("Access", "${snapshot.permissions.size} authorized capabilities")
         }
         if (snapshot.platformRoles.isNotEmpty()) {
             ReadOnlyRow("Platform role", snapshot.platformRoles.joinToString(", "))
@@ -74,8 +87,13 @@ fun ProductionReadOnlyWorkspaceContent(
                 OutlinedButton(
                     onClick = { onSelectEngagement(option.id) },
                     modifier = Modifier.fillMaxWidth().testTag("engagement-option-${option.id}"),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = WeddingIdentityPalette.Ink),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, WeddingIdentityPalette.Champagne)
                 ) {
-                    Text(option.serviceCategory + (option.serviceDescription?.let { " · $it" } ?: ""))
+                    Text(
+                        option.serviceCategory + (option.serviceDescription?.let { " · $it" } ?: ""),
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }
@@ -88,14 +106,23 @@ fun ProductionReadOnlyWorkspaceContent(
         )
 
         onSwitchContext?.let {
-            TextButton(onClick = it, modifier = Modifier.testTag("production-readonly-switch-context")) {
-                Text("Switch context")
+            OutlinedButton(
+                onClick = it,
+                modifier = Modifier.fillMaxWidth().testTag("production-readonly-switch-context"),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = WeddingIdentityPalette.Ink),
+                border = androidx.compose.foundation.BorderStroke(1.dp, WeddingIdentityPalette.Champagne)
+            ) {
+                Text("Switch workspace", fontWeight = FontWeight.SemiBold)
             }
         }
 
         onSignOut?.let {
-            TextButton(onClick = it, modifier = Modifier.testTag("production-readonly-sign-out")) {
-                Text("Sign out")
+            TextButton(
+                onClick = it,
+                modifier = Modifier.fillMaxWidth().testTag("production-readonly-sign-out"),
+                colors = ButtonDefaults.textButtonColors(contentColor = WeddingIdentityPalette.Muted)
+            ) {
+                Text("Sign out", fontWeight = FontWeight.SemiBold)
             }
         }
     }

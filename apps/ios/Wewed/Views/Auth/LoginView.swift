@@ -156,6 +156,12 @@ public struct LoginView: View {
             }
             .wewedBoundedWidth(horizontalInset: 28)
         }
-        .accessibilityIdentifier("sign-in-root")
+        // Do not attach the root identifier to the container itself: SwiftUI propagates container
+        // identifiers to descendants and can mask the email/password/submit identifiers.
+        .overlay(alignment: .topLeading) {
+            Color.clear
+                .frame(width: 1, height: 1)
+                .accessibilityIdentifier("sign-in-root")
+        }
     }
 }

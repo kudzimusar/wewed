@@ -1,5 +1,6 @@
 package pro.wewed.app.ui.invitation
 
+import androidx.activity.compose.BackHandler
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
@@ -53,7 +54,8 @@ fun LiveGuestInvitationScreen(
     onRefreshed: (LiveInvitationState) -> Unit,
     onContinue: () -> Unit,
     onBackToWedding: (() -> Unit)? = null,
-    onViewPass: (() -> Unit)? = null
+    onViewPass: (() -> Unit)? = null,
+    onLeaveWedding: (() -> Unit)? = null
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -209,6 +211,23 @@ fun LiveGuestInvitationScreen(
                         onContinue = if (presentation.attending == null) null else onContinue
                     )
                 )
+            }
+
+            if (presentation.attending == null && onLeaveWedding != null) {
+                TextButton(
+                    onClick = onLeaveWedding,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 46.dp)
+                        .testTag("invitation-leave-wedding")
+                ) {
+                    Text(
+                        "Not your invitation? Leave this wedding",
+                        color = WeddingIdentityPalette.Muted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
 
@@ -509,6 +528,10 @@ private fun LiveRsvpForm(
         // Always sent: a message to the couple is meaningful whether or not the guest is attending.
         message = message.trim(),
     )
+
+    // System Back closes the RSVP form exactly like tapping the scrim; without this the gesture fell
+    // through to the Activity and closed the app mid-RSVP (QRO04-UI01-RC02). Disabled while saving.
+    BackHandler(enabled = !isSubmitting, onBack = onDismiss)
 
     Box(
         modifier = Modifier

@@ -70,7 +70,7 @@ fun GuestOnlyInvitationShell(
     // A replacement link restages it: Guest B arriving is a new arrival, and dropping them
     // straight into a card that just said someone else's name reads as a glitch.
     var splashComplete by remember(entry) { mutableStateOf(false) }
-    if (!splashComplete && hasIncomingInvitation) {
+    if (!splashComplete && (hasIncomingInvitation || entry != null)) {
         WewedAnimatedSplash(
             destination = SplashDestination.INVITATION,
             onFinished = { splashComplete = true }
@@ -84,7 +84,9 @@ fun GuestOnlyInvitationShell(
     // opens on Home, because replaying the whole card every time someone checks their table would
     // be tiresome rather than ceremonial. The invitation is always one tap away either way.
     val opensOnInvitation = GuestCeremonialEntry.opensOnInvitation(
-        isExplicitInvitationArrival = hasIncomingInvitation
+        // A warm replacement link is also an explicit arrival. The Activity launch flag describes
+        // only the original launch; entry changes later when Guest B arrives on the same process.
+        isExplicitInvitationArrival = hasIncomingInvitation || entry != null
     )
     var navigation by remember(entry) { mutableStateOf(GuestNavigation(
         selected = if (opensOnInvitation) GuestSection.INVITATION else GuestSection.HOME,
@@ -131,7 +133,8 @@ fun GuestOnlyInvitationShell(
                         if (mayEnterPersistentExperience) {
                             navigation = navigation.select(GuestSection.PASS)
                         }
-                    }
+                    },
+                    onLeaveWedding = onForgetWedding
                 )
             } else {
                 LiveGuestShell(
@@ -149,7 +152,8 @@ fun GuestOnlyInvitationShell(
                             onRefreshed = { state = it },
                             onContinue = { navigation = navigation.back() },
                             onBackToWedding = { navigation = navigation.back() },
-                            onViewPass = { navigation = navigation.select(GuestSection.PASS) }
+                            onViewPass = { navigation = navigation.select(GuestSection.PASS) },
+                            onLeaveWedding = onForgetWedding
                         )
                     },
                     onForgetWedding = onForgetWedding

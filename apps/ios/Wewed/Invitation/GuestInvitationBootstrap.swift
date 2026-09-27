@@ -60,6 +60,19 @@ public enum GuestInvitationBootstrap {
         KeychainSecureStorage(service: guestSessionService).get(key: "wewed.guest.session") != nil
     }
 
+    #if DEBUG
+    /// UI-test seam: clears only the Guest session for the active server lane before app routing.
+    ///
+    /// This prevents a synthetic loopback Guest from being restored by a later production-lane
+    /// smoke test. It never touches the account session and is compiled out of Release.
+    public static func clearRememberedGuestForUITest() {
+        let storage = KeychainSecureStorage(service: guestSessionService)
+        storage.delete(key: "wewed.guest.session")
+        storage.delete(key: "wewed.guest.session.slug")
+        reset()
+    }
+    #endif
+
     /// Test seam. Never called by the app.
     static func reset() {
         lock.lock()

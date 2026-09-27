@@ -43,6 +43,15 @@ describe('final-native UI certification lanes', () => {
     expect(script).not.toMatch(/"\$root\/android"|\$root\/android\/|(^|[\s"'(])\.?\/?android\/gradlew/m)
   })
 
+  test('pending Guest tests follow the RSVP-first contract instead of the removed Continue control', () => {
+    const ios = read('apps/ios/GuestProfileUITests/GuestProfileUITests.swift')
+    const android = read('apps/android/app/src/androidTest/java/pro/wewed/app/invitation/GuestProfileUiTests.kt')
+    expect(ios).not.toContain('tap("invitation-continue")')
+    expect(android).not.toContain('tap("invitation-continue")')
+    expect(ios).toContain('invitation-rsvp-prompt')
+    expect(android).toContain('invitation-rsvp-prompt')
+  })
+
   test('the GuestProfile suites are classified as FINAL NATIVE GUEST SURFACE tests', () => {
     expect(manifest.finalNativeGuestSurfaceTests.classification).toBe('FINAL NATIVE GUEST SURFACE')
     expect(read('apps/ios/GuestProfileUITests/GuestProfileUITests.swift')).toContain('FINAL NATIVE GUEST SURFACE')

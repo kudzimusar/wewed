@@ -30,7 +30,8 @@ public struct ProductionReadOnlyWorkspaceContent: View {
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(WeddingIdentityPalette.ink)
 
-                Text("\(snapshot.workspaceKind.capitalized) · \(snapshot.scopeKind)")
+                // Human role and scope, never the wire values (e.g. "planner · portfolio").
+                Text("\(WorkspaceGrantPresentation.roleLabel(kind: GrantWorkspaceKind(wire: snapshot.workspaceKind), scope: GrantScopeKind(wire: snapshot.scopeKind))) · \(WorkspaceGrantPresentation.scopeLabel(GrantScopeKind(wire: snapshot.scopeKind)))")
                     .font(.system(size: 12))
                     .foregroundStyle(WeddingIdentityPalette.muted)
 
@@ -44,17 +45,20 @@ public struct ProductionReadOnlyWorkspaceContent: View {
                             .joined(separator: ", ")
                     )
                     ReadOnlyRow(label: "Lifecycle", value: wedding.lifecycle)
+                } else if snapshot.scopeKind == "system" {
+                    ReadOnlyRow(label: "Scope", value: "Wewed platform")
                 } else {
-                    if let business = snapshot.businessName ?? snapshot.businessAccountId {
-                        ReadOnlyRow(label: "Business", value: business)
-                    }
-                    if snapshot.scopeKind == "system" {
-                        ReadOnlyRow(label: "Scope", value: "Wewed platform")
-                    }
+                    ReadOnlyRow(
+                        label: "Business",
+                        value: snapshot.businessName?.isEmpty == false ? snapshot.businessName! : "Business workspace"
+                    )
                 }
 
                 if !snapshot.permissions.isEmpty {
-                    ReadOnlyRow(label: "Permissions", value: snapshot.permissions.joined(separator: ", "))
+                    ReadOnlyRow(
+                        label: "Access",
+                        value: "\(snapshot.permissions.count) authorized capabilities"
+                    )
                 }
                 if !snapshot.platformRoles.isEmpty {
                     ReadOnlyRow(label: "Platform role", value: snapshot.platformRoles.joined(separator: ", "))
@@ -78,8 +82,18 @@ public struct ProductionReadOnlyWorkspaceContent: View {
                             onSelectEngagement(option.id)
                         } label: {
                             Text(option.serviceDescription.map { "\(option.serviceCategory) · \($0)" } ?? option.serviceCategory)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(WeddingIdentityPalette.ink)
+                                .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
+                                .padding(.horizontal, 12)
+                                .background(WeddingIdentityPalette.ivorySoft)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 13)
+                                        .stroke(WeddingIdentityPalette.champagne, lineWidth: 1)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 13))
                         }
+                        .buttonStyle(.plain)
                         .accessibilityIdentifier("engagement-option-\(option.id)")
                     }
                 }
@@ -90,13 +104,31 @@ public struct ProductionReadOnlyWorkspaceContent: View {
                     .accessibilityIdentifier("production-readonly-boundary")
 
                 if let onSwitchContext {
-                    Button("Switch context", action: onSwitchContext)
-                        .accessibilityIdentifier("production-readonly-switch-context")
+                    Button(action: onSwitchContext) {
+                        Text("Switch workspace")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(WeddingIdentityPalette.ink)
+                            .frame(maxWidth: .infinity, minHeight: 46)
+                            .background(WeddingIdentityPalette.ivorySoft)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 13)
+                                    .stroke(WeddingIdentityPalette.champagne, lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 13))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("production-readonly-switch-context")
                 }
 
                 if let onSignOut {
-                    Button("Sign out", action: onSignOut)
-                        .accessibilityIdentifier("production-readonly-sign-out")
+                    Button(action: onSignOut) {
+                        Text("Sign out")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(WeddingIdentityPalette.muted)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("production-readonly-sign-out")
                 }
             }
             .padding(20)
