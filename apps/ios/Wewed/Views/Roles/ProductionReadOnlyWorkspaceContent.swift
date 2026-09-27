@@ -82,8 +82,18 @@ public struct ProductionReadOnlyWorkspaceContent: View {
                             onSelectEngagement(option.id)
                         } label: {
                             Text(option.serviceDescription.map { "\(option.serviceCategory) · \($0)" } ?? option.serviceCategory)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(WeddingIdentityPalette.ink)
+                                .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
+                                .padding(.horizontal, 12)
+                                .background(WeddingIdentityPalette.ivorySoft)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 13)
+                                        .stroke(WeddingIdentityPalette.champagne, lineWidth: 1)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 13))
                         }
+                        .buttonStyle(.plain)
                         .accessibilityIdentifier("engagement-option-\(option.id)")
                     }
                 }
