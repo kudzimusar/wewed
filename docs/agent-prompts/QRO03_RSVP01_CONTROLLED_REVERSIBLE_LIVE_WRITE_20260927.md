@@ -10,19 +10,19 @@ Authoritative integration branch:
 
 Required starting HEAD:
 
-`fb2e2f2483c15c99e63e3a3e7219a6f63b821e17`
+`38a59ad73e5de89051144fb625253e38f0101df6`
 
 Required starting Preview:
 
-`dpl_93NtUPp41dmQQExo2MUDjLkuHi74`
+`dpl_5dNPfgevPH43Ksn9HyReqfL2kWL9`
 
 Expected Preview URL:
 
-`wewed-8kz7ymsle-11-11.vercel.app`
+`wewed-ks9kthy96-11-11.vercel.app`
 
 Moderator decision:
 
-**D-079 — QRO02B2 final Ivory certification accepted; QRO03 released**
+**D-080 — QRO03 first attempt clean-stop accepted; native RSVP message projection closed; QRO03 re-released**
 
 ## Agent role
 
@@ -104,8 +104,8 @@ Before any environment or data mutation:
 
 1. fetch remote;
 2. verify integration HEAD is exactly:
-   `fb2e2f2483c15c99e63e3a3e7219a6f63b821e17`;
-3. verify Preview `dpl_93NtUPp41dmQQExo2MUDjLkuHi74` is READY and serves that exact SHA;
+   `38a59ad783c15c99e63e3a3e7219a6f63b821e17`;
+3. verify Preview `dpl_5dNPfgevPH43Ksn9HyReqfL2kWL9` is READY and serves exact `38a59ad73e5de89051144fb625253e38f0101df6`;
 4. verify production main remains `646f08421d778cf6f85bf12195581228ae3fbccc`;
 5. verify Charity & Kudzie authority:
    - wedding ID = the same certified QRO02B2 wedding;
@@ -131,6 +131,32 @@ Before any environment or data mutation:
 
 If the pre-state differs materially from the QRO02B2 certified state, STOP and return moderator before mutation.
 
+## Pre-corridor stale Preview write-authority cleanup
+
+The stopped QRO03 attempt reported a 15-day-old branch-scoped Preview `WEWED_PREVIEW_WRITABLE_WEDDING_ID` for:
+
+`feature/private-invitation-android-delivery-20260912`
+
+This exact Vercel environment claim could not be independently enumerated through the moderator's connected read surface, so you must inspect it safely before opening QRO03's new write corridor.
+
+Required:
+
+1. use authorized Vercel CLI/account tooling to list Preview environment entries and their branch scopes without printing secret values;
+2. determine whether that old branch still has `WEWED_PREVIEW_WRITABLE_WEDDING_ID`;
+3. if absent, record safe proof and continue;
+4. if present:
+   - record branch scope and non-secret metadata;
+   - remove that stale branch-scoped environment entry;
+   - identify deployment IDs built while it was present;
+   - preserve safe deployment/log metadata needed for the receipt;
+   - determine whether any such deployment is still reachable and therefore still writable;
+5. if stale writable deployments are clearly obsolete and can be safely retired without touching production or an active qualification task, retire them;
+6. if retirement requires an uncertain/destructive action, STOP and return to moderator before enabling a new writable corridor.
+
+Do not rotate production credentials or change Deployment Protection as a workaround.
+
+No new QRO03 write corridor may be opened while an unexplained stale live-data writable Preview remains.
+
 ## Authorized Preview write corridor
 
 The integration Preview shares the live database and is read-only by default.
@@ -153,9 +179,21 @@ After changing the branch-scoped Preview environment:
 1. redeploy the exact integration source SHA;
 2. record deployment ID/URL;
 3. prove the deployment is READY;
-4. prove it serves exact source `fb2e2f24...`;
+4. prove it serves exact source `38a59ad7...`;
 5. prove a safe write guard for any different wedding remains blocked;
 6. do not perform the live RSVP mutation until all above checks pass.
+
+### Re-release closure proof
+
+Before enabling the write corridor, prove on the current read-only integration Preview that the real Planner/native account Guest record now contains the field:
+
+`rsvpMessage`
+
+for the certified Charity & Kudzie Guest.
+
+Its pre-state must be `null`.
+
+This proves the QRO03 propagation blocker has actually been closed in the deployed candidate, not merely in source.
 
 ## Native writer
 
@@ -215,7 +253,7 @@ After the forward mutation and before restoration, prove the marker from all req
 
 1. **authoritative Guest session GET** on the integration Preview;
 2. **Planner/Couple desktop authority** using the real Planner account;
-3. **native account API / Planner Guest list**;
+3. **native account API / Planner Guest list** — `/api/native/wedding/guests` must return the exact marker in `rsvpMessage`;
 4. **other native Guest platform**:
    - if iOS wrote, Android must refresh and show/read the marker;
    - if Android wrote, iOS must refresh and show/read the marker.
