@@ -212,8 +212,12 @@ export function IvoryFloralGoldTriFold({
   const mapUrl =
     data.venueMapUrl ||
     'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(location)
-  const note = data.tagline || data.message || ''
+  // QRO06: 'A Note from Us' is the couple's own message only — never the tagline or a stock line.
+  const note = data.message?.trim() || ''
   const opening = view === 'opening'
+  function openNote() {
+    noteRef.current?.showModal()
+  }
   function showDetails() {
     setView('details')
   }
@@ -376,7 +380,7 @@ export function IvoryFloralGoldTriFold({
             {hit('registry', 'Gift / Contributions', 63.4, 7.3, () =>
               visitCoupleWebsite('#registry'),
             )}
-            {hit('note', 'A Note from Us', 72.4, 8, () => noteRef.current?.showModal())}
+            {note ? hit('note', 'A Note from Us', 72.4, 8, openNote) : null}
             <div data-testid="invitation-footer-actions" className="ivory-footer-actions">
               <button type="button" className="ivory-back" onClick={() => setView('open')}>
                 View invitation
