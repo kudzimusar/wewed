@@ -45,16 +45,20 @@ public struct ProductionReadOnlyWorkspaceContent: View {
                     )
                     ReadOnlyRow(label: "Lifecycle", value: wedding.lifecycle)
                 } else {
-                    if let business = snapshot.businessName ?? snapshot.businessAccountId {
-                        ReadOnlyRow(label: "Business", value: business)
-                    }
+                    ReadOnlyRow(
+                        label: "Business",
+                        value: snapshot.businessName?.isEmpty == false ? snapshot.businessName! : "Business workspace"
+                    )
                     if snapshot.scopeKind == "system" {
                         ReadOnlyRow(label: "Scope", value: "Wewed platform")
                     }
                 }
 
                 if !snapshot.permissions.isEmpty {
-                    ReadOnlyRow(label: "Permissions", value: snapshot.permissions.joined(separator: ", "))
+                    ReadOnlyRow(
+                        label: "Access",
+                        value: "\(snapshot.permissions.count) authorized capabilities"
+                    )
                 }
                 if !snapshot.platformRoles.isEmpty {
                     ReadOnlyRow(label: "Platform role", value: snapshot.platformRoles.joined(separator: ", "))
@@ -90,13 +94,31 @@ public struct ProductionReadOnlyWorkspaceContent: View {
                     .accessibilityIdentifier("production-readonly-boundary")
 
                 if let onSwitchContext {
-                    Button("Switch context", action: onSwitchContext)
-                        .accessibilityIdentifier("production-readonly-switch-context")
+                    Button(action: onSwitchContext) {
+                        Text("Switch workspace")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(WeddingIdentityPalette.ink)
+                            .frame(maxWidth: .infinity, minHeight: 46)
+                            .background(WeddingIdentityPalette.ivorySoft)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 13)
+                                    .stroke(WeddingIdentityPalette.champagne, lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 13))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("production-readonly-switch-context")
                 }
 
                 if let onSignOut {
-                    Button("Sign out", action: onSignOut)
-                        .accessibilityIdentifier("production-readonly-sign-out")
+                    Button(action: onSignOut) {
+                        Text("Sign out")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(WeddingIdentityPalette.muted)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("production-readonly-sign-out")
                 }
             }
             .padding(20)
