@@ -44,14 +44,13 @@ public struct ProductionReadOnlyWorkspaceContent: View {
                             .joined(separator: ", ")
                     )
                     ReadOnlyRow(label: "Lifecycle", value: wedding.lifecycle)
+                } else if snapshot.scopeKind == "system" {
+                    ReadOnlyRow(label: "Scope", value: "Wewed platform")
                 } else {
                     ReadOnlyRow(
                         label: "Business",
                         value: snapshot.businessName?.isEmpty == false ? snapshot.businessName! : "Business workspace"
                     )
-                    if snapshot.scopeKind == "system" {
-                        ReadOnlyRow(label: "Scope", value: "Wewed platform")
-                    }
                 }
 
                 if !snapshot.permissions.isEmpty {
