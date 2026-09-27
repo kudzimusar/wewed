@@ -21,14 +21,16 @@ final class GuestProfileUITests: XCTestCase {
         XCTAssertTrue(target.waitForExistence(timeout: 20), id)
         target.tap()
     }
-    private func continueToHome() {
+    private func enterAnsweredGuest(_ status: String = "attending", destination: String = "home") {
+        start(status)
         tap("invitation-open-button")
         tap("invitation-details-button")
-        tap("invitation-continue")
-        XCTAssertTrue(element("guest-home-digital-invitation").waitForExistence(timeout: 10))
+        tap("invitation-cta-pass")
+        XCTAssertTrue(element("live-guest-shell").waitForExistence(timeout: 10))
+        if destination == "home" { tap("nav-guest-home") }
     }
     func testInvitationHomeReopenAndRelaunch() {
-        start(); continueToHome()
+        enterAnsweredGuest("attending")
         tap("guest-home-digital-invitation")
         XCTAssertTrue(element("invitation-open-button").waitForExistence(timeout: 10))
         tap("invitation-back-to-wedding")
@@ -41,7 +43,7 @@ final class GuestProfileUITests: XCTestCase {
         XCTAssertTrue(element("invitation-open-button").waitForExistence(timeout: 10))
     }
     func testProfileAndPassReturnToPreviousSurface() {
-        start(); continueToHome()
+        enterAnsweredGuest("declined")
         tap("nav-guest-more"); tap("guest-profile-digital-invitation")
         tap("invitation-back-to-wedding")
         XCTAssertTrue(element("guest-profile-digital-invitation").exists)
@@ -61,16 +63,27 @@ final class GuestProfileUITests: XCTestCase {
         XCTAssertTrue(element("guest-day-table").exists)
     }
     func testPendingAndDeclinedDoNotGetPass() {
-        for status in ["pending", "declined"] {
-            start(status); continueToHome(); tap("nav-guest-pass")
-            XCTAssertTrue(element("live-guest-pass-\(status)").exists)
-            XCTAssertFalse(element("wedding-pass-qr").exists)
-            app.terminate()
-        }
+        // Pending is intentionally invitation-only until RSVP completion.
+        start("pending")
+        tap("invitation-open-button")
+        tap("invitation-details-button")
+        XCTAssertFalse(element("invitation-continue").exists)
+        XCTAssertFalse(element("live-guest-shell").exists)
+        tap("invitation-cta-pass")
+        XCTAssertTrue(element("invitation-rsvp-prompt").waitForExistence(timeout: 10))
+        XCTAssertFalse(element("wedding-pass-qr").exists)
+        app.terminate()
+
+        // Declined is an answered Guest: persistent wedding context is allowed, admission is not.
+        enterAnsweredGuest("declined", destination: "pass")
+        XCTAssertTrue(element("live-guest-pass-declined").waitForExistence(timeout: 10))
+        XCTAssertFalse(element("wedding-pass-qr").exists)
+        app.terminate()
     }
     func testProductionGuestOnlyLaunchSurvivesWithoutCrash() {
         let prodApp = XCUIApplication()
         prodApp.launchEnvironment["WEWED_NATIVE_ENV"] = "production"
+        prodApp.launchEnvironment["WEWED_GUEST_UI_CLEAR_SESSION"] = "1"
         prodApp.launchEnvironment.removeValue(forKey: "WEWED_GUEST_UI_ORIGIN")
         prodApp.launchEnvironment.removeValue(forKey: "WEWED_GUEST_UI_LINK")
         prodApp.launch()
