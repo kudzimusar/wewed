@@ -84,7 +84,9 @@ fun GuestOnlyInvitationShell(
     // opens on Home, because replaying the whole card every time someone checks their table would
     // be tiresome rather than ceremonial. The invitation is always one tap away either way.
     val opensOnInvitation = GuestCeremonialEntry.opensOnInvitation(
-        isExplicitInvitationArrival = hasIncomingInvitation
+        // A warm replacement link is also an explicit arrival. The Activity launch flag describes
+        // only the original launch; entry changes later when Guest B arrives on the same process.
+        isExplicitInvitationArrival = hasIncomingInvitation || entry != null
     )
     var navigation by remember(entry) { mutableStateOf(GuestNavigation(
         selected = if (opensOnInvitation) GuestSection.INVITATION else GuestSection.HOME,
