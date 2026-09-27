@@ -53,7 +53,8 @@ fun LiveGuestInvitationScreen(
     onRefreshed: (LiveInvitationState) -> Unit,
     onContinue: () -> Unit,
     onBackToWedding: (() -> Unit)? = null,
-    onViewPass: (() -> Unit)? = null
+    onViewPass: (() -> Unit)? = null,
+    onLeaveWedding: (() -> Unit)? = null
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -209,6 +210,23 @@ fun LiveGuestInvitationScreen(
                         onContinue = if (presentation.attending == null) null else onContinue
                     )
                 )
+            }
+
+            if (presentation.attending == null && onLeaveWedding != null) {
+                TextButton(
+                    onClick = onLeaveWedding,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 46.dp)
+                        .testTag("invitation-leave-wedding")
+                ) {
+                    Text(
+                        "Not your invitation? Leave this wedding",
+                        color = WeddingIdentityPalette.Muted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
 
