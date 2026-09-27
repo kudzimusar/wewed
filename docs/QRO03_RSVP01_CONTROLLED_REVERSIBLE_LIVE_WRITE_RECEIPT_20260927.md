@@ -154,3 +154,118 @@ The iOS-client harness (real `GuestSessionClient.saveRsvp`, recording `URLProtoc
 - Credentials came from the owner's mode-600 file via a literal parser, none printed. The Admin credential file was not read. `WEWED_PARITY_ALLOW_PASS_GET` unset. No Pass or Gate call.
 
 QRO03 CONTROLLED RSVP WRITE BLOCKED-ENV — stale branch-scoped Preview write corridor removed, but 313 already-built deployments still carry its unreadable writable-wedding ID (C&K proven not exposed); retiring them requires destructive deletion, so the QRO03 corridor was not opened, 0 writes — RETURNING TO MODERATOR.
+
+---
+
+# Attempt 3 — re-release under D-081 (2026-09-27, 01:02:42Z–01:13:20Z)
+
+**Status: IMPLEMENTATION REPORT — NOT A MODERATOR ACCEPTANCE DECISION.**
+
+**Result: PROVEN.** A message-only write through the native iOS Guest client reached the Guest session, desktop Planner, the native Planner API and the Android Guest client. It was then restored exactly, and the Preview returned to read-only.
+
+**Writes: test 1 · restoration 1 · other wedding business-data 0.**
+
+## B1. Identity
+
+| Item | Value |
+| --- | --- |
+| Starting HEAD | `fadc62feaa11acc69a3bf1aa4fdb428255c4f37d` (production main `646f08421d778cf6f85bf12195581228ae3fbccc`, unchanged) |
+| Starting Preview | `dpl_3pbzmgGW35aB4T2Gc7boxocPzbo1`, `https://wewed-pwc2l9wee-11-11.vercel.app`, Ready, built from `fadc62fe` |
+| **Writable (corridor) deployment** | `dpl_q6QdpTUsP1BHtSnAhiMheu2YWNVu`, `https://wewed-q3hssjdtx-11-11.vercel.app`, Ready, Preview, redeploy of `fadc62fe` (`githubCommitSha` match) |
+| Final read-only deployment | `dpl_GLSWXAcNX3uQp7XAu6DXGz5C1xKT`, `https://wewed-3ugogxge1-11-11.vercel.app`, Ready, redeploy of `fadc62fe`, holds the integration branch alias |
+| Final HEAD | this receipt commit (docs only; no product/test source changed) |
+
+## B2. PR202 residual disposition (D-081)
+
+The 313 historical PR202 deployments were **not deleted**. They are accepted as a bounded synthetic-UAT residual (`wewed-pr202-uat-20260912`, per moderator forensics). Before opening the corridor:
+1. The old branch has no current `WEWED_PREVIEW_WRITABLE_WEDDING_ID`.
+2. The integration branch had none.
+3. C&K returned **`423 PREVIEW_WRITE_BLOCKED`** on `pwc2l9wee`.
+
+## B3. Pre-state (01:02:42Z, real iOS `GuestSessionClient`, read-only)
+
+| Field | Value |
+| --- | --- |
+| weddingId / guestId | `cmqos70cb0004q6vxe9g9aiu5` / `cmuahx3ka0001js043cseq7z4` |
+| attending | null (`pending`) |
+| mealChoice / plusOneName / plusOneMeal / dietaryNotes | null |
+| plusOne / kidsAttending / kidsCount | false / false / 0 |
+| **message** | **null** |
+| checkedIn / checkedInAt | false / null |
+| partySize / seatingTableId | 1 / `cmqpub1j0003dnyspfjfhfw3a` |
+| invitationCardStyle | `ivory-floral-gold` |
+| Guest token sha256 | `92277a97cabb5e848d42d26ca6cc4de2d3ea4ce899085bb0042b81a9182f0ac9` |
+
+Native blocker closure: `/api/native/wedding/guests` (grant `planner:wedding:cmqos70cb0004q6vxe9g9aiu5`) target row **has `rsvpMessage: null`**. Status, party and seating equal desktop.
+
+Android baseline (read-only): the RSVP sheet's message field was empty.
+
+## B4. Corridor
+
+- Set at 01:04:47Z: `WEWED_PREVIEW_WRITABLE_WEDDING_ID=cmqos70cb0004q6vxe9g9aiu5`, Preview only, branch `integration/phase13-live-account-data-convergence-20260926` only.
+- Redeployed `fadc62fe` → `dpl_q6Qdp…`, Ready.
+- **Another wedding still blocked:** body-less `POST /api/native/wedding/tasks?grantId=…` on the corridor deployment. Wedding `wewed-planner-uat-20260804` → **423** `PREVIEW_WRITE_BLOCKED`. Wedding `cmquiz3bn0040o3drgqktrwdj` → **423**. The guard precedes body parsing, so there was no write either way.
+- **C&K in scope:** Guest `PUT {}` returned **409** `STALE_GUEST_CONTEXT` (no `originGuestId`, no write).
+- Session hygiene: Planner desktop and native sessions were created on the read-only `pwc2l9wee` **before** the corridor opened. Only GETs were made during it, with no sign-in or `/api/auth/me`. All Planner, Guest and Android reads targeted read-only deployments on the same database. Only the two RSVP writes targeted the corridor deployment.
+
+## B5. Writer and wire body
+
+**Writer:** iOS. The untracked harness drives the repository's real `GuestSessionClient.saveRsvp(weddingSlug:originGuestId:update: GuestRsvpUpdate(message:))`:
+- built from `apps/ios` (unchanged since `ba38a362`) with SwiftPM Debug;
+- lane `NativeServerLane.productionPreview`, validated by `NativeServerOrigin.validatePreviewOrigin`;
+- guest session from the real `exchangePrivateInvitation`.
+
+The ordinary iOS form always sends `attending` (`LiveGuestInvitationView.swift:569`), so the harness path is used as D-080/D-081 allow. A recording `URLProtocol` captured the transmitted bodies:
+
+| Write | Body keys | attendingPresent | message |
+| --- | --- | --- | --- |
+| Forward | `["message", "originGuestId"]` | **false** | 28 chars, sha256 `20cf47662542155f86b4c5d83a55cc5aa20a2a3bd8b6963b3e0f0328acefd8a7` (= "QRO03 live convergence check") |
+| Restore | `["message", "originGuestId"]` | **false** | `""` (empty string) |
+
+Harness incident (no write): the first forward attempt at 01:08:00Z was refused by the harness's own pre-state guard. The guard compared a Swift `Bool` with a JSON-decoded number, so it was a harness type bug, not drift. It sent only the Guest exchange `POST` and snapshot `GET`, with **no `PUT`** (corridor logs confirm). A re-read confirmed the state was identical to the pre-snapshot. The guard was fixed to compare JSON-normalized values and widened to every RSVP field and the token digest.
+
+## B6. Forward write
+
+- `PUT /api/weddings/charity-and-kudzie/guest-session` at 01:08:50Z → **200**, `saved`.
+- Before/after diff: **only `message`** changed (null → marker).
+- attending null, party 1, seating `cmqpub1j…`, checkedIn false, style `ivory-floral-gold` and token digest `92277a97…` were all unchanged.
+
+## B7. Propagation (before restoration)
+
+| # | View | Endpoint / client | weddingId | guestId | message | status | party | seating |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | Guest session | iOS client `GET /api/weddings/charity-and-kudzie/guest-session` | `cmqos70c…` | `cmuahx3k…` | **= marker** (sha256 match) | pending (attending null) | 1 | `cmqpub1j…` |
+| 2 | Planner/Couple desktop | `GET /api/planner/guests` → `rsvp.message` | `cmqos70c…` | `cmuahx3k…` | **= marker** | pending | 1 | `cmqpub1j…` |
+| 3 | Native Planner API | `GET /api/native/wedding/guests?grantId=planner:wedding:cmqos70c…` → `rsvpMessage` | `cmqos70c…` | `cmuahx3k…` | **= marker** | pending | 1 | `cmqpub1j…` |
+| 4 | Other native Guest client | Android DEBUG `pro.wewed.app.dev` (explicit component, `ba38a362`-equivalent `apps/`), cold relaunch → invitation → details → RSVP sheet | `cmqos70c…` (export) | `cmuahx3k…` (export) | **"QRO03 live convergence check"** in `invitation-rsvp-message` (screenshot + UI dump); Save not tapped | pending | 1 | `cmqpub1j…` |
+
+## B8. Restoration
+
+- `PUT /api/weddings/charity-and-kudzie/guest-session` at 01:11:08Z, `message: ""` → **200**, `saved`.
+- **Final state equals the pre-snapshot on every recorded field:** message null, attending null, party 1, seating, checkedIn false/null, style `ivory-floral-gold`, token digest `92277a97…`. Checked on the corridor response, again on the final read-only deployment, and via desktop and native Planner reads (both equal pre-state, message null).
+
+## B9. Corridor closed and Preview read-only
+
+- Removed at 01:11:30Z: `vercel env rm WEWED_PREVIEW_WRITABLE_WEDDING_ID preview integration/phase13-live-account-data-convergence-20260926`. **No** writable entry remains in any Preview scope.
+- Redeployed `fadc62fe` → `dpl_GLSWXAcNX3uQp7XAu6DXGz5C1xKT`, Ready, holding the branch alias.
+- **Final proof:** Guest `PUT {}` on it → **`423 PREVIEW_WRITE_BLOCKED`**.
+- Residual for the moderator: Vercel bakes env into each build, so the corridor deployment `dpl_q6Qdp…` (`wewed-q3hssjdtx`) remains writable for C&K at its own unique URL, behind Deployment Protection. It is not deleted (it holds this run's runtime-log evidence). Retiring it is a moderator decision.
+
+## B10. Write accounting and evidence
+
+- **test writes 1 · restoration writes 1 · other wedding business-data writes 0.**
+- Corridor-deployment runtime logs show exactly:
+  - two C&K RSVP `PUT`s with 200 (01:08:50, 01:11:08);
+  - one scope-probe `PUT` with 409;
+  - two body-less native-tasks `POST`s with 423;
+  - Guest exchange/snapshot reads.
+- No Pass, WW2, Gate, style, token, Guest, seating or date action. Wedding Day remains BLOCKED-ACTIVATION (untouched).
+
+## B11. Production and secrets
+
+- Window 01:02:42Z–01:13:20Z: production received **0** Guest RSVP PUTs, Guest exchanges or native requests. Its only traffic was other users' `/api/notifications/count`, one `/` and cron jobs.
+- Credentials from `~/.wewed-qa/qro02b.env` via literal parsers, never printed. The Admin file was not read. `WEWED_PARITY_ALLOW_PASS_GET` unset.
+- The saved Planner session material was deleted at the end.
+- This receipt scanned clean for tokens, passwords, bearer/cookie values and the invitation URL.
+
+QRO03 CONTROLLED REVERSIBLE CHARITY & KUDZIE RSVP WRITE PROVEN — NATIVE WRITE PROPAGATED TO PLANNER + NATIVE ACCOUNT API + OTHER NATIVE AND RESTORED EXACTLY — PREVIEW RETURNED READ-ONLY — RETURNING TO MODERATOR FOR QRO04 RELEASE DECISION.
