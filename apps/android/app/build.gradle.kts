@@ -7,6 +7,14 @@ val uploadStorePath = System.getenv("WEWED_UPLOAD_STORE_FILE")
 val uploadStorePassword = System.getenv("WEWED_UPLOAD_STORE_PASSWORD")
 val uploadKeyAlias = System.getenv("WEWED_UPLOAD_KEY_ALIAS")
 val uploadKeyPassword = System.getenv("WEWED_UPLOAD_KEY_PASSWORD")
+val playVersionCode = System.getenv("WEWED_PLAY_VERSION_CODE")?.takeIf { it.isNotBlank() }?.let {
+    it.toIntOrNull()?.takeIf { code -> code > 0 } ?: error("WEWED_PLAY_VERSION_CODE must be a positive integer")
+}
+val playVersionName = System.getenv("WEWED_PLAY_VERSION_NAME")?.takeIf { it.isNotBlank() }?.also {
+    require(!it.contains("uat", ignoreCase = true) && !it.contains("dev", ignoreCase = true)) {
+        "WEWED_PLAY_VERSION_NAME must be a production versionName"
+    }
+}
 val hasUploadSigning = !uploadStorePath.isNullOrBlank() &&
     !uploadStorePassword.isNullOrBlank() &&
     !uploadKeyAlias.isNullOrBlank() &&
@@ -21,12 +29,12 @@ android {
         applicationId = "pro.wewed.app"
         minSdk = 24
         targetSdk = 36
-        // Must exceed the highest version already uploaded to Google Play.
-        // Legacy versionCode 8 / 2.0.5 was already active, and later test-track uploads consumed
-        // additional version codes. This branch currently stages versionCode 11; final Play
-        // promotion still requires moderator reconciliation against the Play Console state.
-        versionCode = 11
-        versionName = "2.1.0"
+        // Must exceed the highest versionCode ever uploaded to Google Play for pro.wewed.app (any
+        // track, any build system — TWA, Expo and this app share the package). The signed Play
+        // workflow (android-native-production-play-aab.yml) supplies the reconciled values through
+        // WEWED_PLAY_VERSION_CODE / WEWED_PLAY_VERSION_NAME; local builds keep the staged default.
+        versionCode = playVersionCode ?: 11
+        versionName = playVersionName ?: "2.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
