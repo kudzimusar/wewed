@@ -440,12 +440,36 @@ public struct LiveGuestShellView: View {
 
             GuestPresentationSectionHeading("My details", identifier: "guest-more-my-details")
             IACard("Name", profile.guestName, testId: "live-guest-profile-name")
+            if let email = profile.email, !email.isEmpty {
+                IACard("Invitation contact", email, testId: "live-guest-profile-email")
+            }
             IACard(
                 "RSVP",
                 Self.rsvpLabel(profile.attending),
-                status: profile.attending == true ? "Attending" : "Not attending",
+                status: Self.rsvpStatusLabel(profile.attending),
                 testId: "live-guest-profile-rsvp"
             )
+
+            if profile.attending == true {
+                if let seating = Self.seatingLabel(profile) {
+                    IACard("Seating", seating, testId: "live-guest-profile-seating")
+                }
+                IACard(
+                    "Party",
+                    Self.guestPartySummary(profile),
+                    testId: "live-guest-profile-party"
+                )
+                if let meal = profile.mealChoice, !meal.isEmpty {
+                    IACard("Meal choice", meal, testId: "live-guest-profile-meal")
+                }
+                if let dietary = profile.dietaryNotes, !dietary.isEmpty {
+                    IACard("Dietary notes", dietary, testId: "live-guest-profile-dietary")
+                }
+            }
+
+            if let message = profile.message, !message.isEmpty {
+                IACard("Message to the couple", message, testId: "live-guest-profile-message")
+            }
 
             GuestPresentationSectionHeading("This device", identifier: "guest-more-device")
             IACard(
@@ -496,6 +520,32 @@ public struct LiveGuestShellView: View {
         case .none: return "Awaiting your reply"
         }
     }
+
+    static func rsvpStatusLabel(_ attending: Bool?) -> String {
+        switch attending {
+        case .some(true): return "Attending"
+        case .some(false): return "Not attending"
+        case .none: return "Awaiting reply"
+        }
+    }
+
+    static func seatingLabel(_ profile: LiveInvitationPresentation) -> String? {
+        if let tableName = profile.tableName, !tableName.isEmpty { return tableName }
+        if let tableNumber = profile.tableNumber { return "Table \(tableNumber)" }
+        return nil
+    }
+
+    static func guestPartySummary(_ profile: LiveInvitationPresentation) -> String {
+        var parts = ["You"]
+        if profile.plusOne {
+            parts.append(profile.plusOneName?.isEmpty == false ? profile.plusOneName! : "Plus one")
+        }
+        if profile.kidsAttending, let count = profile.kidsCount, count > 0 {
+            parts.append(count == 1 ? "1 child" : "\(count) children")
+        }
+        return parts.joined(separator: " · ")
+    }
+
 
     /// "23 December 2026" from whatever shape the graph returned.
     static func formatWeddingDate(_ raw: String?) -> String {
