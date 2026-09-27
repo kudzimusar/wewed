@@ -271,6 +271,20 @@ public struct NativeDomainApiClient: Sendable {
         await runGetArray("api/native/wedding/timeline", sessionToken: sessionToken, grantId: grantId, arrayField: "data")
     }
 
+    /// QRO05-PIQR01 — the same `loadPlannerInvitationProjection` the desktop Planner's
+    /// `GET /api/planner/guests/invitations` reads. Read-only: there is deliberately no native
+    /// POST/PUT/PATCH for invitations. The body carries each Guest's private invitation link, so the
+    /// caller must hold it transiently and never log it.
+    public func plannerInvitations(sessionToken: String, grantId: String) async -> NativeDomainFetch<NativeJSONObject> {
+        await runGetObject("api/native/wedding/invitations", sessionToken: sessionToken, grantId: grantId)
+    }
+
+    /// QRO05-PIQR01 — Printed Invitation Access, the same `loadPhysicalInvitationProjection` the
+    /// desktop `GET /api/planner/guests/invitations/physical` reads. Never creates a destination.
+    public func plannerPhysicalInvitation(sessionToken: String, grantId: String) async -> NativeDomainFetch<NativeJSONObject> {
+        await runGetObject("api/native/wedding/invitations/physical", sessionToken: sessionToken, grantId: grantId)
+    }
+
     public func vendors(sessionToken: String, grantId: String) async -> NativeDomainFetch<NativeJSONArray> {
         await runGetArray("api/native/wedding/vendors", sessionToken: sessionToken, grantId: grantId, arrayField: "data")
     }

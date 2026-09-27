@@ -18,6 +18,7 @@ import pro.wewed.app.navigation.GateOperationalContext
 import pro.wewed.app.services.AdminSystemRepository
 import pro.wewed.app.services.AdminSystemSnapshot
 import pro.wewed.app.services.forWedding
+import pro.wewed.app.services.ProductionWeddingRepository
 import pro.wewed.app.navigation.PrimaryDestination
 import pro.wewed.app.state.AppViewModel
 import pro.wewed.app.state.SessionViewModel
@@ -306,12 +307,20 @@ private fun PlannerMoreSection(
 
     when (section) {
         "Client Profile" -> PlannerClientProfileSection(graph)
-        "Invitations & QR" -> InvitationsQrSection(
-            destinations = graph.qrDestinations,
-            invitationCardStyle = null,
-            // The production native data source does not load QRDestination rows yet.
-            destinationsLoaded = appViewModel.dataEnvironment != NativeDataEnvironment.PRODUCTION
-        )
+        "Invitations & QR" -> if (appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION) {
+            // QRO05-PIQR01 — production reads the canonical invitation projections transiently
+            // through the native Bearer + grant routes; nothing credential-bearing enters the graph.
+            val production = runCatching { appViewModel.repository }.getOrNull() as? ProductionWeddingRepository
+            if (production != null) {
+                key(context.activeWeddingId) {
+                    PlannerInvitationsQrSection(load = { production.loadPlannerInvitations() })
+                }
+            } else {
+                IAEmptySourceSection("Invitations & QR", "Invitations are unavailable until this wedding finishes loading.", "invitations-qr-unbound")
+            }
+        } else {
+            InvitationsQrSection(destinations = graph.qrDestinations, invitationCardStyle = null)
+        }
         "Intelligence" -> PlannerIntelligenceSection(graph)
         "Team Hub" -> PlannerTeamHubSection(graph)
         "Files / Documents" -> PlannerMediaArchiveSection(graph)

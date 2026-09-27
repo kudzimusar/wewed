@@ -65,6 +65,26 @@ public struct ProductionWeddingRepository: WeddingRepositoryProtocol {
         )
     }
 
+    /// QRO05-PIQR01 — Planner → More → Invitations & QR. Deliberately NOT part of
+    /// `WeddingRepositoryProtocol` and never called by `WeddingGraphState.load`: the result carries
+    /// private RSVP links, so it is read only when the Planner opens that screen and is held by that
+    /// screen alone. Read-only; there is no native invitation write.
+    public func loadPlannerInvitations() async -> PlannerInvitationsLoad {
+        async let invitationsFetch = client.plannerInvitations(sessionToken: sessionToken, grantId: grantId)
+        async let physicalFetch = client.plannerPhysicalInvitation(sessionToken: sessionToken, grantId: grantId)
+        let (invitations, physical) = await (invitationsFetch, physicalFetch)
+        if let reason = PlannerInvitationsMapping.reason(invitations) ?? PlannerInvitationsMapping.reason(physical) {
+            return .unavailable(reason)
+        }
+        guard case let .success(invitationsJSON) = invitations,
+              case let .success(physicalJSON) = physical,
+              let snapshot = PlannerInvitationsMapping.snapshot(invitations: invitationsJSON, physical: physicalJSON)
+        else {
+            return .unavailable("Invitations could not be read. Try again.")
+        }
+        return .loaded(snapshot)
+    }
+
     public func getTasks(weddingId: String) async throws -> [PlannerTask] {
         guard case let .success(array) = await client.tasks(sessionToken: sessionToken, grantId: grantId) else {
             throw ProductionReadOnlyDomainError.unavailable

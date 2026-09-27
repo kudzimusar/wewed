@@ -173,12 +173,48 @@ class FinalNativeUiLaneRegressionTest {
         assertEquals(2, Regex("applySystemBarInsets = true").findAll(root).count())
     }
 
-    @Test fun productionInvitationsQrNeverClaimsNoneConfiguredForUnloadedData() {
+    // QRO05-PIQR01 — Planner Invitations & QR reads real data, read-only.
+
+    @Test fun productionPlannerInvitationsQrRendersRealDataNotThePlaceholder() {
         val workspaces = source("ui/roles/RoleWorkspaces.kt")
-        assertTrue(workspaces.contains("destinationsLoaded = appViewModel.dataEnvironment != NativeDataEnvironment.PRODUCTION"))
+        assertTrue(workspaces.contains("PlannerInvitationsQrSection(load = { production.loadPlannerInvitations() })"))
         val sections = source("ui/roles/ProductionDataSections.kt")
-        assertTrue(sections.indexOf("if (!destinationsLoaded)") < sections.indexOf("\"No scan destinations are configured for this wedding.\""))
+        assertFalse("the not-loaded placeholder must be gone", sections.contains("The app does not load them yet."))
+        val view = source("ui/roles/PlannerInvitationsQrSection.kt")
+        for (heading in listOf("\"Invitation design\"", "\"Printed Invitation Access\"", "\"Guest Open Invitations\"")) {
+            assertTrue(heading, view.contains(heading))
+        }
     }
+
+    @Test fun invitationQrsAreSeparateTrustDomainsFromTheWeddingPass() {
+        val view = source("ui/roles/PlannerInvitationsQrSection.kt")
+        assertTrue(view.contains("testTag = \"planner-physical-invitation-qr\""))
+        assertTrue(view.contains("testTag = \"planner-guest-invitation-qr\""))
+        assertFalse(view.contains("wedding-pass-qr"))
+        assertFalse(view.contains("WeddingQrCode("))
+        val pass = source("ui/pass/WeddingQrCode.kt")
+        assertTrue(pass.contains("testTag = \"wedding-pass-qr\""))
+    }
+
+    @Test fun invitationLinksAreNeverRenderedAsTextLoggedOrStoredInTheGraph() {
+        val view = source("ui/roles/PlannerInvitationsQrSection.kt")
+        assertFalse(Regex("""Text\(\s*[^)]*(qrValue|shareMessage|accessUrl)""").containsMatchIn(view))
+        assertFalse(Regex("""contentDescription = [^\n]*(qrValue|shareMessage|accessUrl)""").containsMatchIn(view))
+        assertFalse(view.contains("Log.") || view.contains("println("))
+        val graph = source("ui/roles/RoleWorkspaceContent.kt")
+        assertFalse(graph.contains("loadPlannerInvitations"))
+        assertFalse(graph.contains("PlannerGuestInvitation"))
+        val repository = source("services/WeddingRepository.kt")
+        assertFalse("must never join the graph-loading interface", repository.contains("loadPlannerInvitations"))
+    }
+
+    @Test fun nativeInvitationClientIsReadOnly() {
+        val client = source("services/NativeDomainApiClient.kt")
+        val lines = client.lines().filter { it.contains("api/native/wedding/invitations") }
+        assertEquals(2, lines.size)
+        lines.forEach { assertTrue("invitation routes are GET-only: $it", it.trim().startsWith("runGet(\"")) }
+    }
+
     private fun source(relative: String): String {
         var dir: File? = File(System.getProperty("user.dir") ?: ".").absoluteFile
         while (dir != null) {

@@ -105,6 +105,19 @@ class NativeDomainApiClient(
     suspend fun timeline(sessionToken: String, grantId: String): NativeDomainFetch<JSONArray> =
         runGetArray("api/native/wedding/timeline", sessionToken, grantId, "data")
 
+    /**
+     * QRO05-PIQR01 — the same `loadPlannerInvitationProjection` the desktop Planner's
+     * `GET /api/planner/guests/invitations` reads. Read-only: there is deliberately no native
+     * POST/PUT/PATCH for invitations. The body carries each Guest's private invitation link, so the
+     * caller must hold it transiently and never log it.
+     */
+    suspend fun plannerInvitations(sessionToken: String, grantId: String): NativeDomainFetch<JSONObject> =
+        runGet("api/native/wedding/invitations", sessionToken, grantId)
+
+    /** QRO05-PIQR01 — Printed Invitation Access (`loadPhysicalInvitationProjection`). Never creates a destination. */
+    suspend fun plannerPhysicalInvitation(sessionToken: String, grantId: String): NativeDomainFetch<JSONObject> =
+        runGet("api/native/wedding/invitations/physical", sessionToken, grantId)
+
     suspend fun vendors(sessionToken: String, grantId: String): NativeDomainFetch<JSONArray> =
         runGetArray("api/native/wedding/vendors", sessionToken, grantId, "data")
 

@@ -311,6 +311,7 @@ struct PlannerWeddingDaySection: View {
 }
 
 struct PlannerMoreSection: View {
+    @EnvironmentObject private var appState: AppState
     let section: String
     let context: NavigationContext
     @ObservedObject var sectionMemory: WorkspaceSectionMemory
@@ -324,8 +325,20 @@ struct PlannerMoreSection: View {
         switch section {
         case "Client Profile": PlannerClientProfileSection(graph: graph)
         case "Invitations & QR":
-            // The production native data source does not load QRDestination rows yet.
-            InvitationsQrSection(destinations: graph.qrDestinations, destinationsLoaded: context.environment != .production)
+            // QRO05-PIQR01 — production reads the canonical invitation projections transiently through
+            // the native Bearer + grant routes; nothing credential-bearing enters the wedding graph.
+            if context.environment == .production {
+                if let production = (try? appState.repository) as? ProductionWeddingRepository {
+                    PlannerInvitationsQrView(load: { await production.loadPlannerInvitations() })
+                        .id(context.activeWeddingId)
+                } else {
+                    IAEmptySourceSection(title: "Invitations & QR",
+                                         reason: "Invitations are unavailable until this wedding finishes loading.",
+                                         testIdPrefix: "invitations-qr-unbound")
+                }
+            } else {
+                InvitationsQrSection(destinations: graph.qrDestinations)
+            }
         case "Intelligence": PlannerIntelligenceSection(graph: graph)
         case "Team Hub": PlannerTeamHubSection(graph: graph)
         case "Files / Documents": PlannerMediaArchiveSection(graph: graph)

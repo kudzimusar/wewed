@@ -1,5 +1,7 @@
 package pro.wewed.app.services
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import org.json.JSONObject
 import pro.wewed.app.models.*
 
@@ -38,6 +40,26 @@ class ProductionWeddingRepository(
     override suspend fun availableWeddingIds(): List<String> = listOf(weddingId)
 
     override suspend fun resolveGuestIdentity(token: String): pro.wewed.app.services.GuestIdentity? = denied()
+
+    /**
+     * QRO05-PIQR01 — Planner → More → Invitations & QR. Deliberately NOT part of [WeddingRepository]
+     * and never called by `rememberWeddingGraph`: the result carries private RSVP links, so it is
+     * read only when the Planner opens that screen and is held by that screen alone. Read-only.
+     */
+    suspend fun loadPlannerInvitations(): PlannerInvitationsLoad = coroutineScope {
+        val invitationsFetch = async { client.plannerInvitations(sessionToken, grantId) }
+        val physicalFetch = async { client.plannerPhysicalInvitation(sessionToken, grantId) }
+        val invitations = invitationsFetch.await()
+        val physical = physicalFetch.await()
+        PlannerInvitationsMapping.unavailableReason(invitations)?.let { return@coroutineScope PlannerInvitationsLoad.Unavailable(it) }
+        PlannerInvitationsMapping.unavailableReason(physical)?.let { return@coroutineScope PlannerInvitationsLoad.Unavailable(it) }
+        val snapshot = PlannerInvitationsMapping.snapshot(
+            (invitations as NativeDomainFetch.Success).value,
+            (physical as NativeDomainFetch.Success).value,
+        )
+        snapshot?.let { PlannerInvitationsLoad.Loaded(it) }
+            ?: PlannerInvitationsLoad.Unavailable("Invitations could not be read. Try again.")
+    }
 
     override suspend fun getWedding(weddingId: String): Wedding {
         val overview = when (val fetch = client.overview(sessionToken, grantId)) {

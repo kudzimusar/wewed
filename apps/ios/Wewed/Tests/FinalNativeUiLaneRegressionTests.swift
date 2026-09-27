@@ -143,14 +143,50 @@ final class FinalNativeUiLaneRegressionTests: XCTestCase {
         XCTAssertEqual(WorkspaceGrantPresentation.scopeLabel(.portfolio), "All weddings in your portfolio")
     }
 
-    func testProductionInvitationsQrNeverClaimsNoneConfiguredForUnloadedData() throws {
+    // MARK: QRO05-PIQR01 — Planner Invitations & QR reads real data, read-only
+
+    func testProductionPlannerInvitationsQrRendersRealDataNotThePlaceholder() throws {
         let workspaces = try source("Views/Roles/RoleWorkspaces.swift")
-        XCTAssertTrue(workspaces.contains("destinationsLoaded: context.environment != .production"))
+        XCTAssertTrue(workspaces.contains("PlannerInvitationsQrView(load: { await production.loadPlannerInvitations() })"))
         let sections = try source("Views/Roles/ProductionDataSections.swift")
-        let notLoaded = try XCTUnwrap(sections.range(of: "if !destinationsLoaded {"))
-        let noneConfigured = try XCTUnwrap(sections.range(of: "No scan destinations are configured for this wedding."))
-        XCTAssertLessThan(notLoaded.lowerBound, noneConfigured.lowerBound)
+        XCTAssertFalse(sections.contains("The app does not load them yet."), "the not-loaded placeholder must be gone")
+        let view = try source("Views/Roles/PlannerInvitationsQrView.swift")
+        for heading in ["\"Invitation design\"", "\"Printed Invitation Access\"", "\"Guest Open Invitations\""] {
+            XCTAssertTrue(view.contains(heading), heading)
+        }
     }
+
+    func testInvitationQrsAreSeparateTrustDomainsFromTheWeddingPass() throws {
+        let view = try source("Views/Roles/PlannerInvitationsQrView.swift")
+        XCTAssertTrue(view.contains("accessibilityIdentifier: \"planner-physical-invitation-qr\""))
+        XCTAssertTrue(view.contains("accessibilityIdentifier: \"planner-guest-invitation-qr\""))
+        XCTAssertFalse(view.contains("wedding-pass-qr"))
+        XCTAssertFalse(view.contains("WeddingQRCodeView("))
+        let pass = try source("Theme/WeddingQRCodeView.swift")
+        XCTAssertTrue(pass.contains("accessibilityIdentifier: \"wedding-pass-qr\""))
+    }
+
+    func testInvitationLinksAreNeverRenderedAsTextOrStoredInTheGraph() throws {
+        let view = try source("Views/Roles/PlannerInvitationsQrView.swift")
+        XCTAssertNil(view.range(of: #"Text\([^)]*(qrValue|shareMessage|accessUrl)"#, options: .regularExpression))
+        XCTAssertNil(view.range(of: #"accessibilityLabel\([^)]*(qrValue|shareMessage|accessUrl)"#, options: .regularExpression))
+        XCTAssertFalse(view.contains("print("))
+        let graph = try source("Views/Roles/RoleWorkspaceContent.swift")
+        XCTAssertFalse(graph.contains("loadPlannerInvitations"))
+        XCTAssertFalse(graph.contains("PlannerGuestInvitation"))
+        let repository = try source("Services/WeddingRepository.swift")
+        XCTAssertFalse(repository.contains("loadPlannerInvitations"), "must never join the graph-loading protocol")
+    }
+
+    func testNativeInvitationClientIsReadOnly() throws {
+        let client = try source("Services/NativeDomainApiClient.swift")
+        XCTAssertTrue(client.contains("runGetObject(\"api/native/wedding/invitations\""))
+        XCTAssertTrue(client.contains("runGetObject(\"api/native/wedding/invitations/physical\""))
+        for line in client.split(separator: "\n") where line.contains("api/native/wedding/invitations") {
+            XCTAssertTrue(line.contains("runGetObject("), "invitation routes are GET-only: \(line)")
+        }
+    }
+
     // MARK: helpers
 
     private func assertNoIdentifier(_ p: WorkspaceGrantPresentation, _ g: ProductionWorkspaceGrant, file: StaticString = #filePath, line: UInt = #line) {
