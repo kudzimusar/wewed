@@ -15,7 +15,6 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
 import pro.wewed.app.models.AppRole
 import pro.wewed.app.models.GuestJourneyReference
 import pro.wewed.app.models.GuestJourneyStage
@@ -144,7 +143,6 @@ fun RootScreen(
     val liveCoordinator = remember {
         GuestInvitationBootstrap.coordinator(androidContext)
     }
-    val liveGuestScope = rememberCoroutineScope()
     var liveInvitation by remember { mutableStateOf<LiveInvitationState>(LiveInvitationState.Idle) }
 
     // Keyed on the arrival revision, never on the entry it consumes (QRO02B1).
@@ -237,10 +235,8 @@ fun RootScreen(
                     onRefreshed = { liveInvitation = it },
                     onContinue = { liveInvitation = LiveInvitationState.Idle },
                     onLeaveWedding = {
-                        liveGuestScope.launch {
-                            liveCoordinator.forgetGuest()
-                            liveInvitation = LiveInvitationState.Idle
-                        }
+                        GuestInvitationBootstrap.forgetGuest(androidContext)
+                        liveInvitation = LiveInvitationState.Idle
                     }
                 )
             }
