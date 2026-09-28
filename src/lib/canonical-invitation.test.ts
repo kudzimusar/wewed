@@ -111,9 +111,15 @@ describe('INV-CANON01 — Planner/Couple studio shows the approved invitation', 
     expect(trifold).toContain("setView('details')")
   })
 
-  test('the studio still loads read-only on a Preview whose token backfill is refused', () => {
+  test('opening the Planner invitation studio is read-only until an operator explicitly repairs missing links', () => {
     const manager = source('src/components/wedding/invitation-manager.tsx')
-    expect(manager).toContain("repair.status === 423 && repairPayload.code === 'PREVIEW_WRITE_BLOCKED'")
+    const loadStart = manager.indexOf('const load = useCallback')
+    const loadEnd = manager.indexOf('useEffect(() => { void load() }, [load])')
+    expect(loadStart).toBeGreaterThan(-1)
+    expect(loadEnd).toBeGreaterThan(loadStart)
+    expect(manager.slice(loadStart, loadEnd)).not.toContain("method: 'POST'")
+    expect(manager).toContain('async function generateMissingLinks()')
+    expect(manager).toContain('window.confirm')
   })
 
   test('the RSVP dialog cannot let a stale card query override the saved wedding style', () => {
