@@ -140,7 +140,9 @@ async function prepareFromActualGate(page, fixture, token, expectedPostCount) {
   )
 
   const open = page.getByTestId('android-open-installed-wewed')
-  await expect(open).toBeVisible()
+  // CI runs this gate on `next dev`; the first render of a route can include an on-demand compile.
+  // The assertion is unchanged — only the wait is sized for dev-mode compilation.
+  await expect(open).toBeVisible({ timeout: 45_000 })
   const href = await open.getAttribute('href')
   expect(href).toBeTruthy()
 
@@ -177,7 +179,7 @@ async function expectActiveGuest(context, fixture, expected) {
 
 async function openIvoryForGuest(page, guestName) {
   const experience = page.getByTestId('premium-invitation-experience')
-  await expect(experience).toBeVisible()
+  await expect(experience).toBeVisible({ timeout: 45_000 })
   await expect(experience).toHaveAttribute('data-invitation-style', 'ivory-floral-gold')
   await expect(page.getByRole('heading', { name: 'Find my RSVP' })).toHaveCount(0)
   await expect(page.getByText('Your private invitation', { exact: true })).toHaveCount(0)
