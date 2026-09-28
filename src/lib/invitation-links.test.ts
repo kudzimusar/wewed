@@ -24,9 +24,21 @@ describe('smart invitation links', () => {
     })
 
     expect(url).toBe(
-      'https://wewed.pro/invite/charity-and-kudzie?rsvp=private-rsvp-token&card=botanical',
+      'https://wewed.pro/invite/charity-and-kudzie?rsvp=private-rsvp-token',
     )
     expect(url).not.toContain('/w/charity-and-kudzie?')
+  })
+
+  test('keeps design server-authoritative instead of exposing a card implementation id', () => {
+    const url = buildSmartInvitationUrl({
+      siteUrl: 'https://wewed.pro',
+      weddingSlug: 'sample-wedding',
+      token: 'private-token',
+      style: 'ivory-floral-gold',
+    })
+    expect(new URL(url).searchParams.get('card')).toBeNull()
+    expect(url).not.toContain('ivory-floral-gold')
+    expect(url).not.toContain('botanical')
   })
 
   test('encodes wedding slugs and sources in continuation paths', () => {

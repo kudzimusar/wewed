@@ -52,9 +52,25 @@ describe('digital invitation card delivery', () => {
       weddingTitle: 'Aurora & Blake',
       invitationUrl: url,
     })
-    expect(message).toContain('private digital wedding card')
-    expect(message).toContain(url)
-    expect(message).toContain('Please do not forward it.')
+    expect(message.split(url)).toHaveLength(2)
+    expect(message).not.toContain('\\n')
+    expect(message.split('\n')).toEqual([
+      'Dear Taylor,',
+      '',
+      'You’re warmly invited to celebrate Aurora & Blake with us.',
+      '',
+      'Open your private Wewed digital invitation and RSVP here:',
+      url,
+      '',
+      'If you’re attending, Wewed will keep your invitation connected to your guest profile and make your Wedding Pass available when venue admission opens closer to the wedding.',
+      '',
+      'This link is personal to you. Please don’t forward or share it with anyone else.',
+      '',
+      'With love,',
+      'Aurora & Blake',
+      '',
+      'Wewed — where love lives forever.',
+    ])
   })
 
   test('stores invitation configuration and expands the database style constraint additively', () => {
