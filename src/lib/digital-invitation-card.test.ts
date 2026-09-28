@@ -59,6 +59,25 @@ describe('digital invitation card delivery', () => {
     expect(message).toContain('This link is personal to you.')
     expect(message).toContain('Please don’t forward or share it with anyone else.')
     expect(message).toContain('Wewed — where love lives forever.')
+    // AT01: real line breaks — a literal backslash-n renders as garbage in WhatsApp/email.
+    expect(message).not.toContain('\\n')
+    expect(message.split('\n')).toEqual([
+      'Dear Taylor,',
+      '',
+      'You’re warmly invited to celebrate Aurora & Blake with us.',
+      '',
+      'Open your private Wewed digital invitation and RSVP here:',
+      url,
+      '',
+      'If you’re attending, Wewed will keep your invitation connected to your guest profile and make your Wedding Pass available when venue admission opens closer to the wedding.',
+      '',
+      'This link is personal to you. Please don’t forward or share it with anyone else.',
+      '',
+      'With love,',
+      'Aurora & Blake',
+      '',
+      'Wewed — where love lives forever.',
+    ])
   })
 
   test('stores invitation configuration and expands the database style constraint additively', () => {

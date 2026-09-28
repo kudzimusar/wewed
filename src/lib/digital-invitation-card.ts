@@ -97,5 +97,5 @@ export function buildDigitalInvitationMessage({ guestName, weddingTitle, invitat
     weddingTitle,
     '',
     `${WEWED_BRAND_NAME} — ${WEWED_BRAND_PAYOFF}`,
-  ].join('\\n')
+  ].join('\n')
 }
