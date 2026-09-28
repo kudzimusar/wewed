@@ -25,6 +25,7 @@ describe('Planner invitation delivery safety', () => {
     const shareBlock = source.slice(start, end)
 
     expect(shareBlock).toContain('text: row.shareMessage')
+    expect(shareBlock).toContain('Wewed ·')
     expect(shareBlock).not.toContain('url: row.invitationUrl')
   })
 })
