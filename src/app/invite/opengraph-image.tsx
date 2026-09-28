@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { ImageResponse } from 'next/og'
 import {
   WEWED_BRAND_NAME,
@@ -9,7 +11,10 @@ export const alt = 'Wewed private wedding invitation'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
-export default function InvitationOpenGraphImage() {
+export default async function InvitationOpenGraphImage() {
+  // The real Wewed mark (W, heart and rings) — the same artwork as the app icon.
+  const logo = await readFile(join(process.cwd(), 'public', 'icon-512.png'))
+  const logoSrc = `data:image/png;base64,${logo.toString('base64')}`
   return new ImageResponse(
     (
       <div
@@ -38,7 +43,7 @@ export default function InvitationOpenGraphImage() {
             background: 'linear-gradient(135deg, #211b16 0%, #17130f 72%)',
           }}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', maxWidth: '760px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', maxWidth: '680px' }}>
             <div
               style={{
                 display: 'flex',
@@ -51,7 +56,7 @@ export default function InvitationOpenGraphImage() {
             >
               {WEWED_BRAND_NAME}
             </div>
-            <div style={{ marginTop: 34, fontSize: 58, lineHeight: 1.08 }}>
+            <div style={{ display: 'flex', marginTop: 34, fontSize: 54, lineHeight: 1.08 }}>
               {WEWED_INVITATION_PREVIEW_TITLE.replace('Wewed · ', '')}
             </div>
             <div
@@ -62,38 +67,28 @@ export default function InvitationOpenGraphImage() {
                 background: '#b3833f',
               }}
             />
-            <div style={{ marginTop: 28, fontSize: 28, color: '#d6cec5', fontStyle: 'italic' }}>
-              {WEWED_BRAND_NAME} — {WEWED_BRAND_PAYOFF}
+            <div style={{ display: 'flex', marginTop: 28, fontSize: 28, color: '#d6cec5', fontStyle: 'italic' }}>
+              {`${WEWED_BRAND_NAME} — ${WEWED_BRAND_PAYOFF}`}
             </div>
-            <div style={{ marginTop: 26, fontSize: 22, color: '#a99d91' }}>
+            <div style={{ display: 'flex', marginTop: 26, fontSize: 22, color: '#a99d91' }}>
               wewed.pro
             </div>
           </div>
 
           <div
             style={{
-              width: '190px',
-              height: '190px',
-              borderRadius: '46px',
-              background: '#2d2d2d',
-              border: '4px solid rgba(255,255,255,0.9)',
+              width: '240px',
+              height: '240px',
+              borderRadius: '52px',
+              background: '#fbf6ee',
+              border: '3px solid rgba(214,183,124,0.85)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 22px 60px rgba(0,0,0,0.25)',
+              boxShadow: '0 22px 60px rgba(0,0,0,0.35)',
             }}
           >
-            <svg viewBox="0 0 30 30" width="142" height="142" aria-hidden="true">
-              <path
-                fill="#ffffff"
-                d="M15.47 7.1l-1.3 1.85c-.2.29-.54.47-.9.47h-7.1V7.1h9.3z"
-              />
-              <polygon fill="#ffffff" points="24.3,7.1 13.14,22.91 5.7,22.91 16.86,7.1" />
-              <path
-                fill="#ffffff"
-                d="M14.53 22.91l1.31-1.86c.2-.29.54-.47.9-.47h7.09v2.33h-9.3z"
-              />
-            </svg>
+            <img src={logoSrc} width={212} height={212} alt="Wewed" />
           </div>
         </div>
       </div>
