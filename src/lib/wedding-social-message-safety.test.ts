@@ -8,6 +8,10 @@ describe('wedding social message credential safety', () => {
     expect(source).not.toContain('resolved.access.guest?.rsvpToken')
     expect(source).toContain('authorToken: null')
     expect(source).toContain('select: publicMessageSelect')
-    expect(source).not.toContain('data: messages }))')
+    // Every read returns only the public projection, which never includes the author's credential.
+    const projection = source.slice(source.indexOf('const publicMessageSelect'), source.indexOf('} as const'))
+    expect(projection).not.toContain('authorToken')
+    const getHandler = source.slice(source.indexOf('export async function GET'), source.indexOf('export async function POST'))
+    expect(getHandler).toContain('select: publicMessageSelect')
   })
 })
