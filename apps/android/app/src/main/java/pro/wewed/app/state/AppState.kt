@@ -354,10 +354,11 @@ class AppViewModel(
     fun consumePendingInvitationEntry(): InvitationEntry? =
         _pendingInvitationEntry.value.also { _pendingInvitationEntry.value = null }
 
-    fun handleIncomingUrl(rawUrl: String?) {
+    fun handleIncomingUrl(rawUrl: String?, intentExtra: String? = null) {
         // Invitation entry is resolved first and by its own parser, because it is the only launch
-        // shape that carries a credential and the only one with refusals of its own.
-        when (val entry = InvitationEntryParser.fromUrl(rawUrl)) {
+        // shape that carries a credential and the only one with refusals of its own. The web gate's
+        // package bridge carries its opaque handoff as an extra (InvitationEntryParser.fromLaunch).
+        when (val entry = InvitationEntryParser.fromLaunch(rawUrl, intentExtra)) {
             is InvitationEntry.Rejected -> {
                 _rejectedInvitation.value = entry.reason
                 _pendingInvitationEntry.value = null

@@ -202,7 +202,10 @@ class MainActivity : ComponentActivity() {
             return
         }
         appViewModel = resolved
-        appViewModel.handleIncomingUrl(intent?.dataString)
+        appViewModel.handleIncomingUrl(
+            intent?.dataString,
+            intent?.getStringExtra(InvitationEntryParser.ANDROID_INTENT_EXTRA)
+        )
 
         // Built only once the environment is known, because the environment decides whether a
         // Shadow persona may be applied at all. It starts empty: no identity, role or wedding
@@ -277,7 +280,10 @@ class MainActivity : ComponentActivity() {
             intentExtra = intent.getStringExtra(InvitationEntryParser.ANDROID_INTENT_EXTRA)
         )
         if (::appViewModel.isInitialized) {
-            appViewModel.handleIncomingUrl(intent.dataString)
+            appViewModel.handleIncomingUrl(
+                intent.dataString,
+                intent.getStringExtra(InvitationEntryParser.ANDROID_INTENT_EXTRA)
+            )
         }
     }
 

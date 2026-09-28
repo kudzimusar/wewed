@@ -29,9 +29,7 @@ object GuestOnlyEntryState {
      * guest-only shell and the ordinary unavailable screen.
      */
     fun publish(rawUrl: String?, intentExtra: String? = null): Boolean {
-        val parsed = InvitationEntryParser.fromUrl(rawUrl)
-            ?: InvitationEntryParser.fromIntentExtra(intentExtra)
-            ?: return false
+        val parsed = InvitationEntryParser.fromLaunch(rawUrl, intentExtra) ?: return false
         _entry.value = parsed
         return true
     }

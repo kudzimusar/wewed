@@ -140,6 +140,29 @@ object InvitationEntryParser {
         }.getOrNull()
     }
 
+    /**
+     * One launch → one entry. The web gate's package-targeted bridge is `wewed://invite/resume` with
+     * the opaque handoff in [ANDROID_INTENT_EXTRA] and deliberately NOT in the URL. Parsing the URL
+     * alone rejects that shape as a malformed resume, so for the bridge the extra is authoritative.
+     * Every other URL keeps precedence over an extra.
+     */
+    fun fromLaunch(rawUrl: String?, intentExtra: String?): InvitationEntry? {
+        if (!intentExtra.isNullOrBlank() && isBridgeResume(rawUrl)) return fromIntentExtra(intentExtra)
+        return fromUrl(rawUrl) ?: fromIntentExtra(intentExtra)
+    }
+
+    private fun isBridgeResume(rawUrl: String?): Boolean {
+        if (rawUrl.isNullOrBlank()) return true
+        return runCatching {
+            val uri = URI(rawUrl.trim())
+            uri.scheme?.lowercase() == "wewed" &&
+                uri.host?.lowercase() == "invite" &&
+                uri.path.orEmpty().trim('/').lowercase() == "resume" &&
+                parameter(uri.rawQuery, "h") == null &&
+                parameter(uri.rawQuery, "rsvp") == null
+        }.getOrDefault(false)
+    }
+
     /** The package-targeted bridge intent carries the handoff as an extra rather than in the URL. */
     fun fromIntentExtra(handoff: String?): InvitationEntry? {
         if (handoff.isNullOrBlank()) return null
