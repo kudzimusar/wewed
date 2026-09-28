@@ -6,6 +6,17 @@ import {
   weddingSlugFromRequest,
 } from '@/lib/wedding-public-access'
 
+const publicMessageSelect = {
+  id: true,
+  type: true,
+  content: true,
+  authorName: true,
+  isPublic: true,
+  revealedAt: true,
+  createdAt: true,
+  updatedAt: true,
+} as const
+
 interface MessagePayload {
   type?: unknown
   content?: unknown
@@ -44,6 +55,7 @@ export async function GET(request: NextRequest) {
 
     const messages = await db.message.findMany({
       where: { weddingId: resolved.access.wedding.id, isPublic: true },
+      select: publicMessageSelect,
       orderBy: { createdAt: 'desc' },
       take: 100,
     })
@@ -88,10 +100,14 @@ export async function POST(request: NextRequest) {
         type: typeof body?.type === 'string' && body.type.trim() ? body.type.trim() : 'wall',
         content,
         authorName,
-        authorToken: resolved.access.guest?.rsvpToken ?? null,
+        // Never copy an RSVP/invitation credential into social content. Historic
+        // authorToken rows remain readable only through a projection that excludes
+        // the field; new messages deliberately leave it null.
+        authorToken: null,
         isPublic: true,
         weddingId: resolved.access.wedding.id,
       },
+      select: publicMessageSelect,
     })
 
     return NextResponse.json({ success: true, data: message }, { status: 201 })

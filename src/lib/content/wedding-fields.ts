@@ -16,7 +16,6 @@ import { db } from '@/lib/db'
  * The canonical flagship slug — same convention as every other
  * planner API route.
  */
-const FLAGSHIP_SLUG = 'charity-and-kudzie'
 
 /**
  * Mapping of `${section}.${fieldKey}` → Wedding model field name.
@@ -40,14 +39,6 @@ const WEDDING_FIELD_MAP: Record<string, string> = {
 /** Wedding.date is a DateTime — needs to be parsed from an ISO string. */
 const WEDDING_DATE_KEY = 'wedding.date'
 
-/** Resolve the flagship wedding id (cached per request). */
-export async function getFlagshipWeddingId(): Promise<string | null> {
-  const w = await db.wedding.findFirst({
-    where: { slug: FLAGSHIP_SLUG },
-    select: { id: true },
-  })
-  return w?.id ?? null
-}
 
 /**
  * Returns true if (section, fieldKey) maps to a Wedding column.
@@ -69,13 +60,14 @@ export async function syncWeddingField(
   section: string,
   fieldKey: string,
   value: string,
+  client: Pick<typeof db, 'wedding'> = db,
 ): Promise<boolean> {
   const key = `${section}.${fieldKey}`
 
   if (key === WEDDING_DATE_KEY) {
     const parsed = new Date(value)
     if (Number.isNaN(parsed.getTime())) return false
-    await db.wedding.update({ where: { id: weddingId }, data: { date: parsed } })
+    await client.wedding.update({ where: { id: weddingId }, data: { date: parsed } })
     return true
   }
 
@@ -84,7 +76,7 @@ export async function syncWeddingField(
 
   // Prisma's update accepts a partial record — cast to keep
   // the helper schema-agnostic. The column names above are vetted.
-  await db.wedding.update({
+  await client.wedding.update({
     where: { id: weddingId },
     data: { [column]: value } as Record<string, string>,
   })

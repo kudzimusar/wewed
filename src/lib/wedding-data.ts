@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { PublicAnnouncement, PublicSiteStructure } from "@/lib/wedding-site/model";
 
 export interface WeddingCouple {
   id: string;
@@ -80,6 +81,10 @@ export interface WeddingData {
   ordered: Record<string, WeddingContent[]>;
   programmeItems: WeddingProgrammeItem[];
   songs: WeddingSong[];
+  /** QRO07: enabled site sections/items (the only source of repeating website content). */
+  site: PublicSiteStructure;
+  /** QRO07: published announcements (guest audience). */
+  announcements: PublicAnnouncement[];
 }
 
 export function getContent(
@@ -168,19 +173,6 @@ export function getOrderedContent(
   return out;
 }
 
-export const FLAGSHIP_WEDDING_SLUG = "charity-and-kudzie";
-
-export function readWeddingSlugFromUrl(): string {
-  if (typeof window === "undefined") return FLAGSHIP_WEDDING_SLUG;
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const slug = params.get("wedding")?.trim();
-    return slug || FLAGSHIP_WEDDING_SLUG;
-  } catch {
-    return FLAGSHIP_WEDDING_SLUG;
-  }
-}
-
 interface UseWeddingDataResult {
   wedding: WeddingInfo | null;
   content: WeddingContentMap;
@@ -188,10 +180,14 @@ interface UseWeddingDataResult {
   ordered: Record<string, WeddingContent[]>;
   programmeItems: WeddingProgrammeItem[];
   songs: WeddingSong[];
+  site: PublicSiteStructure;
+  announcements: PublicAnnouncement[];
   loading: boolean;
   error: string | null;
   refetch: () => void;
 }
+
+const EMPTY_SITE: PublicSiteStructure = { sections: [], items: {} };
 
 /**
  * Client refresh hook for the wedding-site projection.
@@ -209,37 +205,22 @@ export function useWeddingData(
   const [loading, setLoading] = useState<boolean>(!initialData);
   const [error, setError] = useState<string | null>(null);
   const [refetchSignal, setRefetchSignal] = useState<number>(0);
-  const [resolvedSlug, setResolvedSlug] = useState<string>(
-    slug ?? initialData?.wedding.slug ?? FLAGSHIP_WEDDING_SLUG,
-  );
-
-  useEffect(() => {
-    if (slug) {
-      setResolvedSlug(slug);
-      return;
-    }
-    setResolvedSlug(readWeddingSlugFromUrl());
-  }, [slug]);
-
-  useEffect(() => {
-    if (slug) return;
-    const handler = () => {
-      setResolvedSlug(readWeddingSlugFromUrl());
-    };
-    window.addEventListener("popstate", handler);
-    window.addEventListener("wewed:slug-change", handler as EventListener);
-    return () => {
-      window.removeEventListener("popstate", handler);
-      window.removeEventListener("wewed:slug-change", handler as EventListener);
-    };
-  }, [slug]);
+  // QRO07: there is no default wedding. A mount without an authoritative slug loads nothing and
+  // reports an error — it can never silently become another couple's wedding.
+  const resolvedSlug = slug ?? initialData?.wedding.slug ?? null;
 
   const refetch = useCallback(() => {
     setRefetchSignal((n) => n + 1);
   }, []);
 
   useEffect(() => {
-    if (!resolvedSlug) return;
+    if (!resolvedSlug) {
+      setData(null);
+      setLoading(false);
+      setError("No wedding was specified.");
+      return;
+    }
+    const slugToLoad: string = resolvedSlug;
     let cancelled = false;
     const controller = new AbortController();
 
@@ -248,13 +229,13 @@ export function useWeddingData(
       // slug changes, clear the previous wedding before loading the next one so
       // identity can never bleed across wedding routes.
       setData((current) =>
-        current && current.wedding.slug !== resolvedSlug ? null : current,
+        current && current.wedding.slug !== slugToLoad ? null : current,
       );
       setLoading(true);
       setError(null);
       try {
         const res = await fetch(
-          `/api/wedding-content?slug=${encodeURIComponent(resolvedSlug)}`,
+          `/api/wedding-content?slug=${encodeURIComponent(slugToLoad)}`,
           {
             signal: controller.signal,
             cache: "no-store",
@@ -301,6 +282,8 @@ export function useWeddingData(
     ordered: data?.ordered ?? {},
     programmeItems: data?.programmeItems ?? [],
     songs: data?.songs ?? [],
+    site: data?.site ?? EMPTY_SITE,
+    announcements: data?.announcements ?? [],
     loading,
     error,
     refetch,

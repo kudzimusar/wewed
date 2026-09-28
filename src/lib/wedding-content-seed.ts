@@ -4,12 +4,9 @@
  * Shared, framework-agnostic builders for the WeddingContent
  * rows that drive the multi-couple data layer.
  *
- * Used by:
- *   • /api/wedding-content/seed/route.ts   — seeds the flagship
- *     Charity & Kudzie wedding content.
- *   • /api/onboarding/route.ts             — copies the same
- *     structure for a brand-new couple, templated with their
- *     names / date / venue.
+ * Used by /api/onboarding/route.ts (local/CI only) to template
+ * starter planner rows for a brand-new couple. No real wedding is
+ * ever seeded from here (QRO07-SHIP01).
  *
  * Design notes:
  *   - Every row is plain JSON-serialisable so it can be passed
@@ -24,8 +21,6 @@
  *   - Single-value fields (headings, tagline, monogram, etc.)
  *     leave `metadata` null.
  */
-
-export const FLAGSHIP_WEDDING_SLUG = "charity-and-kudzie";
 
 export interface WeddingContentSeed {
   section: string;
@@ -464,21 +459,6 @@ export function buildWeddingContent(opts: ContentTemplateOpts): WeddingContentSe
   });
 
   return rows;
-}
-
-/**
- * Convenience: the flagship content for Charity & Kudzie.
- */
-export function buildFlagshipContent(): WeddingContentSeed[] {
-  return buildWeddingContent({
-    brideName: "Charity",
-    groomName: "Kudzie",
-    surname: "Musarurwa",
-    weddingDate: new Date("2026-12-23T14:00:00Z"),
-    venue: "Imba Manor",
-    venueCity: "Harare",
-    venueCountry: "Zimbabwe",
-  });
 }
 
 // ============================================================

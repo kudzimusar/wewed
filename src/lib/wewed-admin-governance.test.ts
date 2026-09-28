@@ -86,11 +86,9 @@ describe('admin route isolation and governance source contracts', () => {
     ).toBe(1)
     expect(weddingHome).not.toContain('if (!isFlagship)')
     expect(weddingHome).not.toContain('DataBackedWeddingExperience')
-    expect(weddingHome).toContain(
-      "const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple'",
-    )
-    expect(weddingHome).toContain('{canContribute && <MediaUpload />}')
-    expect(weddingHome).toContain('<LiveWall canPost={canContribute} />')
+    // QRO07: owner affordances on the wedding site come only from server-resolved canEditSite.
+    expect(weddingHome).toContain('{canEditSite ? (')
+    expect(weddingHome).toContain('{canContribute ? <MediaUpload /> : null}')
 
     expect(tools).not.toContain('usePathname')
     expect(tools).toContain(

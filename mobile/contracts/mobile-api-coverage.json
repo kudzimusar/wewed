@@ -1,0 +1,1805 @@
+{
+  "generatedFrom": "src/app/api/**/route.ts",
+  "backendRouteFiles": 259,
+  "backendOperations": 395,
+  "mobileContractPaths": 9,
+  "staleContractPaths": [
+    "/auth/login",
+    "/wedding/{weddingId}",
+    "/wedding/{weddingId}/tasks",
+    "/wedding/{weddingId}/tasks/{taskId}",
+    "/wedding/{weddingId}/guests",
+    "/wedding/{weddingId}/budget",
+    "/pass/{token}",
+    "/checkin/verify",
+    "/checkin/manifest/{weddingId}"
+  ],
+  "areas": {
+    "mobile": {
+      "routeFiles": 5,
+      "operations": 6,
+      "contractPaths": 0,
+      "classification": "MOBILE_ADAPTER_MISSING",
+      "routes": [
+        {
+          "path": "/api/mobile/auth/me",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/mobile/auth/signin",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/mobile/auth/signout",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/mobile/auth/wedding",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/mobile/push",
+          "operations": [
+            "POST",
+            "DELETE"
+          ]
+        }
+      ]
+    },
+    "admin": {
+      "routeFiles": 24,
+      "operations": 35,
+      "contractPaths": 0,
+      "classification": "MOBILE_ADAPTER_MISSING",
+      "routes": [
+        {
+          "path": "/api/admin/account-identity",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/admin/bookings",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/admin/client-operations",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/admin/command-center",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/admin/contract-intelligence",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/admin/contributions/analytics",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/admin/governance",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/admin/integrations/health",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/admin/invitations/accept",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/admin/onboarding",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/admin/overview",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/admin/planner-profiles",
+          "operations": [
+            "GET",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/admin/productivity",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/admin/providers/activate",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/admin/providers/claims",
+          "operations": [
+            "GET",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/admin/providers/discovery/import",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/admin/roles",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/admin/service-engagements/[id]/evidence",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/admin/service-engagements/[id]/transactions",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/admin/service-engagements",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/admin/transaction-governance",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/admin/vault/[id]",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/admin/vault/notebook-backfill",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/admin/vault/status",
+          "operations": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "planner": {
+      "routeFiles": 57,
+      "operations": 95,
+      "contractPaths": 0,
+      "classification": "MOBILE_ADAPTER_MISSING",
+      "routes": [
+        {
+          "path": "/api/planner/budget/[id]",
+          "operations": [
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/planner/budget/funding",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/budget",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/client-profile",
+          "operations": [
+            "GET",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/planner/collaboration",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/contract-intelligence/amendment-assist",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/contract-intelligence/explain",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/contract-intelligence",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/planner/contracts/[id]/amendments/[amendmentId]/issue",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/contracts/[id]/amendments",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/contracts/[id]/governance",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/planner/contracts/[id]/issue",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/contracts/[id]/review-links",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/contracts/[id]/versions/[versionId]/review-links/rotate",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/contribution-campaigns/[id]",
+          "operations": [
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/planner/contribution-campaigns",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/contribution-campaigns/share",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/planner/contributions/[id]/actions",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/contributions/[id]/assist",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/contributions/[id]/evidence",
+          "operations": [
+            "GET",
+            "POST",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/planner/contributions/[id]",
+          "operations": [
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/planner/contributions/ai-context",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/planner/contributions/export",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/planner/contributions",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/contributions/summary",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/planner/contributors/[id]",
+          "operations": [
+            "GET",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/planner/engagements/[id]/contracts",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/engagements/[id]/deal-room",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/planner/engagements/[id]/evidence",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/engagements/[id]/transactions",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/engagements/current",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/engagements/rescue",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/planner/engagements",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/event-day/export",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/planner/event-day",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/guests/[id]",
+          "operations": [
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/planner/guests/invitations/physical",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/guests/invitations",
+          "operations": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/planner/guests",
+          "operations": [
+            "GET",
+            "POST",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/planner/overview",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/planner/payments/[id]/funding",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/portfolio",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/planner/release-center",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/reminders",
+          "operations": [
+            "GET",
+            "POST",
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/planner/reminders/send",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/seating/auto-assign",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/seating",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/planner/tasks/[id]",
+          "operations": [
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/planner/tasks",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/templates",
+          "operations": [
+            "GET",
+            "POST",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/planner/timeline/[id]",
+          "operations": [
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/planner/timeline",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/vault/[id]",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/planner/vendors/[id]",
+          "operations": [
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/planner/vendors/funding-summary",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/planner/vendors",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/planner/worksheet-order",
+          "operations": [
+            "GET",
+            "PUT"
+          ]
+        }
+      ]
+    },
+    "vendor": {
+      "routeFiles": 12,
+      "operations": 18,
+      "contractPaths": 0,
+      "classification": "MOBILE_ADAPTER_MISSING",
+      "routes": [
+        {
+          "path": "/api/vendor/booking-analytics",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/vendor/bookings/[id]/action",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/vendor/bookings/[id]/amendments/[amendmentId]",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/vendor/bookings/[id]/quote",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/vendor/bookings",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/vendor/catalog/[id]/assets",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/vendor/catalog/[id]/availability-rules",
+          "operations": [
+            "GET",
+            "POST",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/vendor/catalog/[id]/components",
+          "operations": [
+            "GET",
+            "POST",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/vendor/catalog/[id]",
+          "operations": [
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/vendor/catalog",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/vendor/documents/[id]",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/vendor/documents",
+          "operations": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "weddings": {
+      "routeFiles": 6,
+      "operations": 15,
+      "contractPaths": 0,
+      "classification": "MOBILE_ADAPTER_MISSING",
+      "routes": [
+        {
+          "path": "/api/weddings/[slug]/guest-session/exchange",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/weddings/[slug]/guest-session",
+          "operations": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/weddings/[slug]/invitation-access/exchange",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/weddings/members",
+          "operations": [
+            "GET",
+            "POST",
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/weddings/planner-directory",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/weddings/team-invites",
+          "operations": [
+            "GET",
+            "POST",
+            "PATCH"
+          ]
+        }
+      ]
+    },
+    "rsvp": {
+      "routeFiles": 2,
+      "operations": 5,
+      "contractPaths": 0,
+      "classification": "MOBILE_ADAPTER_MISSING",
+      "routes": [
+        {
+          "path": "/api/rsvp/[token]",
+          "operations": [
+            "GET",
+            "PUT",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/rsvp",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        }
+      ]
+    },
+    "invitations": {
+      "routeFiles": 1,
+      "operations": 1,
+      "contractPaths": 0,
+      "classification": "MOBILE_ADAPTER_MISSING",
+      "routes": [
+        {
+          "path": "/api/invitations/install-handoff",
+          "operations": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "contributions": {
+      "routeFiles": 3,
+      "operations": 4,
+      "contractPaths": 0,
+      "classification": "MOBILE_ADAPTER_MISSING",
+      "routes": [
+        {
+          "path": "/api/contributions/[id]",
+          "operations": [
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/contributions/public",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/contributions",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        }
+      ]
+    },
+    "bookings": {
+      "routeFiles": 12,
+      "operations": 16,
+      "contractPaths": 0,
+      "classification": "MOBILE_ADAPTER_MISSING",
+      "routes": [
+        {
+          "path": "/api/bookings/[id]/amendments/[amendmentId]/withdraw",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/bookings/[id]/amendments",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/bookings/[id]/cancel",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/bookings/[id]/deposit",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/bookings/[id]/hold",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/bookings/[id]/quote/accept",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/bookings/[id]",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/bookings/[id]/submit",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/bookings/[id]/terms",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/bookings/auto-policy",
+          "operations": [
+            "GET",
+            "PUT"
+          ]
+        },
+        {
+          "path": "/api/bookings/commercial-context",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/bookings",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        }
+      ]
+    },
+    "auth": {
+      "routeFiles": 7,
+      "operations": 7,
+      "contractPaths": 1,
+      "classification": "PARTIAL",
+      "routes": [
+        {
+          "path": "/api/auth/me",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/auth/register",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/auth/sign-out",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/auth/signin",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/auth/signout",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/auth/signup",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/auth/wedding",
+          "operations": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "internal": {
+      "routeFiles": 3,
+      "operations": 3,
+      "contractPaths": 0,
+      "classification": "MOBILE_ADAPTER_MISSING",
+      "routes": [
+        {
+          "path": "/api/internal/bootstrap-physical-invitation",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/internal/communications/deliveries",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/internal/communications/endpoints/verify",
+          "operations": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "other": {
+      "routeFiles": 127,
+      "operations": 190,
+      "contractPaths": 0,
+      "classification": "MOBILE_ADAPTER_MISSING",
+      "routes": [
+        {
+          "path": "/api/account-deletion",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/ai/actions",
+          "operations": [
+            "GET",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/ai/chat",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/ai/context/health",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/ai/core",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/ai/documents",
+          "operations": [
+            "GET",
+            "POST",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/ai/drafts",
+          "operations": [
+            "GET",
+            "POST",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/ai/health",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/ai/live-smoke",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/ai/marketplace",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/ai/speech",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/ai/summary",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/ai/templates",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/ai/wedding-architect/booking",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/ai/wedding-architect",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/billing/account",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/billing/sync",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/calendar",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/comments",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/communications/attachments/[id]/promote",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/communications/attachments/[id]",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/communications/channels",
+          "operations": [
+            "GET",
+            "POST",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/communications/contacts",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/communications/conversations/[id]/attachments",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/communications/conversations/[id]/block",
+          "operations": [
+            "GET",
+            "POST",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/communications/conversations/[id]/messages",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/communications/conversations/[id]/notebook",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/communications/conversations/[id]/read",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/communications/conversations",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/communications/unread",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/content/[id]/restore",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/content/[id]",
+          "operations": [
+            "GET",
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/content",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/contracts/review/[token]/decision",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/contribute",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/contribution-campaigns/public",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/couple/wedding-privacy",
+          "operations": [
+            "GET",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/cron/communications-deliveries",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/cron/notification-deliveries",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/cron/reminders",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/cron/system-reminders",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/exports",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/health",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/imports/[jobId]",
+          "operations": [
+            "GET",
+            "POST",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/imports",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/join/[token]",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/marketplace/engagements/[id]/accept",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/marketplace/engagements/[id]/action",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/marketplace/engagements/[id]/authorize",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/marketplace/engagements",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/marketplace/enquiries/[id]/appoint",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/marketplace/enquiries/[id]",
+          "operations": [
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/marketplace/enquiries",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/marketplace/planners/[slug]",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/marketplace/planners",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/marketplace/profile",
+          "operations": [
+            "GET",
+            "PUT"
+          ]
+        },
+        {
+          "path": "/api/marketplace/profile/submit",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/marketplace/shortlist",
+          "operations": [
+            "GET",
+            "POST",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/media/[id]/content",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/media/[id]",
+          "operations": [
+            "GET",
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/media/archive/export",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/media/archive",
+          "operations": [
+            "GET",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/media",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/messages",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/notebook/[id]/actions",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/notebook/[id]/ai",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/notebook/[id]/attachments",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/notebook/[id]/recordings",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/notebook/[id]",
+          "operations": [
+            "GET",
+            "PATCH",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/notebook/[id]/transcription-chunks",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/notebook/ask",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/notebook/attachments/[id]",
+          "operations": [
+            "GET",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/notebook/context",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/notebook/recordings/[id]",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/notebook",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/notebook/transcription-readiness",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/notifications/capabilities",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/notifications/count",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/notifications/email-verification",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/notifications/preferences",
+          "operations": [
+            "GET",
+            "PUT"
+          ]
+        },
+        {
+          "path": "/api/notifications/push-subscriptions",
+          "operations": [
+            "POST",
+            "DELETE"
+          ]
+        },
+        {
+          "path": "/api/notifications",
+          "operations": [
+            "GET",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/onboarding",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/privacy",
+          "operations": [
+            "GET",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/privacy/verify-token",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/providers/[slug]/availability",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/providers/[slug]/catalog",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/providers/[slug]/claims",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/providers/[slug]/corrections",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/providers/[slug]/price",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/providers/[slug]",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/providers/[slug]/share",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/providers/areas",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/providers/commercial-guidance",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/providers/enquiries",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/providers/profile",
+          "operations": [
+            "GET",
+            "PUT"
+          ]
+        },
+        {
+          "path": "/api/providers",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/providers/website-suggest",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/qrcode",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/royalty/dispute",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/royalty/ledger/[id]",
+          "operations": [
+            "POST",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/royalty/ledger",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/royalty/payout",
+          "operations": [
+            "GET",
+            "POST",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/royalty/payout-account",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/royalty/preferences",
+          "operations": [
+            "GET",
+            "PATCH"
+          ]
+        },
+        {
+          "path": "/api/royalty/revenue-event",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/royalty",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/royalty/webhook",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/safety/reports",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/seed",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/songs/[id]/vote",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/songs",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/stripe/webhook",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/telegram",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/templates",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/today",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/vault/[id]",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/vault",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/webhooks/resend",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/webhooks/whatsapp",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/wedding",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/wedding-architect/plan",
+          "operations": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/api/wedding-content",
+          "operations": [
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/wedding-content/seed",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/wedding-requirements/guidance",
+          "operations": [
+            "POST"
+          ]
+        },
+        {
+          "path": "/api/wedding-requirements",
+          "operations": [
+            "GET",
+            "PUT"
+          ]
+        }
+      ]
+    }
+  }
+}

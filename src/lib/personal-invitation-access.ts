@@ -1,12 +1,14 @@
 import 'server-only'
 
-import { db } from '@/lib/db'
 import {
   normalizeInvitationCardStyle,
   type InvitationCardStyle,
 } from '@/lib/digital-invitation-card'
 
+type InvitationDatabase = typeof import('@/lib/db').db
+
 export interface ResolvedPersonalInvitation {
+  weddingDate: Date
   weddingId: string
   weddingSlug: string
   weddingTitle: string
@@ -22,8 +24,9 @@ export async function resolvePersonalInvitation({
   weddingSlug: string
   token: string
   requestedCard?: string | null
-}): Promise<ResolvedPersonalInvitation | null> {
-  const rsvp = await db.rSVP.findUnique({
+}, database?: InvitationDatabase): Promise<ResolvedPersonalInvitation | null> {
+  const activeDb = database ?? (await import('@/lib/db')).db
+  const rsvp = await activeDb.rSVP.findUnique({
     where: { token },
     include: {
       guest: {
@@ -31,6 +34,7 @@ export async function resolvePersonalInvitation({
           wedding: {
             select: {
               id: true,
+              date: true,
               slug: true,
               title: true,
               privacy: true,
@@ -52,6 +56,7 @@ export async function resolvePersonalInvitation({
 
   return {
     weddingId: rsvp.guest.wedding.id,
+    weddingDate: rsvp.guest.wedding.date,
     weddingSlug: rsvp.guest.wedding.slug,
     weddingTitle: rsvp.guest.wedding.title,
     guestId: rsvp.guest.id,

@@ -1,0 +1,390 @@
+package pro.wewed.app.services
+
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.nio.file.Files
+
+class WeddingDayOfflineTest {
+    private val signer = Ww2TestSigner()
+
+    @Test
+    fun offlineQueueSurvivesRestartWithExactAttendeeKeys() = runBlocking {
+        val dir = Files.createTempDirectory("wewed-android-offline").toFile()
+        try {
+            val weddingId = "wedding-1"
+            // LQR01: the exact scanned credential lives in the secure vault, which (like the
+            // Keystore on a device) outlives the process; the cache directory holds only metadata.
+            val vault = InMemorySecureStorage()
+            val token = signer.token("abc12345", "WWABC1234")
+            var store = OfflineManifestStore(dir, deviceId = "android-gate-a", credentialVault = vault)
+            store.saveManifest(
+                weddingId,
+                listOf(
+                    GuestManifestItem(
+                        id = "guest-1",
+                        serial = "WWABC1234",
+                        guestName = "Doe Household",
+                        partySize = 3,
+                        checkedInCount = 1,
+                        tableAssignment = "Table 9",
+                        eventBitmask = 0x0e,
+                        signingKeyId = "key-v2",
+                        nonce = "66f001ab",
+                        attendeeKeys = listOf("primary", "plus-one", "child-1"),
+                        checkedInAttendeeKeys = listOf("primary"),
+                        eligible = true
+                    )
+                )
+            )
+
+            val result = store.recordOfflineCheckIn(
+                weddingId = weddingId,
+                token = token,
+                count = 1
+            )
+            assertEquals(2, result.alreadyCheckedInCount)
+            assertEquals(1, result.remainingCount)
+
+            var pending = store.getPendingCheckIns(weddingId)
+            assertEquals(1, pending.size)
+            assertEquals(listOf("plus-one"), pending.single().attendeeKeys)
+            assertEquals("android-gate-a", pending.single().deviceId)
+            assertEquals("", pending.single().usherId)
+            val credentialRef = pending.single().credentialRef!!
+            assertEquals(token, vault.get(credentialRef))
+
+            // Simulate process death / app restart against the same durable storage directory.
+            store = OfflineManifestStore(dir, deviceId = "android-gate-a", credentialVault = vault)
+            val restoredGuest = store.lookupBySerial(weddingId, "WWABC1234")!!
+            assertEquals(listOf("primary", "plus-one"), restoredGuest.checkedInAttendeeKeys)
+            pending = store.getPendingCheckIns(weddingId)
+            assertEquals(listOf("plus-one"), pending.single().attendeeKeys)
+            assertEquals(credentialRef, pending.single().credentialRef)
+            assertFalse(pending.single().synced)
+
+            store.markCheckInSynced(pending.single().id)
+            assertNull("a synced event no longer retains its credential", vault.get(credentialRef))
+            store = OfflineManifestStore(dir, deviceId = "android-gate-a", credentialVault = vault)
+            assertTrue(store.getPendingCheckIns(weddingId).isEmpty())
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun revokedManifestCredentialIsRejectedOffline() = runBlocking {
+        val dir = Files.createTempDirectory("wewed-android-revoked").toFile()
+        try {
+            val savedKeys = mutableListOf<String>()
+            val backing = InMemorySecureStorage()
+            val vault = object : SecureStorage by backing {
+                override fun save(key: String, value: String) {
+                    savedKeys += key
+                    backing.save(key, value)
+                }
+            }
+            val store = OfflineManifestStore(dir, credentialVault = vault)
+            store.saveManifest(
+                "wedding-1",
+                listOf(
+                    GuestManifestItem(
+                        id = "guest-1",
+                        serial = "WWREVOKED",
+                        guestName = "Revoked Guest",
+                        partySize = 1,
+                        attendeeKeys = listOf("primary"),
+                        eligible = true,
+                        revokedAt = "2026-09-17T00:00:00.000Z"
+                    )
+                )
+            )
+
+            val result = store.recordOfflineCheckIn("wedding-1", signer.token("abc12345", "WWREVOKED"), 1)
+            assertEquals(pro.wewed.app.models.CheckInStatus.INVALID_PASS, result.status)
+            assertTrue(store.getPendingCheckIns("wedding-1").isEmpty())
+            // A refused scan never retains the credential either.
+            assertTrue(savedKeys.isEmpty())
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun verifiedTrustAndRotatedKeysSurviveRestart() = runBlocking {
+        val dir = Files.createTempDirectory("wewed-android-trust").toFile()
+        try {
+            var trustStore = WeddingDayManifestTrustStore(dir)
+            trustStore.save(
+                VerifiedWeddingDayManifestTrust(
+                    weddingId = "wedding-1",
+                    weddingShortId = "abc12345",
+                    eventKey = "wedding-day",
+                    generatedAt = "2026-09-17T00:00:00.000Z",
+                    expiresAt = "2026-09-18T00:00:00.000Z",
+                    rootKeyId = "root-v1",
+                    keys = listOf(
+                        WeddingDayManifestKey(
+                            keyId = "key-v1",
+                            algorithm = "ECDSA_P256_SHA256",
+                            publicKeyDerBase64 = "old-key",
+                            status = "retired",
+                            activeFrom = "2026-09-01T00:00:00.000Z"
+                        ),
+                        WeddingDayManifestKey(
+                            keyId = "key-v2",
+                            algorithm = "ECDSA_P256_SHA256",
+                            publicKeyDerBase64 = "new-key",
+                            status = "active",
+                            activeFrom = "2026-09-17T00:00:00.000Z"
+                        )
+                    )
+                )
+            )
+
+            trustStore = WeddingDayManifestTrustStore(dir)
+            assertEquals("new-key", trustStore.signingKey("wedding-1", "key-v2")?.publicKeyDerBase64)
+            assertEquals("old-key", trustStore.signingKey("wedding-1", "key-v1")?.publicKeyDerBase64)
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun p1363VerifierAcceptsCanonicalPayloadAndRejectsTampering() {
+        val publicKeyDerBase64 = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEPSF40dU2YlZRMbV5EweSiFFtJbrJmwtufFc4Bx2eJrC2erZirTgNiKFYBjAIgZsNpWDsGhWRsxToZUz+mdHSNQ=="
+        val token = "WW2.wedts26.WWJD0824.0e.66f001ab.8d4ba7eca9ef156da73f31e98456a9eaae676f66e4e33d4afaeb5f36cc5f4e06d612a90d0519d343346872759e675437934043ba97fec6a763b7ae3430d6ab30"
+        val parts = token.split(".")
+        val payload = parts.take(5).joinToString(".")
+        val signature = parts[5]
+
+        assertTrue(TokenVerifier.verifyP1363(payload, signature, publicKeyDerBase64))
+        assertFalse(TokenVerifier.verifyP1363(payload + "tampered", signature, publicKeyDerBase64))
+    }
+
+    @Test
+    fun futureOrMalformedSigningKeyActivationFailsClosedOffline() = runBlocking {
+        val token = "WW2.wedts26.WWJD0824.0e.66f001ab.8d4ba7eca9ef156da73f31e98456a9eaae676f66e4e33d4afaeb5f36cc5f4e06d612a90d0519d343346872759e675437934043ba97fec6a763b7ae3430d6ab30"
+        val publicKeyDerBase64 = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEPSF40dU2YlZRMbV5EweSiFFtJbrJmwtufFc4Bx2eJrC2erZirTgNiKFYBjAIgZsNpWDsGhWRsxToZUz+mdHSNQ=="
+        val store = OfflineManifestStore()
+        store.saveManifest(
+            "wedding-1",
+            listOf(
+                GuestManifestItem(
+                    id = "guest-1",
+                    serial = "WWJD0824",
+                    guestName = "Guest",
+                    partySize = 1,
+                    eventBitmask = 0x0e,
+                    signingKeyId = "key-v1",
+                    nonce = "66f001ab",
+                    attendeeKeys = listOf("primary"),
+                    eligible = true,
+                    expiresAt = "2099-09-18T00:00:00.000Z"
+                )
+            )
+        )
+        val trustStore = WeddingDayManifestTrustStore()
+        val service = WeddingDaySyncService(
+            transport = object : WeddingDayHttpTransport {
+                override suspend fun get(path: String, headers: Map<String, String>) =
+                    error("network not used")
+                override suspend fun post(path: String, headers: Map<String, String>, body: String) =
+                    error("network not used")
+            },
+            trustedRootPublicKeyDerBase64 = publicKeyDerBase64
+        )
+
+        suspend fun saveKey(activeFrom: String) {
+            trustStore.save(
+                VerifiedWeddingDayManifestTrust(
+                    weddingId = "wedding-1",
+                    weddingShortId = "wedts26",
+                    eventKey = "wedding-day",
+                    generatedAt = "2026-09-17T00:00:00.000Z",
+                    expiresAt = "2099-09-18T00:00:00.000Z",
+                    rootKeyId = "root-v1",
+                    keys = listOf(
+                        WeddingDayManifestKey(
+                            keyId = "key-v1",
+                            algorithm = "ECDSA_P256_SHA256",
+                            publicKeyDerBase64 = publicKeyDerBase64,
+                            status = "active",
+                            activeFrom = activeFrom
+                        )
+                    )
+                )
+            )
+        }
+
+        saveKey("2099-09-17T00:00:00.000Z")
+        var failure: Throwable? = null
+        try {
+            service.verifyOfflinePass(token, "wedding-1", offlineStore = store, trustStore = trustStore)
+        } catch (error: Throwable) {
+            failure = error
+        }
+        assertTrue(failure is WeddingDaySyncException.SigningKeyInactive)
+
+        saveKey("not-an-iso-date")
+        failure = null
+        try {
+            service.verifyOfflinePass(token, "wedding-1", offlineStore = store, trustStore = trustStore)
+        } catch (error: Throwable) {
+            failure = error
+        }
+        assertTrue(failure is WeddingDaySyncException.SigningKeyInactive)
+    }
+
+
+    @Test
+    fun offlineSyncBodyCarriesOperationDataButNoAuthorityClaims() = runBlocking {
+        val store = OfflineManifestStore(deviceId = "android-device-1")
+        store.saveManifest(
+            "wedding-1",
+            listOf(
+                GuestManifestItem(
+                    id = "guest-1",
+                    serial = "WWABC1234",
+                    guestName = "Guest",
+                    partySize = 1,
+                    attendeeKeys = listOf("primary"),
+                    eligible = true
+                )
+            )
+        )
+        val token = signer.token("abc12345", "WWABC1234")
+        store.recordOfflineCheckIn("wedding-1", token, 1)
+
+        val trustStore = WeddingDayManifestTrustStore()
+        trustStore.save(
+            VerifiedWeddingDayManifestTrust(
+                weddingId = "wedding-1",
+                weddingShortId = "abc12345",
+                eventKey = "wedding-day",
+                generatedAt = "2026-09-24T00:00:00.000Z",
+                expiresAt = "2099-09-24T00:00:00.000Z",
+                rootKeyId = "root-v1",
+                keys = emptyList()
+            )
+        )
+
+        var postedPath = ""
+        var postedBody = ""
+        val transport = object : WeddingDayHttpTransport {
+            override suspend fun get(path: String, headers: Map<String, String>) =
+                error("GET not used")
+            override suspend fun post(path: String, headers: Map<String, String>, body: String): WeddingDayHttpResponse {
+                postedPath = path
+                postedBody = body
+                return WeddingDayHttpResponse(200, """{"success":true}""")
+            }
+        }
+        val service = WeddingDaySyncService(transport, trustedRootPublicKeyDerBase64 = "unused")
+        val result = service.syncPendingCheckIns(
+            bearerToken = "native-session",
+            weddingId = "wedding-1",
+            grantId = "gate_operator:wedding-1:gate-1",
+            offlineStore = store,
+            trustStore = trustStore
+        )
+
+        assertEquals(1, result.syncedIds.size)
+        assertTrue(postedPath.contains("grantId=gate_operator:wedding-1:gate-1"))
+        // LQR01: the exact scanned credential is the admission claim; a serial alone never is.
+        assertEquals(token, org.json.JSONObject(postedBody).getString("token"))
+        assertTrue(postedBody.contains("\"attendeeKeys\""))
+        assertTrue(postedBody.contains("\"clientEventId\""))
+        assertTrue(postedBody.contains("\"deviceId\""))
+        for (forbidden in listOf("passSerial", "guestId", "weddingId", "gateId", "usherId", "operatorUserId", "source", "eventKey")) {
+            assertFalse("offline sync must not submit $forbidden", postedBody.contains("\"$forbidden\""))
+        }
+    }
+
+    @Test
+    fun testRevokePassCallsRevokeEndpointAndPreservesStructuredResult() = runBlocking {
+        var postedPath = ""
+        var postedBody = ""
+        var postedHeaders = emptyMap<String, String>()
+        val transport = object : WeddingDayHttpTransport {
+            override suspend fun get(path: String, headers: Map<String, String>) =
+                error("GET not used")
+            override suspend fun post(path: String, headers: Map<String, String>, body: String): WeddingDayHttpResponse {
+                postedPath = path
+                postedBody = body
+                postedHeaders = headers
+                return WeddingDayHttpResponse(200, """{"success":true}""")
+            }
+        }
+        val service = WeddingDaySyncService(transport, trustedRootPublicKeyDerBase64 = "unused")
+        val result = service.revokePass(
+            bearerToken = "native-session",
+            passSerial = "WWTEST999",
+            reason = "Lost pass",
+            grantId = "gate_operator:wedding-1:gate-1"
+        )
+        assertTrue(result.success)
+        assertTrue(postedPath.contains("/api/native/gate/wedding-day/pass/revoke"))
+        assertTrue(postedPath.contains("grantId=gate_operator:wedding-1:gate-1"))
+        assertEquals("Bearer native-session", postedHeaders["Authorization"])
+        assertEquals("gate_operator:wedding-1:gate-1", postedHeaders["x-wewed-grant-id"])
+        assertTrue(postedBody.contains("\"passSerial\":\"WWTEST999\""))
+        assertTrue(postedBody.contains("\"reason\":\"Lost pass\""))
+        for (forbidden in listOf("weddingId", "gateId", "usherId", "operatorUserId")) {
+            assertFalse(postedBody.contains("\"$forbidden\""))
+        }
+    }
+
+    @Test
+    fun revokePassReturnsServerReasonInsteadOfBoolean() = runBlocking {
+        val transport = object : WeddingDayHttpTransport {
+            override suspend fun get(path: String, headers: Map<String, String>) =
+                error("GET not used")
+            override suspend fun post(path: String, headers: Map<String, String>, body: String) =
+                WeddingDayHttpResponse(
+                    403,
+                    """{"success":false,"code":"GATE_GRANT_REVOKED","error":"This gate assignment is no longer authorized."}"""
+                )
+        }
+        val service = WeddingDaySyncService(transport, trustedRootPublicKeyDerBase64 = "unused")
+        val result = service.revokePass(
+            bearerToken = "native-session",
+            passSerial = "WWTEST999",
+            reason = "Lost pass",
+            grantId = "gate_operator:wedding-1:gate-1"
+        )
+        assertFalse(result.success)
+        assertEquals("GATE_GRANT_REVOKED", result.code)
+        assertEquals("This gate assignment is no longer authorized.", result.error)
+    }
+
+    @Test
+    fun locallyMarkedRevocationFailsClosedBeforeAnotherOfflineAdmission() = runBlocking {
+        val store = OfflineManifestStore()
+        store.saveManifest(
+            "wedding-1",
+            listOf(
+                GuestManifestItem(
+                    id = "guest-1",
+                    serial = "WWLOCALREVOKE",
+                    guestName = "Guest",
+                    partySize = 1,
+                    attendeeKeys = listOf("primary"),
+                    eligible = true
+                )
+            )
+        )
+        store.markPassRevoked("wedding-1", "WWLOCALREVOKE")
+        val result = store.recordOfflineCheckIn(
+            "wedding-1",
+            signer.token("abc12345", "WWLOCALREVOKE"),
+            1
+        )
+        assertEquals(pro.wewed.app.models.CheckInStatus.INVALID_PASS, result.status)
+        assertTrue(store.getPendingCheckIns("wedding-1").isEmpty())
+    }
+
+}

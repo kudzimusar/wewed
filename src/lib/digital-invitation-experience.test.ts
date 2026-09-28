@@ -145,15 +145,22 @@ describe('premium digital invitation experience', () => {
   test('children policy is wedding-scoped, backwards compatible, and enforced by the guest-session API', () => {
     const plannerApi = source('src/app/api/planner/guests/invitations/route.ts')
     const guestApi = source('src/app/api/weddings/[slug]/guest-session/route.ts')
+    // Master plan Phase 9 — the actual enforcement now lives in the shared
+    // `applyGuestRsvpUpdate` operation, reused by /api/rsvp too (see guest-rsvp-mutation.test.ts
+    // for its own executable disposable-DB coverage); the guest-session route still surfaces the
+    // resulting `CHILDREN_NOT_ALLOWED` code itself, so that assertion stays pinned to this file.
+    const guestRsvpMutation = source('src/lib/guest-rsvp-mutation.ts')
     const rsvp = source(
       'src/components/wedding/invitation-experience/premium-invitation-rsvp-dialog.tsx',
     )
     expect(plannerApi).toContain("section: 'rsvp'")
     expect(plannerApi).toContain("field: 'childrenPolicy'")
     expect(plannerApi).toContain('requestedChildrenPolicy ?? beforeChildrenPolicy')
-    expect(guestApi).toContain("type ChildrenPolicy = 'welcome' | 'adults_only'")
+    expect(guestApi).toContain("applyGuestRsvpUpdate")
     expect(guestApi).toContain("code: 'CHILDREN_NOT_ALLOWED'")
-    expect(guestApi).toContain('delete data.kidsCount')
+    expect(guestRsvpMutation).toContain("type ChildrenPolicy = 'welcome' | 'adults_only'")
+    expect(guestRsvpMutation).toContain("code: 'CHILDREN_NOT_ALLOWED'")
+    expect(guestRsvpMutation).toContain('delete data.kidsCount')
     expect(rsvp).toContain('data-testid="premium-rsvp-adults-only-note"')
     expect(rsvp).toContain('With love, we kindly ask that this be an adults-only celebration.')
     expect(rsvp).toContain('data-testid="premium-rsvp-save-status"')

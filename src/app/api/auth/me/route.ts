@@ -18,6 +18,7 @@ import {
   isWewedPlatformAdministrator,
   WEWED_PLATFORM_SESSION_ID,
 } from '@/lib/business-access'
+import { previewAccountBookkeepingSuppressed } from '@/lib/preview-write-safety'
 
 interface AccessUser {
   id: string
@@ -128,7 +129,7 @@ async function authorizedResponse(input: {
     dashboardRole === 'admin' &&
     await isWewedPlatformAdministrator(accessUser.id)
   ) {
-    if (appSession.activeWeddingId !== WEWED_PLATFORM_SESSION_ID) {
+    if (!previewAccountBookkeepingSuppressed() && appSession.activeWeddingId !== WEWED_PLATFORM_SESSION_ID) {
       await db.user.update({
         where: { id: accessUser.id },
         data: { currentWeddingId: null },
@@ -172,7 +173,7 @@ async function authorizedResponse(input: {
     const vendor = await activeVendorIdentity(accessUser.id)
     if (!vendor) return signedOutResponse()
 
-    if (appSession.activeWeddingId !== VENDOR_PORTFOLIO_SESSION_ID) {
+    if (!previewAccountBookkeepingSuppressed() && appSession.activeWeddingId !== VENDOR_PORTFOLIO_SESSION_ID) {
       await db.user.update({
         where: { id: accessUser.id },
         data: { currentWeddingId: null },
@@ -220,7 +221,7 @@ async function authorizedResponse(input: {
   )
 
   if (activeWeddings.length === 0 && dashboardRole === 'planner') {
-    if (appSession.activeWeddingId !== PLANNER_PORTFOLIO_SESSION_ID) {
+    if (!previewAccountBookkeepingSuppressed() && appSession.activeWeddingId !== PLANNER_PORTFOLIO_SESSION_ID) {
       await db.user.update({
         where: { id: accessUser.id },
         data: { currentWeddingId: null },
@@ -267,7 +268,7 @@ async function authorizedResponse(input: {
       (wedding) => wedding.id === appSession.activeWeddingId,
     ) ?? activeWeddings[0]
 
-  if (activeWedding.id !== appSession.activeWeddingId) {
+  if (!previewAccountBookkeepingSuppressed() && activeWedding.id !== appSession.activeWeddingId) {
     await db.$executeRawUnsafe(
       `UPDATE public."User"
        SET "currentWeddingId" = $2, "updatedAt" = CURRENT_TIMESTAMP

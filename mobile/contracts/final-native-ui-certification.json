@@ -1,0 +1,45 @@
+{
+  "contract": "wewed.final-native-ui-certification.v1",
+  "decisions": ["D-084: Shadow UI is not production UI evidence", "D-085: final native Guest UI unchanged; QRO04 used the wrong test lane"],
+  "finalNativeApplication": {
+    "ios": "apps/ios/Wewed",
+    "android": "apps/android/app",
+    "guestPath": {
+      "ios": ["GuestOnlyInvitationShellView", "LiveGuestInvitationView", "LiveGuestShellView"],
+      "android": ["GuestOnlyInvitationShell", "LiveGuestInvitationScreen", "LiveGuestShell"]
+    },
+    "liveLaneEnvironment": "production_preview"
+  },
+  "finalNativeGuestSurfaceTests": {
+    "classification": "FINAL NATIVE GUEST SURFACE",
+    "syntheticServer": "scripts/native-mobile/guest-profile-ui-server.py",
+    "ios": {
+      "project": "apps/ios",
+      "scheme": "Wewed",
+      "tests": [
+        "GuestProfileUITests/GuestProfileUITests/testInvitationHomeReopenAndRelaunch",
+        "GuestProfileUITests/GuestProfileUITests/testProfileAndPassReturnToPreviousSurface",
+        "GuestProfileUITests/GuestProfileUITests/testAttendingCardOpensServerPassAndWeddingDay",
+        "GuestProfileUITests/GuestProfileUITests/testPendingAndDeclinedDoNotGetPass",
+        "GuestProfileUITests/GuestProfileUITests/testProductionGuestOnlyLaunchSurvivesWithoutCrash"
+      ]
+    },
+    "android": {
+      "project": "apps/android",
+      "classes": [
+        "pro.wewed.app.invitation.GuestHomeDigitalInvitationTest",
+        "pro.wewed.app.invitation.GuestInvitationNavigationTest",
+        "pro.wewed.app.invitation.GuestPassEligibilityTest"
+      ]
+    }
+  },
+  "shadowTestOnly": {
+    "classification": "SHADOW TEST ONLY",
+    "rule": "Any automation launching wewed_native_env shadow, sanitized_shadow or private_real_shadow (e.g. everything under .maestro/ that sets it) is a qualification harness and must never be listed as final-native UI evidence."
+  },
+  "legacyTwaWrapper": {
+    "path": "android/",
+    "classification": "LEGACY WEB/TWA WRAPPER",
+    "rule": "The top-level Bubblewrap/Trusted Web Activity wrapper is never installed, launched or qualified as the Compose native application."
+  }
+}

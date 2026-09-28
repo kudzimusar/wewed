@@ -26,6 +26,16 @@ describe('bulk physical invitation access', () => {
     ).toBe('K7M4P9XDT2')
   })
 
+  test('preserves the already-printed Charity & Kudzie physical invitation code', () => {
+    const printed = 'JXVAA-X6DRL'
+    const raw = 'JXVAAX6DRL'
+    expect(normalizePhysicalInvitationCode(printed)).toBe(raw)
+    expect(formatPhysicalInvitationCode(raw)).toBe(printed)
+    expect(physicalInvitationDestinationId(printed)).toBe('print_JXVAAX6DRL')
+    expect(physicalInvitationCodeFromDestinationId('print_JXVAAX6DRL')).toBe(raw)
+    expect(`https://wewed.pro/i/${raw}`).toBe('https://wewed.pro/i/JXVAAX6DRL')
+  })
+
   test('QR route grants anonymous shared access with a cookie-safe no-store redirect', () => {
     const route = source('src/app/i/[code]/route.ts')
     expect(route).toContain("type: 'physical_invitation'")
@@ -154,9 +164,10 @@ describe('bulk physical invitation access', () => {
     const component = source(
       'src/components/wedding/physical-invitation-qr.tsx',
     )
-    const api = source(
-      'src/app/api/planner/guests/invitations/physical/route.ts',
-    )
+    // QRO05-PIQR01: the read projection is shared with the native route.
+    const api =
+      source('src/app/api/planner/guests/invitations/physical/route.ts') +
+      source('src/lib/planner-invitation-projection.ts')
     expect(component).toContain('One clean QR for every printed invitation')
     expect(component).toContain("errorCorrectionLevel: 'H'")
     expect(component).toContain('margin: 4')

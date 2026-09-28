@@ -1,3 +1,4 @@
+import { guestSessionMatchesInvitation, invitationVersionFingerprint, weddingGuestSessionExpiry } from '@/lib/wedding-guest-session'
 import { NextRequest, NextResponse } from 'next/server'
 import { readAppSession } from '@/lib/app-session'
 import { db } from '@/lib/db'
@@ -42,6 +43,7 @@ async function resolvePortfolioEntry(input: { weddingId: string; guestId: string
       wedding: {
         select: {
           id: true,
+          date: true,
           slug: true,
           invitationCardStyle: true,
         },
@@ -55,13 +57,14 @@ async function resolveLegacyGuestSession(request: NextRequest) {
   if (!guestSession) return null
 
   const rsvp = await db.rSVP.findUnique({
-    where: { token: guestSession.rsvpToken },
+    where: guestSession.version === 1 ? { token: guestSession.rsvpToken } : { guestId: guestSession.guestId },
     include: {
       guest: {
         include: {
           wedding: {
             select: {
               id: true,
+              date: true,
               slug: true,
               invitationCardStyle: true,
             },
@@ -74,7 +77,8 @@ async function resolveLegacyGuestSession(request: NextRequest) {
   if (
     !rsvp ||
     rsvp.guest.id !== guestSession.guestId ||
-    rsvp.guest.wedding.id !== guestSession.weddingId
+    rsvp.guest.wedding.id !== guestSession.weddingId ||
+    !guestSessionMatchesInvitation(guestSession, { weddingId: rsvp.guest.wedding.id, guestId: rsvp.guest.id, rsvpToken: rsvp.token })
   ) {
     return null
   }
@@ -87,6 +91,8 @@ async function resolveLegacyGuestSession(request: NextRequest) {
       rsvp.guest.wedding.invitationCardStyle,
     ),
     rsvpToken: rsvp.token,
+    weddingDate: rsvp.guest.wedding.date,
+    accessExpiresAt: guestSession.version === 2 ? guestSession.expiresAt : weddingGuestSessionExpiry(rsvp.guest.wedding.date),
   }
 }
 
@@ -101,6 +107,8 @@ export async function GET(request: NextRequest) {
         guestId: string
         invitationCardStyle: ReturnType<typeof normalizeInvitationCardStyle>
         rsvpToken: string
+        weddingDate: Date
+        accessExpiresAt: number
       }
     | null = null
 
@@ -122,7 +130,7 @@ export async function GET(request: NextRequest) {
 
     if (activeEntry) {
       const record = await resolvePortfolioEntry(activeEntry)
-      if (record?.rsvp && record.wedding.id === activeEntry.weddingId) {
+      if (activeEntry.accessExpiresAt && activeEntry.accessExpiresAt > Date.now() && record?.rsvp && record.wedding.id === activeEntry.weddingId && activeEntry.invitationVersionFingerprint === invitationVersionFingerprint({ weddingId: record.wedding.id, guestId: record.id, rsvpToken: record.rsvp.token })) {
         guestRestore = {
           weddingId: record.wedding.id,
           weddingSlug: record.wedding.slug,
@@ -131,6 +139,8 @@ export async function GET(request: NextRequest) {
           // must not resurrect an older design in the cold-launch URL.
           invitationCardStyle: normalizeInvitationCardStyle(record.wedding.invitationCardStyle),
           rsvpToken: record.rsvp.token,
+          weddingDate: record.wedding.date,
+          accessExpiresAt: activeEntry.accessExpiresAt,
         }
       }
     }
@@ -154,10 +164,14 @@ export async function GET(request: NextRequest) {
       weddingId: guestRestore.weddingId,
       guestId: guestRestore.guestId,
       rsvpToken: guestRestore.rsvpToken,
+      weddingDate: guestRestore.weddingDate,
+      expiresAt: guestRestore.accessExpiresAt,
     })
     setWeddingGuestPortfolioCookie(
       response,
       mergeWeddingGuestPortfolio(readWeddingGuestPortfolio(request), {
+        accessExpiresAt: guestRestore.accessExpiresAt,
+        invitationVersionFingerprint: invitationVersionFingerprint(guestRestore),
         weddingId: guestRestore.weddingId,
         weddingSlug: guestRestore.weddingSlug,
         guestId: guestRestore.guestId,

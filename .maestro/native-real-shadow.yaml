@@ -1,0 +1,25 @@
+appId: pro.wewed.app.dev
+---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "private_real_shadow"
+
+# Private Real Shadow with no provisioned snapshot.
+#
+# clearState deletes the app-private snapshot, so this lane deliberately starts WITHOUT one. The
+# property under test is the refusal: a Private Real environment that cannot load its protected
+# graph must say so and substitute nothing. Silently falling back to fixture rows here would be
+# the most dangerous failure the app could have, because the badge would still read "Private Real".
+#
+# The provisioned counterpart of this lane lives in .maestro/private-real/, runs locally only, and
+# uses clearState: false for exactly this reason.
+- assertVisible:
+    id: "environment-unavailable"
+- assertVisible:
+    id: "environment-unavailable-no-fallback"
+- assertVisible: "No demonstration data is substituted."
+# Nothing from any other wedding graph may appear on a refusal screen.
+- assertNotVisible:
+    id: "home-root"
+- assertNotVisible: "Tariro & Shadreck"

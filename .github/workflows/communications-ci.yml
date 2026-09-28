@@ -189,7 +189,10 @@ jobs:
           grep -q "where: { weddingId: resolved.access.wedding.id, isPublic: true }" src/app/api/messages/route.ts
           grep -q "resolved.access.accessKind === 'public'" src/app/api/messages/route.ts
           grep -q 'weddingId: resolved.access.wedding.id' src/app/api/messages/route.ts
-          grep -q 'authorToken: resolved.access.guest?.rsvpToken ?? null' src/app/api/messages/route.ts
+          # Messages never copy or expose a Guest's RSVP credential (c2462fef).
+          grep -q 'authorToken: null' src/app/api/messages/route.ts
+          grep -q 'select: publicMessageSelect' src/app/api/messages/route.ts
+          ! grep -q 'rsvpToken' src/app/api/messages/route.ts
 
       - name: Confirm analytics writer does not copy message body
         shell: bash

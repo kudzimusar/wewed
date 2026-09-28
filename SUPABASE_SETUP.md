@@ -86,12 +86,12 @@ bun run db:generate
 This creates all 25+ tables (Couple, Wedding, Guest, MediaItem, Comment,
 UserProfile, etc.) in your Supabase PostgreSQL database.
 
-### Seed the flagship wedding
+### Local data
 
-After the tables exist, seed Charity & Kudzie's content:
+There is no flagship seed. Real wedding content is entered by the couple/planner in the site
+editor and published through `/api/weddings/<slug>/site`. For a local/CI starter couple:
 
 ```bash
-curl -X POST http://localhost:3000/api/wedding-content/seed
 curl -X POST http://localhost:3000/api/onboarding
 ```
 

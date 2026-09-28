@@ -9,6 +9,39 @@ import {
   buildDefaultSeatingTables,
 } from "@/lib/wedding-content-seed";
 
+/**
+ * Master plan WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01, Phase 7.
+ *
+ * This route predates the canonical Supabase/User/UserProfile/BusinessAccount onboarding graph
+ * (`/api/auth/register` + `/api/admin/onboarding`) and cannot produce it: it writes its own scrypt
+ * password (verified nowhere in the current, entirely Supabase-based auth stack — an account
+ * created here can never sign in through it), sets no Supabase identity, no UserProfile, no
+ * BusinessAccount/BusinessAccountMember, and no WeddingMembership. `resolveProductionAuthority`
+ * therefore grants an account created here nothing at all, regardless of `User.role`/`coupleId`.
+ *
+ * Its own frontend caller (`OnboardingWizard`, reachable only through `OnboardingTrigger`'s
+ * `?create=1`) is not mounted anywhere in the current app tree, so this route has no reachable
+ * production UI today. It remains directly callable as an HTTP endpoint, and `SUPABASE_SETUP.md`
+ * documents calling it as a local database-seeding shortcut. Phase 7 does not delete it — that
+ * would remove a documented local/dev seeding path without a replacement — but it must never again
+ * be able to create a parallel, incompatible production identity graph. It fails closed in real
+ * production and keeps working for local development and CI exactly as documented.
+ */
+function isLocalCiBrowserMode(): boolean {
+  const databaseUrl = process.env.DATABASE_URL?.toLowerCase() ?? "";
+  const localDatabase = databaseUrl.includes("localhost") || databaseUrl.includes("127.0.0.1");
+  return (
+    process.env.WEWED_E2E_MODE === "1" &&
+    process.env.CI === "true" &&
+    !process.env.VERCEL &&
+    localDatabase
+  );
+}
+
+function isRealProductionEnvironment(): boolean {
+  return process.env.NODE_ENV === "production" && !isLocalCiBrowserMode();
+}
+
 /* ============================================================
    /api/onboarding
    ------------------------------------------------------------
@@ -146,6 +179,17 @@ function validate(body: OnboardingBody): FieldIssue[] {
 // ─── POST handler ─────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
+  if (isRealProductionEnvironment()) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "This registration path is no longer available. Create an account through the current registration flow.",
+      },
+      { status: 410 },
+    );
+  }
+
   try {
     const body = (await request.json().catch(() => null)) as OnboardingBody | null;
     if (!body) {

@@ -2,6 +2,10 @@ import 'server-only'
 
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { NextResponse } from 'next/server'
+import {
+  legacySessionVerificationSecrets,
+  primarySessionSigningSecret,
+} from '@/lib/session-signing-secret'
 
 export const WEDDING_SHARED_INVITATION_COOKIE = 'wewed_wedding_shared_invitation'
 export const WEDDING_SHARED_INVITATION_TTL_SECONDS = 180 * 24 * 60 * 60
@@ -11,20 +15,6 @@ export interface WeddingSharedInvitationSession {
   weddingId: string
   destinationId: string
   expiresAt: number
-}
-
-function getSigningSecret(): string {
-  const secret =
-    process.env.WEWED_SESSION_SECRET?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-
-  if (!secret) {
-    throw new Error(
-      '[wewed] Missing WEWED_SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY.',
-    )
-  }
-
-  return secret
 }
 
 function isLocalCiBrowserMode(): boolean {
@@ -40,12 +30,12 @@ function isLocalCiBrowserMode(): boolean {
   )
 }
 
-function useSecureCookie(): boolean {
+function shouldUseSecureCookie(): boolean {
   return process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode()
 }
 
-function sign(encodedPayload: string): string {
-  return createHmac('sha256', getSigningSecret())
+function sign(encodedPayload: string, secret = primarySessionSigningSecret()): string {
+  return createHmac('sha256', secret)
     .update(encodedPayload)
     .digest('base64url')
 }
@@ -86,7 +76,13 @@ export function verifyWeddingSharedInvitationSessionToken(
   try {
     const [encoded, signature, extra] = token.split('.')
     if (!encoded || !signature || extra) return null
-    if (!signaturesMatch(signature, sign(encoded))) return null
+    if (
+      !legacySessionVerificationSecrets().some((secret) =>
+        signaturesMatch(signature, sign(encoded, secret)),
+      )
+    ) {
+      return null
+    }
 
     const payload = JSON.parse(
       Buffer.from(encoded, 'base64url').toString('utf8'),
@@ -117,7 +113,7 @@ export function setWeddingSharedInvitationCookie(
     createWeddingSharedInvitationSessionToken(input),
     {
       httpOnly: true,
-      secure: useSecureCookie(),
+      secure: shouldUseSecureCookie(),
       sameSite: 'lax',
       path: '/',
       maxAge: WEDDING_SHARED_INVITATION_TTL_SECONDS,
@@ -130,7 +126,7 @@ export function clearWeddingSharedInvitationCookie(
 ): void {
   response.cookies.set(WEDDING_SHARED_INVITATION_COOKIE, '', {
     httpOnly: true,
-    secure: useSecureCookie(),
+    secure: shouldUseSecureCookie(),
     sameSite: 'lax',
     path: '/',
     maxAge: 0,

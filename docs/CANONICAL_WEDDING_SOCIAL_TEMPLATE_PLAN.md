@@ -1,5 +1,7 @@
 # Canonical Wedding Social Template Plan
 
+> **2026-09-28 authority note:** This plan remains a historical implementation reference for the rich canonical wedding-site direction. Where it conflicts with `docs/WEWED_LIVING_WEDDING_SITE_STORY_COMMUNITY_COMMERCE_PLAN.md` (stamp `WW-LIVING-WEDDING-SITE-2026-09-28-01`), the Living Wedding Site plan is authoritative. In particular, guest-visible fictitious/starter wedding content is no longer permitted; starter guidance belongs only in owner/planner setup UI.
+
 Status: implementation plan and release contract
 Branch: `feat/canonical-wedding-social-template`
 Reference experience: `https://wewed.pro/w/charity-and-kudzie`

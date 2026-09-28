@@ -78,11 +78,19 @@ model Wedding {
   themePreferences        ThemePreference[]
   guestContributions      GuestContribution[]
   contentItems            WeddingContent[]
+  siteSections            WeddingSiteSection[]
+  siteItems               WeddingSiteItem[]
+  announcements           WeddingAnnouncement[]
   comments                Comment[]
   memberships             WeddingMembership[]
   currentForUsers         User[] @relation("CurrentWedding")
   notifications           Notification[]
   reminders               Reminder[]
+  gates                   WeddingGate[]
+  gateAssignments         WeddingGateAssignment[]
+  passKeys                WeddingPassKey[]
+  passCredentials         WeddingPassCredential[]
+  weddingCheckIns         WeddingCheckIn[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -105,11 +113,15 @@ model Guest {
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
 
-  rsvp         RSVP?
-  contribution GuestContribution?
+  rsvp            RSVP?
+  contribution    GuestContribution?
+  passCredentials WeddingPassCredential[]
+  weddingCheckIns WeddingCheckIn[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([id, weddingId])
 }
 
 model RSVP {
@@ -171,6 +183,7 @@ model MediaItem {
 
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
+  siteItems WeddingSiteItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -660,6 +673,10 @@ model User {
   remindersReceived       Reminder[] @relation("ReminderRecipient")
   notificationPreferences NotificationPreference[]
   pushSubscriptions       PushSubscription[]
+  gateAssignments         WeddingGateAssignment[] @relation("GateOperatorUser")
+  gateAssignmentsCreated  WeddingGateAssignment[] @relation("GateAssignmentCreator")
+  gateAssignmentsRevoked  WeddingGateAssignment[] @relation("GateAssignmentRevoker")
+  checkInsAdmitted        WeddingCheckIn[]        @relation("AdmittedCheckIns")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1052,4 +1069,199 @@ model AiRateLimitBucket {
 
   @@id([keyHash, windowStart])
   @@index([expiresAt])
+}
+
+model WeddingGate {
+  id        String   @id @default(cuid())
+  weddingId String
+  wedding   Wedding  @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  name      String
+  status    String   @default("active") // "active" | "disabled"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  assignments WeddingGateAssignment[]
+  checkIns    WeddingCheckIn[]
+
+  @@unique([id, weddingId])
+  @@unique([weddingId, name])
+  @@index([weddingId, status])
+}
+
+model WeddingGateAssignment {
+  id              String      @id @default(cuid())
+  weddingId       String
+  wedding         Wedding     @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  gateId          String
+  gate            WeddingGate @relation(fields: [gateId, weddingId], references: [id, weddingId], onDelete: Cascade)
+  userId          String
+  user            User        @relation("GateOperatorUser", fields: [userId], references: [id], onDelete: Cascade)
+  operatorRole    String      @default("usher")
+  capabilities    String?
+  activeFrom      DateTime    @default(now())
+  expiresAt       DateTime?
+  revokedAt       DateTime?
+  revokedByUserId String?
+  revokedByUser   User?       @relation("GateAssignmentRevoker", fields: [revokedByUserId], references: [id], onDelete: SetNull)
+  createdByUserId String?
+  createdByUser   User?       @relation("GateAssignmentCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @default(now()) @updatedAt
+
+  @@unique([gateId, userId])
+  @@index([userId, weddingId])
+  @@index([gateId, weddingId])
+  @@index([weddingId, revokedAt])
+}
+
+model WeddingPassKey {
+  id                 String    @id @default(cuid())
+  weddingId          String
+  wedding            Wedding   @relation(fields: [weddingId], references: [id], onDelete: Restrict)
+  keyId              String
+  algorithm          String    @default("ECDSA_P256_SHA256")
+  publicKeyPem       String    @db.Text
+  publicKeyDerBase64 String
+  status             String    @default("active")
+  activeFrom         DateTime  @default(now())
+  expiresAt          DateTime?
+  revokedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @default(now()) @updatedAt
+
+  credentials        WeddingPassCredential[]
+
+  @@unique([weddingId, keyId])
+  @@unique([id, weddingId])
+  @@index([weddingId, status])
+}
+
+model WeddingPassCredential {
+  id               String         @id @default(cuid())
+  weddingId        String
+  wedding          Wedding        @relation(fields: [weddingId], references: [id], onDelete: Restrict)
+  guestId          String
+  guest            Guest          @relation(fields: [guestId, weddingId], references: [id, weddingId], onDelete: Restrict)
+  passKeyId        String
+  passKey          WeddingPassKey @relation(fields: [passKeyId, weddingId], references: [id, weddingId], onDelete: Restrict)
+  weddingShortId   String
+  passSerial       String
+  issueSeq         Int            @default(1)
+  tokenVersion     String         @default("WW2")
+  eventBitmask     Int            @default(4)
+  nonce            String
+  signatureHex     String
+  token            String         @unique
+  issuedAt         DateTime       @default(now())
+  expiresAt        DateTime?
+  revokedAt        DateTime?
+  revocationReason String?
+  supersededAt     DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @default(now()) @updatedAt
+
+  checkIns         WeddingCheckIn[]
+
+  @@unique([weddingId, passSerial])
+  @@unique([id, weddingId])
+  @@unique([id, weddingId, guestId])
+  @@unique([weddingId, guestId, issueSeq])
+  @@index([weddingId, guestId, revokedAt])
+  @@index([passKeyId, weddingId])
+}
+
+model WeddingCheckIn {
+  id               String                @id @default(cuid())
+  weddingId        String
+  wedding          Wedding               @relation(fields: [weddingId], references: [id], onDelete: Restrict)
+  guestId          String
+  guest            Guest                 @relation(fields: [guestId, weddingId], references: [id, weddingId], onDelete: Restrict)
+  credentialId     String
+  credential       WeddingPassCredential @relation(fields: [credentialId, weddingId, guestId], references: [id, weddingId, guestId], onDelete: Restrict)
+  gateId           String
+  gate             WeddingGate           @relation(fields: [gateId, weddingId], references: [id, weddingId], onDelete: Restrict)
+  admittedByUserId String
+  admittedByUser   User                  @relation("AdmittedCheckIns", fields: [admittedByUserId], references: [id], onDelete: Restrict)
+  eventKey         String                @default("wedding-day")
+  attendeeKey      String
+  attendeeKind     String                @default("primary")
+  attendeeName     String
+  source           String                @default("qr")
+  deviceId         String?
+  clientEventId    String?
+  admittedAt       DateTime              @default(now())
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @default(now()) @updatedAt
+
+  @@unique([weddingId, eventKey, guestId, attendeeKey])
+  // One offline queue event may admit several household attendees. Idempotency is per
+  // event+attendee; a single clientEventId is therefore expected on multiple check-in rows.
+  @@unique([weddingId, clientEventId, attendeeKey])
+  @@index([weddingId, eventKey, admittedAt])
+  @@index([guestId, weddingId])
+  @@index([gateId, weddingId])
+  @@index([admittedByUserId])
+}
+/// QRO07 — a wedding website section the couple/planner controls (enabled + order + layout).
+/// Absence of a row means "default": enabled, default order. Always wedding-scoped.
+model WeddingSiteSection {
+  id            String            @id @default(cuid())
+  weddingId     String
+  wedding       Wedding           @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  key           String
+  enabled       Boolean           @default(true)
+  order         Int               @default(0)
+  layoutVariant String?
+  /// Per-section options, e.g. theday: { showProgramme: false }.
+  settings      Json?
+  items         WeddingSiteItem[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@unique([weddingId, key])
+  @@index([weddingId, order])
+}
+
+/// QRO07 — a repeating, website-owned item (story milestone, FAQ, travel card, guest-guide entry,
+/// venue feature/moment, public wedding-party profile). Only enabled items reach guests.
+/// Never derived from the private Guest table.
+model WeddingSiteItem {
+  id        String             @id @default(cuid())
+  weddingId String
+  wedding   Wedding            @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  sectionId String
+  section   WeddingSiteSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  kind      String
+  title     String
+  body      String?
+  mediaId   String?
+  media     MediaItem?         @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  url       String?
+  metadata  Json?
+  order     Int                @default(0)
+  enabled   Boolean            @default(false)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([weddingId, sectionId, order])
+  @@index([weddingId, kind])
+}
+
+/// QRO07 — a wedding announcement. Web, iOS and Android Wedding Day read the same published
+/// projection; nothing is fabricated when there are none.
+model WeddingAnnouncement {
+  id          String    @id @default(cuid())
+  weddingId   String
+  wedding     Wedding   @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  title       String
+  body        String
+  status      String    @default("draft")
+  audience    String    @default("guests")
+  publishedAt DateTime?
+  expiresAt   DateTime?
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([weddingId, status, order])
 }

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wewed.pro/schemas/mobile-shadow-snapshot-manifest.schema.json",
+  "title": "Wewed Mobile Shadow Snapshot Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "snapshotId",
+    "sourceEnvironment",
+    "sourceWeddingId",
+    "exportedAt",
+    "schemaVersion",
+    "sanitizationVersion",
+    "domains",
+    "rowCounts",
+    "checksumSha256",
+    "operator",
+    "productionWritesPerformed"
+  ],
+  "properties": {
+    "snapshotId": { "type": "string", "minLength": 8 },
+    "sourceEnvironment": { "type": "string", "const": "production-read-only" },
+    "sourceWeddingId": { "type": "string", "minLength": 1 },
+    "sourceDeployment": { "type": ["string", "null"] },
+    "sourceCommit": { "type": ["string", "null"] },
+    "exportedAt": { "type": "string", "format": "date-time" },
+    "schemaVersion": { "type": "string", "minLength": 1 },
+    "sanitizationVersion": { "type": "string", "minLength": 1 },
+    "domains": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["included", "excluded"],
+      "properties": {
+        "included": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "excluded": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "rowCounts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "checksumSha256": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "operator": { "type": "string", "minLength": 1 },
+    "notes": { "type": ["string", "null"] },
+    "productionWritesPerformed": { "type": "boolean", "const": false },
+    "secretScanPassed": { "type": "boolean" },
+    "piiClassificationCompleted": { "type": "boolean" }
+  }
+}

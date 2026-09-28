@@ -55,8 +55,6 @@ import {
    the original records with `duplicate: true` (HTTP 200).
    ============================================================ */
 
-const FLAGSHIP_SLUG = "charity-and-kudzie";
-
 interface RevenueEventPayload {
   slug?: string;
   sourceType?: string;
@@ -80,7 +78,13 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as RevenueEventPayload;
 
     // ── Validate required fields ────────────────────────────
-    const slug = body.slug?.trim() || FLAGSHIP_SLUG;
+    const slug = body.slug?.trim();
+    if (!slug) {
+      return NextResponse.json(
+        { success: false, error: "Wedding slug is required" },
+        { status: 400 },
+      );
+    }
     const sourceType = body.sourceType?.trim();
     const idempotencyKey = body.idempotencyKey?.trim();
     const grossPlatformRevenueMinor = body.grossPlatformRevenueMinor;

@@ -1,0 +1,164 @@
+name: Android Native Production Play AAB
+
+# QRO07-SHIP01 — the ONLY Google Play production authority for pro.wewed.app is the Kotlin app in
+# apps/android. This workflow builds and cryptographically verifies a signed candidate. It never
+# publishes: the verified AAB is uploaded to a Play test track by the owner.
+#
+# The legacy TWA (android/) and Expo (apps/mobile) signing workflows are retired.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: 'Play versionCode — must exceed the highest versionCode ever uploaded for pro.wewed.app (check Play Console App bundle explorer).'
+        required: true
+        type: string
+      version_name:
+        description: 'Production versionName (no -uat/-dev suffix), e.g. 2.1.0'
+        required: true
+        type: string
+  # A deliberate candidate tag, e.g. android-play-candidate-11-2.2.0 (workflow_dispatch only works
+  # once this file is on the default branch). The tagged commit must be on main or a release/ branch.
+  push:
+    tags:
+      - 'android-play-candidate-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-native-production-play-aab
+  cancel-in-progress: false
+
+jobs:
+  signed-candidate:
+    # Upload-key secrets may only be read by a deliberate run from main or a release branch.
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/android-play-candidate-')
+    name: Build and verify signed apps/android production AAB (no Play publication)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Verify exact candidate SHA
+        shell: bash
+        env:
+          EXPECTED_CANDIDATE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_CANDIDATE_SHA"
+          echo "apps/android production candidate SHA=$actual"
+      - name: Resolve candidate version and provenance
+        shell: bash
+        env:
+          INPUT_CODE: ${{ inputs.version_code }}
+          INPUT_NAME: ${{ inputs.version_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/android-play-candidate-* ]]; then
+            tag="${GITHUB_REF#refs/tags/android-play-candidate-}"
+            WEWED_PLAY_VERSION_CODE="${tag%%-*}"
+            WEWED_PLAY_VERSION_NAME="${tag#*-}"
+            git fetch -q origin '+refs/heads/main:refs/remotes/origin/main' '+refs/heads/release/*:refs/remotes/origin/release/*'
+            git branch -r --contains "$GITHUB_SHA" | grep -Eq 'origin/(main|release/)' || { echo '::error::Candidate tag must point at a commit on main or a release/ branch'; exit 1; }
+          else
+            WEWED_PLAY_VERSION_CODE="$INPUT_CODE"
+            WEWED_PLAY_VERSION_NAME="$INPUT_NAME"
+          fi
+          echo "WEWED_PLAY_VERSION_CODE=$WEWED_PLAY_VERSION_CODE" >> "$GITHUB_ENV"
+          echo "WEWED_PLAY_VERSION_NAME=$WEWED_PLAY_VERSION_NAME" >> "$GITHUB_ENV"
+          [[ "$WEWED_PLAY_VERSION_CODE" =~ ^[1-9][0-9]*$ ]] || { echo '::error::version_code must be a positive integer'; exit 1; }
+          [[ "$WEWED_PLAY_VERSION_NAME" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] || { echo '::error::version_name must look like 2.1.0'; exit 1; }
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Verify Play authority and App Link contracts
+        run: bun test src/lib/android-production-wrapper-contract.test.ts src/lib/deeplink-association.test.ts
+      - name: Detect Android signing credentials
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.WEWED_ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.WEWED_UPLOAD_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.WEWED_UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.WEWED_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$KEYSTORE_BASE64" || -z "$STORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" ]]; then
+            echo '::error::The required Wewed Android upload-key secrets are not configured.'
+            exit 1
+          fi
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Materialize upload keystore
+        id: keystore
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.WEWED_ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          KEYSTORE_PATH="$RUNNER_TEMP/wewed-upload.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          echo "path=$KEYSTORE_PATH" >> "$GITHUB_OUTPUT"
+      - name: Unit tests and signed release bundle (apps/android)
+        working-directory: apps/android
+        env:
+          WEWED_UPLOAD_STORE_FILE: ${{ steps.keystore.outputs.path }}
+          WEWED_UPLOAD_STORE_PASSWORD: ${{ secrets.WEWED_UPLOAD_STORE_PASSWORD }}
+          WEWED_UPLOAD_KEY_ALIAS: ${{ secrets.WEWED_UPLOAD_KEY_ALIAS }}
+          WEWED_UPLOAD_KEY_PASSWORD: ${{ secrets.WEWED_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :app:testDebugUnitTest :app:bundleRelease --no-daemon --stacktrace
+      - name: Remove materialized keystore
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/wewed-upload.jks"
+      - name: Verify signed bundle (signer, package, version, SDK levels)
+        shell: bash
+        run: |
+          set -euo pipefail
+          AAB='apps/android/app/build/outputs/bundle/release/app-release.aab'
+          EXPECTED_UPLOAD_CERT_SHA256='C3D856D782F642C6884D982552F567653E35D5DA1EABB112EF6FC0598E88658C'
+          test -f "$AAB"
+          unzip -t "$AAB" >/dev/null
+          jarsigner -verify "$AAB" >/dev/null
+          actual="$(keytool -printcert -jarfile "$AAB" 2>/dev/null | sed -n 's/^[[:space:]]*SHA256: //p' | head -n 1 | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          test "$actual" = "$EXPECTED_UPLOAD_CERT_SHA256" || { echo "::error::AAB is not signed by the Wewed upload key"; exit 1; }
+          curl -fsSL -o "$RUNNER_TEMP/bundletool.jar" https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar
+          MANIFEST="$(java -jar "$RUNNER_TEMP/bundletool.jar" dump manifest --bundle "$AAB")"
+          echo "$MANIFEST" | grep -q 'package="pro.wewed.app"'
+          echo "$MANIFEST" | grep -q "android:versionCode=\"$WEWED_PLAY_VERSION_CODE\""
+          echo "$MANIFEST" | grep -q "android:versionName=\"$WEWED_PLAY_VERSION_NAME\""
+          echo "$MANIFEST" | grep -q 'android:targetSdkVersion="36"'
+          echo "$MANIFEST" | grep -q 'android:minSdkVersion="24"'
+          echo "$MANIFEST" | grep -q 'android:autoVerify="true"'
+          ! echo "$MANIFEST" | grep -q 'pro.wewed.app.dev\|pro.wewed.app.uatdev'
+          sha256sum "$AAB" | tee "$RUNNER_TEMP/app-release.aab.sha256"
+          {
+            echo "### apps/android signed Play candidate"
+            echo "- SHA: \`$(git rev-parse HEAD)\`"
+            echo "- package: pro.wewed.app · versionCode $WEWED_PLAY_VERSION_CODE · versionName $WEWED_PLAY_VERSION_NAME · targetSdk 36 · minSdk 24"
+            echo "- signer (upload cert) SHA-256 verified"
+            echo "- AAB SHA-256: \`$(cut -d' ' -f1 "$RUNNER_TEMP/app-release.aab.sha256")\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          cp "$RUNNER_TEMP/app-release.aab.sha256" apps/android/app/build/outputs/bundle/release/
+      - name: Upload signed candidate (manual Play test-track upload only)
+        uses: actions/upload-artifact@v4
+        with:
+          name: wewed-android-native-play-aab-v${{ env.WEWED_PLAY_VERSION_CODE }}
+          path: |
+            apps/android/app/build/outputs/bundle/release/app-release.aab
+            apps/android/app/build/outputs/bundle/release/app-release.aab.sha256
+          retention-days: 30
+          if-no-files-found: error

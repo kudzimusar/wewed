@@ -24,6 +24,7 @@ import {
   resolveWeddingAccessFromTokens,
 } from '@/lib/wedding-public-access'
 import type { WeddingViewerRole } from '@/lib/wedding-access-kind'
+import { contextHasPermission, getWeddingContextForSession } from '@/lib/wedding-access'
 
 interface WeddingPageProps {
   params: Promise<{ slug: string }>
@@ -207,6 +208,17 @@ export default async function WeddingPage({
 
   const viewerRole: WeddingViewerRole =
     appSession?.activeWeddingId === wedding.id ? appSession.role : null
+  // QRO07: editing affordances are decided here, on the server, from an active membership with
+  // content.edit for THIS wedding — never from a browser flag or localStorage.
+  const editorContext =
+    appSession?.activeWeddingId === wedding.id
+      ? await getWeddingContextForSession(appSession)
+      : null
+  const canEditSite = Boolean(
+    editorContext &&
+      editorContext.weddingId === wedding.id &&
+      contextHasPermission(editorContext, 'content.edit'),
+  )
   const explicitGuestInvitation = Boolean(
     explicitInvitationRequested &&
       guestInvitationResolution?.allowed &&
@@ -235,6 +247,7 @@ export default async function WeddingPage({
         query.source === 'android-app' && personalInvitationExperience
       }
       sharedPhysicalInvitation={sharedPhysicalCoupleSite}
+      canEditSite={canEditSite}
     />
   )
 }

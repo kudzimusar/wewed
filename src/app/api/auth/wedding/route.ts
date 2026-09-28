@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { readAppSession, setAppSessionCookie } from '@/lib/app-session'
 import { listAccessibleWeddings } from '@/lib/wedding-access'
+import { previewAccountBookkeepingSuppressed } from '@/lib/preview-write-safety'
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,13 +38,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    await db.$executeRawUnsafe(
-      `UPDATE public."User"
-       SET "currentWeddingId" = $2, "updatedAt" = CURRENT_TIMESTAMP
-       WHERE id = $1`,
-      session.userId,
-      wedding.id
-    )
+    // Landing preference only; the re-issued signed cookie below is the switch authority.
+    if (!previewAccountBookkeepingSuppressed()) {
+      await db.$executeRawUnsafe(
+        `UPDATE public."User"
+         SET "currentWeddingId" = $2, "updatedAt" = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        session.userId,
+        wedding.id
+      )
+    }
 
     const response = NextResponse.json({
       success: true,

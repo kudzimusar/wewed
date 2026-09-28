@@ -14,9 +14,5 @@ export default async function Home({
     redirect(`/w/${encodeURIComponent(wedding)}${rsvp ? `?rsvp=${encodeURIComponent(rsvp)}` : ''}`)
   }
 
-  if (rsvp) {
-    redirect(`/w/charity-and-kudzie?rsvp=${encodeURIComponent(rsvp)}`)
-  }
-
   return <PublicPlatformHome />
 }

@@ -29,8 +29,6 @@ import {
        Admin-gated.
    ============================================================ */
 
-const FLAGSHIP_SLUG = "charity-and-kudzie";
-
 // ─── helpers ───────────────────────────────────────────────
 async function getWeddingBySlug(slug: string) {
   return db.wedding.findUnique({
@@ -68,7 +66,13 @@ export async function GET(request: NextRequest) {
 
   try {
     const url = new URL(request.url);
-    const slug = url.searchParams.get("slug") ?? FLAGSHIP_SLUG;
+    const slug = url.searchParams.get("slug")?.trim();
+    if (!slug) {
+      return NextResponse.json(
+        { success: false, error: "Wedding slug is required." },
+        { status: 400 },
+      );
+    }
 
     const wedding = await getWeddingBySlug(slug);
     if (!wedding) {
@@ -307,8 +311,14 @@ export async function POST(request: NextRequest) {
   if (adminBlock) return adminBlock;
 
   try {
-    const body = (await request.json()) as EnrolPayload;
-    const slug = body.slug?.trim() || FLAGSHIP_SLUG;
+    const body = (await request.json().catch(() => ({}))) as EnrolPayload;
+    const slug = body.slug?.trim();
+    if (!slug) {
+      return NextResponse.json(
+        { success: false, error: "Wedding slug is required." },
+        { status: 400 },
+      );
+    }
     const termsVersion = body.termsVersion?.trim() || "1.0.0";
     const acceptedBy = body.acceptedBy?.trim() || "admin";
     const royaltyRateBasisPoints =

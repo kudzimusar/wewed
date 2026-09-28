@@ -63,10 +63,22 @@ function useSecureCookie(): boolean {
   return process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode()
 }
 
-function signPayload(encodedPayload: string): string {
-  return createHmac('sha256', getSigningSecret())
+function signPayload(encodedPayload: string, secret = getSigningSecret()): string {
+  return createHmac('sha256', secret)
     .update(encodedPayload)
     .digest('base64url')
+}
+
+/**
+ * QRO07: sessions are signed only with the primary secret. While production moves from the
+ * SUPABASE_SERVICE_ROLE_KEY fallback to a dedicated WEWED_SESSION_SECRET, sessions issued before
+ * the switch still verify against the previous key until they expire (APP_SESSION_TTL_SECONDS),
+ * so adding the dedicated secret does not sign every couple and planner out at once.
+ */
+function verificationSecrets(): string[] {
+  const primary = getSigningSecret()
+  const legacy = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
+  return legacy && legacy !== primary ? [primary, legacy] : [primary]
 }
 
 function signaturesMatch(actual: string, expected: string): boolean {
@@ -105,8 +117,10 @@ export function verifyAppSessionToken(token: string): AppSession | null {
     const [encodedPayload, signature, extra] = token.split('.')
     if (!encodedPayload || !signature || extra) return null
 
-    const expectedSignature = signPayload(encodedPayload)
-    if (!signaturesMatch(signature, expectedSignature)) return null
+    const verified = verificationSecrets().some((secret) =>
+      signaturesMatch(signature, signPayload(encodedPayload, secret)),
+    )
+    if (!verified) return null
 
     const payload = JSON.parse(
       Buffer.from(encodedPayload, 'base64url').toString('utf8'),

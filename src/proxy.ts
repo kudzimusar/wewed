@@ -36,6 +36,15 @@ function isPhysicalInvitationClaimRoute(
   )
 }
 
+// QRO06: the native → browser Guest handoff authenticates inside its own handlers — issue with
+// the signed Guest session cookie, redeem with the short-lived signed exchange (POST body).
+function isGuestBrowserHandoffRoute(pathname: string, method: string): boolean {
+  return (
+    method === 'POST' &&
+    /^\/api\/weddings\/[^/]+\/guest-browser-handoff(?:\/redeem)?$/.test(pathname)
+  )
+}
+
 function isProtectedPlannerPage(pathname: string): boolean {
   return pathname === '/planner/ai-workspace' || pathname === '/planner/wedding-brief'
 }
@@ -46,7 +55,6 @@ function requiresDashboardSession(request: NextRequest): boolean {
   if (isProtectedPlannerPage(pathname)) return true
   if (pathname.startsWith('/api/planner/')) return true
   if (pathname === '/api/planner') return true
-  if (pathname === '/api/seed') return true
   if (pathname === '/api/auth/wedding') return true
 
   // Invitation exchange, guest-session self-service, the shared physical-session
@@ -56,6 +64,7 @@ function requiresDashboardSession(request: NextRequest): boolean {
   if (isGuestWeddingSessionRoute(pathname)) return false
   if (isSharedInvitationSessionRoute(pathname, request.method)) return false
   if (isPhysicalInvitationClaimRoute(pathname, request.method)) return false
+  if (isGuestBrowserHandoffRoute(pathname, request.method)) return false
   if (pathname.startsWith('/api/weddings/')) return true
 
   if (pathname === '/api/rsvp' && request.method === 'GET') return true
@@ -113,7 +122,6 @@ export const config = {
     '/api/rsvp',
     '/api/rsvp/:path*',
     '/api/royalty/:path*',
-    '/api/seed',
     '/api/auth/wedding',
     '/api/weddings/:path*',
   ],

@@ -1,0 +1,69 @@
+appId: pro.wewed.app.dev
+---
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+
+# 1. Sign In
+# Entry now runs through the Wewed welcome surface rather than a development login form with
+# a role chooser and a shipped password. Shadow and UAT lanes enter through the environment
+# affordance, which carries no credential and exists only where persona switching is permitted.
+- assertVisible: "Wewed"
+- tapOn:
+    id: "welcome-shadow-entry"
+
+# 2. Home / Wedding Command Center
+- assertVisible:
+    id: "home-root"
+- assertVisible: "OUR WEDDING JOURNEY"
+- assertVisible:
+    id: "home-continue-planning"
+# Home scrolls; the metrics row sits below the hero on shorter viewports.
+- scrollUntilVisible:
+    element:
+      id: "home-metrics"
+    direction: DOWN
+
+# 3. Planner
+- tapOn: "Plan"
+- assertVisible:
+    id: "planner-root"
+- assertVisible: "Our Wedding Plan"
+- assertVisible:
+    id: "planner-module-tasks"
+- scrollUntilVisible:
+    element:
+      id: "planner-module-budget"
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      id: "planner-module-vendors"
+    direction: DOWN
+
+# 4. Guests
+- tapOn: "Guests"
+- assertVisible:
+    id: "guests-root"
+- assertVisible:
+    id: "guests-search"
+- assertVisible:
+    id: "guests-filter-all"
+- tapOn:
+    id: "guests-filter-pending"
+- assertVisible:
+    id: "guests-root"
+
+# 5. Wedding Day (IA V2: Pass moved into the Wedding Day workspace)
+- tapOn: "Wedding Day"
+- assertVisible:
+    id: "couple-wedding_day"
+
+# 6. More
+- tapOn: "More"
+- assertVisible:
+    id: "more-root"
+- assertVisible:
+    id: "more-wedding-profile"
+- assertVisible:
+    id: "more-honeymoon"

@@ -1,3 +1,5 @@
+import { weddingGuestSessionExpiry } from '@/lib/wedding-guest-session'
+import { invitationVersionFingerprint } from '@/lib/wedding-guest-session'
 import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { consumeInvitationInstallHandoff } from '@/lib/invitation-install-handoff'
@@ -86,10 +88,13 @@ export async function GET(request: NextRequest) {
     weddingId: result.weddingId,
     guestId: result.guestId,
     rsvpToken: result.rsvpToken,
+    weddingDate: result.weddingDate,
   })
   setWeddingGuestPortfolioCookie(
     response,
     mergeWeddingGuestPortfolio(readWeddingGuestPortfolio(request), {
+      accessExpiresAt: weddingGuestSessionExpiry(result.weddingDate),
+      invitationVersionFingerprint: invitationVersionFingerprint(result),
       weddingId: result.weddingId,
       weddingSlug: result.weddingSlug,
       guestId: result.guestId,

@@ -1,0 +1,340 @@
+package pro.wewed.app.ui.planner
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import pro.wewed.app.models.*
+import pro.wewed.app.state.AppViewModel
+import pro.wewed.app.theme.*
+
+/**
+ * Plan / Workspace **Overview** surface.
+ *
+ * IA V2 is the sole owner of Level-2 navigation, so this screen no longer carries its own
+ * Overview/Tasks/Budget/Vendors chip row or internal routing — that produced a second, nested
+ * taxonomy stacked underneath the IA V2 chips. Module rows now report the IA V2 section they
+ * represent through [onOpenSection]; the shell moves the workspace selection.
+ *
+ * @param onOpenSection receives an IA V2 Level-2 section label (for example "Tasks", "Budget").
+ */
+@Composable
+fun WeddingReferencePlannerScreen(
+    appViewModel: AppViewModel,
+    onOpenSection: ((String) -> Unit)? = null
+) {
+    var dashboard by remember { mutableStateOf<PlannerDashboardSnapshot?>(null) }
+    var tasks by remember { mutableStateOf<List<PlannerTask>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        try {
+            dashboard = appViewModel.plannerRepository.getDashboard()
+            tasks = appViewModel.scopedRepository().getTasks()
+        } finally {
+            loading = false
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(WeddingIdentityPalette.Ivory)
+            .testTag("planner-root")
+    ) {
+        WeddingOrnamentBackdrop(
+            modifier = Modifier.matchParentSize(),
+            alpha = 0.018f
+        )
+
+        if (loading) {
+            CircularProgressIndicator(
+                color = WeddingIdentityPalette.ChampagneDeep,
+                modifier = Modifier.align(Alignment.Center)
+            )
+        } else {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().testTag("planner-identity-card"),
+                    verticalAlignment = Alignment.Top
+                ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Our Wedding Plan",
+                            color = WeddingIdentityPalette.Ink,
+                            fontFamily = FontFamily.Serif,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 28.sp
+                        )
+                        Text(
+                            "Plan with clarity. Celebrate with confidence.",
+                            color = WeddingIdentityPalette.Muted,
+                            fontSize = 12.sp
+                        )
+                    }
+                    dashboard?.coupleNames?.let { coupleNames ->
+                        WeddingMonogramBadge(
+                            names = coupleNames,
+                            size = 58
+                        )
+                    }
+                }
+
+                run {
+                    val snap = dashboard
+                    if (snap == null) {
+                        Text(
+                            "Planner unavailable",
+                            color = WeddingIdentityPalette.Muted,
+                            modifier = Modifier.padding(top = 40.dp)
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(bottom = 24.dp)
+                        ) {
+                            item {
+                                val ratio = if (tasks.isEmpty()) 0f else tasks.count { it.status == TaskStatus.DONE }.toFloat() / tasks.size.toFloat()
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(18.dp))
+                                        .background(WeddingIdentityPalette.IvorySoft)
+                                        .border(1.dp, WeddingIdentityPalette.Hairline, RoundedCornerShape(18.dp))
+                                        .padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(9.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column {
+                                            Text(
+                                                "Planning Progress",
+                                                color = WeddingIdentityPalette.Ink,
+                                                fontFamily = FontFamily.Serif,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 16.sp
+                                            )
+                                            Text(
+                                                "${Math.round(ratio * 100).toInt()}% complete • ${snap.taskCompletionLabel} tasks",
+                                                color = WeddingIdentityPalette.Muted,
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                        Icon(
+                                            Icons.Default.ChevronRight,
+                                            contentDescription = null,
+                                            tint = WeddingIdentityPalette.Muted
+                                        )
+                                    }
+                                    LinearProgressIndicator(
+                                        progress = { ratio },
+                                        modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(20.dp)),
+                                        color = WeddingIdentityPalette.Forest,
+                                        trackColor = Color(0xFFE5E9ED)
+                                    )
+                                }
+                            }
+
+                            item {
+                                ReferencePlannerRow(
+                                    title = "Tasks",
+                                    subtitle = "${tasks.count { it.status != TaskStatus.DONE }} remaining",
+                                    icon = Icons.Default.Checklist,
+                                    identifier = "planner-module-tasks"
+                                ) { onOpenSection?.invoke("Tasks") }
+                            }
+                            item {
+                                ReferencePlannerRow(
+                                    title = "Budget",
+                                    subtitle = moduleSubtitle(snap, "budget"),
+                                    icon = Icons.Default.AccountBalanceWallet,
+                                    identifier = "planner-module-budget"
+                                ) { onOpenSection?.invoke("Budget") }
+                            }
+                            item {
+                                ReferencePlannerRow(
+                                    title = "Contributions",
+                                    subtitle = moduleSubtitle(snap, "contributions"),
+                                    icon = Icons.Default.CardGiftcard,
+                                    identifier = "planner-module-contributions"
+                                ) { onOpenSection?.invoke("Contributions") }
+                            }
+                            item {
+                                ReferencePlannerRow(
+                                    title = "Vendors",
+                                    subtitle = moduleSubtitle(snap, "vendors"),
+                                    icon = Icons.Default.Storefront,
+                                    identifier = "planner-module-vendors"
+                                ) { onOpenSection?.invoke("Vendors") }
+                            }
+                            item {
+                                ReferencePlannerRow(
+                                    title = "Seating",
+                                    subtitle = moduleSubtitle(snap, "seating"),
+                                    icon = Icons.Default.TableRestaurant,
+                                    identifier = "planner-module-seating"
+                                ) { onOpenSection?.invoke("Seating") }
+                            }
+                            item {
+                                ReferencePlannerRow(
+                                    title = "Timeline",
+                                    subtitle = moduleSubtitle(snap, "timeline"),
+                                    icon = Icons.Default.CalendarMonth,
+                                    identifier = "planner-module-timeline"
+                                ) { onOpenSection?.invoke("Timeline") }
+                            }
+                            item {
+                                ReferencePlannerRow(
+                                    title = "Documents",
+                                    subtitle = "Contracts, notes, files",
+                                    icon = Icons.Default.Description,
+                                    identifier = "planner-module-documents"
+                                ) { onOpenSection?.invoke("Documents") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReferencePlannerRow(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    identifier: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(WeddingIdentityPalette.IvorySoft)
+            .border(1.dp, WeddingIdentityPalette.Hairline, RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .testTag(identifier)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        WeddingListRowIcon(icon)
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                color = WeddingIdentityPalette.Ink,
+                fontFamily = FontFamily.Serif,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp
+            )
+            Text(subtitle, color = WeddingIdentityPalette.Muted, fontSize = 12.sp)
+        }
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = null,
+            tint = WeddingIdentityPalette.Muted,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+@Composable
+private fun ReferenceTaskRow(task: PlannerTask) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(15.dp))
+            .background(WeddingIdentityPalette.IvorySoft)
+            .border(1.dp, WeddingIdentityPalette.Hairline, RoundedCornerShape(15.dp))
+            .padding(13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            if (task.status == TaskStatus.DONE) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+            contentDescription = null,
+            tint = if (task.status == TaskStatus.DONE) WeddingIdentityPalette.Forest else WeddingIdentityPalette.ChampagneDeep
+        )
+        Spacer(modifier = Modifier.width(11.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                task.title,
+                color = WeddingIdentityPalette.Ink,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                "${task.category} • ${task.priority.title}",
+                color = WeddingIdentityPalette.Muted,
+                fontSize = 11.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReferencePlannerEmptyDestination(
+    title: String,
+    message: String,
+    onBack: () -> Unit
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(title, fontFamily = FontFamily.Serif) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = WeddingIdentityPalette.Ivory)
+            )
+        },
+        containerColor = WeddingIdentityPalette.Ivory
+    ) { padding ->
+        Column(
+            modifier = Modifier.fillMaxSize().padding(padding).padding(30.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            WeddingBrandMark()
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(title, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                message,
+                color = WeddingIdentityPalette.Muted,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+    }
+}
+
+private fun moduleSubtitle(snapshot: PlannerDashboardSnapshot, id: String): String {
+    val module = snapshot.modules.firstOrNull { it.id == id } ?: return "No data recorded"
+    return if (!module.attention.isNullOrBlank()) "${module.value} • ${module.attention}" else module.value
+}
+

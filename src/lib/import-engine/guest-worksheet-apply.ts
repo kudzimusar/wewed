@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
+import { withdrawWeddingPassesForAttendance } from '@/lib/wedding-pass-attendance'
 import {
   INVITATION_STATUSES,
   RESPONSE_STATUSES,
@@ -230,6 +231,11 @@ export async function applyGuestWorksheetRow(
               dietaryNotes: input.dietary || null,
             },
           })
+      // RSVP ↔ Wedding Pass lifecycle: a Planner import that withdraws attendance supersedes the
+      // Guest's live Pass in this transaction (the Guest row was locked by the update above).
+      if (currentRsvp?.attending === true && resultingRsvp?.attending !== true) {
+        await withdrawWeddingPassesForAttendance(tx, { weddingId, guestId: guest.id })
+      }
     }
 
     await saveGuestWorksheetData(tx, mergedWorksheetData({

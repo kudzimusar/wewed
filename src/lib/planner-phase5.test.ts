@@ -64,12 +64,12 @@ describe('Phase 5 real client data', () => {
     expect(route).not.toContain("slug: 'charity-and-kudzie'")
   })
 
-  test('public venue renders saved wedding content instead of fixed client markup', async () => {
-    const venue = await source('src/components/wedding/venue-section.tsx')
-    expect(venue).toContain('useWeddingContextSafe')
-    expect(venue).toContain("getOrdered('venue', 'feature')")
-    expect(venue).toContain('wedding?.venueMapUrl')
-    expect(venue).not.toContain('href="https://www.google.com/search?q=Imba')
+  test('public venue renders the canonical Wedding venue instead of fixed client markup', async () => {
+    const venue = await source('src/components/wedding/site/site-venue.tsx')
+    expect(venue).toContain('useWeddingContext')
+    expect(venue).toContain("useSiteItems('venue')")
+    expect(venue).toContain('venueDirectionsUrl(wedding)')
+    expect(venue).not.toContain('Imba')
   })
 
   test('public wedding API resolves the requested slug', async () => {

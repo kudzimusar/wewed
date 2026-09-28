@@ -1,3 +1,5 @@
+import { weddingGuestSessionExpiry } from '@/lib/wedding-guest-session'
+import { invitationVersionFingerprint } from '@/lib/wedding-guest-session'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
@@ -43,6 +45,7 @@ export async function GET(request: NextRequest, { params }: Params) {
           wedding: {
             select: {
               id: true,
+              date: true,
               slug: true,
               privacy: true,
               invitationCardStyle: true,
@@ -75,10 +78,13 @@ export async function GET(request: NextRequest, { params }: Params) {
     weddingId: rsvp.guest.wedding.id,
     guestId: rsvp.guest.id,
     rsvpToken: rsvp.token,
+    weddingDate: rsvp.guest.wedding.date,
   })
   setWeddingGuestPortfolioCookie(
     response,
     mergeWeddingGuestPortfolio(readWeddingGuestPortfolio(request), {
+      accessExpiresAt: weddingGuestSessionExpiry(rsvp.guest.wedding.date),
+      invitationVersionFingerprint: invitationVersionFingerprint({ weddingId: rsvp.guest.wedding.id, guestId: rsvp.guest.id, rsvpToken: rsvp.token }),
       weddingId: rsvp.guest.wedding.id,
       weddingSlug: rsvp.guest.wedding.slug,
       guestId: rsvp.guest.id,

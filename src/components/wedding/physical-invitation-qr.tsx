@@ -129,7 +129,7 @@ export function PhysicalInvitationQr() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gold-muted">
-            Bulk physical cards
+            Printed Invitation Access · bulk physical cards
           </p>
           <h3 className="mt-1 font-serif text-2xl text-espresso">
             One clean QR for every printed invitation

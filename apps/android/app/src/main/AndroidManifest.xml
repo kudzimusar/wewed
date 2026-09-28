@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <application
+        android:name=".WewedApplication"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Wewed">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.Wewed.Starting">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Canonical Wewed universal/app links. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/invite/" />
+                <data android:scheme="https" android:host="wewed.pro" android:path="/pass" />
+                <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/pass/" />
+                <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/w/" />
+                <!-- Authenticated workspace routes are parser-owned but still authority-checked
+                     by DeepLinkRouter; claiming them here only hands navigation to Wewed. -->
+                <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/planner/" />
+                <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/vendor/" />
+                <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/gate/" />
+                <data android:scheme="https" android:host="wewed.pro" android:pathPrefix="/wedding/" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="wewed" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

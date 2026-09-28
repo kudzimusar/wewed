@@ -32,8 +32,6 @@ import {
      • offset     — for pagination
    ============================================================ */
 
-const FLAGSHIP_SLUG = "charity-and-kudzie";
-
 function csvEscape(value: unknown): string {
   if (value === null || value === undefined) return "";
   const str = typeof value === "string" ? value : String(value);
@@ -74,7 +72,13 @@ export async function GET(request: NextRequest) {
 
   try {
     const url = new URL(request.url);
-    const slug = url.searchParams.get("slug") ?? FLAGSHIP_SLUG;
+    const slug = url.searchParams.get("slug")?.trim();
+    if (!slug) {
+      return NextResponse.json(
+        { success: false, error: "Wedding slug is required" },
+        { status: 400 },
+      );
+    }
     const status = url.searchParams.get("status");
     const sourceType = url.searchParams.get("sourceType");
     const fromDate = url.searchParams.get("fromDate");

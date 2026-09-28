@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAdminSession, hasPermission } from '@/lib/admin-gate'
+import { isPublicScalarField } from '@/lib/wedding-site/model'
+import { publishScalar } from '@/lib/wedding-site/server'
+import { requireWeddingPermission } from '@/lib/wedding-access'
 import { loadWeddingDataBySlug } from '@/lib/wedding-data-server'
 import {
   resolveWeddingAccessForRequest,
@@ -15,7 +17,12 @@ function noStore(response: NextResponse): NextResponse {
 
 export async function GET(request: NextRequest) {
   try {
-    const slug = request.nextUrl.searchParams.get('slug')?.trim() || 'charity-and-kudzie'
+    const slug = request.nextUrl.searchParams.get('slug')?.trim()
+    if (!slug) {
+      return noStore(
+        NextResponse.json({ success: false, error: 'Wedding slug is required.' }, { status: 400 }),
+      )
+    }
     const access = await resolveWeddingAccessForRequest(request, slug)
     if (!access.allowed) {
       return noStore(
@@ -51,34 +58,10 @@ interface PostBody {
   metadata?: string | Record<string, unknown> | null
 }
 
-async function canEditWeddingContent(
-  request: NextRequest,
-  wedding: { id: string; coupleId: string },
-): Promise<boolean> {
-  const session = getAdminSession(request)
-  if (!session) return false
-  if (session.role === 'admin') return true
-  if (session.activeWeddingId !== wedding.id) return false
-  if (!hasPermission(request, 'content.edit')) return false
-
-  const membership = await db.weddingMembership.findFirst({
-    where: {
-      weddingId: wedding.id,
-      userId: session.userId,
-      status: 'active',
-    },
-    select: { role: true },
-  })
-  if (!membership) return false
-
-  if (session.role === 'couple') {
-    return session.coupleId === wedding.coupleId && membership.role === 'owner'
-  }
-
-  return session.role === 'planner'
-}
-
 export async function POST(request: NextRequest) {
+  const access = await requireWeddingPermission(request, 'content.edit')
+  if (access.error) return access.error
+
   try {
     const body = (await request.json().catch(() => null)) as PostBody | null
     const slug = body?.slug?.trim()
@@ -99,37 +82,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Wedding not found.' }, { status: 404 })
     }
 
-    if (!(await canEditWeddingContent(request, wedding))) {
+    if (wedding.id !== access.context.weddingId) {
       return NextResponse.json(
         { success: false, error: 'Forbidden — this account cannot edit this wedding.' },
         { status: 403 },
       )
     }
 
-    let metadata: string | null = null
-    if (body?.metadata != null) {
-      metadata =
-        typeof body.metadata === 'string'
-          ? body.metadata
-          : JSON.stringify(body.metadata)
+    // QRO07: only public site copy may be written here, and it is PUBLISHED through the same
+    // transactional lifecycle as the site editor (revision recorded, WeddingContent materialized).
+    // Private sections and core facts (names/date/venue live on Couple/Wedding) are refused.
+    if (!isPublicScalarField(section, field)) {
+      return NextResponse.json(
+        { success: false, error: 'That field is not editable site copy.' },
+        { status: 400 },
+      )
     }
-
-    await db.weddingContent.upsert({
-      where: { weddingId_section_field: { weddingId: wedding.id, section, field } },
-      update: {
-        value: typeof body?.value === 'string' ? body.value : '',
-        order: typeof body?.order === 'number' ? Math.max(0, Math.floor(body.order)) : 0,
-        metadata,
-      },
-      create: {
-        weddingId: wedding.id,
-        section,
-        field,
-        value: typeof body?.value === 'string' ? body.value : '',
-        order: typeof body?.order === 'number' ? Math.max(0, Math.floor(body.order)) : 0,
-        metadata,
-      },
-    })
+    await publishScalar(
+      wedding.id,
+      access.context.session.userId ?? null,
+      section,
+      field,
+      typeof body?.value === 'string' ? body.value : '',
+      undefined,
+    )
 
     return NextResponse.json({ success: true })
   } catch (error) {

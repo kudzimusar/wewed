@@ -2,6 +2,10 @@ import 'server-only'
 
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { NextRequest, NextResponse } from 'next/server'
+import {
+  legacySessionVerificationSecrets,
+  primarySessionSigningSecret,
+} from '@/lib/session-signing-secret'
 import type { InvitationCardStyle } from '@/lib/digital-invitation-card'
 
 export const WEDDING_GUEST_PORTFOLIO_COOKIE = 'wewed_wedding_guest_portfolio'
@@ -13,6 +17,8 @@ export interface WeddingGuestPortfolioEntry {
   weddingSlug: string
   guestId: string
   invitationCardStyle: InvitationCardStyle
+  invitationVersionFingerprint?: string
+  accessExpiresAt?: number
   lastUsedAt: number
 }
 
@@ -21,20 +27,6 @@ export interface WeddingGuestPortfolio {
   activeWeddingId: string | null
   entries: WeddingGuestPortfolioEntry[]
   expiresAt: number
-}
-
-function getSigningSecret(): string {
-  const secret =
-    process.env.WEWED_SESSION_SECRET?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()
-
-  if (!secret) {
-    throw new Error(
-      '[wewed] Missing WEWED_SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY.',
-    )
-  }
-
-  return secret
 }
 
 function isLocalCiBrowserMode(): boolean {
@@ -50,12 +42,12 @@ function isLocalCiBrowserMode(): boolean {
   )
 }
 
-function useSecureCookie(): boolean {
+function shouldUseSecureCookie(): boolean {
   return process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode()
 }
 
-function sign(encodedPayload: string): string {
-  return createHmac('sha256', getSigningSecret())
+function sign(encodedPayload: string, secret = primarySessionSigningSecret()): string {
+  return createHmac('sha256', secret)
     .update(`wedding-guest-portfolio:v1\0${encodedPayload}`, 'utf8')
     .digest('base64url')
 }
@@ -106,7 +98,13 @@ export function verifyWeddingGuestPortfolioToken(
   try {
     const [encoded, signature, extra] = token.split('.')
     if (!encoded || !signature || extra) return null
-    if (!signaturesMatch(signature, sign(encoded))) return null
+    if (
+      !legacySessionVerificationSecrets().some((secret) =>
+        signaturesMatch(signature, sign(encoded, secret)),
+      )
+    ) {
+      return null
+    }
 
     const payload = JSON.parse(
       Buffer.from(encoded, 'base64url').toString('utf8'),
@@ -211,7 +209,7 @@ export function setWeddingGuestPortfolioCookie(
     createWeddingGuestPortfolioToken(portfolio),
     {
       httpOnly: true,
-      secure: useSecureCookie(),
+      secure: shouldUseSecureCookie(),
       sameSite: 'lax',
       path: '/',
       maxAge: WEDDING_GUEST_PORTFOLIO_TTL_SECONDS,
@@ -222,7 +220,7 @@ export function setWeddingGuestPortfolioCookie(
 export function clearWeddingGuestPortfolioCookie(response: NextResponse): void {
   response.cookies.set(WEDDING_GUEST_PORTFOLIO_COOKIE, '', {
     httpOnly: true,
-    secure: useSecureCookie(),
+    secure: shouldUseSecureCookie(),
     sameSite: 'lax',
     path: '/',
     maxAge: 0,

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Wewed identity palette, mirrored from WeddingIdentityPalette so that platform chrome (the
+  launcher icon ground, the system launch screen, the status bar) is the same ivory as the app
+  itself. A launch screen in a different white than the first frame of the app reads as a flash.
+-->
+<resources>
+    <color name="wewed_ivory">#FBF6EE</color>
+    <color name="wewed_ivory_soft">#FFFDF9</color>
+    <color name="wewed_ink">#2B2622</color>
+    <color name="wewed_champagne_deep">#B08544</color>
+    <color name="wewed_forest">#1F4D3A</color>
+</resources>

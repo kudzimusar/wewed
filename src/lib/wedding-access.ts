@@ -5,6 +5,7 @@ import { isWewedPlatformAdministrator } from '@/lib/business-access'
 import {
   PREVIEW_WRITE_BLOCK_MESSAGE,
   shouldBlockPreviewWrite,
+  pendingMembershipAcceptanceScope,
 } from '@/lib/preview-write-safety'
 
 export type MembershipRole = 'owner' | 'planner' | 'coordinator' | 'viewer' | 'admin'
@@ -96,7 +97,7 @@ function parsePermissions(raw: string | null, role: MembershipRole): string[] {
   }
 }
 
-function resolveWeddingPermissions(
+export function resolveWeddingPermissions(
   raw: string | null,
   role: MembershipRole,
   businessCanManageMembers: boolean,
@@ -113,7 +114,8 @@ function resolveWeddingPermissions(
   return [...permissions, 'members.manage']
 }
 
-const GOVERNED_WEDDING_ACCESS = `
+/** Shared with the production authority contract; do not change without its comparison tests. */
+export const GOVERNED_WEDDING_ACCESS = `
   AND (
     m.role = 'owner'
     OR NOT EXISTS (
@@ -138,7 +140,8 @@ const GOVERNED_WEDDING_ACCESS = `
   )
 `
 
-const BUSINESS_TEAM_MANAGEMENT_ACCESS = `
+/** Shared with the production authority contract; do not change without its comparison tests. */
+export const BUSINESS_TEAM_MANAGEMENT_ACCESS = `
   EXISTS (
     SELECT 1
     FROM public."BusinessAccountMember" team_bam
@@ -164,42 +167,30 @@ const BUSINESS_TEAM_MANAGEMENT_ACCESS = `
 
 export async function listAccessibleWeddings(
   userId: string,
-  globalRole: AppSession['role']
+  globalRole?: AppSession['role']
 ): Promise<AccessibleWedding[]> {
-  let rows: WeddingRow[]
+  // Platform Admin is system-scoped and must never acquire a Wedding workspace
+  // merely because a WeddingMembership happens to exist. Legacy role=admin users
+  // are NOT platform admins and continue below through ordinary membership authority.
+  if (globalRole === 'admin' && await isWewedPlatformAdministrator(userId)) return []
 
-  if (globalRole === 'admin') {
-    if (await isWewedPlatformAdministrator(userId)) return []
-
-    rows = await db.$queryRawUnsafe<WeddingRow[]>(`
-      SELECT w.id, w.slug, w.title, w.date, w.venue,
-             w."venueCity", w."venueCountry", w."coupleId",
-             'admin'::text AS "membershipRole",
-             'active'::text AS "membershipStatus",
-             NULL::text AS permissions,
-             FALSE AS "businessCanManageMembers"
-      FROM public."Wedding" w
-      ORDER BY w.date ASC, w."createdAt" ASC
-    `)
-  } else {
-    rows = await db.$queryRawUnsafe<WeddingRow[]>(
-      `
-      SELECT w.id, w.slug, w.title, w.date, w.venue,
-             w."venueCity", w."venueCountry", w."coupleId",
-             m.role AS "membershipRole", m.status AS "membershipStatus",
-             m.permissions,
-             ${BUSINESS_TEAM_MANAGEMENT_ACCESS} AS "businessCanManageMembers"
-      FROM public."WeddingMembership" m
-      JOIN public."Wedding" w ON w.id = m."weddingId"
-      WHERE m."userId" = $1
-        AND m.status IN ('active', 'invited')
-        ${GOVERNED_WEDDING_ACCESS}
-      ORDER BY CASE WHEN m.status = 'active' THEN 0 ELSE 1 END,
-               w.date ASC, w."createdAt" ASC
-    `,
-      userId
-    )
-  }
+  const rows = await db.$queryRawUnsafe<WeddingRow[]>(
+    `
+    SELECT w.id, w.slug, w.title, w.date, w.venue,
+           w."venueCity", w."venueCountry", w."coupleId",
+           m.role AS "membershipRole", m.status AS "membershipStatus",
+           m.permissions,
+           ${BUSINESS_TEAM_MANAGEMENT_ACCESS} AS "businessCanManageMembers"
+    FROM public."WeddingMembership" m
+    JOIN public."Wedding" w ON w.id = m."weddingId"
+    WHERE m."userId" = $1
+      AND m.status IN ('active', 'invited')
+      ${GOVERNED_WEDDING_ACCESS}
+    ORDER BY CASE WHEN m.status = 'active' THEN 0 ELSE 1 END,
+             w.date ASC, w."createdAt" ASC
+  `,
+    userId
+  )
 
   return rows.map((row) => {
     const { businessCanManageMembers, ...wedding } = row
@@ -215,6 +206,9 @@ export async function listAccessibleWeddings(
 }
 
 export async function acceptPendingMemberships(userId: string): Promise<void> {
+  const scope = pendingMembershipAcceptanceScope()
+  if (scope.mode === 'none') return
+  const weddingFilter = scope.mode === 'wedding' ? ' AND "weddingId" = $2' : ''
   await db.$executeRawUnsafe(
     `
       UPDATE public."WeddingMembership"
@@ -222,9 +216,10 @@ export async function acceptPendingMemberships(userId: string): Promise<void> {
           "acceptedAt" = COALESCE("acceptedAt", CURRENT_TIMESTAMP),
           "revokedAt" = NULL,
           "updatedAt" = CURRENT_TIMESTAMP
-      WHERE "userId" = $1 AND status = 'invited'
+      WHERE "userId" = $1 AND status = 'invited'${weddingFilter}
     `,
-    userId
+    userId,
+    ...(scope.mode === 'wedding' ? [scope.weddingId] : [])
   )
 }
 
@@ -238,20 +233,26 @@ export interface WeddingContext {
 export async function getWeddingContext(
   request: NextRequest
 ): Promise<WeddingContext | null> {
-  const session = readAppSession(request)
+  return getWeddingContextForSession(readAppSession(request))
+}
+
+/**
+ * Same resolution as getWeddingContext for an already-verified app session — used by server
+ * components (e.g. /w/[slug]) that read the session cookie through next/headers.
+ */
+export async function getWeddingContextForSession(
+  session: ReturnType<typeof readAppSession>
+): Promise<WeddingContext | null> {
   if (!session?.activeWeddingId) return null
 
-  if (session.role === 'admin') {
-    if (await isWewedPlatformAdministrator(session.userId)) return null
-
-    const wedding = await db.wedding.findUnique({
-      where: { id: session.activeWeddingId },
-      select: { id: true },
-    })
-
-    return wedding
-      ? { session, weddingId: wedding.id, role: 'admin', permissions: ['*'] }
-      : null
+  // Genuine platform administrators stay system-scoped. A legacy dashboard
+  // role of "admin" does not receive this treatment unless the platform-admin
+  // relationship is actually present.
+  if (
+    session.role === 'admin' &&
+    await isWewedPlatformAdministrator(session.userId)
+  ) {
+    return null
   }
 
   const rows = await db.$queryRawUnsafe<

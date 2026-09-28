@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
-import { isAdmin, requireAdmin } from "@/lib/admin-gate";
+import { requireWeddingPermission } from "@/lib/wedding-access";
 import { generateToken } from "@/lib/contribution-utils";
 import { BRIDAL_PARTY } from "@/lib/bridal-party-data";
 
@@ -10,17 +10,15 @@ import { BRIDAL_PARTY } from "@/lib/bridal-party-data";
    Admin-only moderation endpoints for the guest contributions
    feature.
 
-   • GET  → list all contributions for the flagship wedding,
-            optionally filtered by status. Guest name is joined.
-   • POST → bulk-generate contribution tokens for every guest
-            in the flagship wedding that doesn't already have one.
-            Also creates sample bridal party contributions using
-            bridal-party-data.ts so there's demo content.
+   • GET  → list contributions for the explicitly selected wedding.
+   • POST → generate contribution tokens only inside the caller's
+            active authorised wedding context.
+   • Optional demo samples require an explicit seedSamples=true request;
+     no named production wedding receives implicit special treatment.
 
-   Admin gate: wewed_admin_auth cookie (or ?admin=1 in dev).
+   Wedding authority is resolved from the signed application session and
+   must match the requested wedding slug.
    ============================================================ */
-
-const FLAGSHIP_SLUG = "charity-and-kudzie";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -65,15 +63,6 @@ interface BridalSampleContribution {
   useField: "quote" | "favoriteMemory";
 }
 
-/**
- * Curated sample contributions for the 8 bridal party members.
- * Uses real bio data from bridal-party-data.ts so the demo wall
- * feels authentic to Charity & Kudzie's wedding.
- *
- * `useField` decides which bio field becomes the message:
- *   - 'quote'           → the member's toast to the couple
- *   - 'favoriteMemory'  → a shared memory with the couple
- */
 const BRIDAL_SAMPLES: BridalSampleContribution[] = [
   { bridalId: "tendai-m", type: "blessing", status: "featured", useField: "quote" },
   { bridalId: "takudzwa-m", type: "blessing", status: "approved", useField: "quote" },
@@ -86,13 +75,13 @@ const BRIDAL_SAMPLES: BridalSampleContribution[] = [
 ];
 
 // ─── GET /api/contributions ─────────────────────────────────────────────────
-// List all contributions for the flagship wedding, joined with guest info.
-// Query: ?status=pending|approved|rejected|draft|featured|hidden|all
-//        (default: all)
+// List all contributions for the wedding, joined with guest info.
+// Query: ?status=pending|approved|rejected|draft|featured|hidden|all&slug=...
+//        (default status: all)
 
 export async function GET(request: NextRequest) {
-  const gate = requireAdmin(request);
-  if (gate) return gate;
+  const access = await requireWeddingPermission(request, "content.edit");
+  if (access.error) return access.error;
 
   try {
     const statusParam = request.nextUrl.searchParams.get("status") ?? "all";
@@ -115,15 +104,29 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const slug = request.nextUrl.searchParams.get("weddingSlug")?.trim() || request.nextUrl.searchParams.get("slug")?.trim();
+    if (!slug) {
+      return NextResponse.json(
+        { success: false, error: "Wedding slug is required." },
+        { status: 400 }
+      );
+    }
+
     const wedding = await db.wedding.findFirst({
-      where: { slug: FLAGSHIP_SLUG },
+      where: { slug },
       select: { id: true },
     });
 
     if (!wedding) {
       return NextResponse.json(
-        { success: false, error: "Flagship wedding not found." },
+        { success: false, error: "Wedding not found." },
         { status: 404 }
+      );
+    }
+    if (wedding.id !== access.context.weddingId) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden — wedding context does not match the active workspace." },
+        { status: 403 }
       );
     }
 
@@ -199,63 +202,79 @@ export async function GET(request: NextRequest) {
 }
 
 // ─── POST /api/contributions ────────────────────────────────────────────────
-// Bulk-generate contribution tokens for all flagship-wedding guests that
+// Bulk-generate contribution tokens for all selected-wedding guests that
 // don't already have one. Also creates sample bridal party contributions
 // using bridal-party-data.ts so there's demo content for moderation.
 
 export async function POST(request: NextRequest) {
-  const gate = requireAdmin(request);
-  if (gate) return gate;
+  const access = await requireWeddingPermission(request, "guests.edit");
+  if (access.error) return access.error;
 
   try {
+    const body = await request.json().catch(() => ({}));
+    const slug = (body?.weddingSlug || body?.slug || request.nextUrl.searchParams.get("weddingSlug") || request.nextUrl.searchParams.get("slug"))?.trim();
+
+    if (!slug) {
+      return NextResponse.json(
+        { success: false, error: "Wedding slug is required." },
+        { status: 400 }
+      );
+    }
+
     const wedding = await db.wedding.findFirst({
-      where: { slug: FLAGSHIP_SLUG },
-      select: { id: true },
+      where: { slug },
+      select: { id: true, slug: true },
     });
 
     if (!wedding) {
       return NextResponse.json(
-        { success: false, error: "Flagship wedding not found." },
+        { success: false, error: "Wedding not found." },
         { status: 404 }
       );
     }
+    if (wedding.id !== access.context.weddingId) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden — wedding context does not match the active workspace." },
+        { status: 403 }
+      );
+    }
 
-    // ── 1. Ensure bridal party guests exist (from bridal-party-data.ts) ──
-    // The seed route may have created slightly different placeholder names.
-    // We upsert by (weddingId, name) so bridal-party-data.ts is canonical.
+    // ── 1. Optional explicit demo seeding; never triggered by a named wedding ──
     const bridalGuests: Record<string, { id: string; name: string }> = {};
 
-    for (const member of BRIDAL_PARTY) {
-      const existing = await db.guest.findFirst({
-        where: { weddingId: wedding.id, name: member.name },
-        select: { id: true, name: true },
-      });
+    if (body?.seedSamples === true) {
+      for (const member of BRIDAL_PARTY) {
+        const existing = await db.guest.findFirst({
+          where: { weddingId: wedding.id, name: member.name },
+          select: { id: true, name: true },
+        });
 
-      let guestId: string;
-      if (existing) {
-        // Patch role/side if they were seeded as plain 'guest'
-        await db.guest.update({
-          where: { id: existing.id },
-          data: {
-            role: member.isKid ? "family" : "bridal_party",
-            roleDetail: member.role,
-            side: member.side,
-          },
-        });
-        guestId = existing.id;
-      } else {
-        const created = await db.guest.create({
-          data: {
-            name: member.name,
-            role: member.isKid ? "family" : "bridal_party",
-            roleDetail: member.role,
-            side: member.side,
-            weddingId: wedding.id,
-          },
-        });
-        guestId = created.id;
+        let guestId: string;
+        if (existing) {
+          // Patch role/side if they were seeded as plain 'guest'
+          await db.guest.update({
+            where: { id: existing.id },
+            data: {
+              role: member.isKid ? "family" : "bridal_party",
+              roleDetail: member.role,
+              side: member.side,
+            },
+          });
+          guestId = existing.id;
+        } else {
+          const created = await db.guest.create({
+            data: {
+              name: member.name,
+              role: member.isKid ? "family" : "bridal_party",
+              roleDetail: member.role,
+              side: member.side,
+              weddingId: wedding.id,
+            },
+          });
+          guestId = created.id;
+        }
+        bridalGuests[member.id] = { id: guestId, name: member.name };
       }
-      bridalGuests[member.id] = { id: guestId, name: member.name };
     }
 
     // ── 2. Generate tokens for every guest that doesn't have one ─────────
@@ -305,59 +324,61 @@ export async function POST(request: NextRequest) {
     // Stagger submittedAt timestamps so the public feed has variety.
     const baseTime = now.getTime();
 
-    for (const sample of BRIDAL_SAMPLES) {
-      const member = BRIDAL_PARTY.find((m) => m.id === sample.bridalId);
-      if (!member) continue;
-      const guestRef = bridalGuests[member.id];
-      if (!guestRef) continue;
+    if (body?.seedSamples === true) {
+      for (const sample of BRIDAL_SAMPLES) {
+        const member = BRIDAL_PARTY.find((m) => m.id === sample.bridalId);
+        if (!member) continue;
+        const guestRef = bridalGuests[member.id];
+        if (!guestRef) continue;
 
-      const existing = await db.guestContribution.findUnique({
-        where: { guestId: guestRef.id },
-        select: { id: true },
-      });
-      if (existing) continue;
+        const existing = await db.guestContribution.findUnique({
+          where: { guestId: guestRef.id },
+          select: { id: true },
+        });
+        if (existing) continue;
 
-      const message =
-        sample.useField === "quote" ? member.quote : member.favoriteMemory;
+        const message =
+          sample.useField === "quote" ? member.quote : member.favoriteMemory;
 
-      // Word/char counts (pre-sanitized — bridal data is trusted, but we
-      // still sanitize on storage for consistency).
-      const wordCount = message.trim().split(/\s+/).length;
-      const charCount = message.length;
+        // Word/char counts (pre-sanitized — bridal data is trusted, but we
+        // still sanitize on storage for consistency).
+        const wordCount = message.trim().split(/\s+/).length;
+        const charCount = message.length;
 
-      // Stagger timestamps: newest first, Tendai (index 0) is the most recent.
-      const staggerMs =
-        (BRIDAL_SAMPLES.length - BRIDAL_SAMPLES.indexOf(sample)) * 86_400_000; // 1 day apart
-      const submittedAt = new Date(baseTime - staggerMs);
+        // Stagger timestamps: newest first, Tendai (index 0) is the most recent.
+        const staggerMs =
+          (BRIDAL_SAMPLES.length - BRIDAL_SAMPLES.indexOf(sample)) * 86_400_000; // 1 day apart
+        const submittedAt = new Date(baseTime - staggerMs);
 
-      await db.guestContribution.create({
-        data: {
-          guestId: guestRef.id,
-          weddingId: wedding.id,
-          type: sample.type,
-          displayName: member.name,
-          relationship: member.relationshipToCouple,
-          message,
-          favoriteSong: member.favoriteSong,
-          privacy: "public",
-          status: sample.status,
-          wordCount,
-          charCount,
-          editCount: 1,
-          revisionHistory: null,
-          submittedAt,
-          reviewedAt: now,
-          reviewedBy: "admin",
-        },
-      });
+        await db.guestContribution.create({
+          data: {
+            guestId: guestRef.id,
+            weddingId: wedding.id,
+            type: sample.type,
+            displayName: member.name,
+            relationship: member.relationshipToCouple,
+            message,
+            favoriteSong: member.favoriteSong,
+            privacy: "public",
+            status: sample.status,
+            wordCount,
+            charCount,
+            editCount: 1,
+            revisionHistory: null,
+            submittedAt,
+            reviewedAt: now,
+            reviewedBy: "admin",
+          },
+        });
 
-      // Sync guest contributionStatus
-      await db.guest.update({
-        where: { id: guestRef.id },
-        data: { contributionStatus: sample.status },
-      });
+        // Sync guest contributionStatus
+        await db.guest.update({
+          where: { id: guestRef.id },
+          data: { contributionStatus: sample.status },
+        });
 
-      samplesCreated++;
+        samplesCreated++;
+      }
     }
 
     return NextResponse.json({
@@ -375,7 +396,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ─── Note: isAdmin is re-exported indirectly via requireAdmin. ───────────────
-// The import above keeps the file self-documenting and lets future handlers
-// in this file use either helper without another import line.
-void isAdmin;

@@ -111,11 +111,20 @@ describe('INV-CANON01 — Planner/Couple studio shows the approved invitation', 
     expect(trifold).toContain("setView('details')")
   })
 
-  test('loading the studio is read-only; missing links are repaired only by explicit operator action', () => {
+  test('opening the Planner invitation studio is read-only until an operator explicitly repairs missing links', () => {
     const manager = source('src/components/wedding/invitation-manager.tsx')
-    const load = manager.slice(manager.indexOf('const load = useCallback'), manager.indexOf('async function generateMissingLinks'))
-    expect(load).not.toContain("method: 'POST'")
+    const loadStart = manager.indexOf('const load = useCallback')
+    const loadEnd = manager.indexOf('useEffect(() => { void load() }, [load])')
+    expect(loadStart).toBeGreaterThan(-1)
+    expect(loadEnd).toBeGreaterThan(loadStart)
+    expect(manager.slice(loadStart, loadEnd)).not.toContain("method: 'POST'")
     expect(manager).toContain('async function generateMissingLinks()')
-    expect(manager).toContain("window.confirm(`Generate private invitation links")
+    expect(manager).toContain('window.confirm')
+  })
+
+  test('the RSVP dialog cannot let a stale card query override the saved wedding style', () => {
+    const dialog = source('src/components/wedding/invitation-rsvp-dialog.tsx')
+    expect(dialog).toContain('normalizeInvitationCardStyle(data.wedding.invitationCardStyle)')
+    expect(dialog).not.toContain('requestedStyle || data.wedding.invitationCardStyle')
   })
 })

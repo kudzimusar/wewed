@@ -31,8 +31,6 @@ import {
    task). This endpoint only creates disputes.
    ============================================================ */
 
-const FLAGSHIP_SLUG = "charity-and-kudzie";
-
 // ─── GET /api/royalty/dispute ──────────────────────────────
 export async function GET(request: NextRequest) {
   const adminBlock = requireAdmin(request);
@@ -40,7 +38,13 @@ export async function GET(request: NextRequest) {
 
   try {
     const url = new URL(request.url);
-    const slug = url.searchParams.get("slug") ?? FLAGSHIP_SLUG;
+    const slug = url.searchParams.get("slug")?.trim();
+    if (!slug) {
+      return NextResponse.json(
+        { success: false, error: "Wedding slug is required." },
+        { status: 400 },
+      );
+    }
     const status = url.searchParams.get("status");
 
     if (status && !(DISPUTE_STATUSES as readonly string[]).includes(status)) {
@@ -147,8 +151,14 @@ export async function POST(request: NextRequest) {
   if (adminBlock) return adminBlock;
 
   try {
-    const body = (await request.json()) as RaiseDisputePayload;
-    const slug = body.slug?.trim() || FLAGSHIP_SLUG;
+    const body = (await request.json().catch(() => ({}))) as RaiseDisputePayload;
+    const slug = body.slug?.trim();
+    if (!slug) {
+      return NextResponse.json(
+        { success: false, error: "Wedding slug is required." },
+        { status: 400 },
+      );
+    }
     const ledgerEntryId = body.ledgerEntryId?.trim();
     const reason = body.reason?.trim();
     const actorId = body.actorId?.trim() || "admin";

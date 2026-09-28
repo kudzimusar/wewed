@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: Type deploy-wewed to confirm the production migration
+        description: Type audit-wewed for read-only audit, baseline-wewed for reviewed ledger repair, or deploy-wewed to migrate
         required: true
         type: string
 
@@ -138,3 +138,579 @@ jobs:
           --from-url "$DATABASE_URL"
           --to-schema-datamodel prisma/schema.prisma
           --exit-code
+
+
+  baseline-production-ledger:
+    name: Baseline reviewed production Prisma ledger
+    if: ${{ inputs.confirmation == 'baseline-wewed' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+
+    env:
+      DATABASE_URL: ${{ secrets.WEWED_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.WEWED_DATABASE_URL }}
+
+    steps:
+      - name: Check out reviewed release ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Fail closed unless this is the reviewed QRO07 release branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" == "release/qro07-guest-pwa-play-ship-20260928" ]] || {
+            echo "::error::Ledger baseline is permitted only from the reviewed QRO07 release branch."
+            exit 1
+          }
+
+      - name: Verify Wewed production target
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DATABASE_URL" || {
+            echo "::error::WEWED_DATABASE_URL is not configured"
+            exit 1
+          }
+          [[ "$DATABASE_URL" == *"kjigkhjdeymukwradoqu"* ]] || {
+            echo "::error::The database URL is not for the Wewed Supabase project"
+            exit 1
+          }
+          [[ "$DATABASE_URL" == *":5432/"* ]] || {
+            echo "::error::Use the Supabase session pooler on port 5432"
+            exit 1
+          }
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Verify reviewed baseline manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="docs/releases/QRO07_PRODUCTION_BASELINE_MANIFEST_20260929.txt"
+          test -f "$manifest" || {
+            echo "::error::Reviewed production baseline manifest is missing."
+            exit 1
+          }
+
+          grep -Ev '^[[:space:]]*(#|$)' "$manifest" > /tmp/wewed-baseline-manifest.txt
+          count=$(wc -l < /tmp/wewed-baseline-manifest.txt | tr -d ' ')
+          [[ "$count" == "88" ]] || {
+            echo "::error::Expected exactly 88 reviewed historical baseline migrations, found $count."
+            exit 1
+          }
+
+          for required in             20260730173000_wewed_business_admin_console             20260807195000_ai_wedding_architect_provider_commercial             20260812030000_canonical_wedding_social_template             20260812050000_scope_wedding_social_channels             20260909092500_seed_charity_kudzie_physical_invitation; do
+            grep -Fxq "$required" /tmp/wewed-baseline-manifest.txt || {
+              echo "::error::Required historical baseline migration is absent: $required"
+              exit 1
+            }
+          done
+
+          for must_run in             20260825024000_notification_state_race_guard             20260825030000_provider_listing_visibility_guard; do
+            if grep -Fxq "$must_run" /tmp/wewed-baseline-manifest.txt; then
+              echo "::error::Guard migration must execute normally and cannot be baselined: $must_run"
+              exit 1
+            fi
+          done
+
+          while IFS= read -r migration_name; do
+            [[ "$migration_name" =~ ^[0-9]{14}_[a-z0-9_]+$ ]] || {
+              echo "::error::Unexpected manifest entry: $migration_name"
+              exit 1
+            }
+            test -f "prisma/migrations/$migration_name/migration.sql" || {
+              echo "::error::Manifest migration is absent from this checkout: $migration_name"
+              exit 1
+            }
+          done < /tmp/wewed-baseline-manifest.txt
+
+      - name: Live read-only preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          completed=$(psql "$DATABASE_URL" -Atqc             "select count(*) from public._prisma_migrations where finished_at is not null and rolled_back_at is null"             | tr -d '[:space:]')
+          unresolved=$(psql "$DATABASE_URL" -Atqc             "select count(*) from public._prisma_migrations where finished_at is null and rolled_back_at is null"             | tr -d '[:space:]')
+          rolled_back=$(psql "$DATABASE_URL" -Atqc             "select count(*) from public._prisma_migrations where rolled_back_at is not null"             | tr -d '[:space:]')
+
+          [[ "$completed" == "8" && "$unresolved" == "1" && "$rolled_back" == "2" ]] || {
+            echo "::error::Production migration ledger changed since the reviewed backup/audit."
+            echo "completed=$completed unresolved=$unresolved rolled_back=$rolled_back"
+            exit 1
+          }
+
+          unresolved_name=$(psql "$DATABASE_URL" -Atqc             "select migration_name from public._prisma_migrations where finished_at is null and rolled_back_at is null")
+          [[ "$unresolved_name" == "20260730173000_wewed_business_admin_console" ]] || {
+            echo "::error::Unexpected unresolved migration: $unresolved_name"
+            exit 1
+          }
+
+          for guard in             20260825024000_notification_state_race_guard             20260825030000_provider_listing_visibility_guard; do
+            applied=$(psql "$DATABASE_URL" -Atqc               "select count(*) from public._prisma_migrations where migration_name='$guard' and finished_at is not null and rolled_back_at is null"               | tr -d '[:space:]')
+            [[ "$applied" == "0" ]] || {
+              echo "::error::Guard migration state changed since review: $guard"
+              exit 1
+            }
+          done
+
+          already_baselined=0
+          while IFS= read -r migration_name; do
+            present=$(psql "$DATABASE_URL" -Atqc               "select count(*) from public._prisma_migrations where migration_name='$migration_name' and finished_at is not null and rolled_back_at is null"               | tr -d '[:space:]')
+            if [[ "$present" != "0" ]]; then
+              already_baselined=$((already_baselined + 1))
+            fi
+          done < /tmp/wewed-baseline-manifest.txt
+
+          [[ "$already_baselined" == "0" ]] || {
+            echo "::error::One or more reviewed baseline migrations became applied since the audit. Re-review before continuing."
+            exit 1
+          }
+
+          qr_state=$(psql "$DATABASE_URL" -AtF '|' -c             "select q.id,q.label,q.url,q.type,q.\"isActive\"::text from public.\"QRDestination\" q join public.\"Wedding\" w on w.id=q.\"weddingId\" where w.slug='charity-and-kudzie' and q.type='physical_invitation' order by q.id")
+          [[ "$qr_state" == 'print_JXVAAX6DRL|Bulk printed wedding invitation|/w/charity-and-kudzie|physical_invitation|true' ]] || {
+            echo "::error::The frozen Charity & Kudzie printed invitation authority changed."
+            echo "$qr_state"
+            exit 1
+          }
+
+          obsolete_qr=$(psql "$DATABASE_URL" -Atqc             "select count(*) from public.\"QRDestination\" where id='print_CHRTYKDZ23'"             | tr -d '[:space:]')
+          [[ "$obsolete_qr" == "0" ]] || {
+            echo "::error::Obsolete CHRTYKDZ23 destination unexpectedly exists."
+            exit 1
+          }
+
+          provider_repairs=$(psql "$DATABASE_URL" -Atqc             "select count(*) from wewed_admin.\"ProviderProfile\" where \"listingStatus\" in ('suspended','removed') and (visibility <> 'draft' or \"acceptingEnquiries\" is distinct from false)"             | tr -d '[:space:]')
+          [[ "$provider_repairs" == "0" ]] || {
+            echo "::error::Provider visibility guard would now repair $provider_repairs production rows. Re-review required."
+            exit 1
+          }
+
+          echo "Reviewed live invariants still match the pre-migration audit."
+
+      - name: Baseline reviewed historical migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r migration_name; do
+            [[ -n "$migration_name" ]] || continue
+
+            already_applied=$(psql "$DATABASE_URL" -Atqc               "select count(*) from public._prisma_migrations where migration_name='$migration_name' and finished_at is not null and rolled_back_at is null"               | tr -d '[:space:]')
+
+            if [[ "$already_applied" != "0" ]]; then
+              echo "Already applied; skipping: $migration_name"
+              continue
+            fi
+
+            echo "Recording reviewed historical migration as applied: $migration_name"
+            bunx prisma migrate resolve --applied "$migration_name" --schema prisma/schema.prisma
+          done < /tmp/wewed-baseline-manifest.txt
+
+      - name: Verify baseline and exact pending migration set
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          unresolved=$(psql "$DATABASE_URL" -Atqc             "select count(*) from public._prisma_migrations where finished_at is null and rolled_back_at is null"             | tr -d '[:space:]')
+          [[ "$unresolved" == "0" ]] || {
+            echo "::error::Unresolved migration rows remain after baseline."
+            exit 1
+          }
+
+          find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -u > /tmp/repository-migrations.txt
+          psql "$DATABASE_URL" -Atqc             "select distinct migration_name from public._prisma_migrations where finished_at is not null and rolled_back_at is null order by migration_name"             | sort -u > /tmp/applied-migrations.txt
+          comm -23 /tmp/repository-migrations.txt /tmp/applied-migrations.txt > /tmp/pending-migrations.txt
+
+          # printf rather than a heredoc: heredoc lines at column 0 terminate this YAML
+          # block scalar and made the whole workflow file unparseable.
+          printf '%s\n' \
+            20260825024000_notification_state_race_guard \
+            20260825030000_provider_listing_visibility_guard \
+            20260922120000_fix_business_account_subscription_status_default \
+            20260922130000_fix_planner_zero_wedding_onboarding_completion_trigger \
+            20260923210000_wedding_gate_authority \
+            20260924000000_wedding_day_ww2_authority \
+            20260928090000_wedding_site_structure_and_announcements \
+            20260929013000_production_schema_reconciliation_v2 \
+            > /tmp/expected-pending.txt
+
+          if ! diff -u /tmp/expected-pending.txt /tmp/pending-migrations.txt; then
+            echo "::error::Ledger baseline did not produce the exact reviewed eight-migration pending set."
+            exit 1
+          fi
+
+          echo "Ledger baseline succeeded. Exactly eight reviewed migrations remain pending."
+          cat /tmp/pending-migrations.txt
+
+      - name: Re-verify immutable invitation authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          qr_state=$(psql "$DATABASE_URL" -AtF '|' -c             "select q.id,q.label,q.url,q.type,q.\"isActive\"::text from public.\"QRDestination\" q join public.\"Wedding\" w on w.id=q.\"weddingId\" where w.slug='charity-and-kudzie' and q.type='physical_invitation' order by q.id")
+          [[ "$qr_state" == 'print_JXVAAX6DRL|Bulk printed wedding invitation|/w/charity-and-kudzie|physical_invitation|true' ]] || {
+            echo "::error::Printed invitation authority changed during ledger-only repair."
+            exit 1
+          }
+
+          obsolete_qr=$(psql "$DATABASE_URL" -Atqc             "select count(*) from public.\"QRDestination\" where id='print_CHRTYKDZ23'"             | tr -d '[:space:]')
+          [[ "$obsolete_qr" == "0" ]] || {
+            echo "::error::Obsolete physical invitation destination appeared during ledger-only repair."
+            exit 1
+          }
+
+          echo "Printed invitation authority unchanged."
+          echo "No schema migration was executed by this job."
+
+
+  audit-baseline:
+    name: Audit production migration baseline
+    if: ${{ inputs.confirmation == 'audit-wewed' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wewed_reference
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wewed_reference"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PROD_DATABASE_URL: ${{ secrets.WEWED_DATABASE_URL }}
+      REFERENCE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/wewed_reference
+
+    steps:
+      - name: Check out audit workflow ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Check out current main schema baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          path: baseline-main
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Verify Wewed production target
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PROD_DATABASE_URL" || {
+            echo "::error::WEWED_DATABASE_URL is not configured"
+            exit 1
+          }
+          [[ "$PROD_DATABASE_URL" == *"kjigkhjdeymukwradoqu"* ]] || {
+            echo "::error::The database URL is not for the Wewed Supabase project"
+            exit 1
+          }
+          [[ "$PROD_DATABASE_URL" == *":5432/"* ]] || {
+            echo "::error::Use the Supabase session pooler on port 5432"
+            exit 1
+          }
+
+      - name: Install main dependencies
+        working-directory: baseline-main
+        run: bun install --frozen-lockfile
+
+      - name: Build clean reference database from current main migrations
+        working-directory: baseline-main
+        shell: bash
+        run: |
+          set -euo pipefail
+          DATABASE_URL="$REFERENCE_DATABASE_URL" DIRECT_URL="$REFERENCE_DATABASE_URL" \
+            bunx prisma migrate deploy --schema prisma/schema.prisma
+          DATABASE_URL="$REFERENCE_DATABASE_URL" DIRECT_URL="$REFERENCE_DATABASE_URL" \
+            bunx prisma migrate status --schema prisma/schema.prisma
+
+      - name: Inventory production Prisma ledger without changing it
+        id: ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p baseline-audit
+
+          psql "$PROD_DATABASE_URL" -AtF '|' -c \
+            "select migration_name, coalesce(finished_at::text,''), coalesce(rolled_back_at::text,''), applied_steps_count from public._prisma_migrations order by started_at" \
+            > baseline-audit/production-ledger.txt
+
+          psql "$PROD_DATABASE_URL" -Atqc \
+            "select migration_name from public._prisma_migrations where finished_at is not null and rolled_back_at is null order by migration_name" \
+            | sort -u > baseline-audit/applied.txt
+
+          psql "$PROD_DATABASE_URL" -Atqc \
+            "select migration_name from public._prisma_migrations where finished_at is null and rolled_back_at is null order by migration_name" \
+            | sort -u > baseline-audit/unresolved.txt
+
+          psql "$PROD_DATABASE_URL" -Atqc \
+            "select migration_name from public._prisma_migrations where rolled_back_at is not null order by migration_name" \
+            | sort -u > baseline-audit/rolled-back.txt
+
+          find baseline-main/prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' \
+            | sort -u > baseline-audit/repository-main.txt
+
+          comm -23 baseline-audit/repository-main.txt baseline-audit/applied.txt \
+            > baseline-audit/not-successfully-recorded.txt
+
+          echo "Main migrations: $(wc -l < baseline-audit/repository-main.txt | tr -d ' ')"
+          echo "Successfully recorded in production: $(wc -l < baseline-audit/applied.txt | tr -d ' ')"
+          echo "Not successfully recorded: $(wc -l < baseline-audit/not-successfully-recorded.txt | tr -d ' ')"
+          echo "Unresolved rows: $(wc -l < baseline-audit/unresolved.txt | tr -d ' ')"
+          echo "Rolled-back rows: $(wc -l < baseline-audit/rolled-back.txt | tr -d ' ')"
+
+          echo "::group::Unresolved ledger rows"
+          cat baseline-audit/unresolved.txt
+          echo "::endgroup::"
+
+          echo "::group::Rolled-back ledger rows"
+          cat baseline-audit/rolled-back.txt
+          echo "::endgroup::"
+
+      - name: Classify ledger-missing migrations with data-changing SQL
+        id: dml
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import pathlib
+          import re
+
+          root = pathlib.Path("baseline-main/prisma/migrations")
+          audit = pathlib.Path("baseline-audit")
+          names = [
+              line.strip()
+              for line in (audit / "not-successfully-recorded.txt").read_text().splitlines()
+              if line.strip()
+          ]
+
+          dml = re.compile(
+              r"\b(?:"
+              r"INSERT\s+INTO|"
+              # Statement-bounded: UPDATE <target> [alias] SET. The previous lazy
+              # [\s\S]*? spanned statements (e.g. a trigger's "BEFORE UPDATE ON t;"
+              # followed later by "ALTER FUNCTION ... SET search_path") and reported
+              # 16 historical migrations with no top-level DML. Trigger events and FK
+              # actions ("OR UPDATE", "ON UPDATE", "BEFORE/AFTER UPDATE") are excluded.
+              r"(?<!ON\s)(?<!OR\s)(?<!BEFORE\s)(?<!AFTER\s)"
+              r"UPDATE\s+(?:ONLY\s+)?"
+              r"(?:\"[^\"]+\"|[A-Za-z_]\w*)(?:\s*\.\s*(?:\"[^\"]+\"|[A-Za-z_]\w*))?"
+              r"(?:\s+(?:AS\s+)?(?!SET\b)[A-Za-z_]\w*)?\s+SET\b|"
+              r"DELETE\s+FROM|"
+              r"TRUNCATE(?:\s+TABLE)?|"
+              r"COPY\s+"
+              r")",
+              re.IGNORECASE,
+          )
+
+          dollar = re.compile(r"\$(?P<tag>[A-Za-z_][A-Za-z0-9_]*)?\$")
+          do_block_prefix = re.compile(r"\bDO\s*(?:LANGUAGE\s+\w+\s*)?$", re.IGNORECASE)
+          single = re.compile(r"'(?:''|[^'])*'", re.DOTALL)
+          line_comment = re.compile(r"--[^\n]*")
+          block_comment = re.compile(r"/\*[\s\S]*?\*/")
+
+          def mask_comments_and_strings(sql: str) -> str:
+              sql = block_comment.sub(lambda m: " " * len(m.group(0)), sql)
+              sql = line_comment.sub(lambda m: " " * len(m.group(0)), sql)
+              sql = single.sub(lambda m: " " * len(m.group(0)), sql)
+              return sql
+
+          def split_top_level(sql: str) -> tuple[str, str]:
+              # Mask dollar-quoted bodies so DML inside CREATE FUNCTION/DO bodies
+              # is not mistaken for migration-time DML. Return masked top-level SQL
+              # plus the concatenated body text for diagnostics.
+              chars = list(sql)
+              bodies: list[str] = []
+              pos = 0
+              while True:
+                  match = dollar.search(sql, pos)
+                  if not match:
+                      break
+                  tag = match.group(0)
+                  end = sql.find(tag, match.end())
+                  if end < 0:
+                      break
+                  body = sql[match.end():end]
+                  # An anonymous DO block executes during the migration itself, so its
+                  # DML is migration-time DML: keep it in the top-level text. Only
+                  # function/procedure bodies (executed later by triggers/calls) are masked.
+                  if do_block_prefix.search(sql[:match.start()]):
+                      pos = end + len(tag)
+                      continue
+                  bodies.append(body)
+                  for i in range(match.start(), end + len(tag)):
+                      chars[i] = " "
+                  pos = end + len(tag)
+              return "".join(chars), "\n".join(bodies)
+
+          top_level: list[str] = []
+          function_only: list[str] = []
+          both: list[str] = []
+          detail: list[str] = []
+
+          for name in names:
+              path = root / name / "migration.sql"
+              if not path.is_file():
+                  continue
+              raw = path.read_text()
+              top, bodies = split_top_level(raw)
+              top_has = bool(dml.search(mask_comments_and_strings(top)))
+              body_has = bool(dml.search(mask_comments_and_strings(bodies)))
+
+              if top_has and body_has:
+                  both.append(name)
+                  classification = "BOTH"
+              elif top_has:
+                  top_level.append(name)
+                  classification = "TOP_LEVEL"
+              elif body_has:
+                  function_only.append(name)
+                  classification = "FUNCTION_BODY_ONLY"
+              else:
+                  classification = "NONE"
+
+              if classification != "NONE":
+                  detail.append(f"{name}|{classification}")
+
+          (audit / "missing-with-top-level-dml.txt").write_text(
+              "".join(f"{name}\n" for name in sorted(top_level + both))
+          )
+          (audit / "missing-with-function-body-dml.txt").write_text(
+              "".join(f"{name}\n" for name in sorted(function_only + both))
+          )
+          (audit / "missing-dml-classification.txt").write_text(
+              "".join(f"{row}\n" for row in sorted(detail))
+          )
+          PY
+
+          echo "::group::Ledger-missing migration DML classification"
+          if [[ -s baseline-audit/missing-dml-classification.txt ]]; then
+            cat baseline-audit/missing-dml-classification.txt
+          else
+            echo "(none detected)"
+          fi
+          echo "::endgroup::"
+
+          echo "top_level_count=$(wc -l < baseline-audit/missing-with-top-level-dml.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+          echo "function_body_count=$(wc -l < baseline-audit/missing-with-function-body-dml.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+
+      - name: Prisma structural diff production versus clean current-main reference
+        id: prisma_diff
+        working-directory: baseline-main
+        shell: bash
+        run: |
+          set +e
+          bunx prisma migrate diff \
+            --from-url "$PROD_DATABASE_URL" \
+            --to-url "$REFERENCE_DATABASE_URL" \
+            --exit-code \
+            > ../baseline-audit/prisma-diff.txt 2>&1
+          status=$?
+          set -e
+
+          cat ../baseline-audit/prisma-diff.txt
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+          if [[ "$status" == "1" ]]; then
+            echo "::error::Prisma migrate diff itself failed."
+          elif [[ "$status" == "2" ]]; then
+            echo "::warning::Prisma detected structural schema differences between production and clean current main."
+          fi
+
+      - name: Compare raw PostgreSQL schema including views functions triggers and policies
+        id: raw_diff
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm --network host \
+            -e PROD_DATABASE_URL="$PROD_DATABASE_URL" \
+            -v "$PWD/baseline-audit:/audit" \
+            postgres:17 sh -lc \
+            'pg_dump "$PROD_DATABASE_URL" --schema-only --no-owner --no-privileges --no-comments --schema=public --schema=wewed_admin --exclude-table=public._prisma_migrations > /audit/production-schema.sql'
+
+          docker run --rm --network host \
+            -e REFERENCE_DATABASE_URL="$REFERENCE_DATABASE_URL" \
+            -v "$PWD/baseline-audit:/audit" \
+            postgres:17 sh -lc \
+            'pg_dump "$REFERENCE_DATABASE_URL" --schema-only --no-owner --no-privileges --no-comments --schema=public --schema=wewed_admin --exclude-table=public._prisma_migrations > /audit/reference-schema.sql'
+
+          for name in production reference; do
+            sed -E \
+              -e '/^\\(un)?restrict /d' \
+              -e '/^-- Dumped from database version/d' \
+              -e '/^-- Dumped by pg_dump version/d' \
+              -e '/^-- Started on /d' \
+              -e '/^-- Completed on /d' \
+              "baseline-audit/${name}-schema.sql" \
+              > "baseline-audit/${name}-schema.normalized.sql"
+          done
+
+          set +e
+          diff -u \
+            baseline-audit/reference-schema.normalized.sql \
+            baseline-audit/production-schema.normalized.sql \
+            > baseline-audit/raw-schema.diff
+          status=$?
+          set -e
+
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          if [[ "$status" == "0" ]]; then
+            echo "Raw PostgreSQL schema matches the clean current-main reference."
+          elif [[ "$status" == "1" ]]; then
+            echo "::warning::Raw PostgreSQL schema differs from the clean current-main reference."
+            echo "::group::Raw schema diff (first 500 lines)"
+            sed -n '1,500p' baseline-audit/raw-schema.diff
+            echo "::endgroup::"
+          else
+            echo "::error::Raw schema comparison failed."
+          fi
+
+      - name: Baseline audit verdict
+        shell: bash
+        run: |
+          set -euo pipefail
+          prisma_status="${{ steps.prisma_diff.outputs.status }}"
+          raw_status="${{ steps.raw_diff.outputs.status }}"
+          top_level_dml_count="${{ steps.dml.outputs.top_level_count }}"
+          function_body_dml_count="${{ steps.dml.outputs.function_body_count }}"
+
+          echo "### Production migration baseline audit" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Prisma structural diff status: $prisma_status (0 = equal, 2 = different)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Raw PostgreSQL schema diff status: $raw_status (0 = equal, 1 = different)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ledger-missing migrations with top-level data-changing SQL: $top_level_dml_count" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ledger-missing migrations with DML inside function/trigger bodies: $function_body_dml_count" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Production changes performed: **none**" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$prisma_status" != "0" || "$raw_status" != "0" ]]; then
+            echo "::error::Production is not proven schema-equivalent to current main. Do not baseline the ledger."
+            exit 1
+          fi
+
+          if [[ "$top_level_dml_count" != "0" ]]; then
+            echo "::error::Schema matches, but one or more ledger-missing migrations contain top-level data-changing SQL. Their intended data effects require explicit read-only verification before any migrate resolve."
+            exit 1
+          fi
+
+          echo "Production is schema-equivalent to current main and no ledger-missing top-level DML was detected."
+          echo "This audit still performs no migrate resolve; ledger repair requires a separate approved action."

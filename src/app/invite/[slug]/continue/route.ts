@@ -1,3 +1,5 @@
+import { weddingGuestSessionExpiry } from '@/lib/wedding-guest-session'
+import { invitationVersionFingerprint } from '@/lib/wedding-guest-session'
 import { NextRequest, NextResponse } from 'next/server'
 import { resolvePersonalInvitation } from '@/lib/personal-invitation-access'
 import {
@@ -71,10 +73,13 @@ export async function GET(request: NextRequest, { params }: Params) {
     weddingId: invitation.weddingId,
     guestId: invitation.guestId,
     rsvpToken: invitation.rsvpToken,
+    weddingDate: invitation.weddingDate,
   })
   setWeddingGuestPortfolioCookie(
     response,
     mergeWeddingGuestPortfolio(readWeddingGuestPortfolio(request), {
+      accessExpiresAt: weddingGuestSessionExpiry(invitation.weddingDate),
+      invitationVersionFingerprint: invitationVersionFingerprint(invitation),
       weddingId: invitation.weddingId,
       weddingSlug: slug,
       guestId: invitation.guestId,

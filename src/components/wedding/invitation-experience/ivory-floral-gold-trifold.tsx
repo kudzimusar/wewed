@@ -25,8 +25,10 @@ const REQUIRED_ART = [
   'left-door',
   'right-door',
   'open-surface',
-  'details-surface',
 ] as const
+// The "A NOTE FROM US" card is baked into the approved details artwork. Without a couple note it
+// read as a dead action, so the note-free surface (same artwork, card replaced by paper) is used.
+type DetailsArt = 'details-surface' | 'details-surface-no-note'
 
 function asDate(value: string | Date | null | undefined) {
   if (!value) return null
@@ -144,11 +146,15 @@ export function IvoryFloralGoldTriFold({
   const stageRef = useRef<HTMLDivElement>(null)
   const pair = names(data.title).map((part) => part.split(/\s+/)[0])
   const weddingDate = asDate(data.date)
-  const monogram = data.monogram || pair.map((p) => p[0]).join(' · ')
+  // Same "C&K" form as the Wedding Pass, the native envelope and the seeded monogram badge.
+  const monogram = data.monogram || pair.map((p) => p[0]).join('&')
+  // QRO06: 'A Note from Us' is the couple's own message only — never the tagline or a stock line.
+  const note = data.message?.trim() || ''
+  const detailsArt: DetailsArt = note ? 'details-surface' : 'details-surface-no-note'
 
   useEffect(() => {
     let cancelled = false
-    const decodeArtwork = (name: (typeof REQUIRED_ART)[number]) =>
+    const decodeArtwork = (name: (typeof REQUIRED_ART)[number] | DetailsArt) =>
       new Promise<void>((resolve) => {
         const image = new window.Image()
         let settled = false
@@ -169,14 +175,14 @@ export function IvoryFloralGoldTriFold({
         }
       })
 
-    void Promise.all(REQUIRED_ART.map(decodeArtwork)).then(() => {
+    void Promise.all([...REQUIRED_ART, detailsArt].map(decodeArtwork)).then(() => {
       if (!cancelled) setArtworkReady(true)
     })
 
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [detailsArt])
 
   useEffect(() => {
     if (previewMode && previewView) {
@@ -212,8 +218,10 @@ export function IvoryFloralGoldTriFold({
   const mapUrl =
     data.venueMapUrl ||
     'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(location)
-  const note = data.tagline || data.message || ''
   const opening = view === 'opening'
+  function openNote() {
+    noteRef.current?.showModal()
+  }
   function showDetails() {
     setView('details')
   }
@@ -353,7 +361,7 @@ export function IvoryFloralGoldTriFold({
         </div>
         {view === 'details' && (
           <div data-testid="invitation-interactive-details" className="ivory-details">
-            <Art name="details-surface" />
+            <Art name={detailsArt} />
             <Region box={[25, 2, 55, 3]} className="ivory-couple">
               {data.title}
             </Region>
@@ -365,9 +373,11 @@ export function IvoryFloralGoldTriFold({
               <span>{data.venueAddress}</span>
               <span>{[data.venueCity, data.venueCountry].filter(Boolean).join(', ')}</span>
             </Region>
-            <Region box={[36, 76, 44, 4]} className="ivory-detail-note">
-              A special message from us
-            </Region>
+            {note ? (
+              <Region box={[36, 76, 44, 4]} className="ivory-detail-note">
+                A special message from us
+              </Region>
+            ) : null}
             {hit('rsvp', 'RSVP', 35, 7.2, () =>
               window.dispatchEvent(new CustomEvent('wewed:open-premium-rsvp')),
             )}
@@ -376,7 +386,7 @@ export function IvoryFloralGoldTriFold({
             {hit('registry', 'Gift / Contributions', 63.4, 7.3, () =>
               visitCoupleWebsite('#registry'),
             )}
-            {hit('note', 'A Note from Us', 72.4, 8, () => noteRef.current?.showModal())}
+            {note ? hit('note', 'A Note from Us', 72.4, 8, openNote) : null}
             <div data-testid="invitation-footer-actions" className="ivory-footer-actions">
               <button type="button" className="ivory-back" onClick={() => setView('open')}>
                 View invitation

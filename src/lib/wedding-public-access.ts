@@ -2,7 +2,6 @@ import 'server-only'
 import { shouldBlockPreviewWrite, PREVIEW_WRITE_BLOCK_MESSAGE } from '@/lib/preview-write-safety'
 
 import type { NextRequest } from 'next/server'
-import { db } from '@/lib/db'
 import {
   APP_SESSION_COOKIE,
   verifyAppSessionToken,
@@ -11,6 +10,7 @@ import {
 import {
   WEDDING_GUEST_SESSION_COOKIE,
   verifyWeddingGuestSessionToken,
+  guestSessionMatchesInvitation,
   type WeddingGuestSession,
 } from '@/lib/wedding-guest-session'
 import {
@@ -18,8 +18,11 @@ import {
   verifyWeddingSharedInvitationSessionToken,
   type WeddingSharedInvitationSession,
 } from '@/lib/wedding-shared-invitation-session'
+import { guestSeatingIdentity } from '@/lib/guest-record-authority'
 
 export type WeddingPrivacy = 'public' | 'link_only' | 'private'
+type WeddingDatabase = typeof import('@/lib/db').db
+
 export type WeddingAccessKind =
   | 'public'
   | 'couple_owner'
@@ -54,6 +57,9 @@ export interface WeddingGuestIdentity {
   name: string
   email: string | null
   tableNumber: number | null
+  tableName: string | null
+  /** The SeatingTable identity, only when that table belongs to this wedding. */
+  seatingTableId: string | null
   rsvpToken: string
   attending: boolean | null
   mealChoice: string | null
@@ -104,8 +110,10 @@ export function weddingSlugFromRequest(
 
 export async function loadWeddingAccessRecord(
   slug: string,
+  database?: WeddingDatabase,
 ): Promise<WeddingAccessRecord | null> {
-  const wedding = await db.wedding.findUnique({
+  const activeDb = database ?? (await import('@/lib/db')).db
+  const wedding = await activeDb.wedding.findUnique({
     where: { slug },
     select: {
       id: true,
@@ -159,10 +167,12 @@ export async function loadWeddingAccessRecord(
 async function authenticatedWeddingAccessKind(
   wedding: WeddingAccessRecord,
   session: AppSession | null,
+  database?: WeddingDatabase,
 ): Promise<'couple_owner' | 'wedding_member' | null> {
   if (!session || session.activeWeddingId !== wedding.id) return null
 
-  const membership = await db.weddingMembership.findFirst({
+  const activeDb = database ?? (await import('@/lib/db')).db
+  const membership = await activeDb.weddingMembership.findFirst({
     where: {
       weddingId: wedding.id,
       userId: session.userId,
@@ -186,11 +196,13 @@ async function authenticatedWeddingAccessKind(
 export async function resolveGuestSessionForWedding(
   wedding: WeddingAccessRecord,
   session: WeddingGuestSession | null,
+  database?: WeddingDatabase,
 ): Promise<WeddingGuestIdentity | null> {
   if (!session || session.weddingId !== wedding.id) return null
 
-  const rsvp = await db.rSVP.findUnique({
-    where: { token: session.rsvpToken },
+  const activeDb = database ?? (await import('@/lib/db')).db
+  const rsvp = await activeDb.rSVP.findUnique({
+    where: session.version === 1 ? { token: session.rsvpToken } : { guestId: session.guestId },
     include: {
       guest: {
         select: {
@@ -199,6 +211,7 @@ export async function resolveGuestSessionForWedding(
           name: true,
           email: true,
           tableNumber: true,
+          seatingTable: { select: { id: true, name: true, weddingId: true } },
         },
       },
     },
@@ -207,7 +220,8 @@ export async function resolveGuestSessionForWedding(
   if (
     !rsvp ||
     rsvp.guest.id !== session.guestId ||
-    rsvp.guest.weddingId !== wedding.id
+    rsvp.guest.weddingId !== wedding.id ||
+    !guestSessionMatchesInvitation(session, { weddingId: wedding.id, guestId: rsvp.guest.id, rsvpToken: rsvp.token })
   ) {
     return null
   }
@@ -217,6 +231,7 @@ export async function resolveGuestSessionForWedding(
     name: rsvp.guest.name,
     email: rsvp.guest.email,
     tableNumber: rsvp.guest.tableNumber,
+    ...guestSeatingIdentity(rsvp.guest.seatingTable, wedding.id),
     rsvpToken: rsvp.token,
     attending: rsvp.attending,
     mealChoice: rsvp.mealChoice,
@@ -235,10 +250,12 @@ export async function resolveGuestSessionForWedding(
 async function resolveSharedInvitationForWedding(
   wedding: WeddingAccessRecord,
   session: WeddingSharedInvitationSession | null,
+  database?: WeddingDatabase,
 ): Promise<boolean> {
   if (!session || session.weddingId !== wedding.id) return false
 
-  const destination = await db.qRDestination.findFirst({
+  const activeDb = database ?? (await import('@/lib/db')).db
+  const destination = await activeDb.qRDestination.findFirst({
     where: {
       id: session.destinationId,
       weddingId: wedding.id,
@@ -251,13 +268,38 @@ async function resolveSharedInvitationForWedding(
   return Boolean(destination)
 }
 
+/**
+ * Who may see a wedding, and on what credential.
+ *
+ * This function *is* the privacy policy; everything else defers to it. Read it as three tiers of
+ * credential rather than three tiers of secrecy:
+ *
+ * | privacy     | active WeddingMembership | personal guest invitation | shared/physical invitation | anonymous |
+ * |-------------|--------------------------|---------------------------|----------------------------|-----------|
+ * | `public`    | allowed                  | allowed (`invited_guest`) | allowed                    | allowed   |
+ * | `link_only` | allowed                  | allowed (`invited_guest`) | allowed (as `public`)      | denied    |
+ * | `private`   | **allowed**              | denied (403)              | denied (403)              | denied    |
+ *
+ * The row that is routinely described wrongly is `private`. It does **not** mean "couple only".
+ * Membership is resolved first and returns immediately, so *any* user holding an active
+ * `WeddingMembership` — a planner, a second partner, any member — is admitted to a private
+ * wedding, exactly as they are to a public one. What `private` closes is the **invitation**
+ * surface: it is the one value under which a legitimate personal guest session or a valid
+ * shared/physical invitation is refused. A guest locked out of a private wedding is locked out by
+ * design; a planner is not locked out at all.
+ *
+ * `normalizePrivacy` fails closed, so an unrecognized or null column value is treated as
+ * `private`, never as `public`.
+ *
+ * Pinned by `wedding-privacy-semantics.test.ts`, which asserts every cell above.
+ */
 export async function resolveWeddingAccessFromTokens(input: {
   slug: string
   appSessionToken?: string | null
   guestSessionToken?: string | null
   sharedInvitationSessionToken?: string | null
-}): Promise<WeddingAccessResolution> {
-  const wedding = await loadWeddingAccessRecord(input.slug)
+}, database?: WeddingDatabase): Promise<WeddingAccessResolution> {
+  const wedding = await loadWeddingAccessRecord(input.slug, database)
   if (!wedding) {
     return {
       wedding: null,
@@ -282,10 +324,10 @@ export async function resolveWeddingAccessFromTokens(input: {
     : null
 
   const [memberAccessKind, guest, sharedInvitationAllowed] = await Promise.all([
-    authenticatedWeddingAccessKind(wedding, appSession),
-    resolveGuestSessionForWedding(wedding, guestSession),
+    authenticatedWeddingAccessKind(wedding, appSession, database),
+    resolveGuestSessionForWedding(wedding, guestSession, database),
     wedding.privacy === 'link_only'
-      ? resolveSharedInvitationForWedding(wedding, sharedInvitationSession)
+      ? resolveSharedInvitationForWedding(wedding, sharedInvitationSession, database)
       : Promise.resolve(false),
   ])
 

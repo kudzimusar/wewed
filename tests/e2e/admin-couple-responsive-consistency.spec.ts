@@ -72,7 +72,11 @@ test('authenticated planner members receive canonical wedding navigation without
 
   const navigationDialog = page.getByTestId('mobile-wedding-more-drawer')
   await expect(navigationDialog).toBeVisible()
-  await expect(navigationDialog.locator('a[href="#story"]')).toBeVisible()
+  // QRO07: the drawer lists only sections this wedding actually renders, and every link resolves.
+  await expect(navigationDialog.locator('a[href="#theday"]')).toBeVisible()
+  for (const href of await navigationDialog.locator('a[href^="#"]').evaluateAll((links) => links.map((link) => link.getAttribute('href')))) {
+    await expect(page.locator(href!)).toHaveCount(1)
+  }
 
   await expect(
     page.getByRole('link', { name: 'Open the Wewed Planner Workspace' }),

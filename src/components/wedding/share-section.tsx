@@ -145,10 +145,10 @@ export function ShareSection() {
                 </div>
               </div>
               <div className="flex flex-col items-center justify-center p-6 text-center sm:p-8">
-                <p className="mb-4 inline-flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-gold-muted"><QrCode className="size-3.5" />Public wedding QR</p>
+                <p className="mb-4 inline-flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-gold-muted"><QrCode className="size-3.5" />Wedding Website QR</p>
                 <div className="flex size-64 items-center justify-center rounded-2xl border border-gold/25 bg-white p-4">
                   {qrLoading && <span className="text-sm text-espresso/50">Generating QR…</span>}
-                  {!qrLoading && qrDataUrl && <img src={qrDataUrl} alt={`Public wedding QR for ${names}`} className="size-full" />}
+                  {!qrLoading && qrDataUrl && <img src={qrDataUrl} alt={`Wedding Website QR for ${names}`} className="size-full" />}
                   {!qrLoading && !qrDataUrl && <span className="text-sm text-espresso/50">QR unavailable</span>}
                 </div>
                 <Button type="button" variant="outline" className="mt-5" onClick={handleDownloadQr} disabled={!qrDataUrl}><Download className="size-4" />Download QR</Button>

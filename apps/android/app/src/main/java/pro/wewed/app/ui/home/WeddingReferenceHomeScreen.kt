@@ -1,0 +1,421 @@
+package pro.wewed.app.ui.home
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import pro.wewed.app.R
+import pro.wewed.app.models.*
+import pro.wewed.app.state.AppTab
+import pro.wewed.app.state.AppViewModel
+import pro.wewed.app.theme.*
+import pro.wewed.app.ui.invitation.GuestInvitationJourneyScreen
+import java.text.SimpleDateFormat
+import java.util.Locale
+import kotlin.math.max
+
+@Composable
+/**
+ * @param onOpenPendingRsvps invoked by the notifications control. P0-11: Couple Home must not
+ * open an arbitrary guest's invitation — a specific guest invitation may only open after the
+ * couple selects that guest, so this routes to the couple-facing Guests -> RSVP surface.
+ */
+fun WeddingReferenceHomeScreen(
+    appViewModel: AppViewModel,
+    onOpenPendingRsvps: (() -> Unit)? = null
+) {
+    var wedding by remember { mutableStateOf<Wedding?>(null) }
+    var tasks by remember { mutableStateOf<List<PlannerTask>>(emptyList()) }
+    var guests by remember { mutableStateOf<List<Guest>>(emptyList()) }
+    var budget by remember { mutableStateOf<BudgetSummary?>(null) }
+    var vendors by remember { mutableStateOf<List<VendorPresence>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        try {
+            val loadedWedding = appViewModel.scopedRepository().getWedding()
+            wedding = loadedWedding
+            tasks = appViewModel.scopedRepository().getTasks()
+            guests = appViewModel.scopedRepository().getGuests()
+            budget = appViewModel.scopedRepository().getBudget()
+            vendors = appViewModel.scopedRepository().getVendors()
+        } finally {
+            isLoading = false
+        }
+    }
+
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(WeddingIdentityPalette.Ivory)
+            .testTag("home-root")
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                color = WeddingIdentityPalette.ChampagneDeep,
+                modifier = Modifier.align(Alignment.Center)
+            )
+        } else {
+            wedding?.let { currentWedding ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    ReferenceHero(
+                        wedding = currentWedding,
+                        onInvitation = { onOpenPendingRsvps?.invoke() }
+                    )
+
+                    ReferenceContinuePlanning(
+                        ratio = if (tasks.isEmpty()) 0f else tasks.count { it.status == TaskStatus.DONE }.toFloat() / tasks.size.toFloat(),
+                        onClick = { appViewModel.selectTab(AppTab.PLAN) }
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().testTag("home-metrics"),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ReferenceMetricAction(
+                            title = "Tasks",
+                            value = "${tasks.count { it.status != TaskStatus.DONE }} left",
+                            icon = Icons.Default.Checklist,
+                            identifier = "home-metric-tasks",
+                            modifier = Modifier.weight(1f),
+                            onClick = { appViewModel.selectTab(AppTab.PLAN) }
+                        )
+                        ReferenceMetricAction(
+                            title = "Budget",
+                            value = formatMoney(budget?.totalBudget ?: 0.0),
+                            icon = Icons.Default.AccountBalanceWallet,
+                            identifier = "home-metric-budget",
+                            modifier = Modifier.weight(1f),
+                            onClick = { appViewModel.selectTab(AppTab.PLAN) }
+                        )
+                        ReferenceMetricAction(
+                            title = "Guests",
+                            value = guests.size.toString(),
+                            icon = Icons.Default.Group,
+                            identifier = "home-metric-guests",
+                            modifier = Modifier.weight(1f),
+                            onClick = { appViewModel.selectTab(AppTab.GUESTS) }
+                        )
+                        ReferenceMetricAction(
+                            title = "Vendors",
+                            value = vendors.size.toString(),
+                            icon = Icons.Default.Storefront,
+                            identifier = "home-metric-vendors",
+                            modifier = Modifier.weight(1f),
+                            onClick = { appViewModel.selectTab(AppTab.PLAN) }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReferenceMetricAction(
+    title: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    identifier: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(15.dp))
+            .clickable { onClick() }
+            .testTag(identifier)
+    ) {
+        WeddingMetricTile(
+            title = title,
+            value = value,
+            icon = icon,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun ReferenceHero(
+    wedding: Wedding,
+    onInvitation: () -> Unit
+) {
+    val countdown by produceState(initialValue = countdownFrom(wedding.date), wedding.date) {
+        while (true) {
+            value = countdownFrom(wedding.date)
+            delay(1000)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(390.dp)
+            .clip(RoundedCornerShape(23.dp))
+            .border(
+                1.dp,
+                WeddingIdentityPalette.Champagne.copy(alpha = 0.35f),
+                RoundedCornerShape(23.dp)
+            )
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.hero_wedding),
+            contentDescription = "Wedding visual",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.12f),
+                            Color.Black.copy(alpha = 0.80f)
+                        )
+                    )
+                )
+        )
+
+        Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                WeddingBrandMark(modifier = Modifier.align(Alignment.Center))
+
+                IconButton(
+                    onClick = onInvitation,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .testTag("home-open-invitation")
+                ) {
+                    Icon(
+                        Icons.Default.NotificationsNone,
+                        contentDescription = "Pending RSVPs",
+                        tint = Color.White
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Text(
+                wedding.coupleNames,
+                fontFamily = FontFamily.Serif,
+                fontStyle = FontStyle.Italic,
+                fontSize = 37.sp,
+                color = Color.White
+            )
+            Text(
+                "OUR WEDDING JOURNEY",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 3.sp,
+                color = Color.White.copy(alpha = 0.90f)
+            )
+            Spacer(modifier = Modifier.height(7.dp))
+            Text(
+                displayWeddingDate(wedding.date),
+                fontSize = 19.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 2.sp,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            countdown?.let { c ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    ReferenceCountdownTile(c.days, "Days", Modifier.weight(1f))
+                    ReferenceCountdownTile(c.hours, "Hours", Modifier.weight(1f))
+                    ReferenceCountdownTile(c.minutes, "Mins", Modifier.weight(1f))
+                    ReferenceCountdownTile(c.seconds, "Secs", Modifier.weight(1f))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "“Two hearts, one beautiful tomorrow.”",
+                fontFamily = FontFamily.Serif,
+                fontStyle = FontStyle.Italic,
+                fontSize = 15.sp,
+                color = Color.White.copy(alpha = 0.92f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReferenceCountdownTile(value: Int, label: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.Black.copy(alpha = 0.46f))
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            value.toString(),
+            color = Color.White,
+            fontFamily = FontFamily.Serif,
+            fontSize = 23.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Text(label, color = Color.White, fontSize = 10.sp)
+    }
+}
+
+@Composable
+private fun ReferenceContinuePlanning(
+    ratio: Float,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().testTag("home-continue-planning"),
+        shape = RoundedCornerShape(18.dp),
+        color = WeddingIdentityPalette.IvorySoft,
+        tonalElevation = 0.dp,
+        shadowElevation = 2.dp,
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(WeddingIdentityPalette.Champagne.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Checklist,
+                    contentDescription = null,
+                    tint = WeddingIdentityPalette.ChampagneDeep
+                )
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "Continue Planning",
+                    color = WeddingIdentityPalette.Ink,
+                    fontFamily = FontFamily.Serif,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 17.sp
+                )
+                Text(
+                    "You’re ${Math.round(ratio * 100).toInt()}% there",
+                    color = WeddingIdentityPalette.Muted,
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(5.dp))
+                LinearProgressIndicator(
+                    progress = { ratio.coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(20.dp)),
+                    color = WeddingIdentityPalette.Forest,
+                    trackColor = Color(0xFFE5E9ED)
+                )
+            }
+
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = WeddingIdentityPalette.ChampagneDeep
+            )
+        }
+    }
+}
+
+private data class ReferenceCountdown(
+    val days: Int,
+    val hours: Int,
+    val minutes: Int,
+    val seconds: Int
+)
+
+/**
+ * Parses a wedding date from the repository.
+ *
+ * The wedding graph stores dates as ISO-8601 (`2026-12-23T14:00:00`), sometimes with a timezone
+ * and sometimes with fractional seconds; a flattened snapshot used to hand over a space-separated
+ * form instead. A parser that accepted only one of those silently failed on the others, and the
+ * failure was invisible: the hero fell back to printing the raw timestamp and the countdown simply
+ * did not render. Accept every shape the graph actually produces.
+ */
+private fun parseWeddingDate(raw: String): java.util.Date? {
+    val trimmed = raw.trim()
+    if (trimmed.isEmpty()) return null
+    val patterns = listOf(
+        "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+        "yyyy-MM-dd'T'HH:mm:ssXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSS",
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd'T'HH:mm",
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd"
+    )
+    for (pattern in patterns) {
+        val parsed = runCatching {
+            SimpleDateFormat(pattern, Locale.US).apply { isLenient = false }.parse(trimmed)
+        }.getOrNull()
+        if (parsed != null) return parsed
+    }
+    return null
+}
+
+private fun countdownFrom(raw: String): ReferenceCountdown? {
+    val target = parseWeddingDate(raw) ?: return null
+    val totalSeconds = max(0L, (target.time - System.currentTimeMillis()) / 1000L)
+    return ReferenceCountdown(
+        days = (totalSeconds / 86_400L).toInt(),
+        hours = ((totalSeconds % 86_400L) / 3_600L).toInt(),
+        minutes = ((totalSeconds % 3_600L) / 60L).toInt(),
+        seconds = (totalSeconds % 60L).toInt()
+    )
+}
+
+private fun displayWeddingDate(raw: String): String {
+    val date = parseWeddingDate(raw) ?: return raw.uppercase()
+    return SimpleDateFormat("dd MMM yyyy", Locale.US).format(date).uppercase()
+}
+
+private fun formatMoney(amount: Double): String =
+    String.format(Locale.US, "$%,.0f", amount)
+

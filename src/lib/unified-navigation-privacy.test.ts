@@ -39,7 +39,9 @@ describe('unified Wewed navigation and wedding privacy', () => {
     const exchange = await source(
       'src/app/api/weddings/[slug]/guest-session/exchange/route.ts',
     )
-    const invitations = await source('src/app/api/planner/guests/invitations/route.ts')
+    // QRO05-PIQR01: link building lives in the projection both desktop and native routes read.
+    const invitations = (await source('src/app/api/planner/guests/invitations/route.ts'))
+      + (await source('src/lib/planner-invitation-projection.ts'))
     const smartLinks = await source('src/lib/invitation-links.ts')
     const legacySharedToken = await source('src/app/api/privacy/verify-token/route.ts')
 
@@ -83,7 +85,7 @@ describe('unified Wewed navigation and wedding privacy', () => {
     expect(resolver).toContain("wedding.privacy === 'link_only' && guest")
     expect(resolver).toContain("wedding.privacy === 'public'")
     expect(resolver).toContain('session.activeWeddingId !== wedding.id')
-    expect(resolver).toContain('db.weddingMembership.findFirst')
+    expect(resolver).toContain('weddingMembership.findFirst')
     expect(resolver).toContain("status: 'active'")
     expect(resolver).toContain("return 'couple_owner'")
     expect(resolver).toContain("return 'wedding_member'")
@@ -111,6 +113,13 @@ describe('unified Wewed navigation and wedding privacy', () => {
     expect(checkin).toContain('/guest-session')
     expect(checkin).not.toContain('DEMO_TOKEN_URL')
     expect(checkin).not.toContain('pseudo-random')
+    // QR-P0-01: a Guest Session reads arrival status but can never record it.
+    expect(checkin).not.toContain("method: 'PATCH'")
+    expect(checkin).not.toContain('checkIn()')
+    const guestSessionRoute = await source('src/app/api/weddings/[slug]/guest-session/route.ts')
+    const patchHandler = guestSessionRoute.slice(guestSessionRoute.indexOf('export async function PATCH'))
+    expect(patchHandler.slice(0, patchHandler.indexOf('export async function DELETE'))).not.toMatch(/checkedIn|db\./)
+    expect(guestSessionRoute).toContain('GUEST_SESSION_NOT_ADMISSION_AUTHORITY')
   })
 
   test('every stakeholder has visible navigation from a role home', async () => {

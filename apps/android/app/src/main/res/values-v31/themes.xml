@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ draws the launch screen itself from the windowSplashScreen* attributes, and ignores
+  a windowBackground drawable. Declaring both keeps one branded launch experience across versions.
+-->
+<resources>
+    <style name="Theme.Wewed.Starting" parent="Theme.Wewed">
+        <item name="android:windowSplashScreenBackground">@color/wewed_ivory</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/wewed_ivory</item>
+    </style>
+</resources>

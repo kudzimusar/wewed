@@ -1,18 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import {
-  buildDigitalInvitationMessage,
-  normalizeInvitationCardStyle,
-} from '@/lib/digital-invitation-card'
-import { buildSmartInvitationUrl } from '@/lib/invitation-links'
+import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import { requireWeddingPermission } from '@/lib/wedding-access'
-
-type ChildrenPolicy = 'welcome' | 'adults_only'
-
-function normalizeChildrenPolicy(value: unknown): ChildrenPolicy {
-  return value === 'adults_only' ? 'adults_only' : 'welcome'
-}
+import {
+  invitationWeddingSelect,
+  loadPlannerInvitationProjection,
+  normalizeChildrenPolicy,
+  type ChildrenPolicy,
+} from '@/lib/planner-invitation-projection'
 
 function csvCell(value: string | null | undefined) {
   return `"${(value ?? '').replaceAll('"', '""')}"`
@@ -31,93 +27,21 @@ function privateJson(
   return privateNoStore(NextResponse.json(body, { status }))
 }
 
-function invitationWeddingSelect() {
-  return {
-    slug: true,
-    title: true,
-    monogram: true,
-    tagline: true,
-    date: true,
-    venue: true,
-    venueCity: true,
-    venueCountry: true,
-    primaryColor: true,
-    accentColor: true,
-    backgroundColor: true,
-    invitationCardStyle: true,
-    invitationCardMessage: true,
-    rsvpDeadline: true,
-  } as const
-}
-
 export async function GET(request: NextRequest) {
   const access = await requireWeddingPermission(request, 'guests.view')
   if (access.error) return privateNoStore(access.error)
 
   try {
-    const [wedding, guests, childrenPolicyRow] = await Promise.all([
-      db.wedding.findUnique({
-        where: { id: access.context.weddingId },
-        select: invitationWeddingSelect(),
-      }),
-      db.guest.findMany({
-        where: { weddingId: access.context.weddingId },
-        include: { rsvp: { select: { token: true, attending: true, checkedIn: true } } },
-        orderBy: { name: 'asc' },
-      }),
-      db.weddingContent.findUnique({
-        where: {
-          weddingId_section_field: {
-            weddingId: access.context.weddingId,
-            section: 'rsvp',
-            field: 'childrenPolicy',
-          },
-        },
-        select: { value: true },
-      }),
-    ])
-
-    if (!wedding) {
+    // Shared canonical projection (QRO05-PIQR01): the native route reads the same function.
+    const projection = await loadPlannerInvitationProjection(
+      access.context.weddingId,
+      request.nextUrl.origin,
+    )
+    if (!projection) {
       return privateJson({ success: false, error: 'Wedding not found.' }, 404)
     }
-
-    const style = normalizeInvitationCardStyle(wedding.invitationCardStyle)
-    const childrenPolicy = normalizeChildrenPolicy(childrenPolicyRow?.value)
-    const siteUrl = request.nextUrl.origin.replace(/\/$/, '')
-    const missingTokens = guests.filter((guest) => !guest.rsvp?.token).length
-    const data = guests.map((guest) => {
-      const invitationUrl = guest.rsvp?.token
-        ? buildSmartInvitationUrl({
-            siteUrl,
-            weddingSlug: wedding.slug,
-            token: guest.rsvp.token,
-            style,
-          })
-        : null
-      return {
-        id: guest.id,
-        name: guest.name,
-        email: guest.email,
-        phone: guest.phone,
-        tableNumber: guest.tableNumber,
-        status:
-          guest.rsvp?.attending === true
-            ? 'attending'
-            : guest.rsvp?.attending === false
-              ? 'declined'
-              : 'pending',
-        checkedIn: guest.rsvp?.checkedIn ?? false,
-        invitationUrl,
-        qrValue: invitationUrl,
-        shareMessage: invitationUrl
-          ? buildDigitalInvitationMessage({
-              guestName: guest.name,
-              weddingTitle: wedding.title,
-              invitationUrl,
-            })
-          : null,
-      }
-    })
+    const { data } = projection
+    const style = projection.wedding.invitationCardStyle
 
     if (request.nextUrl.searchParams.get('format') === 'csv') {
       const csv = [
@@ -146,13 +70,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return privateJson({
-      success: true,
-      wedding: { ...wedding, invitationCardStyle: style, childrenPolicy },
-      count: data.length,
-      missingTokens,
-      data,
-    })
+    return privateJson({ success: true, ...projection })
   } catch (error) {
     console.error('[guest invitations GET] Error:', error)
     return privateJson({ success: false, error: 'Unable to load invitation links.' }, 500)

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
-import { setWeddingGuestSessionCookie } from '@/lib/wedding-guest-session'
+import { setWeddingGuestSessionCookie, invitationVersionFingerprint } from '@/lib/wedding-guest-session'
 import {
   activateWeddingGuestPortfolioEntry,
   readWeddingGuestPortfolio,
@@ -28,8 +28,10 @@ function invitationDestination(input: {
 async function validatedGuestWedding(input: {
   weddingId: string
   guestId: string
+  invitationVersionFingerprint?: string
+  accessExpiresAt?: number
 }) {
-  return db.guest.findFirst({
+  const record = await db.guest.findFirst({
     where: {
       id: input.guestId,
       weddingId: input.weddingId,
@@ -54,6 +56,8 @@ async function validatedGuestWedding(input: {
       },
     },
   })
+  if (!input.accessExpiresAt || input.accessExpiresAt <= Date.now() || !record?.rsvp || !input.invitationVersionFingerprint || input.invitationVersionFingerprint !== invitationVersionFingerprint({ weddingId: record.wedding.id, guestId: record.id, rsvpToken: record.rsvp.token })) return null
+  return record
 }
 
 export async function GET(request: NextRequest) {
@@ -74,9 +78,10 @@ export async function GET(request: NextRequest) {
         coupleNames: `${record.wedding.couple.partner1} & ${record.wedding.couple.partner2}`,
         date: record.wedding.date.toISOString(),
         monogram: record.wedding.monogram,
-        invitationCardStyle: normalizeInvitationCardStyle(
-          entry.invitationCardStyle || record.wedding.invitationCardStyle,
-        ),
+        // The wedding's saved style is authoritative, same as the cold-launch and
+        // exchange paths. A stale portfolio-remembered style must never resurrect an
+        // obsolete design after the couple changes it.
+        invitationCardStyle: normalizeInvitationCardStyle(record.wedding.invitationCardStyle),
       }
     }),
   )
@@ -141,9 +146,9 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const card = normalizeInvitationCardStyle(
-    selected.invitationCardStyle || record.wedding.invitationCardStyle,
-  )
+  // The wedding's saved style is authoritative; the portfolio's remembered style
+  // must never override it (see the GET handler above).
+  const card = normalizeInvitationCardStyle(record.wedding.invitationCardStyle)
   const destination = invitationDestination({ slug: record.wedding.slug, card })
   const response = NextResponse.json({ success: true, destination })
 
@@ -151,6 +156,8 @@ export async function POST(request: NextRequest) {
     weddingId: record.wedding.id,
     guestId: record.id,
     rsvpToken: record.rsvp.token,
+    weddingDate: record.wedding.date,
+    expiresAt: selected.accessExpiresAt,
   })
   setWeddingGuestPortfolioCookie(response, activated)
 

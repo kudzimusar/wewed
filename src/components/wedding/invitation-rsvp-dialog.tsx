@@ -86,8 +86,10 @@ export function InvitationRsvpDialog() {
       .finally(() => setLoading(false))
   }, [slug])
 
+  // The saved wedding style is authoritative once the guest session resolves. The query-string
+  // card value is only a pre-load hint and must never override server invitation authority.
   const cardStyle = data
-    ? normalizeInvitationCardStyle(requestedStyle || data.wedding.invitationCardStyle)
+    ? normalizeInvitationCardStyle(data.wedding.invitationCardStyle)
     : requestedStyle
 
   const cardData = useMemo(() => data ? {

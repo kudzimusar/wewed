@@ -1,7 +1,15 @@
+import { weddingGuestSessionExpiry } from '@/lib/wedding-guest-session'
+import { invitationVersionFingerprint } from '@/lib/wedding-guest-session'
 import { previewWriteError } from '@/lib/preview-write-response'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
+import {
+  applyGuestRsvpUpdate,
+  GUEST_RSVP_FIELDS,
+  loadWeddingChildrenPolicy,
+  type GuestRsvpField,
+} from '@/lib/guest-rsvp-mutation'
 import {
   clearWeddingGuestSessionCookie,
   readWeddingGuestSession,
@@ -17,12 +25,11 @@ import {
   loadWeddingAccessRecord,
   resolveGuestSessionForWedding,
 } from '@/lib/wedding-public-access'
+import { guestPartySize } from '@/lib/guest-record-authority'
 
 interface Params {
   params: Promise<{ slug: string }>
 }
-
-type ChildrenPolicy = 'welcome' | 'adults_only'
 
 function noStore(response: NextResponse): NextResponse {
   response.headers.set('Cache-Control', 'no-store, max-age=0')
@@ -36,20 +43,6 @@ async function currentGuest(request: NextRequest, slug: string) {
   const session = readWeddingGuestSession(request)
   const guest = await resolveGuestSessionForWedding(wedding, session)
   return { wedding, guest, session }
-}
-
-async function loadChildrenPolicy(weddingId: string): Promise<ChildrenPolicy> {
-  const row = await db.weddingContent.findUnique({
-    where: {
-      weddingId_section_field: {
-        weddingId,
-        section: 'rsvp',
-        field: 'childrenPolicy',
-      },
-    },
-    select: { value: true },
-  })
-  return row?.value.trim().toLowerCase() === 'adults_only' ? 'adults_only' : 'welcome'
 }
 
 export async function GET(request: NextRequest, { params }: Params) {
@@ -75,13 +68,15 @@ export async function GET(request: NextRequest, { params }: Params) {
     return noStore(response)
   }
 
-  const childrenPolicy = await loadChildrenPolicy(wedding.id)
+  const childrenPolicy = await loadWeddingChildrenPolicy(wedding.id)
 
-  return noStore(
-    NextResponse.json({
+  const response = NextResponse.json({
       success: true,
       authorized: true,
       wedding: {
+        // Stable identity for live parity (QRO 01 §15): the invitation-bound Guest already receives
+        // this ID from /api/wedding-day/pass. It is an identifier, not a credential.
+        id: wedding.id,
         slug: wedding.slug,
         privacy: wedding.privacy,
         title: wedding.title,
@@ -105,6 +100,8 @@ export async function GET(request: NextRequest, { params }: Params) {
         name: guest.name,
         email: guest.email,
         tableNumber: guest.tableNumber,
+        tableName: guest.tableName,
+        seatingTableId: guest.seatingTableId,
       },
       rsvp: {
         attending: guest.attending,
@@ -114,13 +111,23 @@ export async function GET(request: NextRequest, { params }: Params) {
         plusOneMeal: guest.plusOneMeal,
         kidsAttending: childrenPolicy === 'adults_only' ? false : guest.kidsAttending,
         kidsCount: guest.kidsCount,
+        // The canonical Gate household (shared guestPartySize); clients display it, never derive it.
+        partySize: guestPartySize({
+          plusOne: guest.plusOne,
+          kidsAttending: childrenPolicy === 'adults_only' ? false : guest.kidsAttending,
+          kidsCount: guest.kidsCount,
+        }),
         dietaryNotes: guest.dietaryNotes,
         message: guest.message,
         checkedIn: guest.checkedIn,
         checkedInAt: guest.checkedInAt,
       },
-    }),
-  )
+    })
+  // Validate against the current invitation before migrating a legacy cookie.
+  if (session?.version === 1) setWeddingGuestSessionCookie(response, {
+    weddingId: wedding.id, guestId: guest.id, rsvpToken: guest.rsvpToken, weddingDate: wedding.date,
+  })
+  return noStore(response)
 }
 
 export async function POST(request: NextRequest, { params }: Params) {
@@ -142,6 +149,7 @@ export async function POST(request: NextRequest, { params }: Params) {
           wedding: {
             select: {
               id: true,
+              date: true,
               slug: true,
               privacy: true,
               invitationCardStyle: true,
@@ -173,10 +181,13 @@ export async function POST(request: NextRequest, { params }: Params) {
     weddingId: rsvp.guest.wedding.id,
     guestId: rsvp.guest.id,
     rsvpToken: rsvp.token,
+    weddingDate: rsvp.guest.wedding.date,
   })
   setWeddingGuestPortfolioCookie(
     response,
     mergeWeddingGuestPortfolio(readWeddingGuestPortfolio(request), {
+      accessExpiresAt: weddingGuestSessionExpiry(rsvp.guest.wedding.date),
+      invitationVersionFingerprint: invitationVersionFingerprint({ weddingId: rsvp.guest.wedding.id, guestId: rsvp.guest.id, rsvpToken: rsvp.token }),
       weddingId: rsvp.guest.wedding.id,
       weddingSlug: rsvp.guest.wedding.slug,
       guestId: rsvp.guest.id,
@@ -232,71 +243,53 @@ export async function PUT(request: NextRequest, { params }: Params) {
     )
   }
 
-  const childrenPolicy = await loadChildrenPolicy(wedding.id)
-  if (childrenPolicy === 'adults_only' && body.kidsAttending === true) {
+  // Master plan Phase 9 — the actual field/policy semantics now live in the shared
+  // `applyGuestRsvpUpdate` operation (`@/lib/guest-rsvp-mutation.ts`), reused by `/api/rsvp` POST
+  // too, so the two guest self-service RSVP write transports cannot drift into two separate
+  // implementations of these rules again. `originGuestId` stays here: it is this transport's own
+  // authorization concern, not a mutation-semantics one.
+  const requestedFields: Partial<Record<GuestRsvpField, unknown>> = {}
+  for (const field of GUEST_RSVP_FIELDS) {
+    if (field in body) requestedFields[field] = body[field]
+  }
+  const result = await applyGuestRsvpUpdate({
+    weddingId: wedding.id,
+    rsvpToken: guest.rsvpToken,
+    requestedFields,
+  })
+  if (!result.ok) {
     return noStore(
       NextResponse.json(
-        {
-          success: false,
-          error: 'This celebration is configured as adults only.',
-          code: 'CHILDREN_NOT_ALLOWED',
-        },
+        { success: false, error: result.error, code: 'CHILDREN_NOT_ALLOWED' },
         { status: 400 },
       ),
     )
   }
 
-  const data: Record<string, unknown> = {}
-  for (const field of ['attending', 'mealChoice', 'plusOne', 'plusOneName', 'plusOneMeal', 'kidsAttending', 'kidsCount', 'dietaryNotes', 'message'] as const) {
-    if (body[field] !== undefined) data[field] = body[field]
-  }
-  if (childrenPolicy === 'adults_only') {
-    // Cached/older clients may still submit the guest's historical child count.
-    // Adults-only makes current attendance false, but never destroys that history.
-    data.kidsAttending = false
-    delete data.kidsCount
-  }
-
-  const updated = await db.rSVP.update({
-    where: { token: guest.rsvpToken },
-    data,
-    select: {
-      attending: true,
-      mealChoice: true,
-      plusOne: true,
-      plusOneName: true,
-      plusOneMeal: true,
-      kidsAttending: true,
-      kidsCount: true,
-      dietaryNotes: true,
-      message: true,
-      checkedIn: true,
-      checkedInAt: true,
-    },
+  const response = noStore(NextResponse.json({ success: true, rsvp: result.rsvp }))
+  if (readWeddingGuestSession(request)?.version === 1) setWeddingGuestSessionCookie(response, {
+    weddingId: wedding.id, guestId: guest.id, rsvpToken: guest.rsvpToken, weddingDate: wedding.date,
   })
-
-  return noStore(NextResponse.json({ success: true, rsvp: updated }))
+  return response
 }
 
-export async function PATCH(request: NextRequest, { params }: Params) {
-  const { slug } = await params
-  const { wedding, guest } = await currentGuest(request, slug)
-  if (!wedding || !guest) {
-    return noStore(
-      NextResponse.json({ success: false, error: 'Guest access is not active.' }, { status: 401 }),
-    )
-  }
-
-  const blocked = previewWriteError(wedding.id)
-  if (blocked) return blocked
-
-  const updated = await db.rSVP.update({
-    where: { token: guest.rsvpToken },
-    data: { checkedIn: true, checkedInAt: guest.checkedInAt ?? new Date() },
-    select: { checkedIn: true, checkedInAt: true },
-  })
-
-  return noStore(NextResponse.json({ success: true, rsvp: updated }))
+// A Guest Session is invitation/RSVP identity, never venue-admission authority (QR-P0-01). This
+// method used to let any holder of a Guest Session mark their own RSVP as checked in. Admission is
+// recorded only by an authorized Gate operator presenting the exact scanned WW2 credential
+// (`POST /api/native/gate/wedding-day/check-in` → `WeddingCheckIn`), or by the permission-gated
+// planner event-day operation. The handler stays explicit so older cached clients receive a
+// stable, non-mutating refusal; it deliberately performs no database access at all.
+export async function PATCH() {
+  return noStore(
+    NextResponse.json(
+      {
+        success: false,
+        code: 'GUEST_SESSION_NOT_ADMISSION_AUTHORITY',
+        error: 'Arrival is confirmed by the wedding team at the entrance, not from the invitation.',
+      },
+      { status: 405, headers: { Allow: 'GET, POST, PUT, DELETE' } },
+    ),
+  )
 }
 
 export async function DELETE(request: NextRequest, { params }: Params) {

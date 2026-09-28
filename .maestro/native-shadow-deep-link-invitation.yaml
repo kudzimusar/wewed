@@ -1,0 +1,32 @@
+appId: pro.wewed.app.dev
+---
+# A guest-specific invitation link is its own authorization.
+#
+# No account, no sign-in, no role chooser — and no substitute card. The link opens the wedding's
+# configured stationery directly.
+- launchApp:
+    clearState: true
+    arguments:
+      wewed_native_env: "shadow"
+
+- openLink: "wewed://invite/shadow_ref_charity_kudzie?rsvp=shadow-pending-guest"
+
+- extendedWaitUntil:
+    visible:
+      id: "invitation-trifold"
+    timeout: 8000
+- assertVisible:
+    id: "invitation-closed-cover"
+- assertNotVisible: "Sign In"
+- assertNotVisible: "Create Account"
+
+- tapOn:
+    id: "invitation-open-button"
+- extendedWaitUntil:
+    visible:
+      id: "invitation-panel-centre"
+    timeout: 8000
+- assertVisible:
+    id: "invitation-couple-names"
+- assertVisible:
+    id: "invitation-guest-personalization"

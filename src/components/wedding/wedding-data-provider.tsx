@@ -11,7 +11,6 @@ import {
   getContent as getContentBase,
   getOrderedContent as getOrderedContentBase,
   parseMetadata,
-  FLAGSHIP_WEDDING_SLUG,
   type WeddingData,
   type WeddingInfo,
   type WeddingContentMap,
@@ -19,6 +18,13 @@ import {
   type WeddingProgrammeItem,
   type WeddingSong,
 } from "@/lib/wedding-data";
+import type {
+  PublicAnnouncement,
+  PublicSiteItem,
+  PublicSiteSection,
+  PublicSiteStructure,
+  SiteSectionKey,
+} from "@/lib/wedding-site/model";
 
 interface WeddingContextValue {
   wedding: WeddingInfo | null;
@@ -31,8 +37,18 @@ interface WeddingContextValue {
   error: string | null;
   refetch: () => void;
   slug: string;
-  /** Regression marker only — never use this to select a different renderer. */
-  isFlagship: boolean;
+  site: PublicSiteStructure;
+  announcements: PublicAnnouncement[];
+  /**
+   * QRO07: true only when the SERVER resolved this viewer as a member with content.edit for this
+   * wedding. Owner setup prompts and edit affordances render only when this is true — never from a
+   * browser flag.
+   */
+  canEditSite: boolean;
+  /** Enabled items for a section, in order. */
+  siteItems: (section: SiteSectionKey) => PublicSiteItem[];
+  /** The resolved section row (enabled/order) for a key. */
+  siteSection: (section: SiteSectionKey) => PublicSiteSection | undefined;
   getContent: (
     section: string,
     field: string,
@@ -56,12 +72,14 @@ interface WeddingDataProviderProps {
   children: ReactNode;
   slug?: string;
   initialData?: WeddingData | null;
+  canEditSite?: boolean;
 }
 
 export function WeddingDataProvider({
   children,
   slug,
   initialData = null,
+  canEditSite = false,
 }: WeddingDataProviderProps) {
   const {
     wedding,
@@ -70,15 +88,17 @@ export function WeddingDataProvider({
     ordered,
     programmeItems,
     songs,
+    site,
+    announcements,
     loading,
     error,
     refetch,
   } = useWeddingData(slug, initialData);
 
   const value = useMemo<WeddingContextValue>(() => {
-    const activeSlug = wedding?.slug ?? slug ?? initialData?.wedding.slug ?? FLAGSHIP_WEDDING_SLUG;
+    const activeSlug = wedding?.slug ?? slug ?? initialData?.wedding.slug ?? "";
     const data: WeddingData | null = wedding
-      ? { wedding, content, contentMeta, ordered, programmeItems, songs }
+      ? { wedding, content, contentMeta, ordered, programmeItems, songs, site, announcements }
       : null;
 
     return {
@@ -92,7 +112,11 @@ export function WeddingDataProvider({
       error,
       refetch,
       slug: activeSlug,
-      isFlagship: activeSlug === FLAGSHIP_WEDDING_SLUG,
+      site,
+      announcements,
+      canEditSite,
+      siteItems: (section) => site.items[section] ?? [],
+      siteSection: (section) => site.sections.find((row) => row.key === section),
       getContent: (section, field, defaultValue = "") =>
         getContentBase(content, section, field, defaultValue),
       getOrdered: (section, prefix) =>
@@ -105,6 +129,9 @@ export function WeddingDataProvider({
     ordered,
     programmeItems,
     songs,
+    site,
+    announcements,
+    canEditSite,
     loading,
     error,
     refetch,
@@ -137,7 +164,6 @@ export {
   getContentBase as getContent,
   getOrderedContentBase as getOrderedContent,
   parseMetadata,
-  FLAGSHIP_WEDDING_SLUG,
 };
 export type {
   WeddingData,

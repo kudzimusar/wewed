@@ -31,6 +31,16 @@ describe('multi-wedding guest portfolio contract', () => {
     expect(api).not.toContain('rsvpToken=')
   })
 
+  test('the portfolio picker and wedding switcher never resurrect a stale remembered invitation style', () => {
+    const api = source('src/app/api/guest-weddings/route.ts')
+
+    // Both the picker list (GET) and the switch destination (POST) must read the
+    // freshly-validated wedding record's style, never the portfolio entry's cached one.
+    expect(api).toContain('normalizeInvitationCardStyle(record.wedding.invitationCardStyle)')
+    expect(api).not.toContain('entry.invitationCardStyle ||')
+    expect(api).not.toContain('selected.invitationCardStyle ||')
+  })
+
   test('cold app launch keeps product workspaces authoritative and restores guest invitation only for guest-only launches', () => {
     const app = source('src/app/app/route.ts')
 

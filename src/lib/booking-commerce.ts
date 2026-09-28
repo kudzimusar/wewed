@@ -481,6 +481,34 @@ export async function listWeddingBookings(weddingId: string) {
   )
 }
 
+/**
+ * Master plan Phase 8 — the read query behind `GET /api/vendor/catalog`, extracted so the
+ * native-safe adapter can reuse it directly with a verified `businessAccountId` (from a
+ * freshly-resolved production-authority grant) instead of duplicating the SQL.
+ */
+export async function catalogForBusiness(businessAccountId: string) {
+  const items = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
+    `SELECT i.*,o.category,o."displayName" AS "offeringName",
+            COALESCE((SELECT jsonb_agg(jsonb_build_object('id',v.id,'sku',v.sku,'name',v.name,'optionValues',v."optionValues",'status',v.status,'priceOverrideCents',v."priceOverrideCents",'inventoryMode',v."inventoryMode",'replacementValueCents',v."replacementValueCents") ORDER BY v.name) FROM wewed_booking."ProviderCatalogVariant" v WHERE v."catalogItemId"=i.id),'[]'::jsonb) AS variants,
+            COALESCE((SELECT jsonb_agg(jsonb_build_object('id',m.id,'variantId',m."variantId",'type',m.type,'url',m.url,'thumbnailUrl',m."thumbnailUrl",'altText',m."altText",'caption',m.caption,'sortOrder',m."sortOrder",'isPublished',m."isPublished") ORDER BY m."sortOrder") FROM wewed_booking."ProviderCatalogMedia" m WHERE m."catalogItemId"=i.id),'[]'::jsonb) AS media,
+            COALESCE((SELECT jsonb_agg(jsonb_build_object('id',r.id,'variantId',r."variantId",'name',r.name,'resourceType',r."resourceType",'serialReference',r."serialReference",'capacity',r.capacity,'status',r.status,'metadata',r.metadata) ORDER BY r.name) FROM wewed_booking."BookingResource" r WHERE r."catalogItemId"=i.id),'[]'::jsonb) AS resources,
+            COALESCE((SELECT jsonb_agg(jsonb_build_object('id',c.id,'childCatalogItemId',c."childCatalogItemId",'childVariantId',c."childVariantId",'componentKind',c."componentKind",'selectionKey',c."selectionKey",'name',c.name,'quantity',c.quantity,'isOptional',c."isOptional",'status',c.status) ORDER BY c."componentKind",c.name) FROM wewed_booking."ProviderCatalogComponent" c WHERE c."parentCatalogItemId"=i.id),'[]'::jsonb) AS components,
+            (SELECT count(*)::integer FROM wewed_booking."AvailabilityRule" ar JOIN wewed_booking."BookingResource" rr ON rr.id=ar."resourceId" WHERE rr."catalogItemId"=i.id) AS "availabilityRuleCount"
+       FROM wewed_booking."ProviderCatalogItem" i
+       JOIN wewed_admin."ProviderServiceOffering" o ON o.id=i."offeringId"
+      WHERE o."businessAccountId"=$1
+      ORDER BY o.category,i."sortOrder",i.name`,
+    businessAccountId,
+  )
+  const offerings = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
+    `SELECT id,category,"displayName",status,"pricingVisibility","startingPriceCents",currency,"pricingModel","aiReadinessStatus"
+       FROM wewed_admin."ProviderServiceOffering"
+      WHERE "businessAccountId"=$1 AND status IN ('draft','published') ORDER BY category`,
+    businessAccountId,
+  )
+  return { items, offerings }
+}
+
 export async function providerBusinessForUser(userId: string) {
   const rows = await db.$queryRawUnsafe<Array<{ businessAccountId: string; businessName: string }>>(
     `SELECT ba.id AS "businessAccountId",ba.name AS "businessName"
@@ -495,9 +523,14 @@ export async function providerBusinessForUser(userId: string) {
   return rows[0]
 }
 
-export async function listProviderBookings(userId: string) {
-  const business = await providerBusinessForUser(userId)
-  const rows = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
+/**
+ * Master plan Phase 8 — split out of `listProviderBookings` so a caller that already has a
+ * verified `businessAccountId` (e.g. a native request's freshly-resolved production-authority
+ * grant) can query bookings directly, without re-deriving "the" business via the PWA's
+ * cookie-session, pick-one-business `providerBusinessForUser` assumption.
+ */
+export async function bookingsForBusiness(businessAccountId: string) {
+  return db.$queryRawUnsafe<Array<Record<string, unknown>>>(
     `SELECT b.id,b."publicReference",b."weddingId",b.status,b."bookingMode",b.currency,b."totalCents",b."depositCents",
             b."eventDate",b."serviceStart",b."serviceEnd",b."appointmentAt",b."pickupAt",b."returnDueAt",
             b."deliveryAt",b."setupStart",b."setupEnd",b."collectionAt",b."serviceLocation",b."guestCount",b."customerNotes",
@@ -507,9 +540,14 @@ export async function listProviderBookings(userId: string) {
        JOIN public."Wedding" w ON w.id=b."weddingId"
        JOIN wewed_admin."ProviderServiceOffering" o ON o.id=b."offeringId"
       WHERE b."businessAccountId"=$1 ORDER BY b."createdAt" DESC`,
-    business.businessAccountId,
+    businessAccountId,
   )
-  return { business, bookings: rows }
+}
+
+export async function listProviderBookings(userId: string) {
+  const business = await providerBusinessForUser(userId)
+  const bookings = await bookingsForBusiness(business.businessAccountId)
+  return { business, bookings }
 }
 
 export async function createReferralLink(input: { businessAccountId: string; catalogItemId?: string | null; createdByUserId?: string | null; channel?: string | null; campaign?: string | null }) {

@@ -21,8 +21,6 @@ import { payoutMutationsDisabledPayload } from "@/lib/royalty-payout-security";
        the production secrets/KMS boundary.
    ============================================================ */
 
-const FLAGSHIP_SLUG = "charity-and-kudzie";
-
 function errorResponse(error: unknown, method: "GET" | "POST") {
   if (error instanceof WewedAdminAccessError) {
     return NextResponse.json(
@@ -44,7 +42,13 @@ export async function GET(request: NextRequest) {
     await requireWewedAdmin(request, "admin.billing.read");
 
     const url = new URL(request.url);
-    const slug = url.searchParams.get("slug") ?? FLAGSHIP_SLUG;
+    const slug = url.searchParams.get("slug")?.trim();
+    if (!slug) {
+      return NextResponse.json(
+        { success: false, error: "Wedding slug is required." },
+        { status: 400 },
+      );
+    }
 
     const wedding = await db.wedding.findUnique({
       where: { slug },

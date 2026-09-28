@@ -1,0 +1,229 @@
+name: Native Wedding Identity UI CI
+
+on:
+  push:
+    branches:
+      - native-mobile/wedding-identity-ui-20260918
+    paths:
+      - 'apps/ios/**'
+      - 'apps/android/**'
+      - '.github/workflows/native-wedding-identity-ui-ci.yml'
+      - '.github/scripts/verify-android-local-package.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Exact-head qualification for the six-screen reference shell.
+
+concurrency:
+  group: native-wedding-identity-ui-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ui-contract:
+    name: Wireframe and real-shadow UI contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Reject demo and wireframe-only literals
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            apps/ios/Wewed/Views/Home/WeddingReferenceHomeView.swift
+            apps/ios/Wewed/Views/Planner/WeddingReferencePlannerView.swift
+            apps/ios/Wewed/Views/Guests/WeddingReferenceGuestsView.swift
+            apps/ios/Wewed/Views/Invitation/IvoryInvitationView.swift
+            apps/ios/Wewed/Views/Pass/WeddingReferencePassView.swift
+            apps/ios/Wewed/Views/Shared/WeddingReferenceMoreView.swift
+            apps/android/app/src/main/java/pro/wewed/app/ui/home/WeddingReferenceHomeScreen.kt
+            apps/android/app/src/main/java/pro/wewed/app/ui/planner/WeddingReferencePlannerScreen.kt
+            apps/android/app/src/main/java/pro/wewed/app/ui/guests/WeddingReferenceGuestsScreen.kt
+            apps/android/app/src/main/java/pro/wewed/app/ui/invitation/IvoryInvitationScreen.kt
+            apps/android/app/src/main/java/pro/wewed/app/ui/pass/WeddingReferencePassScreen.kt
+            apps/android/app/src/main/java/pro/wewed/app/ui/more/WeddingReferenceMoreScreen.kt
+          )
+          banned='Stella Ndlovu|John Moyo|Appa Tawanda|Brian Kamau|Lindiwe Ncube|Tariro Chikomo|Jane & Michael Doe|Tariro & Shadreck|Guest G001|Reference Venue|Reference City|68% complete|14 NOV 2026|C & K|C&K|Programme locked|7 booked'
+          if grep -En "$banned" "${files[@]}"; then
+            echo "FAIL: demo/wireframe-only literal found in production-derived reference UI."
+            exit 1
+          fi
+
+      - name: Reject unsupported Shadow operational claims
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            apps/ios/Wewed/Services/PrivateRealShadowWeddingRepository.swift
+            apps/android/app/src/main/java/pro/wewed/app/services/PrivateRealShadowWeddingRepository.kt
+            apps/ios/Wewed/Services/ShadowReferencePlannerRepository.swift
+            apps/android/app/src/main/java/pro/wewed/app/services/ShadowReferencePlannerRepository.kt
+          )
+          banned='expectedTime: "12:00"|expectedTime = "12:00"|7 vendors booked|Programme locked|152 guests unseated|8 urgent'
+          if grep -En "$banned" "${files[@]}"; then
+            echo "FAIL: unsupported Shadow operational claim found."
+            exit 1
+          fi
+
+      - name: Require six-screen acceptance anchors
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -R --fixed-strings 'home-root' apps/ios/Wewed/Views/Home apps/android/app/src/main/java/pro/wewed/app/ui/home
+          grep -R --fixed-strings 'planner-root' apps/ios/Wewed/Views/Planner apps/android/app/src/main/java/pro/wewed/app/ui/planner
+          grep -R --fixed-strings 'guests-root' apps/ios/Wewed/Views/Guests apps/android/app/src/main/java/pro/wewed/app/ui/guests
+          grep -R --fixed-strings 'ivory-invitation-root' apps/ios/Wewed/Views/Invitation apps/android/app/src/main/java/pro/wewed/app/ui/invitation
+          grep -R --fixed-strings 'wedding-pass-qr' apps/ios/Wewed/Theme apps/android/app/src/main/java/pro/wewed/app/ui/pass
+          grep -R --fixed-strings 'more-root' apps/ios/Wewed/Views/Shared apps/android/app/src/main/java/pro/wewed/app/ui/more
+
+      - name: Enforce private Shadow storage boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          android_repo='apps/android/app/src/main/java/pro/wewed/app/services/PrivateRealShadowWeddingRepository.kt'
+          ios_repo='apps/ios/Wewed/Services/PrivateRealShadowWeddingRepository.swift'
+          provisioner='mobile/shadow/tools/provision_private_real_shadow.sh'
+
+          forbidden_android='/sdcard/charity-kudzie-private-real-shadow.json|/data/local/tmp/charity-kudzie-private-real-shadow.json|/data/data/pro\.wewed\.app/files/charity-kudzie-private-real-shadow.json'
+          if grep -En "$forbidden_android" "$android_repo"; then
+            echo "FAIL: Android private-real repository can read a public or Play-identity snapshot path."
+            exit 1
+          fi
+
+          if grep -En 'Documents.*charity-kudzie-private-real-shadow|documentDirectory' "$ios_repo"; then
+            echo "FAIL: iOS private-real repository can read the protected snapshot from Documents/iCloud."
+            exit 1
+          fi
+
+          # The Android copy must cross host -> adb -> run-as without losing its quoting, so the
+          # guard asserts the SECURE BEHAVIOUR (run-as, app-private files/, mode 600, isolated
+          # identities) rather than one literal quoting style. A previous literal
+          # `run-as "$package_id"` check failed the correctly-quoted script while a broken,
+          # silently-unprovisioning form would have passed it.
+          grep -Eq 'adb shell "run-as \$package_id sh -c' "$provisioner" \
+            || { echo "FAIL: Android provisioning does not go through run-as into app-private storage."; exit 1; }
+          grep -Eq 'cp [^;]* files/' "$provisioner" \
+            || { echo "FAIL: Android snapshot is not copied into the app-private files/ directory."; exit 1; }
+          grep -Eq 'chmod 600 files/' "$provisioner" \
+            || { echo "FAIL: Android app-private snapshot is not restricted to mode 600."; exit 1; }
+          # Only isolated debug/UAT identities may ever hold a private snapshot. Every package
+          # identity the provisioner names must carry a .dev or .uatdev suffix; a bare
+          # pro.wewed.app (the Play identity) is rejected wherever it appears.
+          if grep -oE 'pro\.wewed\.app(\.[A-Za-z0-9]+)*' "$provisioner" \
+               | grep -vE '^pro\.wewed\.app\.(dev|uatdev)$' | grep .; then
+            echo "FAIL: provisioner names a package identity that is not .dev/.uatdev (Play identity is prohibited)."
+            exit 1
+          fi
+          grep -F 'Library/Application Support/wewed' "$provisioner"
+          grep -F 'trap cleanup_android_staging EXIT' "$provisioner"
+          grep -F 'trap - EXIT' "$provisioner"
+          if grep -En 'sim_home=.*\.wewed-shadow|Documents.*charity-kudzie-private-real-shadow' "$provisioner"; then
+            echo "FAIL: private snapshot provisioner retains a copy outside the isolated app sandbox."
+            exit 1
+          fi
+
+  ios:
+    name: iOS native app tests and build
+    runs-on: macos-14
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Select Xcode 16.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Run Swift tests
+        working-directory: apps/ios
+        run: swift test
+
+      - name: Build Swift package
+        working-directory: apps/ios
+        run: swift build
+
+      - name: Install pinned XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate native iOS application project
+        working-directory: apps/ios
+        run: xcodegen generate --spec project.yml
+
+      - name: Verify iOS local, UAT and store bundle identities
+        working-directory: apps/ios
+        shell: bash
+        run: |
+          set -euo pipefail
+          project='Wewed.xcodeproj/project.pbxproj'
+          test -f "$project"
+          grep -F 'PRODUCT_BUNDLE_IDENTIFIER = pro.wewed.app.dev;' "$project"
+          grep -F 'PRODUCT_BUNDLE_IDENTIFIER = pro.wewed.app.uatdev;' "$project"
+          grep -F 'PRODUCT_BUNDLE_IDENTIFIER = pro.wewed.app;' "$project"
+          echo "PASS: generated Xcode project preserves Debug/UAT/store bundle identity split."
+
+      - name: Build iOS application target for simulator
+        working-directory: apps/ios
+        run: >-
+          xcodebuild
+          -project Wewed.xcodeproj
+          -scheme Wewed
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          build
+
+      - name: Build unsigned iOS release target for generic device
+        working-directory: apps/ios
+        run: >-
+          xcodebuild
+          -project Wewed.xcodeproj
+          -scheme Wewed
+          -configuration Release
+          -sdk iphoneos
+          -destination 'generic/platform=iOS'
+          CODE_SIGNING_ALLOWED=NO
+          build
+
+  android:
+    name: Android unit tests and debug assembly
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Java 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Run Android unit tests and assemble local + release variants
+        working-directory: apps/android
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest assembleDebug assembleRelease --no-daemon --stacktrace
+
+      - name: Verify local Android identity cannot replace Play
+        run: bash .github/scripts/verify-android-local-package.sh apps/android/app/build/outputs/apk/debug pro.wewed.app.dev
+
+      - name: Verify release Android identity remains the Play package
+        shell: bash
+        run: |
+          set -euo pipefail
+          metadata='apps/android/app/build/outputs/apk/release/output-metadata.json'
+          test -f "$metadata"
+          actual="$(sed -n 's/.*"applicationId"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$metadata" | head -n 1)"
+          test "$actual" = 'pro.wewed.app' || {
+            echo "::error::Release package is '$actual'; expected pro.wewed.app"
+            exit 1
+          }
+          echo "Release Android package: $actual"

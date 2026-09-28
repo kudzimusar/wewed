@@ -35,16 +35,6 @@ export interface PrivacyAwareWedding {
 
 // ─── Constants ───────────────────────────────────────────────
 
-/** The flagship wedding slug — privacy defaults resolve to this. */
-export const FLAGSHIP_WEDDING_SLUG = 'charity-and-kudzie'
-
-/**
- * The flagship access token. Hardcoded for the MVP — couples will
- * be able to rotate this from the admin dashboard in a future phase.
- * For Charity & Kudzie's flagship: "charity-kudzie-2026".
- */
-export const FLAGSHIP_ACCESS_TOKEN = 'charity-kudzie-2026'
-
 /** Allowed values for `PrivacyLevel` — used for validation. */
 export const PRIVACY_LEVELS: readonly PrivacyLevel[] = [
   'public',
@@ -67,6 +57,14 @@ export const PRIVACY_LABELS: Record<PrivacyLevel, string> = {
   private: 'Private Vault',
 }
 
+/**
+ * Guest-facing summaries, not the authorization policy.
+ *
+ * `private` is described here as "only the couple" because that is what it means to the reader of
+ * this sentence — someone without a member session. The actual rule admits any user holding an
+ * active WeddingMembership, planners included. Do not quote these strings as the policy;
+ * `resolveWeddingAccessFromTokens` in `wedding-public-access.ts` is the policy.
+ */
 export const PRIVACY_DESCRIPTIONS: Record<PrivacyLevel, string> = {
   public: 'Anyone with the link can view this wedding.',
   link_only:
@@ -213,18 +211,6 @@ export function safeEqualString(a: string, b: string): boolean {
   return diff === 0
 }
 
-/**
- * Verify a supplied access token against the flagship wedding's
- * expected token. Uses constant-time comparison.
- *
- * Pure / isomorphic — does not touch the DB. The flagship token is
- * hardcoded as `FLAGSHIP_ACCESS_TOKEN`. Platform-tier weddings will
- * store per-wedding tokens in the DB (Phase 5).
- */
-export function verifyFlagshipAccessToken(token: string): boolean {
-  if (typeof token !== 'string' || token.length === 0) return false
-  return safeEqualString(token.trim(), FLAGSHIP_ACCESS_TOKEN)
-}
 
 // ─── DB helpers (server-only — dynamic import) ───────────────
 
@@ -256,55 +242,10 @@ export async function getWeddingPrivacy(
   }
 }
 
-/**
- * Read the flagship wedding's privacy settings + canon seal status.
- * Returns a structured snapshot suitable for the GET /api/privacy route.
- *
- * Server-only.
- */
-export async function getFlagshipPrivacySnapshot(): Promise<{
-  weddingId: string | null
-  privacy: PrivacyLevel
-  canonSealed: boolean
-  canonSealedAt: Date | string | null
-  subscriptionTier: SubscriptionTier
-}> {
-  try {
-    const { db } = await import('@/lib/db')
-    const wedding = await db.wedding.findFirst({
-      where: { slug: FLAGSHIP_WEDDING_SLUG },
-      select: {
-        id: true,
-        privacy: true,
-        canonSealed: true,
-        canonSealedAt: true,
-        subscriptionTier: true,
-      },
-    })
-    return {
-      weddingId: wedding?.id ?? null,
-      privacy: asPrivacyLevel(wedding?.privacy ?? null),
-      canonSealed: Boolean(wedding?.canonSealed),
-      canonSealedAt: wedding?.canonSealedAt ?? null,
-      subscriptionTier: asSubscriptionTier(wedding?.subscriptionTier ?? null),
-    }
-  } catch (error) {
-    console.error('[privacy.getFlagshipPrivacySnapshot] error:', error)
-    return {
-      weddingId: null,
-      privacy: 'public',
-      canonSealed: false,
-      canonSealedAt: null,
-      subscriptionTier: 'free',
-    }
-  }
-}
 
 // ─── Bundle default export ───────────────────────────────────
 
 const privacy = {
-  FLAGSHIP_WEDDING_SLUG,
-  FLAGSHIP_ACCESS_TOKEN,
   PRIVACY_LEVELS,
   SUBSCRIPTION_TIERS,
   PRIVACY_LABELS,
@@ -319,9 +260,7 @@ const privacy = {
   asPrivacyLevel,
   asSubscriptionTier,
   safeEqualString,
-  verifyFlagshipAccessToken,
   getWeddingPrivacy,
-  getFlagshipPrivacySnapshot,
 }
 
 export default privacy

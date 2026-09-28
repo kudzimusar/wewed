@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug builds only.
+
+  Cleartext is permitted to the emulator's host loopback and nothing else, so the guest-only
+  invitation shell can be driven end to end against a local stub of the guest-session API. The
+  release build has no such file: its traffic stays TLS-only, and a guest's invitation cannot be
+  pointed at a plaintext origin.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- The host machine, as seen from the Android emulator. -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

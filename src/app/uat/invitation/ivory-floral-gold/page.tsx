@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { isLocalCiBrowserMode } from '@/lib/ci-browser-mode'
 import { IvoryFloralGoldUatPreview } from './preview'
 
 export const metadata: Metadata = {
@@ -9,7 +10,12 @@ export const metadata: Metadata = {
 }
 
 export default function IvoryFloralGoldUatPage() {
-  if (process.env.VERCEL_ENV === 'production') notFound()
+  if (
+    process.env.VERCEL_ENV === 'production' ||
+    (process.env.NODE_ENV === 'production' && !isLocalCiBrowserMode())
+  ) {
+    notFound()
+  }
   return <IvoryFloralGoldUatPreview />
 }
 

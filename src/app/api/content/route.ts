@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/admin-gate'
+import { requireWeddingPermission } from '@/lib/wedding-access'
 import { db } from '@/lib/db'
+import { applyRevisionPublication } from '@/lib/wedding-site/server'
 import {
-  getFlagshipWeddingId,
   isRevisionStatus,
-  mapsToWeddingField,
-  syncWeddingField,
 } from '@/lib/content/wedding-fields'
 
 /* ============================================================
@@ -86,22 +84,25 @@ function formatRevision(r: {
 
 // ─── GET /api/content ────────────────────────────────────────
 export async function GET(request: NextRequest) {
-  const gateFail = requireAdmin(request)
-  if (gateFail) return gateFail
+  const access = await requireWeddingPermission(request, 'content.edit')
+  if (access.error) return access.error
 
   try {
     const url = new URL(request.url)
     const section = url.searchParams.get('section')?.trim() || undefined
     const fieldKey = url.searchParams.get('fieldKey')?.trim() || undefined
     const status = url.searchParams.get('status')?.trim() || undefined
-    const weddingIdParam = url.searchParams.get('weddingId')?.trim() || undefined
-
-    // Resolve wedding id (query overrides flagship default)
-    const weddingId = weddingIdParam ?? (await getFlagshipWeddingId())
+    const weddingId = url.searchParams.get('weddingId')?.trim()
     if (!weddingId) {
       return NextResponse.json(
-        { success: false, error: 'Flagship wedding not found. Seed the database first.' },
-        { status: 404 },
+        { success: false, error: 'weddingId is required' },
+        { status: 400 },
+      )
+    }
+    if (weddingId !== access.context.weddingId) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden — weddingId does not match the active workspace.' },
+        { status: 403 },
       )
     }
 
@@ -149,8 +150,8 @@ interface CreateRevisionBody {
 }
 
 export async function POST(request: NextRequest) {
-  const gateFail = requireAdmin(request)
-  if (gateFail) return gateFail
+  const access = await requireWeddingPermission(request, 'content.edit')
+  if (access.error) return access.error
 
   try {
     let body: CreateRevisionBody
@@ -203,11 +204,17 @@ export async function POST(request: NextRequest) {
     const weddingId =
       typeof body.weddingId === 'string' && body.weddingId.trim()
         ? body.weddingId.trim()
-        : await getFlagshipWeddingId()
+        : null
     if (!weddingId) {
       return NextResponse.json(
-        { success: false, error: 'Flagship wedding not found. Seed the database first.' },
-        { status: 404 },
+        { success: false, error: 'weddingId is required' },
+        { status: 400 },
+      )
+    }
+    if (weddingId !== access.context.weddingId) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden — weddingId does not match the active workspace.' },
+        { status: 403 },
       )
     }
 
@@ -222,45 +229,24 @@ export async function POST(request: NextRequest) {
 
     // Create the new revision. If publishing, set publishedAt too.
     const now = new Date()
-    const revision = await db.contentRevision.create({
-      data: {
-        section,
-        fieldKey,
-        value,
-        status,
-        previousValue,
-        weddingId,
-        publishedAt: status === 'published' ? now : null,
-      },
+    // Revision + publication effects (archive, Wedding sync, public-site materialization) in ONE
+    // transaction — the public projection changes exactly when the revision is published.
+    const revision = await db.$transaction(async (tx) => {
+      const created = await tx.contentRevision.create({
+        data: {
+          section,
+          fieldKey,
+          value,
+          status,
+          previousValue,
+          weddingId,
+          authorId: access.context.session.userId ?? null,
+          publishedAt: status === 'published' ? now : null,
+        },
+      })
+      if (status === 'published') await applyRevisionPublication(tx, created)
+      return created
     })
-
-    // If publishing, archive previously-published revisions of the
-    // same section+fieldKey (excluding the one we just created),
-    // and sync the Wedding row if applicable.
-    if (status === 'published') {
-      try {
-        await db.contentRevision.updateMany({
-          where: {
-            weddingId,
-            section,
-            fieldKey,
-            status: 'published',
-            id: { not: revision.id },
-          },
-          data: { status: 'archived' },
-        })
-      } catch (err) {
-        console.warn('[CONTENT POST] could not archive previous published revisions:', err)
-      }
-
-      if (mapsToWeddingField(section, fieldKey)) {
-        try {
-          await syncWeddingField(weddingId, section, fieldKey, value)
-        } catch (err) {
-          console.warn('[CONTENT POST] could not sync Wedding field:', err)
-        }
-      }
-    }
 
     return NextResponse.json(
       { success: true, data: formatRevision(revision) },
