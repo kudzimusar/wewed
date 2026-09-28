@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 /**
  * Reads the signed exchange from this page's URL FRAGMENT (never sent to any server), removes it
@@ -10,13 +11,14 @@ import { useEffect, useState } from 'react'
  */
 export function GuestBrowserHandoff({ slug }: { slug: string }) {
   const [failed, setFailed] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
     const gateway = `/w/${encodeURIComponent(slug)}?accessError=handoff`
     const h = new URLSearchParams(window.location.hash.slice(1)).get('h') ?? ''
     window.history.replaceState(null, '', window.location.pathname)
     if (!h) {
-      window.location.replace(gateway)
+      router.replace(gateway)
       return
     }
     let cancelled = false
@@ -32,7 +34,11 @@ export function GuestBrowserHandoff({ slug }: { slug: string }) {
         if (cancelled) return
         // Only a same-origin wedding path is followed, whatever the response says.
         const path = typeof data.path === 'string' && data.path.startsWith('/w/') ? data.path : gateway
-        window.location.replace(path)
+        // A client-side replace, not window.location: wewed.pro/w/* is a verified Android App
+        // Link, and a full top-level navigation from this intent-launched page is handed straight
+        // back to the installed Wewed app, so the Guest never reached the Couple Website/Registry.
+        // A router transition updates history without a browser navigation, so it stays here.
+        router.replace(path)
       })
       .catch(() => {
         if (!cancelled) setFailed(true)
@@ -40,7 +46,7 @@ export function GuestBrowserHandoff({ slug }: { slug: string }) {
     return () => {
       cancelled = true
     }
-  }, [slug])
+  }, [slug, router])
 
   return (
     <main data-testid="guest-browser-handoff" className="flex min-h-screen items-center justify-center bg-[#fbf7ef] px-6 text-center text-[#3a2f27]">
