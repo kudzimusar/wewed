@@ -268,7 +268,7 @@ for (const client of MOBILE_CLIENTS) {
   })
 }
 
-test('iPhone: personal invitation shows App Store coming soon and continues in the browser', async ({ browser }) => {
+test('iPhone: personal invitation continues honestly in the browser (no App Store destination configured)', async ({ browser }) => {
   const fixture = await createFixture('iPhone personal')
   const context = await browser.newContext({ viewport: MOBILE_VIEWPORT, userAgent: IOS_UA, locale: 'en-ZW' })
   const page = await context.newPage()
@@ -277,12 +277,12 @@ test('iPhone: personal invitation shows App Store coming soon and continues in t
 
   await expect(page).toHaveURL(`${BASE_URL}/invite/${encodeURIComponent(fixture.weddingSlug)}/open`)
   await expect(page.getByTestId('personal-invitation-ios-gate')).toBeVisible()
-  await expect(page.getByText('Coming Soon', { exact: true })).toBeVisible()
-  await expect(page.getByRole('img', { name: 'Download on the App Store' })).toBeVisible()
+  // QRO06: no App Store destination is configured, so the gate says so honestly and continues in the browser.
+  await expect(page.getByText('Coming Soon', { exact: true })).toHaveCount(0)
   await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
   expect(page.url()).not.toContain(fixture.rsvpToken)
 
-  await page.getByRole('button', { name: /App Store coming soon/i }).click()
+  await page.getByRole('button', { name: 'Continue in browser' }).click()
   await expect.poll(() => new URL(page.url()).pathname, { timeout: 10_000 }).toBe(`/w/${fixture.weddingSlug}`)
   const finalUrl = new URL(page.url())
   expect(finalUrl.searchParams.get('invitation')).toBe('1')
