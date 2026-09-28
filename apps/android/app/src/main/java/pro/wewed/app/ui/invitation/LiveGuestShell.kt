@@ -628,8 +628,12 @@ private fun LiveGuestWeddingDay(
             }
 
             val guest = data.getJSONObject("guest")
-            GuestSectionHeading("Arrival", "guest-day-arrival")
-            if (GuestCapability.SEATING in capabilities && !guest.isNull("tableName")) {
+            // Arrival holds only attending-only cards; a declined Guest saw the bare heading.
+            val showsTable = GuestCapability.SEATING in capabilities && !guest.isNull("tableName")
+            if (showsTable || GuestCapability.CHECK_IN_STATE in capabilities) {
+                GuestSectionHeading("Arrival", "guest-day-arrival")
+            }
+            if (showsTable) {
                 IACard(
                     title = "My Table",
                     subtitle = guest.getString("tableName"),
@@ -653,7 +657,8 @@ private fun LiveGuestWeddingDay(
                         val member = party.getJSONObject(index)
                         IACard(
                             title = member.optString("attendeeName"),
-                            subtitle = "Your wedding party",
+                            // Never imply attendance to a Guest who has declined.
+                            subtitle = if (profile.attending == true) "Your wedding party" else "Not attending",
                             testTag = "guest-party-member-\$index"
                         )
                     }
@@ -759,8 +764,15 @@ private fun LiveGuestMore(
                 testTag = "live-guest-profile-party"
             )
 
-            profile.mealChoice?.takeIf { it.isNotBlank() }?.let {
-                IACard("Meal choice", it, testTag = "live-guest-profile-meal")
+            // Stored meal values are lowercase keys ("chicken"); the plus-one's choice was saved
+            // but never shown back to the Guest.
+            val guestMeal = profile.mealChoice?.takeIf { it.isNotBlank() }
+                ?.replaceFirstChar { it.titlecase() }
+            val plusOneMeal = profile.plusOneMeal?.takeIf { it.isNotBlank() && profile.plusOne }
+                ?.replaceFirstChar { it.titlecase() }
+                ?.let { meal -> profile.plusOneName?.takeIf { it.isNotBlank() }?.let { "$it: $meal" } ?: "Plus one: $meal" }
+            listOfNotNull(guestMeal, plusOneMeal).takeIf { it.isNotEmpty() }?.let {
+                IACard("Meal choice", it.joinToString(" · "), testTag = "live-guest-profile-meal")
             }
             profile.dietaryNotes?.takeIf { it.isNotBlank() }?.let {
                 IACard("Dietary notes", it, testTag = "live-guest-profile-dietary")

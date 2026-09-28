@@ -16,6 +16,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -423,9 +425,10 @@ private fun LiveInvitationPresentation.toIvoryData(): IvoryInvitationData {
 
     return IvoryInvitationData(
         coupleNames = coupleNames,
+        // Same "C&K" form as the web badge and the Wedding Pass when the Planner set no monogram.
         monogram = monogram ?: coupleNames.split(Regex("\\s*&\\s*"))
             .mapNotNull { it.trim().firstOrNull()?.uppercase() }
-            .joinToString(" "),
+            .joinToString("&"),
         message = invitationCardMessage?.takeIf { it.isNotBlank() }
             ?: "Request the pleasure of your company as we celebrate our marriage.",
         weddingDateLabel = weddingDate.orEmpty(),
@@ -513,7 +516,9 @@ private fun LiveRsvpForm(
     // Never let a stale client pre-select children attendance on an adults-only wedding — the
     // server remains final enforcement authority regardless, but the form must not encourage it.
     var kidsAttending by remember(initial) { mutableStateOf(if (adultsOnly) false else initial.kidsAttending) }
-    var kidsCount by remember(initial) { mutableStateOf(initial.kidsCount ?: 0) }
+    var kidsCount by remember(initial) {
+        mutableStateOf((initial.kidsCount ?: 0).let { if (kidsAttending) it.coerceAtLeast(1) else it })
+    }
     var dietaryNotes by remember(initial) { mutableStateOf(initial.dietaryNotes.orEmpty()) }
     var message by remember(initial) { mutableStateOf(initial.message.orEmpty()) }
 
@@ -528,7 +533,7 @@ private fun LiveRsvpForm(
         plusOneName = if (accepting && plusOne) plusOneName.trim() else null,
         plusOneMeal = if (accepting && plusOne) plusOneMeal.trim() else null,
         kidsAttending = if (accepting && !adultsOnly) kidsAttending else false,
-        kidsCount = if (accepting && !adultsOnly && kidsAttending) kidsCount else null,
+        kidsCount = if (accepting && !adultsOnly && kidsAttending) kidsCount.coerceAtLeast(1) else null,
         dietaryNotes = if (accepting) dietaryNotes.trim() else null,
         // Always sent: a message to the couple is meaningful whether or not the guest is attending.
         message = message.trim(),
@@ -670,7 +675,12 @@ private fun LiveRsvpForm(
                         RsvpToggleRow(
                             label = "Children are attending",
                             checked = kidsAttending,
-                            onCheckedChange = { kidsAttending = it },
+                            // "Children are attending" with zero children is a contradiction the
+                            // Planner cannot seat, so switching it on starts the count at one.
+                            onCheckedChange = {
+                                kidsAttending = it
+                                if (it && kidsCount < 1) kidsCount = 1
+                            },
                             testTag = "invitation-rsvp-kids-toggle"
                         )
                         if (kidsAttending) {
@@ -679,13 +689,15 @@ private fun LiveRsvpForm(
                                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                                 modifier = Modifier.testTag("invitation-rsvp-kids-stepper")
                             ) {
+                                Text("Number of children", fontSize = 15.sp, color = WeddingIdentityPalette.Ink)
                                 Text(
                                     "−",
                                     fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = WeddingIdentityPalette.Ink,
                                     modifier = Modifier
-                                        .clickable(enabled = kidsCount > 0) { kidsCount = (kidsCount - 1).coerceAtLeast(0) }
+                                        .clickable(enabled = kidsCount > 1) { kidsCount = (kidsCount - 1).coerceAtLeast(1) }
+                                        .semantics { contentDescription = "Fewer children" }
                                         .padding(8.dp)
                                 )
                                 Text("$kidsCount", fontSize = 15.sp, color = WeddingIdentityPalette.Ink)
@@ -696,6 +708,7 @@ private fun LiveRsvpForm(
                                     color = WeddingIdentityPalette.Ink,
                                     modifier = Modifier
                                         .clickable { kidsCount = (kidsCount + 1).coerceAtMost(20) }
+                                        .semantics { contentDescription = "More children" }
                                         .padding(8.dp)
                                 )
                             }

@@ -159,7 +159,7 @@ fun ivoryDataFrom(
         monogram = monogram ?: invitation.coupleNames
             .split(Regex("\\s*&\\s*"))
             .mapNotNull { it.trim().firstOrNull()?.uppercase() }
-            .joinToString(" "),
+            .joinToString("&"),
         message = message?.takeIf { it.isNotBlank() }
             ?: "Request the pleasure of your company as we celebrate our marriage.",
         weddingDateLabel = invitation.weddingDate,

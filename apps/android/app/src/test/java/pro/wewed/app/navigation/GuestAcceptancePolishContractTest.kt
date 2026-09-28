@@ -38,6 +38,18 @@ class GuestAcceptancePolishContractTest {
     }
 
     @Test
+    fun envelopeMonogramFallbackMatchesThePassAndWebForm() {
+        for (file in listOf(
+            "pro/wewed/app/ui/invitation/LiveGuestInvitationScreen.kt",
+            "pro/wewed/app/ui/invitation/NativeInvitationExperience.kt",
+        )) {
+            val text = source(file)
+            assertTrue(file, text.contains(".joinToString(\"&\")"))
+            assertFalse(file, text.contains("firstOrNull()?.uppercase() }\n            .joinToString(\" \")"))
+        }
+    }
+
+    @Test
     fun emptyCoupleNoteHasNoDeadAffordanceAndTransientPassFailureCanRetry() {
         val ivory = source("pro/wewed/app/ui/invitation/ivory/IvoryFloralGoldNative.kt")
         assertTrue(ivory.contains("if (actions.onNote != null)"))
@@ -46,5 +58,27 @@ class GuestAcceptancePolishContractTest {
         val shell = source("pro/wewed/app/ui/invitation/LiveGuestShell.kt")
         assertTrue(shell.contains("wedding-pass-retry"))
         assertTrue(shell.contains("Text(\"Try again\")"))
+    }
+
+    @Test
+    fun childrenAttendingNeverSavesAZeroCount() {
+        val text = source("pro/wewed/app/ui/invitation/LiveGuestInvitationScreen.kt")
+        assertTrue(text.contains("if (it && kidsCount < 1) kidsCount = 1"))
+        assertTrue(text.contains("kidsAttending) kidsCount.coerceAtLeast(1) else null"))
+        assertTrue(text.contains("\"Number of children\""))
+    }
+
+    @Test
+    fun declinedGuestSeesNoAttendanceOnlyArrivalOrPartyWording() {
+        val shell = source("pro/wewed/app/ui/invitation/LiveGuestShell.kt")
+        assertTrue(shell.contains("if (showsTable || GuestCapability.CHECK_IN_STATE in capabilities) {"))
+        assertTrue(shell.contains("if (profile.attending == true) \"Your wedding party\" else \"Not attending\""))
+    }
+
+    @Test
+    fun profileMealIsReadableAndIncludesThePlusOne() {
+        val shell = source("pro/wewed/app/ui/invitation/LiveGuestShell.kt")
+        assertTrue(shell.contains("profile.mealChoice?.takeIf { it.isNotBlank() }\n                ?.replaceFirstChar { it.titlecase() }"))
+        assertTrue(shell.contains("profile.plusOneMeal?.takeIf { it.isNotBlank() && profile.plusOne }"))
     }
 }
