@@ -544,13 +544,15 @@ fun IvoryFloralGoldNative(
                             )
                         }
                     }
-                    IvoryRegion(IvoryGeometry.DETAIL_NOTE, stageWidth, stageHeight) {
-                        Text(
-                            "A special message from us",
-                            color = IvoryPalette.InkSoft,
-                            fontSize = (stageWidth.value * 0.024f).sp,
-                            textAlign = TextAlign.Center
-                        )
+                    if (actions.onNote != null) {
+                        IvoryRegion(IvoryGeometry.DETAIL_NOTE, stageWidth, stageHeight) {
+                            Text(
+                                "A special message from us",
+                                color = IvoryPalette.InkSoft,
+                                fontSize = (stageWidth.value * 0.024f).sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
 
                     // The details hits, at the approved coordinates. RSVP remains reachable
