@@ -52,10 +52,13 @@ describe('digital invitation card delivery', () => {
       weddingTitle: 'Aurora & Blake',
       invitationUrl: url,
     })
-    expect(message).toContain('private digital wedding invitation and RSVP')
+    expect(message).toContain('private Wewed digital invitation and RSVP here:')
     expect(message).toContain(url)
-    expect(message).toContain('This invitation is personal to you.')
-    expect(message).toContain('Please do not forward it.')
+    expect(message.split(url)).toHaveLength(2)
+    expect(message).toContain('Wedding Pass available when venue admission opens closer to the wedding')
+    expect(message).toContain('This link is personal to you.')
+    expect(message).toContain('Please don’t forward or share it with anyone else.')
+    expect(message).toContain('Wewed — where love lives forever.')
   })
 
   test('stores invitation configuration and expands the database style constraint additively', () => {
