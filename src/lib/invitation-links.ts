@@ -34,7 +34,11 @@ export function buildSmartInvitationUrl({
   style: InvitationCardStyle
 }): string {
   const origin = siteUrl.replace(/\/$/, '')
-  const query = new URLSearchParams({ rsvp: token, card: style })
+  // The saved Wedding invitation style is server-authoritative. Keep accepting
+  // `style` at the call boundary for source compatibility, but do not expose an
+  // implementation-specific card id in newly generated guest links.
+  void style
+  const query = new URLSearchParams({ rsvp: token })
   return `${origin}/invite/${encodeURIComponent(weddingSlug)}?${query.toString()}`
 }
 
