@@ -11,10 +11,16 @@ import { WEWED_BRAND_PAYOFF, WEWED_INVITATION_PREVIEW_TITLE } from './wewed-bran
  * invalid token), so a preview can never be used to test whether a credential exists.
  */
 const LINK_PREVIEW_CRAWLER =
-  /(WhatsApp|facebookexternalhit|Facebot|meta-externalagent|Twitterbot|TelegramBot|Slackbot|Slack-ImgProxy|LinkedInBot|Discordbot|SkypeUriPreview|Iframely|Embedly|redditbot|Pinterestbot|vkShare|Viber|Snapchat|Google-PageRenderer)/i
+  /(facebookexternalhit|Facebot|meta-externalagent|Twitterbot|TelegramBot|Slackbot|Slack-ImgProxy|LinkedInBot|Discordbot|SkypeUriPreview|Iframely|Embedly|redditbot|Pinterestbot|vkShare|Google-PageRenderer)/i
+
+// WhatsApp's unfurler identifies as a bare `WhatsApp/<version>`. In-app browsers append the same
+// token to a full browser UA, and a real Guest must never be stopped on the preview page, so only
+// the bare form counts. App names that in-app browsers carry (Snapchat, Viber, …) are never matched.
+const WHATSAPP_PREVIEW_FETCHER = /^WhatsApp\//i
 
 export function isLinkPreviewCrawler(userAgent: string | null | undefined): boolean {
-  return Boolean(userAgent && LINK_PREVIEW_CRAWLER.test(userAgent))
+  if (!userAgent) return false
+  return WHATSAPP_PREVIEW_FETCHER.test(userAgent.trim()) || LINK_PREVIEW_CRAWLER.test(userAgent)
 }
 
 export const INVITATION_PREVIEW_IMAGE_PATH = '/og/wewed-private-invitation.png'
