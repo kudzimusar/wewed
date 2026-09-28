@@ -236,7 +236,8 @@ test('mobile Couple Site uses premium app chrome, full-bleed Ivory, My Wedding r
   const drawer = page.getByTestId('mobile-wedding-more-drawer')
   await expect(drawer).toBeVisible()
   await expect(drawer.getByText('Explore the wedding', { exact: true })).toBeVisible()
-  await expect(drawer.getByText('Find a Planner', { exact: true })).toBeVisible()
+  // QRO07: no planner-marketplace promotion on a wedding website.
+  await expect(drawer.getByText('Find a Planner', { exact: true })).toHaveCount(0)
   const drawerBox = await drawer.boundingBox()
   expect(drawerBox).not.toBeNull()
   expect(drawerBox!.width).toBeLessThanOrEqual(330)
