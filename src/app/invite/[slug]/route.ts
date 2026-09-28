@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { isLinkPreviewCrawler, renderInvitationLinkPreview } from '@/lib/invitation-link-preview'
 import { resolvePersonalInvitation } from '@/lib/personal-invitation-access'
 import {
   clearPendingInvitationCookie,
@@ -48,6 +50,22 @@ function redirectToGateway(slug: string, error: string) {
 
 export async function GET(request: NextRequest, { params }: Params) {
   const { slug } = await params
+
+  // Chat apps unfurl the shared link server-side. Give them the branded, credential-independent
+  // preview (wedding title + date only) without reading, validating or storing the RSVP token.
+  if (isLinkPreviewCrawler(request.headers.get('user-agent'))) {
+    const wedding = await db.wedding.findUnique({ where: { slug }, select: { title: true, date: true } })
+    return new NextResponse(renderInvitationLinkPreview({ origin: request.nextUrl.origin, wedding }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'private, no-store, max-age=0',
+        'Referrer-Policy': 'no-referrer',
+        'X-Robots-Tag': 'noindex, nofollow',
+        Vary: 'User-Agent',
+      },
+    })
+  }
   const token = request.nextUrl.searchParams.get('rsvp')?.trim() || ''
   const requestedCard = request.nextUrl.searchParams.get('card')
 
