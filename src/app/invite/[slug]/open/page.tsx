@@ -1,7 +1,9 @@
+import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { InvitationAppHandoff } from '@/components/wedding/invitation-app-handoff'
 import { db } from '@/lib/db'
+import { WEWED_BRAND_PAYOFF, WEWED_INVITATION_PREVIEW_TITLE } from '@/lib/wewed-brand'
 import {
   PENDING_INVITATION_COOKIE,
   verifyPendingInvitationToken,
@@ -9,6 +11,56 @@ import {
 
 interface Props {
   params: Promise<{ slug: string }>
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params
+  const wedding = await db.wedding.findUnique({
+    where: { slug },
+    select: { title: true, date: true },
+  })
+
+  if (!wedding) {
+    return {
+      title: WEWED_INVITATION_PREVIEW_TITLE,
+      description: `A secure private wedding invitation from Wewed — ${WEWED_BRAND_PAYOFF}`,
+      robots: { index: false, follow: false },
+    }
+  }
+
+  const date = new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(wedding.date)
+  const description = `${wedding.title} · ${date}. Open your secure Wewed digital invitation and RSVP.`
+
+  return {
+    title: WEWED_INVITATION_PREVIEW_TITLE,
+    description,
+    robots: { index: false, follow: false },
+    openGraph: {
+      title: WEWED_INVITATION_PREVIEW_TITLE,
+      description,
+      type: 'website',
+      siteName: 'Wewed',
+      images: [
+        {
+          url: '/invite/opengraph-image',
+          width: 1200,
+          height: 630,
+          alt: 'Wewed private wedding invitation',
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: WEWED_INVITATION_PREVIEW_TITLE,
+      description,
+      images: ['/invite/opengraph-image'],
+    },
+  }
 }
 
 export default async function InvitationOpenPage({ params }: Props) {
