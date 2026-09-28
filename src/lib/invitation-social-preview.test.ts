@@ -32,9 +32,11 @@ describe('invitation social preview trust surface', () => {
 
   test('preview copy identifies the wedding but not the invited person', () => {
     const page = source('src/app/invite/[slug]/open/page.tsx')
-    expect(page).toContain('wedding.title')
-    expect(page).toContain('wedding.date')
-    expect(page).toContain('Open your secure Wewed digital invitation and RSVP.')
+    const preview = source('src/lib/invitation-link-preview.ts')
+    expect(page).toContain('invitationPreviewDescription(wedding)')
+    expect(preview).toContain('wedding.title')
+    expect(preview).toContain('wedding.date')
+    expect(preview).toContain('Open your secure Wewed digital invitation and RSVP.')
     expect(page).not.toContain('guest.email')
     expect(page).not.toContain('guest.name')
   })
