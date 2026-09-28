@@ -1,3 +1,5 @@
+import { WEWED_BRAND_NAME, WEWED_BRAND_PAYOFF } from './wewed-brand'
+
 export type InvitationMotionPreset =
   | 'tri-fold'
   | 'envelope-letter'
@@ -94,6 +96,6 @@ export function buildDigitalInvitationMessage({ guestName, weddingTitle, invitat
     'With love,',
     weddingTitle,
     '',
-    'Wewed — where love lives forever.',
+    `${WEWED_BRAND_NAME} — ${WEWED_BRAND_PAYOFF}`,
   ].join('\\n')
 }
