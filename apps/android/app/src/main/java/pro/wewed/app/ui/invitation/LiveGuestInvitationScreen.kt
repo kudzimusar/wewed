@@ -293,7 +293,6 @@ private fun addWeddingToCalendar(
         )
         .putExtra(android.provider.CalendarContract.EXTRA_EVENT_ALL_DAY, true)
         .putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, day)
-        .putExtra(android.provider.CalendarContract.EXTRA_EVENT_END_TIME, day + 24 * 60 * 60 * 1000L)
     runCatching { context.startActivity(intent) }
 }
 
