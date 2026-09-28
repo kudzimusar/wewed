@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: Type deploy-wewed to confirm the production migration
+        description: Type deploy-wewed to migrate, or audit-wewed for a read-only production baseline audit
         required: true
         type: string
 
@@ -138,3 +138,247 @@ jobs:
           --from-url "$DATABASE_URL"
           --to-schema-datamodel prisma/schema.prisma
           --exit-code
+
+
+  audit-baseline:
+    name: Audit production migration baseline
+    if: ${{ inputs.confirmation == 'audit-wewed' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wewed_reference
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wewed_reference"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PROD_DATABASE_URL: ${{ secrets.WEWED_DATABASE_URL }}
+      REFERENCE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/wewed_reference
+
+    steps:
+      - name: Check out audit workflow ref
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Check out current main schema baseline
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          path: baseline-main
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.3.14
+
+      - name: Verify Wewed production target
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PROD_DATABASE_URL" || {
+            echo "::error::WEWED_DATABASE_URL is not configured"
+            exit 1
+          }
+          [[ "$PROD_DATABASE_URL" == *"kjigkhjdeymukwradoqu"* ]] || {
+            echo "::error::The database URL is not for the Wewed Supabase project"
+            exit 1
+          }
+          [[ "$PROD_DATABASE_URL" == *":5432/"* ]] || {
+            echo "::error::Use the Supabase session pooler on port 5432"
+            exit 1
+          }
+
+      - name: Install main dependencies
+        working-directory: baseline-main
+        run: bun install --frozen-lockfile
+
+      - name: Build clean reference database from current main migrations
+        working-directory: baseline-main
+        shell: bash
+        run: |
+          set -euo pipefail
+          DATABASE_URL="$REFERENCE_DATABASE_URL" DIRECT_URL="$REFERENCE_DATABASE_URL" \
+            bunx prisma migrate deploy --schema prisma/schema.prisma
+          DATABASE_URL="$REFERENCE_DATABASE_URL" DIRECT_URL="$REFERENCE_DATABASE_URL" \
+            bunx prisma migrate status --schema prisma/schema.prisma
+
+      - name: Inventory production Prisma ledger without changing it
+        id: ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p baseline-audit
+
+          psql "$PROD_DATABASE_URL" -AtF '|' -c \
+            "select migration_name, coalesce(finished_at::text,''), coalesce(rolled_back_at::text,''), applied_steps_count from public._prisma_migrations order by started_at" \
+            > baseline-audit/production-ledger.txt
+
+          psql "$PROD_DATABASE_URL" -Atqc \
+            "select migration_name from public._prisma_migrations where finished_at is not null and rolled_back_at is null order by migration_name" \
+            | sort -u > baseline-audit/applied.txt
+
+          psql "$PROD_DATABASE_URL" -Atqc \
+            "select migration_name from public._prisma_migrations where finished_at is null and rolled_back_at is null order by migration_name" \
+            | sort -u > baseline-audit/unresolved.txt
+
+          psql "$PROD_DATABASE_URL" -Atqc \
+            "select migration_name from public._prisma_migrations where rolled_back_at is not null order by migration_name" \
+            | sort -u > baseline-audit/rolled-back.txt
+
+          find baseline-main/prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' \
+            | sort -u > baseline-audit/repository-main.txt
+
+          comm -23 baseline-audit/repository-main.txt baseline-audit/applied.txt \
+            > baseline-audit/not-successfully-recorded.txt
+
+          echo "Main migrations: $(wc -l < baseline-audit/repository-main.txt | tr -d ' ')"
+          echo "Successfully recorded in production: $(wc -l < baseline-audit/applied.txt | tr -d ' ')"
+          echo "Not successfully recorded: $(wc -l < baseline-audit/not-successfully-recorded.txt | tr -d ' ')"
+          echo "Unresolved rows: $(wc -l < baseline-audit/unresolved.txt | tr -d ' ')"
+          echo "Rolled-back rows: $(wc -l < baseline-audit/rolled-back.txt | tr -d ' ')"
+
+          echo "::group::Unresolved ledger rows"
+          cat baseline-audit/unresolved.txt
+          echo "::endgroup::"
+
+          echo "::group::Rolled-back ledger rows"
+          cat baseline-audit/rolled-back.txt
+          echo "::endgroup::"
+
+      - name: Identify ledger-missing migrations with data-changing SQL
+        id: dml
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > baseline-audit/missing-with-dml.txt
+
+          while IFS= read -r migration_name; do
+            [[ -n "$migration_name" ]] || continue
+            migration_file="baseline-main/prisma/migrations/$migration_name/migration.sql"
+            [[ -f "$migration_file" ]] || continue
+
+            if grep -Eiq \
+              '(INSERT[[:space:]]+INTO|UPDATE[[:space:]]+[^;]*[[:space:]]+SET|DELETE[[:space:]]+FROM|TRUNCATE([[:space:]]+TABLE)?|COPY[[:space:]]+)' \
+              "$migration_file"; then
+              echo "$migration_name" >> baseline-audit/missing-with-dml.txt
+            fi
+          done < baseline-audit/not-successfully-recorded.txt
+
+          echo "::group::Ledger-missing migrations containing data-changing SQL"
+          if [[ -s baseline-audit/missing-with-dml.txt ]]; then
+            cat baseline-audit/missing-with-dml.txt
+          else
+            echo "(none detected)"
+          fi
+          echo "::endgroup::"
+
+          echo "count=$(wc -l < baseline-audit/missing-with-dml.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+
+      - name: Prisma structural diff production versus clean current-main reference
+        id: prisma_diff
+        working-directory: baseline-main
+        shell: bash
+        run: |
+          set +e
+          bunx prisma migrate diff \
+            --from-url "$PROD_DATABASE_URL" \
+            --to-url "$REFERENCE_DATABASE_URL" \
+            --exit-code \
+            > ../baseline-audit/prisma-diff.txt 2>&1
+          status=$?
+          set -e
+
+          cat ../baseline-audit/prisma-diff.txt
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+          if [[ "$status" == "1" ]]; then
+            echo "::error::Prisma migrate diff itself failed."
+          elif [[ "$status" == "2" ]]; then
+            echo "::warning::Prisma detected structural schema differences between production and clean current main."
+          fi
+
+      - name: Compare raw PostgreSQL schema including views functions triggers and policies
+        id: raw_diff
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm --network host \
+            -e PROD_DATABASE_URL="$PROD_DATABASE_URL" \
+            -v "$PWD/baseline-audit:/audit" \
+            postgres:17 sh -lc \
+            'pg_dump "$PROD_DATABASE_URL" --schema-only --no-owner --no-privileges --no-comments --schema=public --schema=wewed_admin --exclude-table=public._prisma_migrations > /audit/production-schema.sql'
+
+          docker run --rm --network host \
+            -e REFERENCE_DATABASE_URL="$REFERENCE_DATABASE_URL" \
+            -v "$PWD/baseline-audit:/audit" \
+            postgres:17 sh -lc \
+            'pg_dump "$REFERENCE_DATABASE_URL" --schema-only --no-owner --no-privileges --no-comments --schema=public --schema=wewed_admin --exclude-table=public._prisma_migrations > /audit/reference-schema.sql'
+
+          for name in production reference; do
+            sed -E \
+              -e '/^\\(un)?restrict /d' \
+              -e '/^-- Dumped from database version/d' \
+              -e '/^-- Dumped by pg_dump version/d' \
+              -e '/^-- Started on /d' \
+              -e '/^-- Completed on /d' \
+              "baseline-audit/${name}-schema.sql" \
+              > "baseline-audit/${name}-schema.normalized.sql"
+          done
+
+          set +e
+          diff -u \
+            baseline-audit/reference-schema.normalized.sql \
+            baseline-audit/production-schema.normalized.sql \
+            > baseline-audit/raw-schema.diff
+          status=$?
+          set -e
+
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          if [[ "$status" == "0" ]]; then
+            echo "Raw PostgreSQL schema matches the clean current-main reference."
+          elif [[ "$status" == "1" ]]; then
+            echo "::warning::Raw PostgreSQL schema differs from the clean current-main reference."
+            echo "::group::Raw schema diff (first 500 lines)"
+            sed -n '1,500p' baseline-audit/raw-schema.diff
+            echo "::endgroup::"
+          else
+            echo "::error::Raw schema comparison failed."
+          fi
+
+      - name: Baseline audit verdict
+        shell: bash
+        run: |
+          set -euo pipefail
+          prisma_status="${{ steps.prisma_diff.outputs.status }}"
+          raw_status="${{ steps.raw_diff.outputs.status }}"
+          dml_count="${{ steps.dml.outputs.count }}"
+
+          echo "### Production migration baseline audit" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Prisma structural diff status: $prisma_status (0 = equal, 2 = different)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Raw PostgreSQL schema diff status: $raw_status (0 = equal, 1 = different)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ledger-missing migrations containing data-changing SQL: $dml_count" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Production changes performed: **none**" >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$prisma_status" != "0" || "$raw_status" != "0" ]]; then
+            echo "::error::Production is not proven schema-equivalent to current main. Do not baseline the ledger."
+            exit 1
+          fi
+
+          if [[ "$dml_count" != "0" ]]; then
+            echo "::error::Schema matches, but one or more ledger-missing migrations contain data-changing SQL. Their intended data effects require explicit read-only verification before any migrate resolve."
+            exit 1
+          fi
+
+          echo "Production is schema-equivalent to current main and no ledger-missing DML was detected."
+          echo "This audit still performs no migrate resolve; ledger repair requires a separate approved action."
