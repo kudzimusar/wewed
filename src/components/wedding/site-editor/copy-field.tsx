@@ -6,7 +6,7 @@ import {
   localDraftKey,
   parseStoredLocalDraft,
   resolveLocalDraft,
-} from '@/lib/wedding-site/local-draft'
+} from '@/lib/wedding-site/browser-draft'
 
 type Stamped = { value: string; updatedAt: string } | null
 
