@@ -4,6 +4,13 @@ import { db } from '@/lib/db'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 import {
+  emptyInvitationDeliverySummary,
+  INVITATION_DELIVERY_CLEARED_ACTION,
+  INVITATION_DELIVERY_RESOURCE,
+  INVITATION_DELIVERY_SENT_ACTION,
+  summarizeInvitationDeliveryAudits,
+} from '@/lib/planner-invitation-delivery'
+import {
   invitationWeddingSelect,
   loadPlannerInvitationProjection,
   normalizeChildrenPolicy,
@@ -40,18 +47,36 @@ export async function GET(request: NextRequest) {
     if (!projection) {
       return privateJson({ success: false, error: 'Wedding not found.' }, 404)
     }
-    const { data } = projection
     const style = projection.wedding.invitationCardStyle
+    const deliveryAudits = await db.auditEvent.findMany({
+      where: {
+        weddingId: access.context.weddingId,
+        resourceType: INVITATION_DELIVERY_RESOURCE,
+        action: { in: [INVITATION_DELIVERY_SENT_ACTION, INVITATION_DELIVERY_CLEARED_ACTION] },
+      },
+      select: { action: true, resourceId: true, afterValue: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    })
+    const deliveryByGuest = summarizeInvitationDeliveryAudits(deliveryAudits)
+    const data = projection.data.map((row) => ({
+      ...row,
+      delivery: deliveryByGuest.get(row.id) ?? emptyInvitationDeliverySummary(),
+    }))
 
     if (request.nextUrl.searchParams.get('format') === 'csv') {
       const csv = [
-        'Name,Email,Phone,RSVP Status,Checked In,Table,Card Style,Digital Invitation URL,Share Message',
+        'Name,Email,Phone,RSVP Status,Delivery Status,Last Sent At,Sent Via,Sent To,Send Count,Checked In,Table,Card Style,Digital Invitation URL,Share Message',
         ...data.map((row) =>
           [
             csvCell(row.name),
             csvCell(row.email),
             csvCell(row.phone),
             csvCell(row.status),
+            csvCell(row.delivery.status),
+            csvCell(row.delivery.lastSentAt),
+            csvCell(row.delivery.channel),
+            csvCell(row.delivery.recipient),
+            csvCell(row.delivery.sentCount.toString()),
             csvCell(row.checkedIn ? 'yes' : 'no'),
             csvCell(row.tableNumber?.toString()),
             csvCell(style),
@@ -70,7 +95,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return privateJson({ success: true, ...projection })
+    return privateJson({ success: true, ...projection, data })
   } catch (error) {
     console.error('[guest invitations GET] Error:', error)
     return privateJson({ success: false, error: 'Unable to load invitation links.' }, 500)
