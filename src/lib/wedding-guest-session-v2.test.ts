@@ -2,12 +2,18 @@ import { afterEach, beforeEach, describe, expect, test, mock } from 'bun:test'
 import { createHmac } from 'node:crypto'
 mock.module('server-only', () => ({}))
 const originalSessionSecret = process.env.WEWED_SESSION_SECRET
+// These tests assert real-production rules, so they must not inherit the CI local-browser mode
+// (WEWED_E2E_MODE + CI + localhost DB), which deliberately relaxes them.
+const originalE2eMode = process.env.WEWED_E2E_MODE
 const { createWeddingGuestSessionToken, verifyWeddingGuestSessionToken, guestSessionMatchesInvitation, weddingGuestSessionExpiry } = await import('./wedding-guest-session')
 const identity = { weddingId: 'synthetic-wedding', guestId: 'synthetic-guest', rsvpToken: 'private-invitation-fixture' }
 beforeEach(() => {
   process.env.WEWED_SESSION_SECRET = 'synthetic-session-v2-unit-test-only'
+  delete process.env.WEWED_E2E_MODE
 })
 afterEach(() => {
+  if (originalE2eMode === undefined) delete process.env.WEWED_E2E_MODE
+  else process.env.WEWED_E2E_MODE = originalE2eMode
   if (originalSessionSecret === undefined) delete process.env.WEWED_SESSION_SECRET
   else process.env.WEWED_SESSION_SECRET = originalSessionSecret
 })
