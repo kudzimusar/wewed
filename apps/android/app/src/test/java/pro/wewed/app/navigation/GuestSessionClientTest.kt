@@ -692,7 +692,7 @@ class GuestSessionClientTest {
     }
 
     @Test
-    fun `browser handoff without guest authority fails and clears the session`() = runBlocking {
+    fun `feature-route 401 fails without erasing the active guest session`() = runBlocking {
         exchangeSucceeds("synthetic", "a", "Synthetic", guestASession)
         client.exchangePrivateInvitation("synthetic", rawToken)
         routes["POST /api/weddings/synthetic/guest-browser-handoff"] = Reply(401, """{"success":false}""")
@@ -702,6 +702,7 @@ class GuestSessionClientTest {
         } catch (error: GuestSessionException) {
             assertEquals(GuestSessionError.Unauthorized, error.error)
         }
-        assertFalse(client.hasActiveSession())
+        assertTrue("a route-local 401 must not sign the Guest out", client.hasActiveSession())
+        assertEquals("synthetic", client.activeSessionSlug())
     }
 }
