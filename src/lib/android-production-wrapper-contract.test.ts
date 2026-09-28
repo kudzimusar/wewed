@@ -46,7 +46,9 @@ describe('Google Play production authority (apps/android only)', () => {
     expect(workflow).toContain("EXPECTED_UPLOAD_CERT_SHA256='C3D856D782F642C6884D982552F567653E35D5DA1EABB112EF6FC0598E88658C'")
     expect(workflow).toContain('android:targetSdkVersion="36"')
     expect(workflow).toContain('package="pro.wewed.app"')
-    expect(workflow).toContain("if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')")
+    expect(workflow).toContain("if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/android-play-candidate-')")
+    // A candidate tag must point at a commit already on main or a release/ branch.
+    expect(workflow).toContain("grep -Eq 'origin/(main|release/)'")
     expect(workflow).toContain('ref: ${{ github.sha }}')
     expect(workflow).not.toContain('pull_request:')
     expect(workflow).not.toContain('upload-google-play')

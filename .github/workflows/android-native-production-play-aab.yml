@@ -17,6 +17,11 @@ on:
         description: 'Production versionName (no -uat/-dev suffix), e.g. 2.1.0'
         required: true
         type: string
+  # A deliberate candidate tag, e.g. android-play-candidate-11-2.2.0 (workflow_dispatch only works
+  # once this file is on the default branch). The tagged commit must be on main or a release/ branch.
+  push:
+    tags:
+      - 'android-play-candidate-*'
 
 permissions:
   contents: read
@@ -28,18 +33,16 @@ concurrency:
 jobs:
   signed-candidate:
     # Upload-key secrets may only be read by a deliberate run from main or a release branch.
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/android-play-candidate-')
     name: Build and verify signed apps/android production AAB (no Play publication)
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      WEWED_PLAY_VERSION_CODE: ${{ inputs.version_code }}
-      WEWED_PLAY_VERSION_NAME: ${{ inputs.version_name }}
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0
       - name: Verify exact candidate SHA
         shell: bash
         env:
@@ -49,10 +52,25 @@ jobs:
           actual="$(git rev-parse HEAD)"
           test "$actual" = "$EXPECTED_CANDIDATE_SHA"
           echo "apps/android production candidate SHA=$actual"
-      - name: Validate version inputs
+      - name: Resolve candidate version and provenance
         shell: bash
+        env:
+          INPUT_CODE: ${{ inputs.version_code }}
+          INPUT_NAME: ${{ inputs.version_name }}
         run: |
           set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/android-play-candidate-* ]]; then
+            tag="${GITHUB_REF#refs/tags/android-play-candidate-}"
+            WEWED_PLAY_VERSION_CODE="${tag%%-*}"
+            WEWED_PLAY_VERSION_NAME="${tag#*-}"
+            git fetch -q origin '+refs/heads/main:refs/remotes/origin/main' '+refs/heads/release/*:refs/remotes/origin/release/*'
+            git branch -r --contains "$GITHUB_SHA" | grep -Eq 'origin/(main|release/)' || { echo '::error::Candidate tag must point at a commit on main or a release/ branch'; exit 1; }
+          else
+            WEWED_PLAY_VERSION_CODE="$INPUT_CODE"
+            WEWED_PLAY_VERSION_NAME="$INPUT_NAME"
+          fi
+          echo "WEWED_PLAY_VERSION_CODE=$WEWED_PLAY_VERSION_CODE" >> "$GITHUB_ENV"
+          echo "WEWED_PLAY_VERSION_NAME=$WEWED_PLAY_VERSION_NAME" >> "$GITHUB_ENV"
           [[ "$WEWED_PLAY_VERSION_CODE" =~ ^[1-9][0-9]*$ ]] || { echo '::error::version_code must be a positive integer'; exit 1; }
           [[ "$WEWED_PLAY_VERSION_NAME" =~ ^[0-9]+(\.[0-9]+){1,3}$ ]] || { echo '::error::version_name must look like 2.1.0'; exit 1; }
       - name: Set up Bun
@@ -136,7 +154,7 @@ jobs:
       - name: Upload signed candidate (manual Play test-track upload only)
         uses: actions/upload-artifact@v4
         with:
-          name: wewed-android-native-play-aab-v${{ inputs.version_code }}
+          name: wewed-android-native-play-aab-v${{ env.WEWED_PLAY_VERSION_CODE }}
           path: |
             apps/android/app/build/outputs/bundle/release/app-release.aab
             apps/android/app/build/outputs/bundle/release/app-release.aab.sha256
