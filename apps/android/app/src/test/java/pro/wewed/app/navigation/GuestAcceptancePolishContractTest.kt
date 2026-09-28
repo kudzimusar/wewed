@@ -41,6 +41,8 @@ class GuestAcceptancePolishContractTest {
     fun emptyCoupleNoteHasNoDeadAffordanceAndTransientPassFailureCanRetry() {
         val ivory = source("pro/wewed/app/ui/invitation/ivory/IvoryFloralGoldNative.kt")
         assertTrue(ivory.contains("if (actions.onNote != null)"))
+        // The note card is baked into the artwork; hiding the text alone left a dead-looking card.
+        assertTrue(ivory.contains("else R.drawable.ivory_details_surface_no_note"))
         val shell = source("pro/wewed/app/ui/invitation/LiveGuestShell.kt")
         assertTrue(shell.contains("wedding-pass-retry"))
         assertTrue(shell.contains("Text(\"Try again\")"))

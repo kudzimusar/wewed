@@ -492,8 +492,13 @@ fun IvoryFloralGoldNative(
                         .matchParentSize()
                         .testTag("invitation-details")
                 ) {
+                    // The "A NOTE FROM US" card is part of the approved artwork. Without a couple
+                    // note it would still read as a dead action, so the note-free surface drops it.
                     Image(
-                        painter = painterResource(R.drawable.ivory_details_surface),
+                        painter = painterResource(
+                            if (actions.onNote != null) R.drawable.ivory_details_surface
+                            else R.drawable.ivory_details_surface_no_note
+                        ),
                         contentDescription = null,
                         contentScale = ContentScale.FillBounds,
                         modifier = Modifier.matchParentSize()
