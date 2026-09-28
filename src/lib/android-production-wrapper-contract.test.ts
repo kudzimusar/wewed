@@ -67,7 +67,9 @@ describe('production Android invitation wrapper contract', () => {
       'src/components/wedding/physical-invitation-entry.tsx',
     ]) {
       const component = source(path)
-      expect(component).toContain('Secure Android invitation handoff is not available yet.')
+      // QRO06/AT01: a disabled handoff never strands Android — both gates continue in the browser.
+      expect(component).not.toContain('Your private invitation remains locked')
+      expect(component).toContain('if (!deferredInstallEnabled)')
       expect(component).not.toContain('handoff is being prepared for this UAT build')
     }
   })

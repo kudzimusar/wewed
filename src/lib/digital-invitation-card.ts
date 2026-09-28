@@ -1,3 +1,5 @@
+import { WEWED_BRAND_NAME, WEWED_BRAND_PAYOFF } from './wewed-brand'
+
 export type InvitationMotionPreset =
   | 'tri-fold'
   | 'envelope-letter'
@@ -79,5 +81,21 @@ export function buildDigitalInvitationUrl({ siteUrl, weddingSlug, token, style }
 }
 
 export function buildDigitalInvitationMessage({ guestName, weddingTitle, invitationUrl }: { guestName: string; weddingTitle: string; invitationUrl: string }): string {
-  return `Dear ${guestName},\n\nYou are warmly invited to ${weddingTitle}. Open your private digital wedding card and RSVP here:\n${invitationUrl}\n\nThis link is personal to you. Please do not forward it.`
+  return [
+    `Dear ${guestName},`,
+    '',
+    `You’re warmly invited to celebrate ${weddingTitle} with us.`,
+    '',
+    'Open your private Wewed digital invitation and RSVP here:',
+    invitationUrl,
+    '',
+    'If you’re attending, Wewed will keep your invitation connected to your guest profile and make your Wedding Pass available when venue admission opens closer to the wedding.',
+    '',
+    'This link is personal to you. Please don’t forward or share it with anyone else.',
+    '',
+    'With love,',
+    weddingTitle,
+    '',
+    `${WEWED_BRAND_NAME} — ${WEWED_BRAND_PAYOFF}`,
+  ].join('\n')
 }

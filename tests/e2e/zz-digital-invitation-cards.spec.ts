@@ -105,9 +105,11 @@ test('couples design, save, export and deliver guest-specific digital invitation
   expect(guestInvitation.invitationUrl).not.toContain(
     `/w/${E2E_WEDDINGS.primary.slug}?rsvp=`,
   )
-  expect(guestInvitation.invitationUrl).toContain('card=editorial')
+  // The wedding's saved style is authoritative; new personal links carry no card id.
+  expect(guestInvitation.invitationUrl).not.toContain('card=')
   expect(guestInvitation.qrValue).toBe(guestInvitation.invitationUrl)
-  expect(guestInvitation.shareMessage).toContain('private digital wedding card')
+  expect(guestInvitation.shareMessage).toContain('Open your private Wewed digital invitation and RSVP here:')
+  expect(guestInvitation.shareMessage.split(guestInvitation.invitationUrl)).toHaveLength(2)
   expect(guestInvitation.shareMessage).toContain(guestInvitation.invitationUrl)
 
   const csv = await page.request.get('/api/planner/guests/invitations?format=csv')
@@ -141,7 +143,7 @@ test('couples design, save, export and deliver guest-specific digital invitation
   expect(deliveredPreview.invitationUrl).not.toContain(
     `/w/${E2E_WEDDINGS.primary.slug}?rsvp=`,
   )
-  expect(deliveredPreview.invitationUrl).toContain('card=editorial')
+  expect(deliveredPreview.invitationUrl).not.toContain('card=')
   expect(deliveredPreview.body).toContain(deliveredPreview.invitationUrl)
   expect(deliveredPreview.html).toContain('Open card &amp; RSVP')
   expect(deliveredPreview.html).toContain(deliveredPreview.invitationUrl.replaceAll('&', '&amp;'))

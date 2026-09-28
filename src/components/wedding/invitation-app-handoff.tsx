@@ -29,7 +29,6 @@ type ClientPlatform = 'checking' | 'android' | 'ios' | 'web'
 
 const INSTALL_PREPARATION_TIMEOUT_MS = 20_000
 const GOOGLE_PLAY_BADGE = 'https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png'
-const APP_STORE_BADGE = 'https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg'
 const APPLE_MOBILE_RE = /iPad|iPhone|iPod/i
 
 function isAppleMobileClient() {
@@ -66,6 +65,18 @@ export function InvitationAppHandoff({
 
     const androidClient = /Android/i.test(navigator.userAgent)
     if (androidClient) {
+      // A valid personal invitation must never dead-end merely because the native
+      // deferred-install transport is not enabled yet. The token has already been
+      // exchanged into the short-lived pending-invitation cookie by /invite/[slug],
+      // so continuing here revalidates that cookie server-side, issues the normal
+      // Guest Session and reveals the wedding's saved digital invitation without
+      // putting the RSVP credential back in a URL.
+      //
+      // When native handoff IS enabled, preserve the Play/native path below.
+      if (!deferredInstallEnabled) {
+        window.location.replace(continueInBrowser)
+        return
+      }
       setPlatform('android')
     } else if (isAppleMobileClient()) {
       setPlatform('ios')
@@ -101,7 +112,7 @@ export function InvitationAppHandoff({
         if (!cancelled) setChecking(false)
       })
     return () => { cancelled = true }
-  }, [continueInApp])
+  }, [continueInApp, continueInBrowser, deferredInstallEnabled])
 
   async function prepareSecureHandoff() {
     if (
@@ -210,18 +221,8 @@ export function InvitationAppHandoff({
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#c8a56b]">Wewed · Private invitation</p>
           <h1 className="mt-3 font-serif text-3xl leading-tight">Your invitation is ready</h1>
           <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-[#d6cec5]">
-            Wewed for iPhone is coming soon. For now, continue {weddingTitle} securely in your browser.
+            Continue {weddingTitle} securely in your browser. A direct App Store handoff is not configured for this invitation yet.
           </p>
-
-          <p className="mt-6 text-xs font-semibold uppercase tracking-[0.2em] text-[#d8b477]">Coming Soon</p>
-          <button
-            type="button"
-            onClick={() => window.location.assign(continueInBrowser)}
-            aria-label="App Store coming soon — continue invitation in browser"
-            className="mx-auto mt-2 inline-flex items-center justify-center rounded-lg bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8b477]"
-          >
-            <img src={APP_STORE_BADGE} alt="Download on the App Store" width={196} height={66} className="h-12 w-auto max-w-full" />
-          </button>
           <button
             type="button"
             onClick={() => window.location.assign(continueInBrowser)}
@@ -230,7 +231,7 @@ export function InvitationAppHandoff({
             Continue in browser
           </button>
           <p className="mt-4 text-xs leading-5 text-[#9f958a]">
-            Your private invitation stays with Wewed while the iPhone app is being prepared.
+            Your private invitation remains with Wewed. Browser continuation stays available until an authoritative App Store destination is configured.
           </p>
         </section>
       </main>
@@ -289,12 +290,6 @@ export function InvitationAppHandoff({
             )
           ) : null}
 
-          {!deferredInstallEnabled && platform === 'android' && !checking && (
-            <p role="alert" className="rounded-2xl border border-[#c97866]/50 bg-[#3a201c] px-4 py-3 text-sm leading-6 text-[#f3d8d1]">
-              Secure Android invitation handoff is not available yet. Your private invitation remains locked until the production Wewed release is available.
-            </p>
-          )}
-
           {handoffError && (
             <>
               <p role="alert" className="rounded-2xl border border-[#c97866]/50 bg-[#3a201c] px-4 py-3 text-sm leading-6 text-[#f3d8d1]">
@@ -312,10 +307,18 @@ export function InvitationAppHandoff({
               </button>
             </>
           )}
+
+          <a
+            data-testid="android-continue-in-browser"
+            href={continueInBrowser}
+            className="flex min-h-12 w-full items-center justify-center rounded-2xl border border-[#b89155]/35 px-5 py-3 text-sm font-semibold text-[#d6cec5]"
+          >
+            Continue in browser instead
+          </a>
         </div>
 
         <p className="mt-5 text-center text-xs leading-5 text-[#9f958a]">
-          On Android the invitation is revealed only inside Wewed. Google Play receives only a temporary one-time handoff, never the RSVP token or guest details.
+          Wewed is preferred on Android. Google Play receives only a temporary one-time handoff, never the RSVP token or guest details; secure browser continuation remains available as a secondary option.
         </p>
       </section>
     </main>

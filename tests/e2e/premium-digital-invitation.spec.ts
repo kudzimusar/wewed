@@ -223,17 +223,17 @@ test('physical invitation access remains shared and never becomes a personal gue
   })
 })
 
-test('Android mobile gate remains within the viewport and keeps Ivory concealed @mobile', async ({ plannerPage: page }) => {
+test('Android without a configured native handoff continues to the invitation in the browser @mobile', async ({ plannerPage: page }) => {
+  // QRO06: a disabled Android handoff must never strand the guest on a gate (the Android Chrome
+  // blocker). The browser continuation opens the personal invitation without leaking the token.
   await enablePersonalInvitationFixture()
   await page.context().clearCookies()
 
   const token = `${E2E_WEDDINGS.primary.slug}-rsvp-token`
   await page.goto(`/invite/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`)
-  await expect(page).toHaveURL(new RegExp(`/invite/${E2E_WEDDINGS.primary.slug}/open`))
+  await expect(page).toHaveURL(new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1`))
   expect(page.url()).not.toContain(token)
-
-  await expect(page.getByTestId('personal-invitation-android-gate')).toBeVisible()
-  await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
-  await expect(page.getByRole('link', { name: /^(Open wedding invitation|Continue to invitation in browser)$/ })).toHaveCount(0)
+  await expect(page.getByTestId('personal-invitation-android-gate')).toHaveCount(0)
+  await expect(page.getByTestId('premium-invitation-experience')).toBeVisible()
   await expectNoDocumentOverflow(page)
 })
