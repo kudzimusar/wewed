@@ -82,8 +82,9 @@ describe('Google Play production authority (apps/android only)', () => {
       'src/components/wedding/physical-invitation-entry.tsx',
     ]) {
       const component = source(path)
-      // QRO06: a disabled handoff no longer strands Android — both gates continue in the browser.
+      // QRO06/AT01: a disabled handoff never strands Android — both gates continue in the browser.
       expect(component).not.toContain('Your private invitation remains locked')
+      expect(component).toContain('if (!deferredInstallEnabled)')
       expect(component).not.toContain('handoff is being prepared for this UAT build')
     }
   })
