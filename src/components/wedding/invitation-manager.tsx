@@ -157,7 +157,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
         // shareMessage already contains the one personal invitation URL. Passing
         // the URL again separately can make some share targets duplicate it.
         await navigator.share({
-          title: wedding?.title || 'Wedding invitation',
+          title: wedding?.title ? `Wewed · ${wedding.title}` : 'Wewed · Private wedding invitation',
           text: row.shareMessage,
         })
         return
