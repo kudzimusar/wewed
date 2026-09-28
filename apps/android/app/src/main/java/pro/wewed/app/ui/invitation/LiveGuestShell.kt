@@ -860,9 +860,13 @@ private fun formatWeddingDate(raw: String?): String {
 private fun LiveIssuedGuestPass(profile: LiveInvitationPresentation, coordinator: LiveGuestInvitationCoordinator) {
     var pass by remember(profile.guestId) { mutableStateOf<pro.wewed.app.models.WeddingPass?>(null) }
     var failed by remember(profile.guestId) { mutableStateOf(false) }
+    var retryNonce by remember(profile.guestId) { mutableStateOf(0) }
     // LQR01: the server's availability state, when it named one, so the Guest is told why.
     var availability by remember(profile.guestId) { mutableStateOf<pro.wewed.app.models.WeddingPassAvailability?>(null) }
-    LaunchedEffect(profile.guestId) {
+    LaunchedEffect(profile.guestId, retryNonce) {
+        pass = null
+        failed = false
+        availability = null
         try { pass = coordinator.weddingPass(profile.guestId) }
         catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (error: GuestSessionException) {
@@ -874,10 +878,18 @@ private fun LiveIssuedGuestPass(profile: LiveInvitationPresentation, coordinator
     if (pass != null) pro.wewed.app.ui.pass.WeddingReferencePassScreen(onOpenScanner = {}, providedPass = pass, showScanner = false)
     else if (failed) Column(
         modifier = Modifier.padding(20.dp).testTag(WeddingPassAvailabilityCopy.testTag(availability)),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text(WeddingPassAvailabilityCopy.message(availability))
         availability?.let { WeddingPassAvailabilityCopy.availableFrom(it) }?.let { Text(it) }
+        if (availability == null) {
+            OutlinedButton(
+                onClick = { retryNonce += 1 },
+                modifier = Modifier.testTag("wedding-pass-retry")
+            ) {
+                Text("Try again")
+            }
+        }
     }
     else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
 }
