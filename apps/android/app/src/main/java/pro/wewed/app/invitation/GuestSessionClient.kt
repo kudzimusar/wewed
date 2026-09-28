@@ -323,7 +323,8 @@ class GuestSessionClient(
             method = "GET",
             path = "/api/weddings/${encode(target)}/guest-session",
             body = null,
-            withSession = true
+            withSession = true,
+            clearSessionOnUnauthorized = true
         )
         if (status == 401) throw GuestSessionException(GuestSessionError.Unauthorized)
         if (status != 200 || payload == null) {
@@ -527,7 +528,8 @@ class GuestSessionClient(
         path: String,
         body: String?,
         withSession: Boolean,
-        followRedirects: Boolean = true
+        followRedirects: Boolean = true,
+        clearSessionOnUnauthorized: Boolean = false
     ): Response {
         // Transport failures are converted here rather than allowed to escape.
         //
@@ -536,7 +538,7 @@ class GuestSessionClient(
         // couldn't reach Wewed". The Unavailable state existed and was unreachable for the most
         // common failure there is.
         return try {
-            perform(method, path, body, withSession, followRedirects)
+            perform(method, path, body, withSession, followRedirects, clearSessionOnUnauthorized)
         } catch (error: java.io.IOException) {
             Response(status = -1, body = null, issuedSession = null)
         } catch (error: SecurityException) {
@@ -549,7 +551,8 @@ class GuestSessionClient(
         path: String,
         body: String?,
         withSession: Boolean,
-        followRedirects: Boolean
+        followRedirects: Boolean,
+        clearSessionOnUnauthorized: Boolean
     ): Response {
         val requestUrl = baseUrl.trimEnd('/') + path
         val connection = URL(requestUrl).openConnection() as HttpURLConnection
@@ -588,7 +591,9 @@ class GuestSessionClient(
                 if (secureStorage.get(STORED_SESSION) != sentSession) {
                     throw GuestSessionException(GuestSessionError.Unauthorized)
                 }
-                if (status == 401) clearSession()
+                // Feature routes can return 401 for route-local policy or rollout mismatch.
+                // Only the canonical guest-session identity read may revoke this device's Guest.
+                if (status == 401 && clearSessionOnUnauthorized) clearSession()
                 else if (status in 200..299 && refreshed != null) secureStorage.save(STORED_SESSION, refreshed)
             }
             return Response(
