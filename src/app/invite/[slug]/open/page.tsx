@@ -47,7 +47,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       siteName: 'Wewed',
       images: [
         {
-          url: '/invite/opengraph-image',
+          url: '/og/wewed-private-invitation.png',
           width: 1200,
           height: 630,
           alt: 'Wewed private wedding invitation',
@@ -58,7 +58,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       card: 'summary_large_image',
       title: WEWED_INVITATION_PREVIEW_TITLE,
       description,
-      images: ['/invite/opengraph-image'],
+      images: ['/og/wewed-private-invitation.png'],
     },
   }
 }
