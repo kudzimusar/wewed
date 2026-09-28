@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { InvitationAppHandoff } from '@/components/wedding/invitation-app-handoff'
 import { db } from '@/lib/db'
 import { WEWED_BRAND_PAYOFF, WEWED_INVITATION_PREVIEW_TITLE } from '@/lib/wewed-brand'
+import { invitationPreviewDescription } from '@/lib/invitation-link-preview'
 import {
   PENDING_INVITATION_COOKIE,
   verifyPendingInvitationToken,
@@ -28,13 +29,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     }
   }
 
-  const date = new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(wedding.date)
-  const description = `${wedding.title} · ${date}. Open your secure Wewed digital invitation and RSVP.`
+  const description = invitationPreviewDescription(wedding)
 
   return {
     title: WEWED_INVITATION_PREVIEW_TITLE,
