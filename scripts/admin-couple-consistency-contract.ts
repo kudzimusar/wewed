@@ -41,10 +41,10 @@ const weddingHome = includesAll('src/components/wedding/wedding-home.tsx', [
   '<Navbar',
   'showMyWedding={showMyWedding}',
   'onMyWedding={reopenInvitation}',
-  "const isCoupleOwner = accessKind === 'couple_owner' && viewerRole === 'couple'",
   "const canContribute = accessKind !== 'public' && accessKind !== null",
-  '{canContribute && <MediaUpload />}',
-  '<LiveWall canPost={canContribute} />',
+  '{canContribute ? <MediaUpload /> : null}',
+  // QRO07: owner affordances come only from the server-resolved content.edit decision.
+  '{canEditSite ? (',
   '<GlobalWeddingTools accessKind={accessKind} viewerRole={viewerRole} />',
 ])
 assert.ok(
@@ -61,8 +61,8 @@ assert.equal(
   'The canonical wedding experience must mount one role-aware utility bundle.',
 )
 assert.ok(
-  weddingHome.includes('{isCoupleOwner && <PlannerMarketplaceInvitation />}'),
-  'Planner marketplace owner controls must remain couple-owner only.',
+  !weddingHome.includes('PlannerMarketplaceInvitation'),
+  'QRO07: marketplace promotion is not part of the guest wedding website.',
 )
 
 const globalTools = includesAll('src/components/wedding/global-wedding-tools.tsx', [
