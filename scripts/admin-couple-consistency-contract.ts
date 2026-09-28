@@ -154,17 +154,21 @@ const plannerGuests = includesAll('src/app/api/planner/guests/route.ts', [
 ])
 assert.ok(plannerGuests.includes('where: { weddingId: access.context.weddingId }'), 'Planner guests must remain scoped to the active wedding.')
 
+// The desktop and native Planner invitation routes share one projection (planner-invitation-projection).
 const invitations = includesAll('src/app/api/planner/guests/invitations/route.ts', [
   "requireWeddingPermission(request, 'guests.view')",
+  'db.rSVP.createMany',
+  'guestId: guest.id',
+  'access.context.weddingId',
+])
+const invitationProjection = includesAll('src/lib/planner-invitation-projection.ts', [
   'db.guest.findMany',
   'include: { rsvp: { select: { token: true, attending: true, checkedIn: true } } }',
   'id: guest.id',
   'token: guest.rsvp.token',
   'qrValue: invitationUrl',
-  'db.rSVP.createMany',
-  'guestId: guest.id',
 ])
-assert.ok(invitations.includes('where: { weddingId: access.context.weddingId }'), 'Invitation rows must be sourced from the same active-wedding Guest records.')
+assert.ok(invitationProjection.includes('where: { weddingId }'), 'Invitation rows must be sourced from the same active-wedding Guest records.')
 
 includesAll('src/app/api/weddings/[slug]/guest-session/exchange/route.ts', [
   'db.rSVP.findUnique',
@@ -178,9 +182,14 @@ includesAll('src/app/api/weddings/[slug]/guest-session/route.ts', [
   'guest: {',
   'id: guest.id',
   'rsvp: {',
-  'where: { token: guest.rsvpToken }',
+  'applyGuestRsvpUpdate({',
+  'rsvpToken: guest.rsvpToken,',
+])
+// The Guest Session RSVP write is the shared, token-scoped mutation also used by /api/rsvp.
+includesAll('src/lib/guest-rsvp-mutation.ts', [
+  'where: { token: rsvpToken }',
   'data,',
-  'select:',
+  'select: GUEST_RSVP_SELECT',
 ])
 
 const plannerCss = includesAll('src/app/planner/planner-responsive.css', [

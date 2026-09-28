@@ -74,8 +74,12 @@ describe('native account session (identity only, master plan Phase 5)', () => {
     const origEnv = process.env.NODE_ENV
     const origSecret = process.env.WEWED_SESSION_SECRET
     const origSupa = process.env.SUPABASE_SERVICE_ROLE_KEY
+    // The local CI browser mode (WEWED_E2E_MODE + CI + localhost DB) deliberately relaxes the
+    // production rule; this test asserts real production, so it must not inherit that mode.
+    const origE2e = process.env.WEWED_E2E_MODE
     try {
       process.env.NODE_ENV = 'production'
+      delete process.env.WEWED_E2E_MODE
       delete process.env.WEWED_SESSION_SECRET
       process.env.SUPABASE_SERVICE_ROLE_KEY = 'supabase-fallback-secret'
       expect(() => createNativeAccountSessionToken(identity)).toThrow(
@@ -83,6 +87,8 @@ describe('native account session (identity only, master plan Phase 5)', () => {
       )
     } finally {
       process.env.NODE_ENV = origEnv
+      if (origE2e === undefined) delete process.env.WEWED_E2E_MODE
+      else process.env.WEWED_E2E_MODE = origE2e
       process.env.WEWED_SESSION_SECRET = origSecret
       if (origSupa) process.env.SUPABASE_SERVICE_ROLE_KEY = origSupa
       else delete process.env.SUPABASE_SERVICE_ROLE_KEY

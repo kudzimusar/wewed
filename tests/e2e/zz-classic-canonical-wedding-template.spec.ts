@@ -60,40 +60,22 @@ async function expectClassicTemplate(
   await expect(main).not.toContainText('Partner Two')
   await expect(main).not.toContainText('Add your venue')
 
-  for (const marker of [
-    'wedding-party',
-    'travel-stay',
-    'gift-registry',
-    'gallery',
-    'media-upload',
-    'memory-capsule',
-    'live-wall',
-    'vendor-marketplace',
-    'platform-vision',
-  ]) {
-    await expect(page.locator(`[data-classic-section="${marker}"]`)).toBeAttached()
+  // QRO07: the canonical site renders the wedding's own data only — no example, marketing or
+  // fabricated sections — and owner affordances come from the server-resolved content.edit.
+  await expect(page.locator('#home')).toContainText(identity.partner1)
+  await expect(page.locator('#venue')).toContainText(identity.venue)
+  await expect(page.locator('#theday')).toBeAttached()
+  await expect(page.locator('[data-classic-section="media-upload"]')).toBeAttached()
+  for (const removed of ['memory-capsule', 'live-wall', 'vendor-marketplace', 'platform-vision']) {
+    await expect(page.locator(`[data-classic-section="${removed}"]`)).toHaveCount(0)
   }
-
-  const capsule = page.locator('[data-classic-section="memory-capsule"]')
-  const record = capsule.getByRole('button', { name: 'Start recording your message' })
-  await record.scrollIntoViewIfNeeded()
-  await expect(record).toBeVisible()
-  await record.click()
-  await expect(capsule.getByText('Recording', { exact: true })).toBeVisible()
-  await expect(capsule.getByRole('button', { name: 'Cancel' })).toBeVisible()
-  await capsule.getByRole('button', { name: 'Cancel' }).click()
-  await expect(record).toBeVisible()
-
-  const gallery = page.locator('[data-classic-section="gallery"]')
-  await expect(gallery.getByText('The Gallery', { exact: true })).toBeVisible()
-  await expect(gallery.getByRole('button', { name: 'All', exact: true })).toBeVisible()
-  await expect(gallery.getByRole('button', { name: 'Ceremony', exact: true })).toBeVisible()
-
-  const vendors = page.locator('[data-classic-section="vendor-marketplace"]')
-  await expect(vendors.getByRole('link', { name: /Apply as Vendor/i })).toBeVisible()
+  for (const fabricated of ['Example', 'Apply as Vendor', 'Find a Planner', 'Forever has begun', 'Lorem']) {
+    await expect(main).not.toContainText(fabricated)
+  }
+  await expect(page.getByTestId('site-editor-entry')).toBeVisible()
 }
 
-test('classic premium renderer survives database canonicalization for two isolated weddings', async ({ page }) => {
+test('the canonical wedding site renders each wedding\'s own data for two isolated weddings', async ({ page }) => {
   await resetUnifiedNavigationFixture()
   const errors = runtimeErrors(page)
 

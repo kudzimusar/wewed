@@ -107,7 +107,7 @@ test('couples design, save, export and deliver guest-specific digital invitation
   )
   expect(guestInvitation.invitationUrl).toContain('card=editorial')
   expect(guestInvitation.qrValue).toBe(guestInvitation.invitationUrl)
-  expect(guestInvitation.shareMessage).toContain('private digital wedding card')
+  expect(guestInvitation.shareMessage).toContain('private digital wedding invitation')
   expect(guestInvitation.shareMessage).toContain(guestInvitation.invitationUrl)
 
   const csv = await page.request.get('/api/planner/guests/invitations?format=csv')
