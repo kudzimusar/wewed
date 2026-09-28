@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { readWeddingDayGuestContext } from '@/lib/wedding-day'
-import { loadPublishedAnnouncements } from '@/lib/wedding-site/server'
+import { loadPublicSiteStructure, loadPublishedAnnouncements } from '@/lib/wedding-site/server'
+import { programmeIsPublic } from '@/lib/wedding-site/model'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,7 +55,9 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const programme = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
+  // Guests see the same programme the website shows: nothing while the couple keeps it unpublished.
+  const siteStructure = await loadPublicSiteStructure(context.weddingId)
+  const programme = !programmeIsPublic(siteStructure.sections) ? [] : await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
     `SELECT id, time, title, description, location, "order"
        FROM public."ProgrammeItem"
       WHERE "weddingId" = $1

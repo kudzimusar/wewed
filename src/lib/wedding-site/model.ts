@@ -96,6 +96,23 @@ export interface PublicSiteSection {
   enabled: boolean
   order: number
   layoutVariant: string | null
+  settings: SiteSectionSettings
+}
+
+/** Per-section options. Absent keys mean the default. */
+export interface SiteSectionSettings {
+  /** theday: show ProgrammeItem rows to guests (default true). */
+  showProgramme?: boolean
+}
+
+export function parseSectionSettings(value: unknown): SiteSectionSettings {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const raw = value as Record<string, unknown>
+  return typeof raw.showProgramme === 'boolean' ? { showProgramme: raw.showProgramme } : {}
+}
+
+export function programmeIsPublic(sections: PublicSiteSection[]): boolean {
+  return sections.find((section) => section.key === 'theday')?.settings.showProgramme !== false
 }
 
 export interface PublicSiteItem {
@@ -148,7 +165,7 @@ export function defaultSectionOrder(key: SiteSectionKey): number {
 
 /** Merge stored section rows over defaults so every key is present, then sort. */
 export function resolveSections(
-  rows: Array<{ key: string; enabled: boolean; order: number; layoutVariant: string | null }>,
+  rows: Array<{ key: string; enabled: boolean; order: number; layoutVariant: string | null; settings?: unknown }>,
 ): PublicSiteSection[] {
   const byKey = new Map(rows.filter((row) => isSiteSectionKey(row.key)).map((row) => [row.key, row]))
   return SITE_SECTION_KEYS.map((key) => {
@@ -158,6 +175,7 @@ export function resolveSections(
       enabled: row ? row.enabled : true,
       order: row ? row.order : defaultSectionOrder(key),
       layoutVariant: row?.layoutVariant ?? null,
+      settings: parseSectionSettings(row?.settings),
     }
   }).sort((a, b) => (a.order === b.order ? SITE_SECTION_KEYS.indexOf(a.key) - SITE_SECTION_KEYS.indexOf(b.key) : a.order - b.order))
 }

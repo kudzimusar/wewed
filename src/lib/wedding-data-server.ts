@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { db } from '@/lib/db'
-import { isPublicScalarField } from '@/lib/wedding-site/model'
+import { isPublicScalarField, programmeIsPublic } from '@/lib/wedding-site/model'
 import { loadPublicSiteStructure, loadPublishedAnnouncements } from '@/lib/wedding-site/server'
 import type {
   WeddingContent,
@@ -119,7 +119,8 @@ export async function loadWeddingDataBySlug(slug: string): Promise<WeddingData |
     content,
     contentMeta,
     ordered,
-    programmeItems: wedding.programmeItems.map((item) => ({
+    // The couple/planner can keep an unconfirmed programme off the guest site (theday.showProgramme).
+    programmeItems: (programmeIsPublic(site.sections) ? wedding.programmeItems : []).map((item) => ({
       ...item,
     })),
     songs: wedding.songs.map((song) => ({

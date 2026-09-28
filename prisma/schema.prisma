@@ -1212,6 +1212,8 @@ model WeddingSiteSection {
   enabled       Boolean           @default(true)
   order         Int               @default(0)
   layoutVariant String?
+  /// Per-section options, e.g. theday: { showProgramme: false }.
+  settings      Json?
   items         WeddingSiteItem[]
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt

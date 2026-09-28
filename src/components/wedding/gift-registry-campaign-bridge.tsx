@@ -128,7 +128,17 @@ export function GiftRegistryCampaignBridge() {
   if (payload.campaigns.length === 0) {
     // QRO07: without campaigns, only the couple's own published registry cards are shown.
     const cards = context?.siteItems('gifts') ?? []
-    if (!cards.length) return null
+    if (!cards.length) {
+      // Keeps the invitation's Gifts link landing somewhere honest; nothing is invented.
+      return (
+        <section id="registry" data-registry-configured="none" data-testid="contributions-none-state" className="wewed-section bg-champagne py-16 md:py-24">
+          <div className="mx-auto max-w-2xl px-4 text-center">
+            <p className="font-sans text-[10px] uppercase tracking-[0.24em] text-gold-muted">Gifts</p>
+            <p className="mt-3 font-serif text-xl font-light text-espresso">The couple hasn&apos;t shared gift or contribution details.</p>
+          </div>
+        </section>
+      )
+    }
     return (
       <section id="registry" data-registry-configured="cards" className="wewed-section bg-champagne py-20 md:py-32">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">

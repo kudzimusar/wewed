@@ -259,6 +259,30 @@ export function SiteEditor({ slug, initial }: { slug: string; initial: EditorSit
                 </span>
               </div>
               {note ? <p className="mt-1 font-sans text-sm text-espresso/60">{note}</p> : null}
+              {section.key === 'theday' ? (
+                <label className="mt-4 flex min-h-11 items-center gap-3 font-sans text-sm text-espresso">
+                  <input
+                    type="checkbox"
+                    checked={section.settings.showProgramme !== false}
+                    disabled={busy}
+                    onChange={async (event) => {
+                      const showProgramme = event.target.checked
+                      setBusy(true)
+                      try {
+                        await editorRequest(slug, '/site/sections', { method: 'PATCH', body: { sections: [{ key: 'theday', settings: { ...section.settings, showProgramme } }] } })
+                        setStatus(showProgramme ? 'The programme is now shown to guests on the website and in the apps.' : 'The programme is hidden from guests until you show it again.')
+                        await refresh()
+                      } catch (error) {
+                        setStatus(error instanceof Error ? error.message : 'Something went wrong.')
+                      } finally {
+                        setBusy(false)
+                      }
+                    }}
+                    className="h-4 w-4 accent-[#8b6f47]"
+                  />
+                  Show the programme to guests (website and Wedding Day in the apps)
+                </label>
+              ) : null}
               {copy.length ? <div className="mt-5 grid gap-3">{renderCopy(copy)}</div> : null}
               {kinds.length ? (
                 <div className="mt-6">

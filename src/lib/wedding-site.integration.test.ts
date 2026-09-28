@@ -177,6 +177,28 @@ describeLocal('QRO07 wedding-website authority', () => {
     expect((await loadWeddingDataBySlug(w.A))!.site.items.faq ?? []).toHaveLength(0)
   })
 
+  test('an unconfirmed programme can be kept off the guest site without touching planner data', async () => {
+    const { PATCH } = await import('@/app/api/weddings/[slug]/site/sections/route')
+    const row = await db.programmeItem.create({ data: { weddingId: w.A, time: '14:00', title: 'Ceremony', order: 0 } })
+    expect((await loadWeddingDataBySlug(w.A))!.programmeItems.map((item) => item.id)).toContain(row.id)
+    const patch = (userId: string, weddingId: string, body: unknown) =>
+      PATCH(req('PATCH', `/api/weddings/${w.A}/site/sections`, userId, weddingId, body), params({ slug: w.A }))
+    expect((await patch(u.coordinator, w.A, { sections: [{ key: 'theday', settings: { showProgramme: false } }] })).status).toBe(403)
+    expect((await patch(u.planner, w.A, { sections: [{ key: 'theday', settings: { showProgramme: 'no' } }] })).status).toBe(400)
+    expect((await patch(u.planner, w.A, { sections: [{ key: 'theday', settings: { showProgramme: false } }] })).status).toBe(200)
+    const hidden = await loadWeddingDataBySlug(w.A)
+    expect(hidden!.programmeItems).toEqual([])
+    expect(hidden!.site.sections.find((section) => section.key === 'theday')?.settings.showProgramme).toBe(false)
+    // Planner data is untouched.
+    expect(await db.programmeItem.count({ where: { id: row.id } })).toBe(1)
+    // Reordering/enabling sections later never silently re-publishes it.
+    expect((await patch(u.planner, w.A, { sections: [{ key: 'theday', enabled: true, order: 30 }] })).status).toBe(200)
+    expect((await loadWeddingDataBySlug(w.A))!.programmeItems).toEqual([])
+    expect((await patch(u.planner, w.A, { sections: [{ key: 'theday', settings: { showProgramme: true } }] })).status).toBe(200)
+    expect((await loadWeddingDataBySlug(w.A))!.programmeItems.map((item) => item.id)).toContain(row.id)
+    await db.programmeItem.delete({ where: { id: row.id } })
+  })
+
   test('disabling a section hides its published items from Guests', async () => {
     const item = await site.createItem(w.A, { kind: 'story_milestone', title: 'We met', enabled: true })
     expect((await loadWeddingDataBySlug(w.A))!.site.items.story?.map((i) => i.id)).toContain(item.id)

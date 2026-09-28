@@ -1,6 +1,6 @@
 import 'server-only'
 
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { mapsToWeddingField, syncWeddingField } from '@/lib/content/wedding-fields'
 import {
@@ -11,6 +11,7 @@ import {
   isSiteItemKind,
   isSiteSectionKey,
   resolveSections,
+  parseSectionSettings,
   type AnnouncementAudience,
   type AnnouncementStatus,
   type EditorAnnouncement,
@@ -122,7 +123,7 @@ export async function loadPublicSiteStructure(weddingId: string, client: Pick<ty
   const [sectionRows, itemRows] = await Promise.all([
     client.weddingSiteSection.findMany({
       where: { weddingId },
-      select: { key: true, enabled: true, order: true, layoutVariant: true },
+      select: { key: true, enabled: true, order: true, layoutVariant: true, settings: true },
     }),
     client.weddingSiteItem.findMany({
       where: { weddingId, enabled: true, section: { weddingId, enabled: true } },
@@ -193,7 +194,7 @@ export async function loadEditorSite(weddingId: string): Promise<EditorSiteProje
         couple: { select: { partner1: true, partner2: true, updatedAt: true } },
       },
     }),
-    db.weddingSiteSection.findMany({ where: { weddingId }, select: { key: true, enabled: true, order: true, layoutVariant: true } }),
+    db.weddingSiteSection.findMany({ where: { weddingId }, select: { key: true, enabled: true, order: true, layoutVariant: true, settings: true } }),
     db.weddingSiteItem.findMany({ where: { weddingId }, orderBy: [{ order: 'asc' }, { createdAt: 'asc' }], select: itemSelect }),
     db.weddingAnnouncement.findMany({ where: { weddingId }, orderBy: [{ order: 'asc' }, { createdAt: 'desc' }] }),
     db.weddingContent.findMany({ where: { weddingId }, select: { section: true, field: true, value: true, updatedAt: true } }),
@@ -271,7 +272,7 @@ async function ensureSection(tx: Tx, weddingId: string, key: SiteSectionKey) {
 
 export async function updateSections(
   weddingId: string,
-  updates: Array<{ key: unknown; enabled?: unknown; order?: unknown; layoutVariant?: unknown }>,
+  updates: Array<{ key: unknown; enabled?: unknown; order?: unknown; layoutVariant?: unknown; settings?: unknown }>,
 ) {
   if (!Array.isArray(updates) || updates.length === 0 || updates.length > 40) {
     throw new SiteValidationError('sections must be a non-empty list.')
@@ -290,11 +291,17 @@ export async function updateSections(
         data.order = update.order as number
       }
       if (update.layoutVariant !== undefined) data.layoutVariant = text(update.layoutVariant, 40, 'layoutVariant')
+      if (update.settings !== undefined) {
+        const raw = update.settings as Record<string, unknown> | null
+        if (raw !== null && (typeof raw !== 'object' || Array.isArray(raw))) throw new SiteValidationError('settings must be an object.')
+        if (raw && raw.showProgramme !== undefined && typeof raw.showProgramme !== 'boolean') throw new SiteValidationError('showProgramme must be true or false.')
+        data.settings = raw ? (parseSectionSettings(raw) as Prisma.InputJsonValue) : Prisma.DbNull
+      }
       await tx.weddingSiteSection.update({ where: { id: section.id }, data })
     }
     const rows = await tx.weddingSiteSection.findMany({
       where: { weddingId },
-      select: { key: true, enabled: true, order: true, layoutVariant: true },
+      select: { key: true, enabled: true, order: true, layoutVariant: true, settings: true },
     })
     return resolveSections(rows)
   })
