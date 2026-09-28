@@ -87,18 +87,15 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const [busy, setBusy] = useState<string | null>('load')
   const [copied, setCopied] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [missingTokens, setMissingTokens] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setBusy('load')
     setError(null)
     try {
-      const repair = await fetch('/api/planner/guests/invitations', { method: 'POST' })
-      const repairPayload = await repair.json()
-      // A read-only Preview refuses the token backfill (423 PREVIEW_WRITE_BLOCKED). That is not a
-      // failure to load: continue with the read-only view instead of hiding the whole studio.
-      const previewReadOnly = repair.status === 423 && repairPayload.code === 'PREVIEW_WRITE_BLOCKED'
-      if (!previewReadOnly && (!repair.ok || !repairPayload.success)) throw new Error(repairPayload.error || 'Unable to prepare invitations.')
+      // Loading the Planner invitation view must be read-only. Missing invitation
+      // credentials are repaired only after an explicit operator action below.
       const response = await fetch('/api/planner/guests/invitations', { cache: 'no-store' })
       const payload = await response.json()
       if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to load invitations.')
@@ -108,6 +105,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
         childrenPolicy: payload.wedding.childrenPolicy === 'adults_only' ? 'adults_only' : 'welcome',
       } as InvitationWedding
       setRows(payload.data)
+      setMissingTokens(typeof payload.missingTokens === 'number' ? payload.missingTokens : 0)
       setWedding(nextWedding)
       setDraftStyle(nextWedding.invitationCardStyle)
       setDraftMessage(nextWedding.invitationCardMessage || '')
@@ -156,10 +154,11 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
     if (!row.invitationUrl || !row.shareMessage) return
     if (navigator.share) {
       try {
+        // shareMessage already contains the one personal invitation URL. Passing
+        // the URL again separately can make some share targets duplicate it.
         await navigator.share({
           title: wedding?.title || 'Wedding invitation',
           text: row.shareMessage,
-          url: row.invitationUrl,
         })
         return
       } catch (caught) {
@@ -167,6 +166,23 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
       }
     }
     await rememberCopied(`share-${row.id}`, row.shareMessage)
+  }
+
+  async function generateMissingLinks() {
+    if (missingTokens <= 0) return
+    if (!window.confirm(`Generate private invitation links for ${missingTokens} guest${missingTokens === 1 ? '' : 's'} who do not have one yet?`)) return
+
+    setBusy('repair')
+    setError(null)
+    try {
+      const response = await fetch('/api/planner/guests/invitations', { method: 'POST' })
+      const payload = await response.json()
+      if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to generate missing invitation links.')
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Unable to generate missing invitation links.')
+      setBusy(null)
+    }
   }
 
   async function saveDesign() {
@@ -227,6 +243,12 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" onClick={() => void load()} disabled={busy !== null}><RefreshCw className={`size-4 ${busy === 'load' ? 'animate-spin' : ''}`} />Refresh</Button>
+          {missingTokens > 0 && (
+            <Button type="button" variant="outline" onClick={() => void generateMissingLinks()} disabled={busy !== null}>
+              <QrCode className="size-4" />
+              {busy === 'repair' ? 'Generating…' : `Generate ${missingTokens} missing link${missingTokens === 1 ? '' : 's'}`}
+            </Button>
+          )}
           <Button type="button" variant="outline" onClick={downloadCsv}><Download className="size-4" />Invitation CSV</Button>
         </div>
       </div>
