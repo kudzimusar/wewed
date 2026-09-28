@@ -165,6 +165,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("com.google.zxing:core:3.5.3")
+    // QRO07-AT01: first-launch deferred invitation (Play Install Referrer → opaque handoff).
+    implementation("com.android.installreferrer:installreferrer:2.2")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")

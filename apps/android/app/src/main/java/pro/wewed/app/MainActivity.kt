@@ -17,6 +17,7 @@ import pro.wewed.app.BuildConfig
 import pro.wewed.app.invitation.GuestInvitationBootstrap
 import pro.wewed.app.invitation.GuestOnlyEntryState
 import pro.wewed.app.invitation.InvitationEntryParser
+import pro.wewed.app.invitation.PlayInstallReferrer
 import pro.wewed.app.ui.invitation.GuestOnlyInvitationShell
 import pro.wewed.app.state.NativeLaunchConfiguration
 import pro.wewed.app.state.SessionViewModel
@@ -89,26 +90,59 @@ class MainActivity : ComponentActivity() {
                 rawUrl = intent?.dataString,
                 intentExtra = intent?.getStringExtra(InvitationEntryParser.ANDROID_INTENT_EXTRA)
             )
+            // A tapped link is what the guest wants now; it outranks a stale install referrer.
+            if (hasInvitation) PlayInstallReferrer.markConsumed(applicationContext)
             val hasRememberedGuest = GuestInvitationBootstrap.hasGuestSession(applicationContext)
             if (hasInvitation || hasRememberedGuest) {
+                showGuestOnlyShell(hasIncomingInvitation = hasInvitation, guestBaseUrl = guestBaseUrl)
+                return
+            }
+            // QRO07-AT01: first launch after installing from a private invitation. Play carries only
+            // the opaque one-time handoff; redeeming it resumes that exact invitation.
+            if (PlayInstallReferrer.isPending(applicationContext)) {
                 setContent {
                     WewedTheme {
                         Box(modifier = Modifier.semantics { testTagsAsResourceId = true }) {
-                            GuestOnlyInvitationShell(
-                                hasIncomingInvitation = hasInvitation,
-                                onForgetWedding = { leaveGuestMode() },
-                                coordinator = GuestInvitationBootstrap.coordinator(
-                                    context = applicationContext,
-                                    baseUrl = guestBaseUrl
-                                )
-                            )
+                            pro.wewed.app.ui.entry.OpeningInvitationScreen()
                         }
+                    }
+                }
+                PlayInstallReferrer.fetchOnce(applicationContext) { handoff ->
+                    if (isFinishing || isDestroyed) return@fetchOnce
+                    if (handoff != null) {
+                        GuestOnlyEntryState.publishEntry(handoff)
+                        showGuestOnlyShell(hasIncomingInvitation = true, guestBaseUrl = guestBaseUrl)
+                    } else {
+                        continueLaunch(launch, guestBaseUrl)
                     }
                 }
                 return
             }
         }
+        continueLaunch(launch, guestBaseUrl)
+    }
 
+    private fun showGuestOnlyShell(hasIncomingInvitation: Boolean, guestBaseUrl: String) {
+        setContent {
+            WewedTheme {
+                Box(modifier = Modifier.semantics { testTagsAsResourceId = true }) {
+                    GuestOnlyInvitationShell(
+                        hasIncomingInvitation = hasIncomingInvitation,
+                        onForgetWedding = { leaveGuestMode() },
+                        coordinator = GuestInvitationBootstrap.coordinator(
+                            context = applicationContext,
+                            baseUrl = guestBaseUrl
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    private fun continueLaunch(
+        launch: NativeLaunchConfiguration,
+        guestBaseUrl: String,
+    ) {
         // A missing protected snapshot must not take the process down. The app refuses to fall
         // back to demo data — that refusal is the point — but it says so on screen instead of
         // disappearing back to the launcher with no explanation.

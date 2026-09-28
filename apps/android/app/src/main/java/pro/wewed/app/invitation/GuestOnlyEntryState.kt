@@ -36,6 +36,11 @@ object GuestOnlyEntryState {
         return true
     }
 
+    /** Publishes an already-parsed entry — the Play install referrer's opaque handoff. */
+    fun publishEntry(entry: InvitationEntry) {
+        _entry.value = entry
+    }
+
     /** Clears the pending entry. Used when forgetting a wedding, and by tests. */
     fun reset() {
         _entry.value = null
