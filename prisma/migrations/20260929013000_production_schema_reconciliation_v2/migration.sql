@@ -92,13 +92,15 @@ BEGIN
       LANGUAGE plpgsql
       SET search_path = public, pg_temp
       AS $function$
-      BEGIN
-        DELETE FROM public."GuestContribution"
-        WHERE "guestId" = OLD.id;
-        RETURN OLD;
-      END;
-      $function$
+BEGIN
+  DELETE FROM public."GuestContribution"
+  WHERE "guestId" = OLD.id;
+  RETURN OLD;
+END;
+$function$
     $function_sql$;
+    -- The body above is deliberately unindented: it is byte-identical to the established
+    -- production definition, so clean databases and production dump the same function.
   END IF;
 
   IF NOT EXISTS (
