@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { CheckCircle2, ChevronDown, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,12 +18,20 @@ export interface GuestContributionCampaign {
   acceptedTypes: ContributionType[]
 }
 
+/** The authorized Guest's own name and invitation email, used only as editable defaults. */
+export interface GuestContributionContact {
+  name: string
+  email: string | null
+}
+
 export function GuestContributionPledgeForm({
   slug,
   campaign,
+  guestContact = null,
 }: {
   slug: string
   campaign: GuestContributionCampaign
+  guestContact?: GuestContributionContact | null
 }) {
   const firstType = campaign.acceptedTypes[0] ?? 'OTHER'
   const [open, setOpen] = useState(false)
@@ -40,6 +48,14 @@ export function GuestContributionPledgeForm({
   const [phone, setPhone] = useState('')
   const [note, setNote] = useState('')
   const [recognition, setRecognition] = useState<'private' | 'public' | 'anonymous'>('private')
+
+  // The Guest context arrives after the first render. Fill only fields the Guest hasn't typed in,
+  // so a late response never overwrites what they entered; both stay editable.
+  useEffect(() => {
+    if (!guestContact) return
+    setDisplayName((current) => current || guestContact.name)
+    if (guestContact.email) setEmail((current) => current || guestContact.email || '')
+  }, [guestContact])
 
   const isCash = CASH_TYPES.has(type)
   const supportsQuantity = QUANTITY_TYPES.has(type)

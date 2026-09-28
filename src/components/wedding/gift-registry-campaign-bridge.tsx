@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { ArrowRight, Gift, HandHeart, Heart, Plane } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { GuestContributionPledgeForm } from '@/components/wedding/guest-contribution-pledge-form'
+import { GuestContributionPledgeForm, type GuestContributionContact } from '@/components/wedding/guest-contribution-pledge-form'
 import { useWeddingContextSafe } from '@/components/wedding/wedding-data-provider'
 import { isSafeHttpUrl } from '@/components/wedding/site/primitives'
 import type { ContributionType } from '@/lib/contributions'
@@ -45,6 +45,25 @@ export function GiftRegistryCampaignBridge() {
   const context = useWeddingContextSafe()
   const slug = context?.wedding?.slug
   const [payload, setPayload] = useState<PublicContributionPayload | null>(null)
+  const [guestContact, setGuestContact] = useState<GuestContributionContact | null>(null)
+
+  // An authorized Guest should not retype who they are. The guest-session read is the same one
+  // the RSVP section makes: it answers only for a session bound to this exact wedding, and it is a
+  // response body — nothing about the Guest is ever placed in a URL.
+  useEffect(() => {
+    if (!slug) return
+    let cancelled = false
+    void fetch(`/api/weddings/${encodeURIComponent(slug)}/guest-session`, { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) return
+        const body = await response.json()
+        const name = typeof body?.guest?.name === 'string' ? body.guest.name.trim() : ''
+        const email = typeof body?.guest?.email === 'string' ? body.guest.email.trim() : ''
+        if (!cancelled && body?.authorized !== false && name) setGuestContact({ name, email: email || null })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [slug])
 
   useEffect(() => {
     if (!slug) return
@@ -193,6 +212,7 @@ export function GiftRegistryCampaignBridge() {
                   <GuestContributionPledgeForm
                     slug={slug}
                     campaign={{ id: campaign.id, title: campaign.title, currency: campaign.currency, acceptedTypes: campaign.acceptedTypes }}
+                    guestContact={guestContact}
                   />
                 )}
                 {campaign.externalUrl && <Button asChild variant="outline" className="mt-3 w-full border-gold/30 bg-gold/5 text-espresso hover:bg-gold/15"><a href={campaign.externalUrl} target="_blank" rel="noopener noreferrer">{campaign.ctaLabel || 'View external gifting details'}<ArrowRight className="ml-2 size-4" /></a></Button>}
