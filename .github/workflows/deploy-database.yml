@@ -328,16 +328,18 @@ jobs:
           psql "$DATABASE_URL" -Atqc             "select distinct migration_name from public._prisma_migrations where finished_at is not null and rolled_back_at is null order by migration_name"             | sort -u > /tmp/applied-migrations.txt
           comm -23 /tmp/repository-migrations.txt /tmp/applied-migrations.txt > /tmp/pending-migrations.txt
 
-          cat > /tmp/expected-pending.txt <<'EOF'
-20260825024000_notification_state_race_guard
-20260825030000_provider_listing_visibility_guard
-20260922120000_fix_business_account_subscription_status_default
-20260922130000_fix_planner_zero_wedding_onboarding_completion_trigger
-20260923210000_wedding_gate_authority
-20260924000000_wedding_day_ww2_authority
-20260928090000_wedding_site_structure_and_announcements
-20260929013000_production_schema_reconciliation_v2
-EOF
+          # printf rather than a heredoc: heredoc lines at column 0 terminate this YAML
+          # block scalar and made the whole workflow file unparseable.
+          printf '%s\n' \
+            20260825024000_notification_state_race_guard \
+            20260825030000_provider_listing_visibility_guard \
+            20260922120000_fix_business_account_subscription_status_default \
+            20260922130000_fix_planner_zero_wedding_onboarding_completion_trigger \
+            20260923210000_wedding_gate_authority \
+            20260924000000_wedding_day_ww2_authority \
+            20260928090000_wedding_site_structure_and_announcements \
+            20260929013000_production_schema_reconciliation_v2 \
+            > /tmp/expected-pending.txt
 
           if ! diff -u /tmp/expected-pending.txt /tmp/pending-migrations.txt; then
             echo "::error::Ledger baseline did not produce the exact reviewed eight-migration pending set."
