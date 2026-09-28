@@ -278,7 +278,15 @@ jobs:
           dml = re.compile(
               r"\b(?:"
               r"INSERT\s+INTO|"
-              r"UPDATE\s+[\s\S]*?\s+SET\b|"
+              # Statement-bounded: UPDATE <target> [alias] SET. The previous lazy
+              # [\s\S]*? spanned statements (e.g. a trigger's "BEFORE UPDATE ON t;"
+              # followed later by "ALTER FUNCTION ... SET search_path") and reported
+              # 16 historical migrations with no top-level DML. Trigger events and FK
+              # actions ("OR UPDATE", "ON UPDATE", "BEFORE/AFTER UPDATE") are excluded.
+              r"(?<!ON\s)(?<!OR\s)(?<!BEFORE\s)(?<!AFTER\s)"
+              r"UPDATE\s+(?:ONLY\s+)?"
+              r"(?:\"[^\"]+\"|[A-Za-z_]\w*)(?:\s*\.\s*(?:\"[^\"]+\"|[A-Za-z_]\w*))?"
+              r"(?:\s+(?:AS\s+)?(?!SET\b)[A-Za-z_]\w*)?\s+SET\b|"
               r"DELETE\s+FROM|"
               r"TRUNCATE(?:\s+TABLE)?|"
               r"COPY\s+"
@@ -287,6 +295,7 @@ jobs:
           )
 
           dollar = re.compile(r"\$(?P<tag>[A-Za-z_][A-Za-z0-9_]*)?\$")
+          do_block_prefix = re.compile(r"\bDO\s*(?:LANGUAGE\s+\w+\s*)?$", re.IGNORECASE)
           single = re.compile(r"'(?:''|[^'])*'", re.DOTALL)
           line_comment = re.compile(r"--[^\n]*")
           block_comment = re.compile(r"/\*[\s\S]*?\*/")
@@ -313,6 +322,12 @@ jobs:
                   if end < 0:
                       break
                   body = sql[match.end():end]
+                  # An anonymous DO block executes during the migration itself, so its
+                  # DML is migration-time DML: keep it in the top-level text. Only
+                  # function/procedure bodies (executed later by triggers/calls) are masked.
+                  if do_block_prefix.search(sql[:match.start()]):
+                      pos = end + len(tag)
+                      continue
                   bodies.append(body)
                   for i in range(match.start(), end + len(tag)):
                       chars[i] = " "
