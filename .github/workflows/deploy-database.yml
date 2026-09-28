@@ -255,34 +255,120 @@ jobs:
           cat baseline-audit/rolled-back.txt
           echo "::endgroup::"
 
-      - name: Identify ledger-missing migrations with data-changing SQL
+      - name: Classify ledger-missing migrations with data-changing SQL
         id: dml
         shell: bash
         run: |
           set -euo pipefail
-          : > baseline-audit/missing-with-dml.txt
 
-          while IFS= read -r migration_name; do
-            [[ -n "$migration_name" ]] || continue
-            migration_file="baseline-main/prisma/migrations/$migration_name/migration.sql"
-            [[ -f "$migration_file" ]] || continue
+          python3 - <<'PY'
+          from __future__ import annotations
 
-            if grep -Eiq \
-              '(INSERT[[:space:]]+INTO|UPDATE[[:space:]]+[^;]*[[:space:]]+SET|DELETE[[:space:]]+FROM|TRUNCATE([[:space:]]+TABLE)?|COPY[[:space:]]+)' \
-              "$migration_file"; then
-              echo "$migration_name" >> baseline-audit/missing-with-dml.txt
-            fi
-          done < baseline-audit/not-successfully-recorded.txt
+          import pathlib
+          import re
 
-          echo "::group::Ledger-missing migrations containing data-changing SQL"
-          if [[ -s baseline-audit/missing-with-dml.txt ]]; then
-            cat baseline-audit/missing-with-dml.txt
+          root = pathlib.Path("baseline-main/prisma/migrations")
+          audit = pathlib.Path("baseline-audit")
+          names = [
+              line.strip()
+              for line in (audit / "not-successfully-recorded.txt").read_text().splitlines()
+              if line.strip()
+          ]
+
+          dml = re.compile(
+              r"\b(?:"
+              r"INSERT\s+INTO|"
+              r"UPDATE\s+[\s\S]*?\s+SET\b|"
+              r"DELETE\s+FROM|"
+              r"TRUNCATE(?:\s+TABLE)?|"
+              r"COPY\s+"
+              r")",
+              re.IGNORECASE,
+          )
+
+          dollar = re.compile(r"\$(?P<tag>[A-Za-z_][A-Za-z0-9_]*)?\$")
+          single = re.compile(r"'(?:''|[^'])*'", re.DOTALL)
+          line_comment = re.compile(r"--[^\n]*")
+          block_comment = re.compile(r"/\*[\s\S]*?\*/")
+
+          def mask_comments_and_strings(sql: str) -> str:
+              sql = block_comment.sub(lambda m: " " * len(m.group(0)), sql)
+              sql = line_comment.sub(lambda m: " " * len(m.group(0)), sql)
+              sql = single.sub(lambda m: " " * len(m.group(0)), sql)
+              return sql
+
+          def split_top_level(sql: str) -> tuple[str, str]:
+              # Mask dollar-quoted bodies so DML inside CREATE FUNCTION/DO bodies
+              # is not mistaken for migration-time DML. Return masked top-level SQL
+              # plus the concatenated body text for diagnostics.
+              chars = list(sql)
+              bodies: list[str] = []
+              pos = 0
+              while True:
+                  match = dollar.search(sql, pos)
+                  if not match:
+                      break
+                  tag = match.group(0)
+                  end = sql.find(tag, match.end())
+                  if end < 0:
+                      break
+                  body = sql[match.end():end]
+                  bodies.append(body)
+                  for i in range(match.start(), end + len(tag)):
+                      chars[i] = " "
+                  pos = end + len(tag)
+              return "".join(chars), "\n".join(bodies)
+
+          top_level: list[str] = []
+          function_only: list[str] = []
+          both: list[str] = []
+          detail: list[str] = []
+
+          for name in names:
+              path = root / name / "migration.sql"
+              if not path.is_file():
+                  continue
+              raw = path.read_text()
+              top, bodies = split_top_level(raw)
+              top_has = bool(dml.search(mask_comments_and_strings(top)))
+              body_has = bool(dml.search(mask_comments_and_strings(bodies)))
+
+              if top_has and body_has:
+                  both.append(name)
+                  classification = "BOTH"
+              elif top_has:
+                  top_level.append(name)
+                  classification = "TOP_LEVEL"
+              elif body_has:
+                  function_only.append(name)
+                  classification = "FUNCTION_BODY_ONLY"
+              else:
+                  classification = "NONE"
+
+              if classification != "NONE":
+                  detail.append(f"{name}|{classification}")
+
+          (audit / "missing-with-top-level-dml.txt").write_text(
+              "".join(f"{name}\n" for name in sorted(top_level + both))
+          )
+          (audit / "missing-with-function-body-dml.txt").write_text(
+              "".join(f"{name}\n" for name in sorted(function_only + both))
+          )
+          (audit / "missing-dml-classification.txt").write_text(
+              "".join(f"{row}\n" for row in sorted(detail))
+          )
+          PY
+
+          echo "::group::Ledger-missing migration DML classification"
+          if [[ -s baseline-audit/missing-dml-classification.txt ]]; then
+            cat baseline-audit/missing-dml-classification.txt
           else
             echo "(none detected)"
           fi
           echo "::endgroup::"
 
-          echo "count=$(wc -l < baseline-audit/missing-with-dml.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+          echo "top_level_count=$(wc -l < baseline-audit/missing-with-top-level-dml.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+          echo "function_body_count=$(wc -l < baseline-audit/missing-with-function-body-dml.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
 
       - name: Prisma structural diff production versus clean current-main reference
         id: prisma_diff
@@ -362,12 +448,14 @@ jobs:
           set -euo pipefail
           prisma_status="${{ steps.prisma_diff.outputs.status }}"
           raw_status="${{ steps.raw_diff.outputs.status }}"
-          dml_count="${{ steps.dml.outputs.count }}"
+          top_level_dml_count="${{ steps.dml.outputs.top_level_count }}"
+          function_body_dml_count="${{ steps.dml.outputs.function_body_count }}"
 
           echo "### Production migration baseline audit" >> "$GITHUB_STEP_SUMMARY"
           echo "- Prisma structural diff status: $prisma_status (0 = equal, 2 = different)" >> "$GITHUB_STEP_SUMMARY"
           echo "- Raw PostgreSQL schema diff status: $raw_status (0 = equal, 1 = different)" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Ledger-missing migrations containing data-changing SQL: $dml_count" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ledger-missing migrations with top-level data-changing SQL: $top_level_dml_count" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Ledger-missing migrations with DML inside function/trigger bodies: $function_body_dml_count" >> "$GITHUB_STEP_SUMMARY"
           echo "- Production changes performed: **none**" >> "$GITHUB_STEP_SUMMARY"
 
           if [[ "$prisma_status" != "0" || "$raw_status" != "0" ]]; then
@@ -375,10 +463,10 @@ jobs:
             exit 1
           fi
 
-          if [[ "$dml_count" != "0" ]]; then
-            echo "::error::Schema matches, but one or more ledger-missing migrations contain data-changing SQL. Their intended data effects require explicit read-only verification before any migrate resolve."
+          if [[ "$top_level_dml_count" != "0" ]]; then
+            echo "::error::Schema matches, but one or more ledger-missing migrations contain top-level data-changing SQL. Their intended data effects require explicit read-only verification before any migrate resolve."
             exit 1
           fi
 
-          echo "Production is schema-equivalent to current main and no ledger-missing DML was detected."
+          echo "Production is schema-equivalent to current main and no ledger-missing top-level DML was detected."
           echo "This audit still performs no migrate resolve; ledger repair requires a separate approved action."
