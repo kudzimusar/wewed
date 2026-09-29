@@ -218,6 +218,16 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
     backgroundColor: wedding.backgroundColor,
   } : null, [draftDeadline, draftMessage, wedding])
 
+  const hasUnsavedInvitationChanges = useMemo(() => {
+    if (!wedding) return false
+    return (
+      draftStyle !== wedding.invitationCardStyle ||
+      draftMessage.trim() !== (wedding.invitationCardMessage ?? '').trim() ||
+      draftDeadline !== dateInputValue(wedding.rsvpDeadline) ||
+      draftChildrenPolicy !== wedding.childrenPolicy
+    )
+  }, [draftChildrenPolicy, draftDeadline, draftMessage, draftStyle, wedding])
+
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase()
     return rows.filter((row) => {
@@ -486,6 +496,28 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
       </div>
 
       {error && <p role="alert" className="mt-5 rounded-xl border border-clay/30 bg-clay/10 p-3 text-sm">{error}</p>}
+
+      {wedding && (
+        <div
+          className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-emerald-700/20 bg-emerald-50 px-4 py-3 text-xs text-emerald-950"
+          data-testid="invitation-live-server-settings"
+        >
+          <span className="font-semibold uppercase tracking-[0.1em]">Live server settings</span>
+          <span>Children: {wedding.childrenPolicy === 'adults_only' ? 'Adults only' : 'Welcome'}</span>
+          <span>{wedding.rsvpDeadline ? `RSVP deadline: ${dateInputValue(wedding.rsvpDeadline)}` : 'No RSVP deadline'}</span>
+          <span>{wedding.invitationCardMessage ? `Guest note: saved (${wedding.invitationCardMessage.length} chars)` : 'Guest note: none'}</span>
+          <span>Design: {invitationStyleLabel(wedding.invitationCardStyle)}</span>
+          {hasUnsavedInvitationChanges ? (
+            <span className="rounded-full bg-amber-100 px-2 py-1 font-semibold text-amber-900">
+              Unsaved draft changes
+            </span>
+          ) : (
+            <span className="rounded-full bg-emerald-100 px-2 py-1 font-semibold text-emerald-900">
+              Draft matches live
+            </span>
+          )}
+        </div>
+      )}
 
       {previewData && (
         <PremiumInvitationStudio
