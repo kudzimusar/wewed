@@ -17,6 +17,9 @@ const inviteContinue = readFileSync('src/app/invite/[slug]/continue/route.ts', '
 const pendingInvitation = readFileSync('src/lib/pending-invitation.ts', 'utf8')
 const plannerTimeline = readFileSync('src/app/api/planner/timeline/route.ts', 'utf8')
 const weddingDayGuest = readFileSync('src/app/api/wedding-day/guest/route.ts', 'utf8')
+const plannerPortal = readFileSync('src/components/wedding/planner-portal.tsx', 'utf8')
+const adaptiveNavigation = readFileSync('src/components/navigation/planner-adaptive-navigation.tsx', 'utf8')
+const invitationStudio = readFileSync('src/components/wedding/invitation-experience/premium-invitation-studio.tsx', 'utf8')
 
 describe('Planner invitation command center', () => {
   test('has a durable planner route instead of a modal-only workspace', () => {
@@ -25,6 +28,15 @@ describe('Planner invitation command center', () => {
     expect(page).toContain('<WeddingContextControls />')
     expect(tools).toContain('href="/planner/invitations"')
     expect(tools).not.toContain('<Dialog')
+  })
+
+  test('surfaces invitation delivery as a first-class planner destination', () => {
+    expect(plannerPortal).toContain('data-planner-invitations-primary-link')
+    expect(plannerPortal).toContain('href="/planner/invitations"')
+    expect(adaptiveNavigation).toContain('Invitation delivery')
+    expect(adaptiveNavigation).toContain('href="/planner/invitations"')
+    expect(invitationStudio).toContain('Save invitation settings')
+    expect(invitationStudio).toContain('children policy')
   })
 
   test('supports organizer-scale search, filters, selection and guest administration', () => {
