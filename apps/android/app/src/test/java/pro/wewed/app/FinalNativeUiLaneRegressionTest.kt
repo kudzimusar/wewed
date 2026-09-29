@@ -217,7 +217,12 @@ class FinalNativeUiLaneRegressionTest {
 
     // QRO06 — Couple Website / Gifts carry Guest authority into the browser via the handoff.
     @Test fun guestWebCtasUseTheServerAuthorizedBrowserHandoff() {
-        val shell = source("ui/invitation/LiveGuestShell.kt")
+        val fullShell = source("ui/invitation/LiveGuestShell.kt")
+        // The pre-Pass keepsake QR (owner decision, final C&K UAT) is an image, not a navigation CTA:
+        // it encodes the credential-free wedding page on purpose. Every CTA outside it stays covered.
+        val keepsakeStart = fullShell.indexOf("private fun GuestPassComingSoon(")
+        val keepsakeEnd = fullShell.indexOf("internal fun org.json.JSONObject.programmeText")
+        val shell = if (keepsakeStart >= 0 && keepsakeEnd > keepsakeStart) fullShell.removeRange(keepsakeStart, keepsakeEnd) else fullShell
         val invitation = source("ui/invitation/LiveGuestInvitationScreen.kt")
         assertTrue(shell.contains("onClick = { openInBrowser(GuestBrowserDestination.COUPLE_SITE) }"))
         assertTrue(shell.contains("onClick = { openInBrowser(GuestBrowserDestination.REGISTRY) }"))
