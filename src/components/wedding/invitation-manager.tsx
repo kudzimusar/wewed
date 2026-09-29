@@ -670,7 +670,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                           <Share2 className="size-3.5" />Share
                         </Button>
                         <Button type="button" size="sm" variant="outline" onClick={() => void copyLink(row)} disabled={!row.invitationUrl}>
-                          {copied === `link-${row.id}` ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}Link
+                          {copied === `link-${row.id}` ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}{copied === `link-${row.id}` ? 'Copied' : 'Copy link'}
                         </Button>
                         <Button type="button" size="sm" variant="outline" onClick={() => setQrRow(row)} disabled={!row.qrValue}>
                           <QrCode className="size-3.5" />QR
