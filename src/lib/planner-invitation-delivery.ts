@@ -27,6 +27,9 @@ export interface InvitationDeliveryRecord {
   channel: InvitationDeliveryChannel | null
   recipient: string | null
   cardStyle: string | null
+  invitationMessage: string | null
+  rsvpDeadline: string | null
+  childrenPolicy: string | null
   invitationFingerprint: string | null
   messageTemplate: string | null
   createdAt: string
@@ -80,6 +83,9 @@ export function parseInvitationDeliveryAudit(row: InvitationDeliveryAuditRow): I
     channel: asChannel(payload.channel),
     recipient: typeof payload.recipient === 'string' ? payload.recipient : null,
     cardStyle: typeof payload.cardStyle === 'string' ? payload.cardStyle : null,
+    invitationMessage: typeof payload.invitationMessage === 'string' ? payload.invitationMessage : null,
+    rsvpDeadline: typeof payload.rsvpDeadline === 'string' ? payload.rsvpDeadline : null,
+    childrenPolicy: typeof payload.childrenPolicy === 'string' ? payload.childrenPolicy : null,
     invitationFingerprint: typeof payload.invitationFingerprint === 'string' ? payload.invitationFingerprint : null,
     messageTemplate: typeof payload.messageTemplate === 'string' ? payload.messageTemplate : null,
     createdAt: row.createdAt.toISOString(),
