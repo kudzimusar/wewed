@@ -11,6 +11,8 @@ const plannerRoute = readFileSync('src/app/api/planner/guests/invitations/route.
 const guestSession = readFileSync('src/app/api/weddings/[slug]/guest-session/route.ts', 'utf8')
 const premiumRsvp = readFileSync('src/components/wedding/invitation-experience/premium-invitation-rsvp-dialog.tsx', 'utf8')
 const androidRsvp = readFileSync('apps/android/app/src/main/java/pro/wewed/app/ui/invitation/LiveGuestInvitationScreen.kt', 'utf8')
+const plannerTimeline = readFileSync('src/app/api/planner/timeline/route.ts', 'utf8')
+const weddingDayGuest = readFileSync('src/app/api/wedding-day/guest/route.ts', 'utf8')
 
 describe('Planner invitation command center', () => {
   test('has a durable planner route instead of a modal-only workspace', () => {
@@ -52,6 +54,14 @@ describe('Planner invitation command center', () => {
     expect(telemetry).not.toContain('token:')
     expect(projection).toContain('openedAt')
     expect(projection).toContain("event.action === 'guest.invitation_opened'")
+  })
+
+  test('planner programme and children policy converge into the guest wedding-day projection', () => {
+    expect(plannerTimeline).toContain('db.programmeItem')
+    expect(weddingDayGuest).toContain('FROM public."ProgrammeItem"')
+    expect(weddingDayGuest).toContain('sortTimelineItems(programmeRows)')
+    expect(weddingDayGuest).toContain('loadWeddingChildrenPolicy(context.weddingId)')
+    expect(weddingDayGuest).toContain("childrenPolicy !== 'adults_only'")
   })
 
   test('planner message, deadline and children policy are canonical server-backed settings', () => {
