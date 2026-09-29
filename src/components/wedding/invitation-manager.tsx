@@ -137,6 +137,16 @@ function deliveryTime(value: string | null): string {
       })
 }
 
+function plannerPreviewLink(value: string): string {
+  try {
+    const url = new URL(value)
+    url.searchParams.set('plannerPreview', '1')
+    return url.toString()
+  } catch {
+    return value
+  }
+}
+
 function validEmail(value: string): boolean {
   return !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
@@ -786,7 +796,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                             </Button>
                             {row.invitationUrl && (
                               <Button asChild size="sm" variant="outline">
-                                <a href={row.invitationUrl} target="_blank" rel="noreferrer">
+                                <a href={plannerPreviewLink(row.invitationUrl)} target="_blank" rel="noreferrer">
                                   <ExternalLink className="size-4" />Preview
                                 </a>
                               </Button>
