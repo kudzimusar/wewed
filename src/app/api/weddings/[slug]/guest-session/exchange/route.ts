@@ -2,6 +2,8 @@ import { weddingGuestSessionExpiry } from '@/lib/wedding-guest-session'
 import { invitationVersionFingerprint } from '@/lib/wedding-guest-session'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { readAppSession } from '@/lib/app-session'
+import { recordInvitationOpened } from '@/lib/invitation-delivery-tracking'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import { setWeddingGuestSessionCookie } from '@/lib/wedding-guest-session'
 import {
@@ -63,6 +65,12 @@ export async function GET(request: NextRequest, { params }: Params) {
   ) {
     await new Promise((resolve) => setTimeout(resolve, 120))
     return redirectToGateway(slug, 'invalid')
+  }
+
+  // A signed-in planner/couple may preview a personal link from the invitation desk. Do not
+  // count that administrative preview as the guest opening their invitation.
+  if (!readAppSession(request)) {
+    await recordInvitationOpened(rsvp.guest.wedding.id, rsvp.guest.id)
   }
 
   // The wedding's saved style is authoritative. Guest-facing URLs are access
