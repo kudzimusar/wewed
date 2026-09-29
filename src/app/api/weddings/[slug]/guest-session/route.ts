@@ -3,6 +3,8 @@ import { invitationVersionFingerprint } from '@/lib/wedding-guest-session'
 import { previewWriteError } from '@/lib/preview-write-response'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { readAppSession } from '@/lib/app-session'
+import { recordInvitationOpened } from '@/lib/invitation-delivery-tracking'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import {
   applyGuestRsvpUpdate,
@@ -168,6 +170,10 @@ export async function POST(request: NextRequest, { params }: Params) {
         { status: 401 },
       ),
     )
+  }
+
+  if (!readAppSession(request)) {
+    await recordInvitationOpened(rsvp.guest.wedding.id, rsvp.guest.id)
   }
 
   const card = normalizeInvitationCardStyle(rsvp.guest.wedding.invitationCardStyle)
