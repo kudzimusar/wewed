@@ -22,6 +22,7 @@ import {
   Repeat2,
   Settings,
   Sparkles,
+  Send,
   Users,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -193,6 +194,15 @@ export function PlannerAdaptiveNavigation({
                   </Link>
                 </SheetClose>
               )}
+              <SheetClose asChild>
+                <Link
+                  href="/planner/invitations"
+                  className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm text-champagne/75 hover:bg-gold/10 hover:text-gold"
+                >
+                  <Send className="size-4" />
+                  Invitation delivery
+                </Link>
+              </SheetClose>
               {weddingSlug && (
                 <SheetClose asChild>
                   <Link href={`/w/${weddingSlug}`} className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm text-champagne/75 hover:bg-gold/10 hover:text-gold">
