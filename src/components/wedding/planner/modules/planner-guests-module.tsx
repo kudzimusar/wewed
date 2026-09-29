@@ -76,7 +76,7 @@ export function PlannerGuestsModule({ guests, tables, guestForm, setGuestForm, g
         <h2 className="mt-1 font-serif text-xl">Guest register</h2>
         <p className="mt-1 font-sans text-xs text-champagne/50">Edit guest records here; prepare, send and track personal invitations in the dedicated command center.</p>
       </div>
-      <Button asChild type="button" variant="outline" className="border-gold/25 bg-transparent text-gold">
+      <Button asChild variant="outline" className="border-gold/25 bg-transparent text-gold">
         <Link href="/planner/invitations">
           <Send className="size-4" />
           Invitation delivery
