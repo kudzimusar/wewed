@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { DashboardAuthGate } from '@/components/wedding/dashboard-auth-gate'
 import { PlannerInvitationTools } from '@/components/wedding/planner-invitation-tools'
+import { WeddingContextControls } from '@/components/wedding/wedding-context-controls'
 
 export default function PlannerInvitationsPage() {
   const router = useRouter()
@@ -17,14 +18,17 @@ export default function PlannerInvitationsPage() {
       onClose={() => router.push('/planner/overview#planner-workspace')}
     >
       <main className="min-h-dvh bg-espresso pb-10 text-champagne" data-planner-invitations-page>
-        <div className="mx-auto flex w-full max-w-[1500px] items-center justify-between gap-3 px-3 pt-4 sm:px-5">
+        <div className="mx-auto flex w-full max-w-[1500px] flex-wrap items-center gap-3 px-3 pt-4 sm:px-5">
           <Button asChild variant="outline" className="border-gold/25 bg-transparent text-champagne hover:bg-gold/10 hover:text-gold">
             <Link href="/planner/guests#planner-workspace">
               <ArrowLeft className="size-4" />
               Back to Guests
             </Link>
           </Button>
-          <p className="hidden text-xs text-champagne/45 sm:block">
+          <div className="min-w-[14rem] flex-1">
+            <WeddingContextControls />
+          </div>
+          <p className="hidden text-xs text-champagne/45 xl:block">
             Bookmark this page: /planner/invitations
           </p>
         </div>
