@@ -805,7 +805,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                             <Button type="button" size="sm" variant="outline" onClick={() => void rotate(row)} disabled={busy !== null}>
                               <RotateCcw className={`size-4 ${busy === `rotate-${row.id}` ? 'animate-spin' : ''}`} />Rotate
                             </Button>
-                            <Button type="button" size="sm" variant="outline" onClick={() => void deleteGuest(row)} disabled={busy !== null} className="border-clay/30 text-clay">
+                            <Button type="button" size="sm" variant="outline" onClick={() => void deleteGuest(row)} disabled={busy !== null} className="border-clay/30 text-clay-light">
                               {busy === `delete-${row.id}` ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
                               Remove
                             </Button>
