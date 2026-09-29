@@ -58,7 +58,7 @@ export type PlannerInvitationStatus = 'attending' | 'declined' | 'pending'
  * origin, exactly as the desktop Planner has always done.
  */
 export async function loadPlannerInvitationProjection(weddingId: string, siteUrl: string) {
-  const [wedding, guests, childrenPolicyRow] = await Promise.all([
+  const [wedding, guests, childrenPolicyRow, deliveries] = await Promise.all([
     db.wedding.findUnique({
       where: { id: weddingId },
       select: invitationWeddingSelect(),
@@ -78,6 +78,16 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       },
       select: { value: true },
     }),
+    db.guestInvitationDelivery.findMany({
+      where: { weddingId },
+      orderBy: [{ sentAt: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        guestId: true,
+        channel: true,
+        recipient: true,
+        sentAt: true,
+      },
+    }),
   ])
 
   if (!wedding) return null
@@ -86,6 +96,18 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
   const childrenPolicy = normalizeChildrenPolicy(childrenPolicyRow?.value)
   const origin = siteUrl.replace(/\/$/, '')
   const missingTokens = guests.filter((guest) => !guest.rsvp?.token).length
+  const deliveryCountByGuest = new Map<string, number>()
+  const latestDeliveryByGuest = new Map<string, (typeof deliveries)[number]>()
+  for (const delivery of deliveries) {
+    deliveryCountByGuest.set(
+      delivery.guestId,
+      (deliveryCountByGuest.get(delivery.guestId) ?? 0) + 1,
+    )
+    if (!latestDeliveryByGuest.has(delivery.guestId)) {
+      latestDeliveryByGuest.set(delivery.guestId, delivery)
+    }
+  }
+
   const data = guests.map((guest) => {
     const invitationUrl = guest.rsvp?.token
       ? buildSmartInvitationUrl({
@@ -101,6 +123,7 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
         : guest.rsvp?.attending === false
           ? 'declined'
           : 'pending'
+    const latestDelivery = latestDeliveryByGuest.get(guest.id)
     return {
       id: guest.id,
       name: guest.name,
@@ -109,6 +132,10 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       tableNumber: guest.tableNumber,
       status,
       checkedIn: guest.rsvp?.checkedIn ?? false,
+      deliveryCount: deliveryCountByGuest.get(guest.id) ?? 0,
+      lastSentAt: latestDelivery?.sentAt.toISOString() ?? null,
+      lastSentVia: latestDelivery?.channel ?? null,
+      lastSentRecipient: latestDelivery?.recipient ?? null,
       invitationUrl,
       qrValue: invitationUrl,
       shareMessage: invitationUrl
