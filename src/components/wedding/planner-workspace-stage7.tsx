@@ -12,6 +12,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react'
 import { ImportExportBar } from '@/components/wedding/import-export-bar'
+import { PlannerInvitationOperationsWorkspace } from '@/components/wedding/planner-invitation-operations-workspace'
 import {
   PlannerWorkspace as CorePlannerWorkspace,
   type WorkspaceTab,
@@ -442,11 +443,15 @@ export function PlannerWorkspace() {
       </section>
 
       <div className="min-h-0 flex-1">
-        <CorePlannerWorkspace
-          key={workspaceVersion}
-          activeTab={activeTab}
-          onActiveTabChange={selectWorkspaceTab}
-        />
+        {activeTab === 'guests' && activeTool === 'invitations' ? (
+          <PlannerInvitationOperationsWorkspace />
+        ) : (
+          <CorePlannerWorkspace
+            key={workspaceVersion}
+            activeTab={activeTab}
+            onActiveTabChange={selectWorkspaceTab}
+          />
+        )}
       </div>
     </div>
   )
