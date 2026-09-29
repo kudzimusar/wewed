@@ -270,10 +270,10 @@ private fun LiveGuestHome(
         ?.let { item ->
             IACard(
                 title = item.optString("title").ifBlank { "Wedding Day" },
-                subtitle = listOf(
-                    item.optString("time"),
-                    item.optString("location")
-                ).filter { it.isNotBlank() }.joinToString(" · ").takeIf { it.isNotBlank() },
+                subtitle = listOfNotNull(
+                    item.programmeText("time"),
+                    item.programmeText("location")
+                ).joinToString(" · ").takeIf { it.isNotBlank() },
                 trailing = "Next",
                 testTag = "guest-home-next-programme"
             )
@@ -603,8 +603,9 @@ private fun LiveGuestWeddingDay(
                 val item = programme!!.getJSONObject(index)
                 IACard(
                     title = item.optString("title"),
-                    subtitle = item.optString("location").takeIf { it.isNotBlank() },
-                    trailing = item.optString("time").takeIf { it.isNotBlank() },
+                    // Location when the Planner set one, otherwise the description — as the website shows.
+                    subtitle = item.programmeText("location") ?: item.programmeText("description"),
+                    trailing = item.programmeText("time"),
                     testTag = "guest-programme-${item.optString("id")}"
                 )
             }
@@ -922,3 +923,11 @@ private fun LiveIssuedGuestPass(profile: LiveInvitationPresentation, coordinator
     }
     else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
 }
+
+/**
+ * A programme field as display text, or null. `JSONObject.optString` turns a JSON `null` into the
+ * literal string "null", which the final C&K UAT (2026-09-29) found printed under every programme
+ * item whose location was not set.
+ */
+internal fun org.json.JSONObject.programmeText(key: String): String? =
+    if (!has(key) || isNull(key)) null else optString(key).trim().takeIf { it.isNotEmpty() }

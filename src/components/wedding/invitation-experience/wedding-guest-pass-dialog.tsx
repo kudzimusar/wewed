@@ -40,6 +40,14 @@ function availabilityState(payload: WeddingPassResponse): WeddingPassAvailabilit
   return isWeddingPassAvailabilityState(state) ? state : null
 }
 
+/**
+ * UAT 2026-09-29: a bare `toLocaleDateString()` rendered "12/9/2026", which a guest reading
+ * day-first reads as 12 September. Spell the month out, like every other invitation date.
+ */
+export function formatPassOpensAt(opensAt: Date): string {
+  return opensAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
 function friendlyPassError(payload: WeddingPassResponse): string {
   // The server's shared availability state wins; web, iOS and Android present the same sentence.
   const state = availabilityState(payload)
@@ -47,7 +55,7 @@ function friendlyPassError(payload: WeddingPassResponse): string {
     const copy = GUEST_PASS_AVAILABILITY_COPY[state]
     const opensAt = payload.availability?.opensAt ? new Date(payload.availability.opensAt) : null
     return state === 'not_yet_issuable' && opensAt && !Number.isNaN(opensAt.getTime())
-      ? `${copy} Available from ${opensAt.toLocaleDateString()}.`
+      ? `${copy} Available from ${formatPassOpensAt(opensAt)}.`
       : copy
   }
   switch (payload.code) {
