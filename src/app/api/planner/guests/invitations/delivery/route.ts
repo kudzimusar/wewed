@@ -10,6 +10,7 @@ import {
   type InvitationDeliveryChannel,
 } from '@/lib/planner-invitation-delivery'
 import { requireWeddingPermission } from '@/lib/wedding-access'
+import { loadWeddingChildrenPolicy } from '@/lib/guest-rsvp-mutation'
 import { invitationVersionFingerprint } from '@/lib/wedding-guest-session'
 
 const MAX_BATCH = 250
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest) {
     return json({ success: false, error: 'Choose how the invitation was sent.' }, 400)
   }
 
-  const [guests, wedding] = await Promise.all([
+  const [guests, wedding, childrenPolicy] = await Promise.all([
     db.guest.findMany({
       where: { weddingId: access.context.weddingId, id: { in: guestIds } },
       select: {
@@ -116,8 +117,13 @@ export async function POST(request: NextRequest) {
     }),
     db.wedding.findUnique({
       where: { id: access.context.weddingId },
-      select: { invitationCardStyle: true },
+      select: {
+        invitationCardStyle: true,
+        invitationCardMessage: true,
+        rsvpDeadline: true,
+      },
     }),
+    loadWeddingChildrenPolicy(access.context.weddingId),
   ])
 
   if (!wedding || guests.length !== guestIds.length) {
@@ -172,6 +178,9 @@ export async function POST(request: NextRequest) {
           channel,
           recipient: recipientForGuest(channel!, guest),
           cardStyle,
+          invitationMessage: wedding.invitationCardMessage,
+          rsvpDeadline: wedding.rsvpDeadline?.toISOString() ?? null,
+          childrenPolicy,
           invitationFingerprint: invitationVersionFingerprint({
             weddingId: access.context.weddingId,
             guestId: guest.id,
