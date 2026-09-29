@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   Loader2,
   RefreshCw,
+  Send,
   SlidersHorizontal,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -164,6 +165,16 @@ function PlannerExperienceNavigation({ showPortfolioLink }: { showPortfolioLink:
         <div data-planner-context-inline className="min-w-[7rem] flex-1">
           <WeddingContextControls />
         </div>
+
+        <Link
+          href="/planner/invitations"
+          data-planner-invitations-primary-link
+          className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-gold/35 bg-gold/12 px-3 font-sans text-xs font-semibold text-gold transition hover:bg-gold/18"
+        >
+          <Send className="size-3.5" />
+          <span className="hidden sm:inline">Invitations</span>
+          <span className="sm:hidden">Invite</span>
+        </Link>
 
         <p className="hidden shrink-0 font-sans text-[10px] text-champagne/40 2xl:block">
           Plan → coordinate → update → operate → execute → close
