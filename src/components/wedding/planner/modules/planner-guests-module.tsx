@@ -1,7 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react'
-import { Check, CheckCircle2, Circle, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { Check, CheckCircle2, Circle, Pencil, Plus, Search, Send, Trash2, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -69,6 +70,12 @@ export function PlannerGuestsModule({ guests, tables, guestForm, setGuestForm, g
   }
 
   return <div className="space-y-4">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gold/15 bg-champagne/[0.035] p-4">
+      <div><p className="font-serif text-lg">Guest records</p><p className="text-xs text-champagne/45">Edit guest data here, or open the dedicated invitation delivery workspace.</p></div>
+      <Link href="/planner/guests/invitations#planner-workspace" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-gold/30 bg-gold/10 px-3 text-sm font-medium text-gold hover:bg-gold/15">
+        <Send className="size-4" />Open invitations
+      </Link>
+    </div>
     <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 xl:grid-cols-8">{[['Invited', guestStats.total], ['Confirmed', guestStats.confirmed], ['Declined', guestStats.declined], ['Pending', guestStats.pending], ['Plus-ones', guestStats.plusOnes], ['Kids', guestStats.kidsTotal], ['Heads', guestStats.heads], ['Checked-in', guestStats.checkedIn]].map(([label, value]) => <SectionCard key={String(label)} className="p-3 text-center"><p className="font-serif text-xl">{value}</p><p className="font-sans text-[9px] uppercase tracking-wider text-champagne/45">{label}</p></SectionCard>)}</div>
 
     <SectionCard className="p-4"><div className="mb-3"><h2 className="font-serif text-lg">Add guest</h2><p className="font-sans text-xs text-champagne/50">Create the invitation record and optionally assign an initial table.</p></div><form onSubmit={onAddGuest} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[1.5fr_1.5fr_1fr_1fr_1fr_1.25fr_auto]">

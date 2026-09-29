@@ -8,7 +8,7 @@ export type PlannerModuleSlug =
   | 'seating'
   | 'contributions'
 
-export type PlannerToolSlug = 'import' | 'imports'
+export type PlannerToolSlug = 'import' | 'imports' | 'invitations'
 
 const MODULES = new Set<PlannerModuleSlug>([
   'overview',
@@ -21,7 +21,7 @@ const MODULES = new Set<PlannerModuleSlug>([
   'contributions',
 ])
 
-const TOOLS = new Set<PlannerToolSlug>(['import', 'imports'])
+const TOOLS = new Set<PlannerToolSlug>(['import', 'imports', 'invitations'])
 
 export function plannerLegacyModuleSlug(
   moduleKey: string | null | undefined,
@@ -51,7 +51,9 @@ export function plannerToolFromPath(
   const segments = pathname.split('/').filter(Boolean)
   if (segments[0] !== 'planner' || segments[1] !== module) return null
   const tool = segments[2]
-  return tool && TOOLS.has(tool as PlannerToolSlug) ? (tool as PlannerToolSlug) : null
+  if (!tool || !TOOLS.has(tool as PlannerToolSlug)) return null
+  if (tool === 'invitations' && module !== 'guests') return null
+  return tool as PlannerToolSlug
 }
 
 export function plannerModulePath(
