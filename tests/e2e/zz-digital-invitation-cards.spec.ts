@@ -86,8 +86,8 @@ test('couples design, save, export and deliver guest-specific digital invitation
   }
 
   await page.getByTestId('invitation-style-editorial').click()
-  await page.getByRole('button', { name: 'Save card design' }).click()
-  await expect(page.getByText('Invitation experience saved.', { exact: false })).toBeVisible()
+  await page.getByRole('button', { name: 'Save invitation settings' }).click()
+  await expect(page.getByText('Invitation settings saved to this wedding.', { exact: false })).toBeVisible()
 
   const invitations = await page.request.get('/api/planner/guests/invitations')
   expect(invitations.status()).toBe(200)
