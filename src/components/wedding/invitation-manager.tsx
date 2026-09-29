@@ -9,6 +9,7 @@ import {
   ExternalLink,
   History,
   Loader2,
+  Pencil,
   Plus,
   QrCode,
   RefreshCw,
@@ -157,6 +158,8 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const [history, setHistory] = useState<InvitationDeliveryRecord[]>([])
   const [historyBusy, setHistoryBusy] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [editRow, setEditRow] = useState<InvitationRow | null>(null)
+  const [editGuest, setEditGuest] = useState({ name: '', email: '', phone: '' })
   const [newGuest, setNewGuest] = useState({ name: '', email: '', phone: '' })
   const [filters, setFilters, resetFilters] = usePlannerFilterState(
     'wewed:planner:invitation-ops:filters',
@@ -402,11 +405,41 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
     }
   }
 
+  function openEdit(row: InvitationRow) {
+    setEditRow(row)
+    setEditGuest({ name: row.name, email: row.email ?? '', phone: row.phone ?? '' })
+  }
+
+  async function saveGuestEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!editRow || !editGuest.name.trim()) return
+    setBusy('edit-guest')
+    setError(null)
+    try {
+      const response = await fetch(`/api/planner/guests/${encodeURIComponent(editRow.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editGuest.name.trim(),
+          email: editGuest.email.trim() || null,
+          phone: editGuest.phone.trim() || null,
+        }),
+      })
+      const payload = await response.json()
+      if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to update guest.')
+      setEditRow(null)
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Unable to update guest.')
+      setBusy(null)
+    }
+  }
+
   async function removeSelected() {
     if (selectedRows.length === 0) return
     const names = selectedRows.slice(0, 5).map((row) => row.name).join(', ')
     const suffix = selectedRows.length > 5 ? ` and ${selectedRows.length - 5} more` : ''
-    if (!window.confirm(`Remove ${selectedRows.length} guest record${selectedRows.length === 1 ? '' : 's'} from this wedding?\n\n${names}${suffix}\n\nThis also removes their RSVP credential and cannot be undone from this page.`)) return
+    if (!window.confirm(`Remove ${selectedRows.length} guest record${selectedRows.length === 1 ? '' : 's'} from this wedding?\n\n${names}${suffix}\n\nThis removes their RSVP credential and any linked guest-contribution record according to the existing Guest List deletion rules. It cannot be undone from this page.`)) return
     setBusy('delete')
     setError(null)
     try {
@@ -651,6 +684,9 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                     </td>
                     <td className="px-3 py-3 text-right">
                       <div className="flex justify-end gap-1.5">
+                        <Button type="button" size="sm" variant="outline" disabled={busy !== null} onClick={() => openEdit(row)}>
+                          <Pencil className="size-3.5" />Edit
+                        </Button>
                         <Button type="button" size="sm" variant="outline" disabled={busy !== null} onClick={() => void updateDelivery([row.id], row.delivery.status === 'sent' ? 'clear_sent' : 'mark_sent')}>
                           <Send className="size-3.5" />{row.delivery.status === 'sent' ? 'Clear sent' : 'Mark sent'}
                         </Button>
@@ -669,6 +705,21 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           </div>
         )}
       </section>
+
+      <Dialog open={Boolean(editRow)} onOpenChange={(open) => { if (!open) setEditRow(null) }}>
+        <DialogContent className="max-w-lg bg-champagne text-espresso">
+          <DialogTitle className="font-serif text-2xl">Edit guest</DialogTitle>
+          <DialogDescription>
+            Update the invitation recipient record. RSVP answers are not changed here.
+          </DialogDescription>
+          <form onSubmit={saveGuestEdit} className="grid gap-4">
+            <div><Label htmlFor="invitation-edit-name">Name</Label><Input id="invitation-edit-name" value={editGuest.name} onChange={(event) => setEditGuest((current) => ({ ...current, name: event.target.value }))} required /></div>
+            <div><Label htmlFor="invitation-edit-email">Email</Label><Input id="invitation-edit-email" type="email" value={editGuest.email} onChange={(event) => setEditGuest((current) => ({ ...current, email: event.target.value }))} /></div>
+            <div><Label htmlFor="invitation-edit-phone">Phone</Label><Input id="invitation-edit-phone" value={editGuest.phone} onChange={(event) => setEditGuest((current) => ({ ...current, phone: event.target.value }))} /></div>
+            <Button type="submit" disabled={busy !== null}>{busy === 'edit-guest' ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}Save guest</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={Boolean(qrRow)} onOpenChange={(open) => { if (!open) setQrRow(null) }}>
         <DialogContent className="max-w-md bg-champagne text-espresso">
@@ -695,6 +746,12 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                   </div>
                   {event.recipient && <p className="mt-1 text-xs text-espresso/55">To: {event.recipient}</p>}
                   {event.cardStyle && <p className="text-xs text-espresso/45">Card: {event.cardStyle}</p>}
+                  {event.invitationMessage && <p className="mt-1 text-xs text-espresso/55">Invitation note: {event.invitationMessage}</p>}
+                  <p className="text-xs text-espresso/45">
+                    Policy: {event.childrenPolicy === 'adults_only' ? 'Adults only' : event.childrenPolicy === 'welcome' ? 'Children welcome' : '—'}
+                    {event.rsvpDeadline ? ` · RSVP by ${dateTime(event.rsvpDeadline)}` : ''}
+                  </p>
+                  {event.messageTemplate && <p className="text-[10px] uppercase tracking-[0.1em] text-espresso/35">Template: {event.messageTemplate}</p>}
                 </div>
               ))}
               {history.length === 0 && <p className="py-8 text-center text-sm text-espresso/50">No send history yet.</p>}
