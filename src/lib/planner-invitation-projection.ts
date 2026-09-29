@@ -24,6 +24,42 @@ import {
  */
 
 export type ChildrenPolicy = 'welcome' | 'adults_only'
+export type InvitationDeliveryChannel = 'whatsapp' | 'email' | 'sms' | 'other'
+
+interface InvitationDeliveryState {
+  status: 'sent' | 'not_sent'
+  channel: InvitationDeliveryChannel | null
+  sentAt: string | null
+  sentBy: string | null
+}
+
+function deliveryStateFromAudit(input: {
+  action: string
+  afterValue: string | null
+  createdAt: Date
+  actor: { name: string | null; email: string } | null
+}): InvitationDeliveryState {
+  if (input.action !== 'guest.invitation_delivery_marked') {
+    return { status: 'not_sent', channel: null, sentAt: null, sentBy: null }
+  }
+
+  let channel: InvitationDeliveryChannel | null = null
+  try {
+    const parsed = JSON.parse(input.afterValue || '{}') as { channel?: unknown }
+    if (['whatsapp', 'email', 'sms', 'other'].includes(String(parsed.channel))) {
+      channel = parsed.channel as InvitationDeliveryChannel
+    }
+  } catch {
+    channel = null
+  }
+
+  return {
+    status: 'sent',
+    channel,
+    sentAt: input.createdAt.toISOString(),
+    sentBy: input.actor?.name?.trim() || input.actor?.email || null,
+  }
+}
 
 export const CANONICAL_WEWED_ORIGIN = 'https://wewed.pro'
 
@@ -58,7 +94,7 @@ export type PlannerInvitationStatus = 'attending' | 'declined' | 'pending'
  * origin, exactly as the desktop Planner has always done.
  */
 export async function loadPlannerInvitationProjection(weddingId: string, siteUrl: string) {
-  const [wedding, guests, childrenPolicyRow] = await Promise.all([
+  const [wedding, guests, childrenPolicyRow, deliveryEvents] = await Promise.all([
     db.wedding.findUnique({
       where: { id: weddingId },
       select: invitationWeddingSelect(),
@@ -78,6 +114,26 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       },
       select: { value: true },
     }),
+    db.auditEvent.findMany({
+      where: {
+        weddingId,
+        resourceType: 'guest_invitation',
+        action: {
+          in: [
+            'guest.invitation_delivery_marked',
+            'guest.invitation_delivery_unmarked',
+          ],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        action: true,
+        resourceId: true,
+        afterValue: true,
+        createdAt: true,
+        actor: { select: { name: true, email: true } },
+      },
+    }),
   ])
 
   if (!wedding) return null
@@ -86,6 +142,12 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
   const childrenPolicy = normalizeChildrenPolicy(childrenPolicyRow?.value)
   const origin = siteUrl.replace(/\/$/, '')
   const missingTokens = guests.filter((guest) => !guest.rsvp?.token).length
+  const deliveryByGuest = new Map<string, InvitationDeliveryState>()
+  for (const event of deliveryEvents) {
+    if (!event.resourceId || deliveryByGuest.has(event.resourceId)) continue
+    deliveryByGuest.set(event.resourceId, deliveryStateFromAudit(event))
+  }
+
   const data = guests.map((guest) => {
     const invitationUrl = guest.rsvp?.token
       ? buildSmartInvitationUrl({
@@ -101,6 +163,12 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
         : guest.rsvp?.attending === false
           ? 'declined'
           : 'pending'
+    const delivery = deliveryByGuest.get(guest.id) ?? {
+      status: 'not_sent' as const,
+      channel: null,
+      sentAt: null,
+      sentBy: null,
+    }
     return {
       id: guest.id,
       name: guest.name,
@@ -118,6 +186,10 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
             invitationUrl,
           })
         : null,
+      deliveryStatus: delivery.status,
+      deliveryChannel: delivery.channel,
+      deliveredAt: delivery.sentAt,
+      deliveredBy: delivery.sentBy,
     }
   })
 
