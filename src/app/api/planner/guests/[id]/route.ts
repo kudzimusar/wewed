@@ -462,10 +462,33 @@ export async function DELETE(
 
     const existing = await db.guest.findFirst({
       where: { id, weddingId },
-      include: { rsvp: true },
+      include: {
+        rsvp: true,
+        contribution: { select: { id: true } },
+        passCredentials: { select: { id: true } },
+        weddingCheckIns: { select: { id: true } },
+        invitationDeliveries: { select: { id: true }, take: 1 },
+      },
     })
     if (!existing) {
       return NextResponse.json({ success: false, error: 'Guest not found' }, { status: 404 })
+    }
+
+    const protectedHistory =
+      existing.rsvp?.attending != null ||
+      existing.rsvp?.checkedIn === true ||
+      existing.contribution != null ||
+      existing.passCredentials.length > 0 ||
+      existing.weddingCheckIns.length > 0 ||
+      existing.invitationDeliveries.length > 0
+    if (protectedHistory) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'This Guest has RSVP, invitation-delivery, contribution, Pass or check-in history. Edit the record instead of deleting its history.',
+        },
+        { status: 409 },
+      )
     }
 
     await db.$transaction(async (tx) => {

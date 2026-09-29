@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 import {
+  invitationDeliveryVersionFingerprint,
   invitationWeddingSelect,
   loadPlannerInvitationProjection,
   normalizeChildrenPolicy,
@@ -45,13 +46,22 @@ export async function GET(request: NextRequest) {
 
     if (request.nextUrl.searchParams.get('format') === 'csv') {
       const csv = [
-        'Name,Email,Phone,RSVP Status,Checked In,Table,Card Style,Digital Invitation URL,Share Message',
+        'Name,Email,Phone,RSVP Status,Delivery Status,Last Sent At,Last Sent Via,Last Sent Recipient,Last Sent Link Current,Last Sent Card Style,Last Sent Children Policy,Last Sent RSVP Deadline,Last Sent Invitation Message,Checked In,Table,Current Card Style,Digital Invitation URL,Share Message',
         ...data.map((row) =>
           [
             csvCell(row.name),
             csvCell(row.email),
             csvCell(row.phone),
             csvCell(row.status),
+            csvCell(row.lastSentAt ? 'sent' : 'not_sent'),
+            csvCell(row.lastSentAt),
+            csvCell(row.lastSentVia),
+            csvCell(row.lastSentRecipient),
+            csvCell(row.lastSentLinkCurrent == null ? null : row.lastSentLinkCurrent ? 'yes' : 'no'),
+            csvCell(row.lastSentInvitationStyle),
+            csvCell(row.lastSentChildrenPolicy),
+            csvCell(row.lastSentRsvpDeadline),
+            csvCell(row.lastSentInvitationMessage),
             csvCell(row.checkedIn ? 'yes' : 'no'),
             csvCell(row.tableNumber?.toString()),
             csvCell(style),
@@ -82,6 +92,150 @@ export async function POST(request: NextRequest) {
   if (access.error) return privateNoStore(access.error)
 
   try {
+    const body = (await request.json().catch(() => null)) as {
+      action?: unknown
+      guestIds?: unknown
+      channel?: unknown
+      note?: unknown
+    } | null
+
+    if (body?.action === 'mark_sent') {
+      const guestIds = Array.isArray(body.guestIds)
+        ? [...new Set(body.guestIds.filter((value): value is string => typeof value === 'string' && value.trim().length > 0))]
+        : []
+      if (guestIds.length === 0 || guestIds.length > 500) {
+        return privateJson({ success: false, error: 'Select between 1 and 500 guests.' }, 400)
+      }
+
+      const allowedChannels = new Set(['whatsapp', 'email', 'sms', 'copy_link', 'share_sheet', 'other'])
+      const channel = typeof body.channel === 'string' ? body.channel.trim().toLowerCase() : ''
+      if (!allowedChannels.has(channel)) {
+        return privateJson({ success: false, error: 'Choose how the invitation was sent.' }, 400)
+      }
+
+      const note = typeof body.note === 'string'
+        ? body.note.replace(/\u0000/g, '').trim().slice(0, 500) || null
+        : null
+      const [guests, wedding, childrenPolicyRow] = await Promise.all([
+        db.guest.findMany({
+          where: { weddingId: access.context.weddingId, id: { in: guestIds } },
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            rsvp: { select: { token: true } },
+          },
+        }),
+        db.wedding.findUnique({
+          where: { id: access.context.weddingId },
+          select: {
+            invitationCardStyle: true,
+            invitationCardMessage: true,
+            rsvpDeadline: true,
+          },
+        }),
+        db.weddingContent.findUnique({
+          where: {
+            weddingId_section_field: {
+              weddingId: access.context.weddingId,
+              section: 'rsvp',
+              field: 'childrenPolicy',
+            },
+          },
+          select: { value: true },
+        }),
+      ])
+      if (guests.length !== guestIds.length) {
+        return privateJson({ success: false, error: 'One or more selected guests are no longer in this wedding.' }, 409)
+      }
+      if (!wedding) {
+        return privateJson({ success: false, error: 'Wedding not found.' }, 404)
+      }
+      const withoutPrivateLinks = guests.filter((guest) => !guest.rsvp?.token)
+      if (withoutPrivateLinks.length > 0) {
+        return privateJson(
+          {
+            success: false,
+            error: `${withoutPrivateLinks.length} selected guest${withoutPrivateLinks.length === 1 ? '' : 's'} do not have a private invitation link yet. Generate missing links before recording delivery.`,
+          },
+          409,
+        )
+      }
+
+      const recipientFor = (guest: (typeof guests)[number]) => {
+        if (channel === 'email') return guest.email
+        if (channel === 'whatsapp' || channel === 'sms') return guest.phone
+        return guest.email ?? guest.phone
+      }
+      const missingRecipient = guests.find((guest) => {
+        if (channel === 'email') return !guest.email
+        if (channel === 'whatsapp' || channel === 'sms') return !guest.phone
+        return false
+      })
+      if (missingRecipient) {
+        return privateJson(
+          {
+            success: false,
+            error: channel === 'email'
+              ? 'Every selected guest needs an email address before marking an email send.'
+              : 'Every selected guest needs a phone number before marking a WhatsApp/SMS send.',
+          },
+          409,
+        )
+      }
+
+      const invitationStyle = normalizeInvitationCardStyle(wedding.invitationCardStyle)
+      const childrenPolicy = normalizeChildrenPolicy(childrenPolicyRow?.value)
+      const sentAt = new Date()
+      await db.$transaction(async (tx) => {
+        await tx.guestInvitationDelivery.createMany({
+          data: guests.map((guest) => ({
+            weddingId: access.context.weddingId,
+            guestId: guest.id,
+            actorId: access.context.session.userId,
+            channel,
+            recipient: recipientFor(guest),
+            note,
+            invitationVersionFingerprint: invitationDeliveryVersionFingerprint(guest.rsvp!.token),
+            invitationStyle,
+            invitationMessage: wedding.invitationCardMessage,
+            rsvpDeadline: wedding.rsvpDeadline,
+            childrenPolicy,
+            sentAt,
+          })),
+        })
+        await tx.auditEvent.create({
+          data: {
+            action: 'guest.invitation_marked_sent',
+            resourceType: 'guest_batch',
+            resourceId: guestIds.join(','),
+            afterValue: JSON.stringify({
+              count: guests.length,
+              channel,
+              invitationStyle,
+              childrenPolicy,
+              rsvpDeadline: wedding.rsvpDeadline?.toISOString() ?? null,
+              sentAt: sentAt.toISOString(),
+            }),
+            weddingId: access.context.weddingId,
+            actorId: access.context.session.userId,
+          },
+        })
+      })
+      return privateJson({
+        success: true,
+        marked: guests.length,
+        sentAt: sentAt.toISOString(),
+        channel,
+      })
+    }
+
+    // Existing explicit credential repair. A plain POST (or action=repair_links)
+    // preserves the historical API contract while remaining an operator-triggered write.
+    if (body?.action !== undefined && body.action !== 'repair_links') {
+      return privateJson({ success: false, error: 'Unsupported invitation action.' }, 400)
+    }
+
     const guests = await db.guest.findMany({
       where: { weddingId: access.context.weddingId, rsvp: null },
       select: { id: true },
@@ -104,7 +258,7 @@ export async function POST(request: NextRequest) {
     return privateJson({ success: true, generated: guests.length })
   } catch (error) {
     console.error('[guest invitations POST] Error:', error)
-    return privateJson({ success: false, error: 'Unable to generate invitation links.' }, 500)
+    return privateJson({ success: false, error: 'Unable to update invitation delivery.' }, 500)
   }
 }
 

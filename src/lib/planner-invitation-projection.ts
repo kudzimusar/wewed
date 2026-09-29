@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { db } from '@/lib/db'
 import {
   buildDigitalInvitationMessage,
@@ -31,6 +32,17 @@ export function normalizeChildrenPolicy(value: unknown): ChildrenPolicy {
   return value === 'adults_only' ? 'adults_only' : 'welcome'
 }
 
+/**
+ * Stable one-way marker for the exact personal invitation link version that was handed off.
+ * It lets the Planner warn that a link was rotated after sending without storing/logging the
+ * private RSVP credential itself.
+ */
+export function invitationDeliveryVersionFingerprint(rsvpToken: string): string {
+  return createHash('sha256')
+    .update(`wewed.invitation.delivery.v1:${rsvpToken}`)
+    .digest('base64url')
+}
+
 export function invitationWeddingSelect() {
   return {
     slug: true,
@@ -58,7 +70,7 @@ export type PlannerInvitationStatus = 'attending' | 'declined' | 'pending'
  * origin, exactly as the desktop Planner has always done.
  */
 export async function loadPlannerInvitationProjection(weddingId: string, siteUrl: string) {
-  const [wedding, guests, childrenPolicyRow] = await Promise.all([
+  const [wedding, guests, childrenPolicyRow, deliveries] = await Promise.all([
     db.wedding.findUnique({
       where: { id: weddingId },
       select: invitationWeddingSelect(),
@@ -78,6 +90,21 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       },
       select: { value: true },
     }),
+    db.guestInvitationDelivery.findMany({
+      where: { weddingId },
+      orderBy: [{ sentAt: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        guestId: true,
+        channel: true,
+        recipient: true,
+        sentAt: true,
+        invitationVersionFingerprint: true,
+        invitationStyle: true,
+        invitationMessage: true,
+        rsvpDeadline: true,
+        childrenPolicy: true,
+      },
+    }),
   ])
 
   if (!wedding) return null
@@ -86,6 +113,18 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
   const childrenPolicy = normalizeChildrenPolicy(childrenPolicyRow?.value)
   const origin = siteUrl.replace(/\/$/, '')
   const missingTokens = guests.filter((guest) => !guest.rsvp?.token).length
+  const deliveryCountByGuest = new Map<string, number>()
+  const latestDeliveryByGuest = new Map<string, (typeof deliveries)[number]>()
+  for (const delivery of deliveries) {
+    deliveryCountByGuest.set(
+      delivery.guestId,
+      (deliveryCountByGuest.get(delivery.guestId) ?? 0) + 1,
+    )
+    if (!latestDeliveryByGuest.has(delivery.guestId)) {
+      latestDeliveryByGuest.set(delivery.guestId, delivery)
+    }
+  }
+
   const data = guests.map((guest) => {
     const invitationUrl = guest.rsvp?.token
       ? buildSmartInvitationUrl({
@@ -101,6 +140,7 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
         : guest.rsvp?.attending === false
           ? 'declined'
           : 'pending'
+    const latestDelivery = latestDeliveryByGuest.get(guest.id)
     return {
       id: guest.id,
       name: guest.name,
@@ -109,6 +149,17 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       tableNumber: guest.tableNumber,
       status,
       checkedIn: guest.rsvp?.checkedIn ?? false,
+      deliveryCount: deliveryCountByGuest.get(guest.id) ?? 0,
+      lastSentAt: latestDelivery?.sentAt.toISOString() ?? null,
+      lastSentVia: latestDelivery?.channel ?? null,
+      lastSentRecipient: latestDelivery?.recipient ?? null,
+      lastSentInvitationStyle: latestDelivery?.invitationStyle ?? null,
+      lastSentInvitationMessage: latestDelivery?.invitationMessage ?? null,
+      lastSentRsvpDeadline: latestDelivery?.rsvpDeadline?.toISOString() ?? null,
+      lastSentChildrenPolicy: latestDelivery?.childrenPolicy ?? null,
+      lastSentLinkCurrent: latestDelivery && guest.rsvp?.token
+        ? latestDelivery.invitationVersionFingerprint === invitationDeliveryVersionFingerprint(guest.rsvp.token)
+        : latestDelivery ? false : null,
       invitationUrl,
       qrValue: invitationUrl,
       shareMessage: invitationUrl
