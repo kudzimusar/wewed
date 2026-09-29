@@ -66,7 +66,7 @@ export function PlannerInvitationWorkspace() {
           className={mode === 'guest' ? 'min-h-12 justify-start bg-gold text-espresso hover:bg-gold-light' : 'min-h-12 justify-start text-espresso/65 hover:bg-ivory'}
         >
           <Users className="size-4" />
-          Open Invitation · Guests & delivery
+          Open Invitation · Guest cards, RSVP & guest QR
         </Button>
         <Button
           type="button"
@@ -84,7 +84,7 @@ export function PlannerInvitationWorkspace() {
           className={mode === 'team' ? 'min-h-12 justify-start bg-gold text-espresso hover:bg-gold-light' : 'min-h-12 justify-start text-espresso/65 hover:bg-ivory'}
         >
           <UserPlus className="size-4" />
-          Project team access
+          Invite project team member
         </Button>
       </nav>
 
