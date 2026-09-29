@@ -2,6 +2,7 @@ import { weddingGuestSessionExpiry } from '@/lib/wedding-guest-session'
 import { invitationVersionFingerprint } from '@/lib/wedding-guest-session'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { recordGuestInvitationOpened } from '@/lib/guest-invitation-telemetry'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import { setWeddingGuestSessionCookie } from '@/lib/wedding-guest-session'
 import {
@@ -64,6 +65,12 @@ export async function GET(request: NextRequest, { params }: Params) {
     await new Promise((resolve) => setTimeout(resolve, 120))
     return redirectToGateway(slug, 'invalid')
   }
+
+  await recordGuestInvitationOpened({
+    weddingId: rsvp.guest.wedding.id,
+    guestId: rsvp.guest.id,
+    source: 'web_exchange',
+  })
 
   // The wedding's saved style is authoritative. Guest-facing URLs are access
   // credentials, not design selectors, and may be long-lived or forwarded.
