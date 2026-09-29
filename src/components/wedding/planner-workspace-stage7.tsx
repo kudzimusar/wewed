@@ -38,6 +38,7 @@ const WORKSPACE_MODULES: Array<{
   { value: 'contributions', label: 'Contributions', worksheetKey: 'contributions' },
   { value: 'vendors', label: 'Vendors', worksheetKey: 'vendors' },
   { value: 'guests', label: 'Guests', worksheetKey: 'guests' },
+  { value: 'invitations', label: 'Invitations' },
   { value: 'timeline', label: 'Timeline', worksheetKey: 'timeline' },
   { value: 'seating', label: 'Seating', worksheetKey: 'seating' },
 ]
@@ -399,7 +400,7 @@ export function PlannerWorkspace() {
 
             <div
               id="planner-worksheet-modules"
-              className={`${modulePickerOpen ? 'mt-2 grid' : 'hidden'} grid-cols-2 gap-1 sm:grid-cols-4 lg:grid-cols-8`}
+              className={`${modulePickerOpen ? 'mt-2 grid' : 'hidden'} grid-cols-2 gap-1 sm:grid-cols-4 lg:grid-cols-9`}
               aria-label="Worksheet module selector"
             >
               {WORKSPACE_MODULES.map((module) => (
