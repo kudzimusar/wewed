@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { resolveNativeGrantContext, requireGrantPermission, requireWeddingScope, noStoreJson } from '@/lib/native-domain-context'
 import { guestPartySize, guestRsvpStatus, guestSeatingIdentity } from '@/lib/guest-record-authority'
+import { nativeGuestSummary, resolveNativeGuestWrite } from '@/lib/native-planner-guest-write'
+import { createPlannerGuest } from '@/lib/planner-guest-operations'
 
 /**
  * Master plan Phase 8 §9 — Guests (Planner/Couple account access to guest management, read-only in
@@ -55,4 +57,36 @@ export async function GET(request: NextRequest) {
       updatedAt: guest.updatedAt.toISOString(),
     })),
   })
+}
+
+/**
+ * NATIVE-MOBILE-QRO08 — native twin of the desktop "Add guest" (POST /api/planner/guests, guest
+ * mode). Same shared operation: validation, duplicate-email rule, personal-link RSVP row and audit.
+ * The response carries only non-credential fields; the client re-reads the invitations projection.
+ */
+export async function POST(request: NextRequest) {
+  const write = await resolveNativeGuestWrite(request)
+  if (!write.ok) return write.response
+  try {
+    const body = (await request.json().catch(() => null)) as {
+      name?: unknown
+      email?: unknown
+      phone?: unknown
+    } | null
+    const result = await createPlannerGuest(write.actor, {
+      name: typeof body?.name === 'string' ? body.name : undefined,
+      email: typeof body?.email === 'string' ? body.email : undefined,
+      phone: typeof body?.phone === 'string' ? body.phone : undefined,
+    })
+    if (!result.ok) {
+      return noStoreJson(
+        { success: false, error: result.error, ...('field' in result && result.field ? { field: result.field } : {}) },
+        result.status,
+      )
+    }
+    return noStoreJson({ success: true, data: nativeGuestSummary(result.data) }, 201)
+  } catch (error) {
+    console.error('[native wedding guests POST] failed', error instanceof Error ? error.name : 'unknown')
+    return noStoreJson({ success: false, error: 'Failed to create guest.' }, 500)
+  }
 }

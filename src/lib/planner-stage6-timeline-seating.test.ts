@@ -161,7 +161,8 @@ describe('Stage 6 Timeline and Seating parity', () => {
   test('workspace and seating APIs keep table and assignment mutations wedding scoped and transactional', async () => {
     const [workspace, route] = await Promise.all([
       source('src/components/wedding/planner-workspace.tsx'),
-      source('src/app/api/planner/guests/[id]/route.ts'),
+      // QRO08: guest-mode writes live in the shared operations both desktop and native routes call.
+      Promise.all([source('src/app/api/planner/guests/[id]/route.ts'), source('src/lib/planner-guest-operations.ts')]).then((parts) => parts.join('')),
     ])
 
     for (const marker of [

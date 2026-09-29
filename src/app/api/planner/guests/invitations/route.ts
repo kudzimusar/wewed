@@ -1,8 +1,8 @@
-import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import { requireWeddingPermission } from '@/lib/wedding-access'
+import { repairMissingInvitationLinks, rotateGuestInvitation } from '@/lib/planner-invitation-operations'
 import {
   invitationWeddingSelect,
   loadPlannerInvitationProjection,
@@ -86,26 +86,11 @@ export async function POST(request: NextRequest) {
   if (access.error) return privateNoStore(access.error)
 
   try {
-    const guests = await db.guest.findMany({
-      where: { weddingId: access.context.weddingId, rsvp: null },
-      select: { id: true },
+    const result = await repairMissingInvitationLinks({
+      weddingId: access.context.weddingId,
+      actorId: access.context.session.userId,
     })
-    if (guests.length) {
-      await db.rSVP.createMany({
-        data: guests.map((guest) => ({ guestId: guest.id, token: randomUUID() })),
-        skipDuplicates: true,
-      })
-      await db.auditEvent.create({
-        data: {
-          action: 'guest.invitation_links_repair',
-          resourceType: 'rsvp',
-          afterValue: JSON.stringify({ generated: guests.length }),
-          weddingId: access.context.weddingId,
-          actorId: access.context.session.userId,
-        },
-      })
-    }
-    return privateJson({ success: true, generated: guests.length })
+    return privateJson({ success: true, generated: result.ok ? result.data.generated : 0 })
   } catch (error) {
     console.error('[guest invitations POST] Error:', error)
     return privateJson({ success: false, error: 'Unable to generate invitation links.' }, 500)
@@ -264,38 +249,11 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = (await request.json().catch(() => null)) as { guestId?: unknown } | null
-    const guestId = typeof body?.guestId === 'string' ? body.guestId : ''
-    if (!guestId) {
-      return privateJson({ success: false, error: 'Guest ID is required.' }, 400)
-    }
-
-    const guest = await db.guest.findFirst({
-      where: { id: guestId, weddingId: access.context.weddingId },
-      include: { rsvp: { select: { id: true, token: true } } },
-    })
-    if (!guest) {
-      return privateJson({ success: false, error: 'Guest not found.' }, 404)
-    }
-
-    const token = randomUUID()
-    if (guest.rsvp) {
-      await db.rSVP.update({ where: { id: guest.rsvp.id }, data: { token } })
-    } else {
-      await db.rSVP.create({ data: { guestId: guest.id, token } })
-    }
-
-    await db.auditEvent.create({
-      data: {
-        action: 'guest.invitation_rotated',
-        resourceType: 'rsvp',
-        resourceId: guest.id,
-        beforeValue: JSON.stringify({ tokenPresent: Boolean(guest.rsvp?.token) }),
-        afterValue: JSON.stringify({ rotated: true }),
-        weddingId: access.context.weddingId,
-        actorId: access.context.session.userId,
-      },
-    })
-
+    const result = await rotateGuestInvitation(
+      { weddingId: access.context.weddingId, actorId: access.context.session.userId },
+      { guestId: body?.guestId },
+    )
+    if (!result.ok) return privateJson({ success: false, error: result.error }, result.status)
     return privateJson({ success: true })
   } catch (error) {
     console.error('[guest invitations PATCH] Error:', error)

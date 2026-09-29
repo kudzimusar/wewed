@@ -1,0 +1,129 @@
+import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
+
+/**
+ * NATIVE-MOBILE-QRO08 — the native Planner invitation/guest write twins are thin shells over the
+ * SAME operation functions the desktop Planner routes call. One database authority, no second
+ * backend, no credential echoed back to the device.
+ */
+
+const read = (path: string) => readFileSync(path, 'utf8')
+
+const NATIVE = {
+  delivery: 'src/app/api/native/wedding/invitations/delivery/route.ts',
+  invitations: 'src/app/api/native/wedding/invitations/route.ts',
+  guests: 'src/app/api/native/wedding/guests/route.ts',
+  guest: 'src/app/api/native/wedding/guests/[id]/route.ts',
+}
+const WEB = {
+  delivery: 'src/app/api/planner/guests/invitations/delivery/route.ts',
+  invitations: 'src/app/api/planner/guests/invitations/route.ts',
+  guests: 'src/app/api/planner/guests/route.ts',
+  guest: 'src/app/api/planner/guests/[id]/route.ts',
+}
+
+/** Body of one exported handler, up to the next export. */
+function handler(source: string, method: string): string {
+  const start = source.indexOf(`export async function ${method}(`)
+  expect(start).toBeGreaterThanOrEqual(0)
+  const next = source.indexOf('\nexport ', start + 1)
+  return source.slice(start, next === -1 ? undefined : next)
+}
+
+describe('QRO08 native Planner write authority', () => {
+  test('resolves the grant, wedding scope, guests.edit and the Preview block before any write', () => {
+    const source = read('src/lib/native-planner-guest-write.ts')
+    const order = [
+      'resolveNativeGrantContext(request)',
+      'requireWeddingScope(result.context.grant)',
+      "requireGrantPermission(result.context.grant, 'guests.edit')",
+      'shouldBlockPreviewWrite({ method: request.method, weddingId: scope.weddingId })',
+      'actor: { weddingId: scope.weddingId, actorId: result.context.session.accessUserId }',
+    ].map((marker) => source.indexOf(marker))
+    expect(order.every((index) => index >= 0)).toBe(true)
+    expect([...order].sort((a, b) => a - b)).toEqual(order)
+    // The wedding never comes from the request body.
+    expect(source).not.toContain('body.weddingId')
+  })
+
+  test('every native write handler goes through the write authority first', () => {
+    const cases: Array<[string, string[]]> = [
+      [NATIVE.delivery, ['POST', 'DELETE']],
+      [NATIVE.invitations, ['POST', 'PATCH']],
+      [NATIVE.guests, ['POST']],
+      [NATIVE.guest, ['PATCH', 'DELETE']],
+    ]
+    for (const [path, methods] of cases) {
+      const source = read(path)
+      for (const method of methods) {
+        const body = handler(source, method)
+        expect(body).toContain('const write = await resolveNativeGuestWrite(request)')
+        expect(body).toContain('if (!write.ok) return write.response')
+      }
+    }
+  })
+
+  test('native and desktop routes call the same shared operations and never write the database directly', () => {
+    const shared: Array<[string, string, string[]]> = [
+      [NATIVE.delivery, WEB.delivery, ['recordInvitationDelivery(', 'resetInvitationDelivery(']],
+      [NATIVE.invitations, WEB.invitations, ['repairMissingInvitationLinks(', 'rotateGuestInvitation(']],
+      [NATIVE.guests, WEB.guests, ['createPlannerGuest(']],
+      [NATIVE.guest, WEB.guest, ['updatePlannerGuest(', 'deletePlannerGuest(']],
+    ]
+    for (const [nativePath, webPath, calls] of shared) {
+      const nativeSource = read(nativePath)
+      const webSource = read(webPath)
+      for (const call of calls) {
+        expect(nativeSource).toContain(call)
+        expect(webSource).toContain(call)
+      }
+      // The write handlers (GET readers above them stay on the canonical projections).
+      for (const method of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+        if (!nativeSource.includes(`export async function ${method}(`)) continue
+        expect(/\b(db|tx)\./.test(handler(nativeSource, method))).toBe(false)
+      }
+    }
+  })
+
+  test('native write responses never carry a credential', () => {
+    for (const path of [NATIVE.delivery, NATIVE.guests, NATIVE.guest]) {
+      const source = read(path)
+      for (const method of ['POST', 'PATCH', 'DELETE']) {
+        if (!source.includes(`export async function ${method}(`)) continue
+        const body = handler(source, method)
+        // Code only: doc comments may name the RSVP they delete.
+        const code = body.replace(/\/\*\*[\s\S]*?\*\//g, '')
+        expect(/\.token\b|\btoken:|invitationUrl|qrValue|shareMessage|\.rsvp\b|rsvp:/.test(code)).toBe(false)
+      }
+    }
+    // Created/updated Guests are reduced to the non-credential summary.
+    expect(read(NATIVE.guests)).toContain('nativeGuestSummary(result.data)')
+    expect(read(NATIVE.guest)).toContain('nativeGuestSummary(result.data)')
+    const summary = read('src/lib/native-planner-guest-write.ts')
+    expect(summary).toContain('return { id: guest.id, name: guest.name, email: guest.email, phone: guest.phone }')
+    // Repair/rotate return only a count / success flag.
+    const invitations = read(NATIVE.invitations)
+    expect(handler(invitations, 'POST')).toContain('{ success: true, generated: result.ok ? result.data.generated : 0 }')
+    expect(handler(invitations, 'PATCH')).toContain('{ success: true }')
+  })
+
+  test('native write responses are private and uncacheable', () => {
+    for (const path of [NATIVE.delivery, NATIVE.invitations]) {
+      expect(read(path)).toContain('privateNoStoreJson(')
+    }
+    for (const path of [NATIVE.guests, NATIVE.guest]) {
+      expect(read(path)).toContain('noStoreJson(')
+    }
+  })
+
+  test('native guest edits are limited to name, email and phone', () => {
+    const body = handler(read(NATIVE.guest), 'PATCH')
+    for (const field of ['role', 'side', 'seatingTableId', 'roleDetail']) {
+      expect(body).not.toContain(`input.${field}`)
+    }
+    const create = handler(read(NATIVE.guests), 'POST')
+    for (const field of ['role', 'side', 'seatingTableId', 'roleDetail']) {
+      expect(create).not.toContain(`${field}:`)
+    }
+  })
+})

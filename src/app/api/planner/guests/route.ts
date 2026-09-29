@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import {
@@ -14,10 +13,9 @@ import {
   SeatingTargetError,
 } from '@/lib/planner-seating-transaction'
 import { requireWeddingPermission } from '@/lib/wedding-access'
+import { createPlannerGuest } from '@/lib/planner-guest-operations'
 import { guestPartySize, guestRsvpStatus } from '@/lib/guest-record-authority'
 
-const GUEST_ROLES = ['guest', 'bridal_party', 'family', 'officiant', 'vip'] as const
-const GUEST_SIDES = ['bride', 'groom', 'family', 'neutral'] as const
 const MAX_TABLE_CAPACITY = 50
 const MAX_BULK_GUESTS = 500
 
@@ -223,74 +221,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, data: formatTable(table) }, { status: 201 })
     }
 
-    const name = clean(body.name, 160) ?? ''
-    if (!name) return NextResponse.json({ success: false, error: 'Name is required.' }, { status: 400 })
-    const email = body.email?.trim().toLowerCase() || null
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const result = await createPlannerGuest({ weddingId, actorId: access.context.session.userId }, body)
+    if (!result.ok) {
       return NextResponse.json(
-        { success: false, error: 'Enter a valid email address.', field: 'email' },
-        { status: 400 },
+        { success: false, error: result.error, ...('field' in result && result.field ? { field: result.field } : {}) },
+        { status: result.status },
       )
     }
-    if (email) {
-      const duplicate = await db.guest.findFirst({ where: { weddingId, email: { equals: email, mode: 'insensitive' } } })
-      if (duplicate) {
-        return NextResponse.json(
-          { success: false, error: 'A guest with this email already exists for this wedding.', field: 'email' },
-          { status: 409 },
-        )
-      }
-    }
-
-    const role = GUEST_ROLES.includes(body.role as (typeof GUEST_ROLES)[number]) ? body.role! : 'guest'
-    const side = GUEST_SIDES.includes(body.side as (typeof GUEST_SIDES)[number]) ? body.side! : 'neutral'
-
-    const guest = await runSerializableSeatingTransaction(async (tx) => {
-      if (body.seatingTableId) {
-        const table = await tx.seatingTable.findFirst({
-          where: { id: body.seatingTableId, weddingId },
-          include: { guests: { include: { rsvp: true } } },
-        })
-        if (!table) throw new SeatingTargetError('Invalid seatingTableId.')
-        const occupied = table.guests.reduce((sum, guest) => sum + plannedSeatsForGuest(guest), 0)
-        if (occupied + 1 > table.capacity) {
-          throw new SeatingCapacityError(`${table.name} has no available seat for ${name}.`)
-        }
-      }
-
-      const created = await tx.guest.create({
-        data: {
-          name,
-          email,
-          phone: clean(body.phone, 80),
-          role,
-          roleDetail: clean(body.roleDetail, 160),
-          side,
-          seatingTableId: body.seatingTableId || null,
-          weddingId,
-        },
-      })
-      await tx.rSVP.create({ data: { token: randomUUID(), guestId: created.id } })
-      await tx.auditEvent.create({
-        data: {
-          action: 'guest.create',
-          resourceType: 'guest',
-          resourceId: created.id,
-          afterValue: JSON.stringify({ name: created.name, email: created.email, role: created.role }),
-          weddingId,
-          actorId: access.context.session.userId,
-        },
-      })
-      return tx.guest.findUniqueOrThrow({
-        where: { id: created.id },
-        include: {
-          rsvp: true,
-          seatingTable: { select: { id: true, name: true, capacity: true } },
-        },
-      })
-    })
-
-    return NextResponse.json({ success: true, data: formatGuest(guest) }, { status: 201 })
+    return NextResponse.json({ success: true, data: formatGuest(result.data) }, { status: 201 })
   } catch (error) {
     if (error instanceof SeatingCapacityError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 409 })

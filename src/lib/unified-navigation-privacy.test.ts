@@ -40,8 +40,10 @@ describe('unified Wewed navigation and wedding privacy', () => {
       'src/app/api/weddings/[slug]/guest-session/exchange/route.ts',
     )
     // QRO05-PIQR01: link building lives in the projection both desktop and native routes read.
+    // QRO08: repair/rotate live in the shared operations both desktop and native routes call.
     const invitations = (await source('src/app/api/planner/guests/invitations/route.ts'))
       + (await source('src/lib/planner-invitation-projection.ts'))
+      + (await source('src/lib/planner-invitation-operations.ts'))
     const smartLinks = await source('src/lib/invitation-links.ts')
     const legacySharedToken = await source('src/app/api/privacy/verify-token/route.ts')
 
