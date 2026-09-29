@@ -45,6 +45,11 @@ interface InvitationRow {
   lastSentAt: string | null
   lastSentVia: string | null
   lastSentRecipient: string | null
+  lastSentInvitationStyle: string | null
+  lastSentInvitationMessage: string | null
+  lastSentRsvpDeadline: string | null
+  lastSentChildrenPolicy: string | null
+  lastSentLinkCurrent: boolean | null
   invitationUrl: string | null
   qrValue: string | null
   shareMessage: string | null
@@ -122,6 +127,18 @@ function sentDate(value: string | null): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(date)
+}
+
+function invitationStyleLabel(value: string | null): string {
+  if (!value) return 'Unknown design'
+  return value.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')
+}
+
+function shortDate(value: string | null): string {
+  if (!value) return 'No RSVP deadline'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'RSVP deadline saved'
+  return `RSVP ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(date)}`
 }
 
 function statusLabel(value: InvitationRow['status']): string {
@@ -603,6 +620,16 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
             </div>
             {filteredRows.map((row) => {
               const editing = editingId === row.id
+              const currentSettingsChanged = Boolean(
+                row.lastSentAt &&
+                wedding &&
+                (
+                  row.lastSentInvitationStyle !== wedding.invitationCardStyle ||
+                  (row.lastSentInvitationMessage ?? '') !== (wedding.invitationCardMessage ?? '') ||
+                  dateInputValue(row.lastSentRsvpDeadline) !== dateInputValue(wedding.rsvpDeadline) ||
+                  row.lastSentChildrenPolicy !== wedding.childrenPolicy
+                )
+              )
               return (
                 <article key={row.id} className="border-b border-gold/10 last:border-b-0">
                   <div className="grid gap-3 px-4 py-4 lg:grid-cols-[2.5rem_minmax(0,1.3fr)_10rem_15rem_8rem] lg:items-center">
@@ -617,7 +644,23 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                     <div><span className="rounded-full border border-gold/20 bg-champagne/50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-espresso/70">{statusLabel(row.status)}</span></div>
                     <div className="text-xs leading-5 text-espresso/55">
                       <p className={row.lastSentAt ? 'font-medium text-espresso' : ''}>{row.lastSentAt ? sentDate(row.lastSentAt) : 'Not marked sent'}</p>
-                      {row.lastSentAt && <p>{deliveryChannelLabel(row.lastSentVia)}{row.lastSentRecipient ? ` · ${row.lastSentRecipient}` : ''}{row.deliveryCount > 1 ? ` · ${row.deliveryCount} sends` : ''}</p>}
+                      {row.lastSentAt && (
+                        <>
+                          <p>{deliveryChannelLabel(row.lastSentVia)}{row.lastSentRecipient ? ` · ${row.lastSentRecipient}` : ''}{row.deliveryCount > 1 ? ` · ${row.deliveryCount} sends` : ''}</p>
+                          <p
+                            className="text-[10px] text-espresso/45"
+                            title={row.lastSentInvitationMessage || 'No invitation note was saved in this delivery snapshot.'}
+                          >
+                            {invitationStyleLabel(row.lastSentInvitationStyle)} · {row.lastSentChildrenPolicy === 'adults_only' ? 'Adults only' : 'Children welcome'} · {shortDate(row.lastSentRsvpDeadline)}
+                          </p>
+                          {row.lastSentLinkCurrent === false && (
+                            <p className="font-semibold text-clay">Private link rotated since this send.</p>
+                          )}
+                          {currentSettingsChanged && (
+                            <p className="font-semibold text-amber-800">Invitation settings changed since this send.</p>
+                          )}
+                        </>
+                      )}
                     </div>
                     <div className="text-xs text-espresso/55">Table {row.tableNumber ?? '—'}<br />{row.checkedIn ? 'Checked in' : 'Not checked in'}</div>
                   </div>
@@ -637,7 +680,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                     <Button type="button" size="sm" variant="outline" onClick={() => void share(row)} disabled={!row.invitationUrl}><Share2 className="size-4" />{copied === `share-${row.id}` ? 'Copied' : 'Share card'}</Button>
                     <Button type="button" size="sm" variant="outline" onClick={() => void copyLink(row)} disabled={!row.invitationUrl}>{copied === `link-${row.id}` ? <Check className="size-4" /> : <Copy className="size-4" />}{copied === `link-${row.id}` ? 'Link copied' : 'Copy link'}</Button>
                     {row.invitationUrl && <Button asChild size="sm" variant="outline"><a href={row.invitationUrl} target="_blank" rel="noreferrer"><ExternalLink className="size-4" />Preview</a></Button>}
-                    <Button type="button" size="sm" variant="outline" onClick={() => void markSent([row.id])} disabled={busy !== null}><Send className="size-4" />Mark sent</Button>
+                    <Button type="button" size="sm" variant="outline" onClick={() => void markSent([row.id])} disabled={busy !== null}><Send className="size-4" />Mark sent · {deliveryChannelLabel(deliveryChannel)}</Button>
                     <details className="relative">
                       <summary className="inline-flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-md border border-input bg-background px-3 text-sm hover:bg-accent"><QrCode className="size-4" />QR</summary>
                       <div className="absolute bottom-11 left-0 z-30 rounded-xl border border-gold/20 bg-champagne p-3 shadow-xl">{row.qrValue ? <GuestQr value={row.qrValue} name={row.name} /> : <div className="flex size-36 items-center justify-center text-xs text-espresso/45">No link yet</div>}</div>
