@@ -322,3 +322,56 @@ fun NativeWriteResult.failureMessage(): String? = when (this) {
     NativeWriteResult.Forbidden -> "Your role on this wedding cannot change guests or invitations."
     is NativeWriteResult.Transport -> "That change could not be saved. Check your connection and try again."
 }
+
+/**
+ * QRO08 P2 — the server accepts at most this many Guests per delivery write
+ * (`INVITATION_DELIVERY_MAX_BATCH` in `src/lib/planner-invitation-operations.ts`).
+ */
+const val INVITATION_DELIVERY_MAX_BATCH = 500
+
+/**
+ * Outcome of a bulk Mark-sent / Reset over any number of Guests. Each server call is atomic (the
+ * whole chunk is recorded or none of it), so [succeeded] is exact: every Guest counted is recorded,
+ * every Guest after it is untouched.
+ */
+data class BulkDeliveryOutcome(
+    val requested: Int,
+    val succeeded: Int,
+    /** The first chunk that failed; later chunks are never sent. Null when everything succeeded. */
+    val failure: NativeWriteResult?,
+) {
+    val complete: Boolean get() = failure == null && succeeded == requested
+    val remaining: Int get() = requested - succeeded
+}
+
+/**
+ * Runs [write] over [guestIds] in deterministic, order-preserving chunks of at most
+ * [INVITATION_DELIVERY_MAX_BATCH], stopping at the first failure so a partial result is reported as
+ * partial — never as success, and never by silently skipping Guests.
+ */
+suspend fun runChunkedDelivery(
+    guestIds: List<String>,
+    chunkSize: Int = INVITATION_DELIVERY_MAX_BATCH,
+    write: suspend (List<String>) -> NativeWriteResult,
+): BulkDeliveryOutcome {
+    require(chunkSize in 1..INVITATION_DELIVERY_MAX_BATCH)
+    val ids = guestIds.distinct()
+    var succeeded = 0
+    for (chunk in ids.chunked(chunkSize)) {
+        val result = write(chunk)
+        if (result !is NativeWriteResult.Ok) return BulkDeliveryOutcome(ids.size, succeeded, result)
+        succeeded += chunk.size
+    }
+    return BulkDeliveryOutcome(ids.size, succeeded, null)
+}
+
+/** Planner-facing sentence for a bulk delivery outcome (null when it fully succeeded). */
+fun BulkDeliveryOutcome.partialMessage(action: String): String? {
+    val failure = failure ?: return null
+    val reason = failure.failureMessage() ?: "The change could not be saved."
+    return if (succeeded == 0) {
+        "No guests were changed. $reason"
+    } else {
+        "$action for $succeeded of $requested guests. The remaining $remaining were not changed. $reason Select them and try again."
+    }
+}

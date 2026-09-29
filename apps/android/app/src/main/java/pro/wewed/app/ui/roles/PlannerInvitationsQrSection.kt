@@ -61,6 +61,9 @@ import pro.wewed.app.services.PlannerInvitationsLoad
 import pro.wewed.app.services.PlannerInvitationsSnapshot
 import pro.wewed.app.services.PlannerPhysicalInvitation
 import pro.wewed.app.services.failureMessage
+import pro.wewed.app.services.INVITATION_DELIVERY_MAX_BATCH
+import pro.wewed.app.services.partialMessage
+import pro.wewed.app.services.runChunkedDelivery
 import pro.wewed.app.theme.WeddingIdentityPalette
 import pro.wewed.app.ui.qr.WewedQrCode
 
@@ -226,6 +229,40 @@ private fun InvitationCommandCenter(
         }
     }
 
+    /**
+     * QRO08 P2 — bulk Mark sent / Reset over any selection size, in server-sized chunks. A failure in
+     * a later chunk is reported as partial (never as success); the unchanged Guests stay selected.
+     */
+    fun runBulk(guestIds: List<String>, doneLabel: String, write: suspend (List<String>) -> NativeWriteResult) {
+        if (busy) return
+        busy = true
+        error = null
+        notice = null
+        scope.launch {
+            val ids = guestIds.distinct()
+            var done = 0
+            val outcome = runChunkedDelivery(ids) { chunk ->
+                if (ids.size > INVITATION_DELIVERY_MAX_BATCH) notice = "Saving… ${done + chunk.size} of ${ids.size}"
+                write(chunk).also { if (it is NativeWriteResult.Ok) done += chunk.size }
+            }
+            pending = null
+            if (outcome.complete) {
+                notice = "$doneLabel for ${countLabel(outcome.requested)}."
+                selected = selected - ids.toSet()
+            } else {
+                notice = null
+                error = outcome.partialMessage(doneLabel)
+                selected = ids.drop(outcome.succeeded).toSet()
+            }
+            if (outcome.succeeded > 0 || outcome.complete) {
+                val refreshed = reload()
+                if (refreshed is PlannerInvitationsLoad.Loaded) onReloaded(refreshed)
+                else if (outcome.complete) error = "Saved. The list could not be refreshed — tap Refresh."
+            }
+            busy = false
+        }
+    }
+
     fun refresh() {
         if (busy) return
         busy = true
@@ -341,7 +378,7 @@ private fun InvitationCommandCenter(
                 busy = busy,
                 onDismiss = { if (!busy) pending = null },
                 onChoose = { channel ->
-                    run({ "Marked ${countLabel(action.guestIds.size)} sent via ${channel.label}." }) { operations.markSent(action.guestIds, channel) }
+                    runBulk(action.guestIds, "Marked sent via ${channel.label}") { chunk -> operations.markSent(chunk, channel) }
                 },
             )
             is PendingAction.ResetDelivery -> ConfirmDialog(
@@ -352,7 +389,7 @@ private fun InvitationCommandCenter(
                 destructive = false,
                 busy = busy,
                 onDismiss = { if (!busy) pending = null },
-                onConfirm = { run({ "Reset delivery for ${countLabel(action.guestIds.size)}." }) { operations.resetDelivery(action.guestIds) } },
+                onConfirm = { runBulk(action.guestIds, "Reset delivery") { chunk -> operations.resetDelivery(chunk) } },
             )
             is PendingAction.Delete -> ConfirmDialog(
                 tag = "planner-invitations-delete-confirm",

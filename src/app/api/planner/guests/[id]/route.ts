@@ -330,7 +330,15 @@ export async function DELETE(
 
     const result = await deletePlannerGuest({ weddingId, actorId: access.context.session.userId }, id)
     if (!result.ok) {
-      return NextResponse.json({ success: false, error: result.error }, { status: result.status })
+      // QRO08: a protected Guest (pass / check-in / contribution history) is a deliberate 409.
+      return NextResponse.json(
+        {
+          success: false,
+          error: result.error,
+          ...('code' in result ? { code: result.code, protectedRecords: result.protectedRecords } : {}),
+        },
+        { status: result.status },
+      )
     }
     return NextResponse.json({ success: true, data: { id, deleted: true, kind: 'guest' } })
   } catch (error) {

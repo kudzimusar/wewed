@@ -235,30 +235,122 @@ export async function updatePlannerGuest(actor: PlannerGuestActor, guestId: stri
   }
 }
 
-/** Destructive: removes the Guest and their RSVP (and personal link). */
+/**
+ * Records that make a Guest part of the wedding's permanent history. Deleting the Guest would either
+ * fail on a RESTRICT foreign key (Wedding Pass credential, check-in, guest contribution) or silently
+ * detach attribution (contributions' `guest_id` is SET NULL), so such a Guest is never deleted.
+ */
+export type ProtectedGuestRecord = 'wedding_pass' | 'check_in' | 'contribution'
+
+export const GUEST_DELETE_CONFLICT = 'GUEST_DELETE_CONFLICT'
+
+const PROTECTED_RECORD_LABELS: Record<ProtectedGuestRecord, string> = {
+  wedding_pass: 'a Wedding Pass',
+  check_in: 'check-in history',
+  contribution: 'a gift or contribution',
+}
+
+export function guestDeleteConflictMessage(guestName: string, records: ProtectedGuestRecord[]): string {
+  const parts = records.map((record) => PROTECTED_RECORD_LABELS[record])
+  if (parts.length === 0) {
+    return `${guestName} can't be deleted because Wewed keeps records linked to them for this wedding. ` +
+      'To stop them attending, change their RSVP to "Not attending" instead.'
+  }
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]
+  return `${guestName} can't be deleted because Wewed keeps their ${list} as part of this wedding's records. ` +
+    'To stop them attending, change their RSVP to "Not attending" instead.'
+}
+
+type DeleteTx = Parameters<Parameters<typeof db.$transaction>[0]>[0]
+
+async function protectedGuestRecords(tx: DeleteTx, weddingId: string, guestId: string): Promise<ProtectedGuestRecord[]> {
+  const [passes, checkIns, contribution] = await Promise.all([
+    tx.weddingPassCredential.count({ where: { weddingId, guestId } }),
+    tx.weddingCheckIn.count({ where: { weddingId, guestId } }),
+    tx.guestContribution.count({ where: { guestId } }),
+  ])
+  // Contribution accounting lives in its own schema (guest_id ON DELETE SET NULL); only consult it
+  // where that schema is installed.
+  let contributors = 0
+  const [schema] = await tx.$queryRawUnsafe<Array<{ present: boolean }>>(
+    `SELECT to_regclass('wewed_contributions.contributors') IS NOT NULL AS present`,
+  )
+  if (schema?.present) {
+    const [row] = await tx.$queryRawUnsafe<Array<{ count: bigint | number }>>(
+      'SELECT count(*) AS count FROM wewed_contributions.contributors WHERE guest_id = $1',
+      guestId,
+    )
+    contributors = Number(row?.count ?? 0)
+  }
+  const records: ProtectedGuestRecord[] = []
+  if (passes > 0) records.push('wedding_pass')
+  if (checkIns > 0) records.push('check_in')
+  if (contribution > 0 || contributors > 0) records.push('contribution')
+  return records
+}
+
+class GuestDeleteConflict extends Error {
+  constructor(readonly records: ProtectedGuestRecord[]) {
+    super(GUEST_DELETE_CONFLICT)
+  }
+}
+
+function isForeignKeyViolation(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code
+  return code === 'P2003' || code === '23503'
+}
+
+/**
+ * Destructive: removes the Guest, their RSVP (and personal link) and their disposable per-guest
+ * state (worksheet metadata, pending install hand-offs cascade in the database).
+ *
+ * A Guest who is part of the wedding's history — a Wedding Pass, a check-in or a contribution — is
+ * never deleted: the call returns 409 `GUEST_DELETE_CONFLICT` with a plain explanation and changes
+ * nothing. Desktop and native Planner routes both surface this contract unchanged.
+ */
 export async function deletePlannerGuest(actor: PlannerGuestActor, guestId: string) {
   const { weddingId } = actor
   const existing = await db.guest.findFirst({ where: { id: guestId, weddingId }, include: { rsvp: true } })
   if (!existing) return { ok: false, status: 404, error: 'Guest not found' } as const
 
-  await db.$transaction(async (tx) => {
-    await tx.rSVP.deleteMany({ where: { guestId: existing.id } })
-    await tx.guest.delete({ where: { id: existing.id } })
-    await tx.auditEvent.create({
-      data: {
-        action: 'guest.delete',
-        resourceType: 'guest',
-        resourceId: existing.id,
-        beforeValue: JSON.stringify({
-          name: existing.name,
-          email: existing.email,
-          seatingTableId: existing.seatingTableId,
-        }),
-        afterValue: JSON.stringify({ deleted: true }),
-        weddingId,
-        actorId: actor.actorId,
-      },
+  try {
+    await db.$transaction(async (tx) => {
+      const records = await protectedGuestRecords(tx, weddingId, existing.id)
+      if (records.length > 0) throw new GuestDeleteConflict(records)
+      await tx.rSVP.deleteMany({ where: { guestId: existing.id } })
+      await tx.guest.delete({ where: { id: existing.id } })
+      await tx.auditEvent.create({
+        data: {
+          action: 'guest.delete',
+          resourceType: 'guest',
+          resourceId: existing.id,
+          beforeValue: JSON.stringify({
+            name: existing.name,
+            email: existing.email,
+            seatingTableId: existing.seatingTableId,
+          }),
+          afterValue: JSON.stringify({ deleted: true }),
+          weddingId,
+          actorId: actor.actorId,
+        },
+      })
     })
-  })
+  } catch (error) {
+    // A record created between the check and the delete (e.g. a pass issued concurrently) still
+    // resolves to the same deliberate conflict — never a database error surfaced as a 500.
+    if (error instanceof GuestDeleteConflict || isForeignKeyViolation(error)) {
+      const records = error instanceof GuestDeleteConflict
+        ? error.records
+        : await protectedGuestRecords(db as unknown as DeleteTx, weddingId, existing.id)
+      return {
+        ok: false,
+        status: 409,
+        code: GUEST_DELETE_CONFLICT,
+        error: guestDeleteConflictMessage(existing.name, records),
+        protectedRecords: records,
+      } as const
+    }
+    throw error
+  }
   return { ok: true, status: 200, data: { id: existing.id, deleted: true as const, kind: 'guest' as const } } as const
 }

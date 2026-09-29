@@ -126,4 +126,23 @@ describe('QRO08 native Planner write authority', () => {
       expect(create).not.toContain(`${field}:`)
     }
   })
+
+  test('P1: desktop and native Guest DELETE expose the same protected-deletion contract', () => {
+    const shared = read('src/lib/planner-guest-operations.ts')
+    expect(shared).toContain("export const GUEST_DELETE_CONFLICT = 'GUEST_DELETE_CONFLICT'")
+    expect(shared).toContain('status: 409,')
+    expect(shared).toContain('code: GUEST_DELETE_CONFLICT,')
+    expect(shared).toContain('protectedRecords: records,')
+    // The protected check runs inside the delete transaction, before anything is removed.
+    const del = shared.slice(shared.indexOf('export async function deletePlannerGuest'))
+    expect(del.indexOf('protectedGuestRecords(tx')).toBeLessThan(del.indexOf('tx.rSVP.deleteMany'))
+    // A foreign-key refusal is mapped to the same conflict, never a raw database error.
+    expect(shared).toContain("code === 'P2003' || code === '23503'")
+    for (const path of [WEB.guest, NATIVE.guest]) {
+      const body = handler(read(path), 'DELETE')
+      expect(body).toContain('deletePlannerGuest(')
+      expect(body).toContain("...('code' in result ? { code: result.code, protectedRecords: result.protectedRecords } : {})")
+      expect(body).toContain('result.status')
+    }
+  })
 })

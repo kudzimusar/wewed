@@ -43,7 +43,17 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   try {
     const { id } = await params
     const result = await deletePlannerGuest(write.actor, id)
-    if (!result.ok) return noStoreJson({ success: false, error: result.error }, result.status)
+    if (!result.ok) {
+      // Same shared contract as the desktop route: protected Guests are a deliberate 409.
+      return noStoreJson(
+        {
+          success: false,
+          error: result.error,
+          ...('code' in result ? { code: result.code, protectedRecords: result.protectedRecords } : {}),
+        },
+        result.status,
+      )
+    }
     return noStoreJson({ success: true, data: result.data })
   } catch (error) {
     console.error('[native wedding guest DELETE] failed', error instanceof Error ? error.name : 'unknown')
