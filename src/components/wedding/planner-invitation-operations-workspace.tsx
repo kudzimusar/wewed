@@ -5,6 +5,8 @@ import { ArrowLeft, MessageCircle, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { InvitationManager } from '@/components/wedding/invitation-manager'
 import { PhysicalInvitationQr } from '@/components/wedding/physical-invitation-qr'
+import { PlannerTeamInviteManager } from '@/components/wedding/planner/planner-team-invite-manager'
+import { WeddingPassAdministration } from '@/components/wedding/wedding-pass-administration'
 
 export function PlannerInvitationOperationsWorkspace() {
   return (
@@ -50,6 +52,23 @@ export function PlannerInvitationOperationsWorkspace() {
         </section>
 
         <InvitationManager compact />
+
+        <section className="grid gap-4 xl:grid-cols-2">
+          <details className="rounded-2xl border border-gold/15 bg-champagne/[0.035] p-4">
+            <summary className="cursor-pointer font-serif text-xl text-champagne">Wedding Pass administration</summary>
+            <p className="mt-1 text-xs leading-5 text-champagne/45">
+              Venue admission remains separate from invitation delivery.
+            </p>
+            <div className="mt-4"><WeddingPassAdministration /></div>
+          </details>
+          <details className="rounded-2xl border border-gold/15 bg-champagne/[0.035] p-4">
+            <summary className="cursor-pointer font-serif text-xl text-champagne">Project team invitations</summary>
+            <p className="mt-1 text-xs leading-5 text-champagne/45">
+              Invite planners and wedding-team users without mixing them with guest RSVP credentials.
+            </p>
+            <div className="mt-4"><PlannerTeamInviteManager /></div>
+          </details>
+        </section>
       </div>
     </div>
   )
