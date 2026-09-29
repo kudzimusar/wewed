@@ -42,13 +42,27 @@ describe('Planner Invitation Desk', () => {
   test('records invitation delivery separately from RSVP authority', () => {
     expect(migration).toContain('CREATE TABLE "GuestInvitationDelivery"')
     expect(migration).toContain('"GuestInvitationDelivery_guestId_weddingId_fkey"')
+    expect(migration).toContain('"invitationVersionFingerprint"')
+    expect(migration).toContain('"invitationStyle"')
+    expect(migration).toContain('"invitationMessage"')
+    expect(migration).toContain('"rsvpDeadline"')
+    expect(migration).toContain('"childrenPolicy"')
     expect(migration).not.toMatch(/UPDATE\s+"RSVP"/i)
     expect(migration).not.toMatch(/UPDATE\s+"Guest"/i)
     expect(migration).not.toMatch(/WeddingPassCredential.*UPDATE/i)
 
     expect(api).toContain("action: 'guest.invitation_marked_sent'")
     expect(api).toContain('guestInvitationDelivery.createMany')
+    expect(api).toContain('invitationDeliveryVersionFingerprint')
+    expect(api).toContain('invitationMessage: wedding.invitationCardMessage')
     expect(api).not.toContain('deliveryConfirmed')
+  })
+
+  test('shows stale sends when a private link or invitation settings change', () => {
+    expect(manager).toContain('Private link rotated since this send.')
+    expect(manager).toContain('Invitation settings changed since this send.')
+    expect(manager).toContain('lastSentInvitationStyle')
+    expect(manager).toContain('lastSentChildrenPolicy')
   })
 
   test('makes preview versus persisted live settings explicit', () => {
