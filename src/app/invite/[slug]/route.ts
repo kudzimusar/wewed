@@ -68,6 +68,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   }
   const token = request.nextUrl.searchParams.get('rsvp')?.trim() || ''
   const requestedCard = request.nextUrl.searchParams.get('card')
+  const suppressOpenTracking = request.nextUrl.searchParams.get('plannerPreview') === '1'
 
   if (!token) {
     const pending = readPendingInvitation(request)
@@ -95,6 +96,7 @@ export async function GET(request: NextRequest, { params }: Params) {
     weddingSlug: invitation.weddingSlug,
     rsvpToken: invitation.rsvpToken,
     card: invitation.card,
+    suppressOpenTracking,
   })
   return response
 }
