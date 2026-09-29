@@ -47,6 +47,9 @@ export function PlannerInvitationWorkspace() {
         <h1 className="wewed-heading mt-2 text-3xl sm:text-4xl">
           Invitations & secure QR
         </h1>
+        <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-gold-muted">
+          Digital wedding cards, RSVP and QR
+        </p>
         <p className="mt-2 max-w-4xl text-sm leading-6 text-espresso/60">
           Each credential has one job. Printed Invitation Access is shared and read-only;
           Open Invitation is personal to one guest and carries RSVP identity; Wedding Pass
