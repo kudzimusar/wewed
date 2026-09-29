@@ -66,7 +66,7 @@ export function PlannerInvitationTools({ embedded = false }: { embedded?: boolea
             className={mode === 'team' ? 'min-h-12 justify-start bg-gold text-espresso hover:bg-gold-light' : 'min-h-12 justify-start text-espresso/65 hover:bg-ivory'}
           >
             <UserPlus className="size-4" />
-            Project team access
+            Project team access · Invite project team member
           </Button>
         </div>
 
@@ -74,7 +74,7 @@ export function PlannerInvitationTools({ embedded = false }: { embedded?: boolea
           <div className="mt-5">
             <PhysicalInvitationQr />
             <div className="mb-4 rounded-xl border border-gold/15 bg-white px-4 py-3">
-              <p className="font-medium text-espresso">Open Invitation · Digital wedding cards, RSVP and delivery register</p>
+              <p className="font-medium text-espresso">Open Invitation · Digital wedding cards, RSVP and QR · delivery register</p>
               <p className="mt-1 text-sm leading-6 text-espresso/60">
                 Personal guest rows keep their own RSVP credentials and digital cards. Sending and delivery tracking below never turns an invitation into a Wedding Pass.
               </p>
