@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { readWeddingDayGuestContext } from '@/lib/wedding-day'
 import { loadPublicSiteStructure, loadPublishedAnnouncements } from '@/lib/wedding-site/server'
 import { programmeIsPublic } from '@/lib/wedding-site/model'
+import { sortTimelineItems } from '@/lib/planner-timeline-order'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,13 +58,23 @@ export async function GET(request: NextRequest) {
 
   // Guests see the same programme the website shows: nothing while the couple keeps it unpublished.
   const siteStructure = await loadPublicSiteStructure(context.weddingId)
-  const programme = !programmeIsPublic(siteStructure.sections) ? [] : await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
+  const programmeRows = !programmeIsPublic(siteStructure.sections) ? [] : await db.$queryRawUnsafe<Array<{
+    id: string
+    time: string
+    title: string
+    description: string | null
+    location: string | null
+    order: number
+  }>>(
     `SELECT id, time, title, description, location, "order"
        FROM public."ProgrammeItem"
       WHERE "weddingId" = $1
       ORDER BY "order" ASC, id ASC`,
     context.weddingId,
   )
+  // The Planner and every Guest client must present the same clock-time order. Persisted order is
+  // retained only as a stable tie-breaker for simultaneous events.
+  const programme = sortTimelineItems(programmeRows)
 
   const announcements = await loadPublishedAnnouncements(context.weddingId, {
     includeAttendingOnly: guest.attending === true,
