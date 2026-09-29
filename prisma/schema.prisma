@@ -73,6 +73,7 @@ model Wedding {
   contentRevisions        ContentRevision[]
   contentSubmissions      ContentSubmission[]
   auditEvents             AuditEvent[]
+  guestInvitationDeliveries GuestInvitationDelivery[]
   googleSheetsConnections GoogleSheetsConnection[]
   qrDestinations          QRDestination[]
   themePreferences        ThemePreference[]
@@ -113,9 +114,10 @@ model Guest {
   weddingId String
   wedding   Wedding @relation(fields: [weddingId], references: [id])
 
-  rsvp            RSVP?
-  contribution    GuestContribution?
-  passCredentials WeddingPassCredential[]
+  rsvp                 RSVP?
+  contribution         GuestContribution?
+  invitationDeliveries GuestInvitationDelivery[]
+  passCredentials      WeddingPassCredential[]
   weddingCheckIns WeddingCheckIn[]
 
   createdAt DateTime @default(now())
@@ -146,6 +148,29 @@ model RSVP {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+
+model GuestInvitationDelivery {
+  id        String   @id @default(cuid())
+  channel   String
+  state     String   @default("sent")
+  recipient String?
+  note      String?
+  sentAt    DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  weddingId String
+  wedding   Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  guestId   String
+  guest     Guest @relation(fields: [guestId, weddingId], references: [id, weddingId], onDelete: Cascade)
+  actorId   String?
+  actor     User? @relation("GuestInvitationDeliveryActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([weddingId, sentAt])
+  @@index([guestId, sentAt])
+  @@index([weddingId, channel, sentAt])
+}
+
 
 model Song {
   id         String    @id @default(cuid())
@@ -662,6 +687,7 @@ model User {
   lastLoginAt      DateTime?
 
   auditEvents             AuditEvent[]
+  guestInvitationDeliveries GuestInvitationDelivery[] @relation("GuestInvitationDeliveryActor")
   contentRevisions        ContentRevision[]
   contentSubmissions      ContentSubmission[]
   memberships             WeddingMembership[] @relation("MembershipUser")
