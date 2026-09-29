@@ -37,7 +37,7 @@ function recipientForGuest(
 ): string | null {
   if (channel === 'email') return guest.email
   if (channel === 'whatsapp' || channel === 'sms') return guest.phone
-  return guest.email || guest.phone || guest.name
+  return guest.name
 }
 
 export async function GET(request: NextRequest) {
