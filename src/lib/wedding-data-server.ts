@@ -2,6 +2,7 @@ import 'server-only'
 
 import { db } from '@/lib/db'
 import { isPublicScalarField, programmeIsPublic } from '@/lib/wedding-site/model'
+import { sortTimelineItems } from '@/lib/planner-timeline-order'
 import { loadPublicSiteStructure, loadPublishedAnnouncements } from '@/lib/wedding-site/server'
 import type {
   WeddingContent,
@@ -120,7 +121,9 @@ export async function loadWeddingDataBySlug(slug: string): Promise<WeddingData |
     contentMeta,
     ordered,
     // The couple/planner can keep an unconfirmed programme off the guest site (theday.showProgramme).
-    programmeItems: (programmeIsPublic(site.sections) ? wedding.programmeItems : []).map((item) => ({
+    // Clock time is authoritative, exactly as the guest Wedding Day (/api/wedding-day/guest) and the
+    // Planner timeline order it: a 13:00 arrival must never be listed after a 14:00 ceremony.
+    programmeItems: sortTimelineItems(programmeIsPublic(site.sections) ? wedding.programmeItems : []).map((item) => ({
       ...item,
     })),
     songs: wedding.songs.map((song) => ({
