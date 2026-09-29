@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     if (request.nextUrl.searchParams.get('format') === 'csv') {
       const csv = [
-        'Name,Email,Phone,RSVP Status,Delivery Status,Last Sent At,Last Sent Via,Last Sent Recipient,Checked In,Table,Card Style,Digital Invitation URL,Share Message',
+        'Name,Email,Phone,RSVP Status,Delivery Status,Last Sent At,Last Sent Via,Last Sent Recipient,Last Sent Link Current,Last Sent Card Style,Last Sent Children Policy,Last Sent RSVP Deadline,Last Sent Invitation Message,Checked In,Table,Current Card Style,Digital Invitation URL,Share Message',
         ...data.map((row) =>
           [
             csvCell(row.name),
@@ -57,6 +57,11 @@ export async function GET(request: NextRequest) {
             csvCell(row.lastSentAt),
             csvCell(row.lastSentVia),
             csvCell(row.lastSentRecipient),
+            csvCell(row.lastSentLinkCurrent == null ? null : row.lastSentLinkCurrent ? 'yes' : 'no'),
+            csvCell(row.lastSentInvitationStyle),
+            csvCell(row.lastSentChildrenPolicy),
+            csvCell(row.lastSentRsvpDeadline),
+            csvCell(row.lastSentInvitationMessage),
             csvCell(row.checkedIn ? 'yes' : 'no'),
             csvCell(row.tableNumber?.toString()),
             csvCell(style),
