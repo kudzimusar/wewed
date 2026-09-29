@@ -106,6 +106,8 @@ struct PlannerWorkspaceSection: View {
         case "Tasks": PlannerTasksView()
         case "Budget": ShadowPlannerBudgetView()
         case "Guests": PlannerGuestsBridgeView()
+        // NATIVE-MOBILE-QRO08 — Invitations is a first-class Planner Workspace destination (IA contract).
+        case "Invitations": PlannerWorkspaceInvitationsView(context: context)
         case "Vendors": ShadowPlannerVendorsView()
         // Master plan Phase 8 closure round 3 §1 — this dispatch-level PRODUCTION guard used to run
         // BEFORE ShadowPlannerContributionsView/ShadowPlannerDocumentsView ever got a chance to call
@@ -306,6 +308,25 @@ struct PlannerWeddingDaySection: View {
             default:
                 WeddingDaySection(section: section, graph: graph, environment: context.environment)
             }
+        }
+    }
+}
+
+/// NATIVE-MOBILE-QRO08 — Workspace → Invitations. Reads the same canonical invitation projections as
+/// More → Invitations & QR, transiently through the native Bearer + grant routes.
+struct PlannerWorkspaceInvitationsView: View {
+    @EnvironmentObject private var appState: AppState
+    let context: NavigationContext
+
+    var body: some View {
+        if context.environment == .production,
+           let production = (try? appState.repository) as? ProductionWeddingRepository {
+            PlannerInvitationsQrView(load: { await production.loadPlannerInvitations() })
+                .id(context.activeWeddingId)
+        } else {
+            IAEmptySourceSection(title: "Invitations",
+                                 reason: "Invitations are unavailable until this wedding finishes loading.",
+                                 testIdPrefix: "invitations-unbound")
         }
     }
 }

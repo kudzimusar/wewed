@@ -211,11 +211,14 @@ private fun LiveGuestHome(
         }
     }
 
-    LaunchedEffect(profile.guestId, capabilities) {
+    // QRO08 — re-read on every return to the app so a Planner programme change reaches Home.
+    val reentries = rememberForegroundReentryCount()
+    LaunchedEffect(profile.guestId, capabilities, reentries) {
         if (GuestCapability.WEDDING_DAY_PROGRAMME in capabilities) {
             try { day = coordinator.weddingDay(profile.guestId) }
             catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-            catch (_: Exception) { day = null }
+            // A failed re-read keeps what was already shown; only a first load falls back to none.
+            catch (_: Exception) { if (reentries == 0) day = null }
         } else {
             day = null
         }
@@ -548,14 +551,20 @@ private fun LiveGuestWeddingDay(
 
     var day by remember(profile.guestId) { mutableStateOf<org.json.JSONObject?>(null) }
     var failed by remember(profile.guestId) { mutableStateOf(false) }
-    LaunchedEffect(profile.guestId) {
+    var retry by remember(profile.guestId) { mutableIntStateOf(0) }
+    // QRO08 — the programme, table, household and announcements are live server projections: re-read
+    // them on every return to the app and on an explicit retry. A failed re-read keeps the day that
+    // is already on screen; only a failure with nothing to show becomes the unavailable state.
+    val reentries = rememberForegroundReentryCount()
+    LaunchedEffect(profile.guestId, reentries, retry) {
+        if (day == null) failed = false
         try {
             day = coordinator.weddingDay(profile.guestId)
             failed = false
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            failed = true
+            if (day == null) failed = true
         }
     }
 
@@ -572,6 +581,12 @@ private fun LiveGuestWeddingDay(
                 subtitle = "We couldn't load the day's details. Please try again.",
                 testTag = "guest-day-unavailable"
             )
+            TextButton(
+                onClick = { failed = false; retry++ },
+                modifier = Modifier.testTag("guest-day-retry")
+            ) {
+                Text("Try again", color = WeddingIdentityPalette.Forest, fontWeight = FontWeight.SemiBold)
+            }
         } else if (day == null) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
@@ -659,7 +674,7 @@ private fun LiveGuestWeddingDay(
                             title = member.optString("attendeeName"),
                             // Never imply attendance to a Guest who has declined.
                             subtitle = if (profile.attending == true) "Your wedding party" else "Not attending",
-                            testTag = "guest-party-member-\$index"
+                            testTag = "guest-party-member-$index"
                         )
                     }
                 }
@@ -841,12 +856,14 @@ private fun guestWebUrl(path: String): String =
     NativeServerOrigin.active.origin.trimEnd('/') + path
 
 
-private fun guestPartySummary(profile: LiveInvitationPresentation): String {
+internal fun guestPartySummary(profile: LiveInvitationPresentation): String {
     val parts = mutableListOf("You")
     if (profile.plusOne) {
         parts += profile.plusOneName?.takeIf { it.isNotBlank() } ?: "Plus one"
     }
-    if (profile.kidsAttending && (profile.kidsCount ?: 0) > 0) {
+    // QRO08 — adults-only is authoritative: a child RSVP recorded before the Planner switched the
+    // policy is not part of the household (the server household omits it the same way).
+    if (profile.childrenPolicy != "adults_only" && profile.kidsAttending && (profile.kidsCount ?: 0) > 0) {
         val count = profile.kidsCount ?: 0
         parts += if (count == 1) "1 child" else "$count children"
     }

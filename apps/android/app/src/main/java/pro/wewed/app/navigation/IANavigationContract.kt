@@ -102,7 +102,7 @@ object IANavigationContract {
         primary = listOf(
             PrimaryDestination(
                 "workspace", "Workspace",
-                listOf("Overview", "Tasks", "Budget", "Guests", "Vendors", "Contributions", "Seating", "Timeline", "Documents")
+                listOf("Overview", "Tasks", "Budget", "Guests", "Invitations", "Vendors", "Contributions", "Seating", "Timeline", "Documents")
             ),
             PrimaryDestination(
                 "clients", "Clients",

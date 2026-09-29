@@ -97,6 +97,8 @@ private fun PlannerWorkspaceSection(
         "Tasks" -> TasksDestination(appViewModel) {}
         "Budget" -> ShadowBudgetDestination(appViewModel) {}
         "Guests" -> GuestsBridgeDestination(appViewModel) {}
+        // NATIVE-MOBILE-QRO08 — Invitations is a first-class Planner Workspace destination.
+        "Invitations" -> PlannerInvitationsDestination(appViewModel, context, graph)
         "Vendors" -> ShadowVendorsDestination(appViewModel) {}
         // Master plan Phase 8 closure round 3 §1 — this dispatch-level PRODUCTION guard used to run
         // BEFORE ShadowContributionsDestination/ShadowDocumentsDestination ever got a chance to call
@@ -291,6 +293,34 @@ private fun PlannerWeddingDaySection(
     }
 }
 
+/**
+ * QRO05-PIQR01 / NATIVE-MOBILE-QRO08 — the Planner Invitations command center. Production reads the
+ * canonical invitation projections transiently through the native Bearer + grant routes (nothing
+ * credential-bearing enters the graph) and writes through the native twins of the desktop routes.
+ */
+@Composable
+private fun PlannerInvitationsDestination(
+    appViewModel: AppViewModel,
+    context: NavigationContext,
+    graph: WeddingGraphState,
+) {
+    if (appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION) {
+        val production = runCatching { appViewModel.repository }.getOrNull() as? ProductionWeddingRepository
+        if (production != null) {
+            key(context.activeWeddingId) {
+                PlannerInvitationsQrSection(
+                    load = { production.loadPlannerInvitations() },
+                    operations = production.plannerInvitationOperations,
+                )
+            }
+        } else {
+            IAEmptySourceSection("Invitations", "Invitations are unavailable until this wedding finishes loading.", "invitations-qr-unbound")
+        }
+    } else {
+        InvitationsQrSection(destinations = graph.qrDestinations, invitationCardStyle = null)
+    }
+}
+
 @Composable
 private fun PlannerMoreSection(
     section: String,
@@ -307,20 +337,8 @@ private fun PlannerMoreSection(
 
     when (section) {
         "Client Profile" -> PlannerClientProfileSection(graph)
-        "Invitations & QR" -> if (appViewModel.dataEnvironment == NativeDataEnvironment.PRODUCTION) {
-            // QRO05-PIQR01 — production reads the canonical invitation projections transiently
-            // through the native Bearer + grant routes; nothing credential-bearing enters the graph.
-            val production = runCatching { appViewModel.repository }.getOrNull() as? ProductionWeddingRepository
-            if (production != null) {
-                key(context.activeWeddingId) {
-                    PlannerInvitationsQrSection(load = { production.loadPlannerInvitations() })
-                }
-            } else {
-                IAEmptySourceSection("Invitations & QR", "Invitations are unavailable until this wedding finishes loading.", "invitations-qr-unbound")
-            }
-        } else {
-            InvitationsQrSection(destinations = graph.qrDestinations, invitationCardStyle = null)
-        }
+        // QRO08 — the same command center as Workspace → Invitations (kept here for continuity).
+        "Invitations & QR" -> PlannerInvitationsDestination(appViewModel, context, graph)
         "Intelligence" -> PlannerIntelligenceSection(graph)
         "Team Hub" -> PlannerTeamHubSection(graph)
         "Files / Documents" -> PlannerMediaArchiveSection(graph)

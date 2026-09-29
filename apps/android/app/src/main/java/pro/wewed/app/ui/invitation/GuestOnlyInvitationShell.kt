@@ -56,6 +56,17 @@ fun GuestOnlyInvitationShell(
         }
     }
 
+    // NATIVE-MOBILE-QRO08 — re-read the server card whenever the Guest returns to the app, so a
+    // Planner change (message, deadline, children policy, table, RSVP) appears without reinstalling.
+    // Silent: the card on screen stays until a fresh Presenting snapshot replaces it, and a failed
+    // refresh (offline) never replaces a working card with an error.
+    val reentries = rememberForegroundReentryCount()
+    LaunchedEffect(reentries) {
+        if (reentries == 0 || state !is LiveInvitationState.Presenting) return@LaunchedEffect
+        val refreshed = coordinator.refresh()
+        if (refreshed is LiveInvitationState.Presenting || refreshed is LiveInvitationState.Refused) state = refreshed
+    }
+
     // DEBUG productionPreview only (no-op otherwise): export this Guest's wewed.parity.v1 record.
     val parityContext = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(state) {

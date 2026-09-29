@@ -24,6 +24,33 @@ sealed interface NativeDomainFetch<out T> {
     data class Transport(val status: Int) : NativeDomainFetch<Nothing>
 }
 
+/**
+ * NATIVE-MOBILE-QRO08 — outcome of a Planner invitation/guest write. Kept apart from
+ * [NativeDomainFetch] so a server refusal with a human message (validation, duplicate email,
+ * Preview write block) reaches the Planner verbatim instead of collapsing into a transport error.
+ */
+sealed interface NativeWriteResult {
+    data class Ok(val body: JSONObject) : NativeWriteResult
+    /** The server refused the write and said why (4xx with `error`); nothing changed. */
+    data class Rejected(val status: Int, val message: String, val code: String?, val field: String?) : NativeWriteResult
+    object SessionInvalid : NativeWriteResult
+    object GrantRevoked : NativeWriteResult
+    object Forbidden : NativeWriteResult
+    data class Transport(val status: Int) : NativeWriteResult
+}
+
+/** The delivery channels the canonical `recordInvitationDelivery` accepts. */
+enum class InvitationDeliveryChannel(val wire: String, val label: String) {
+    WHATSAPP("whatsapp", "WhatsApp"),
+    EMAIL("email", "Email"),
+    SMS("sms", "SMS"),
+    OTHER("other", "Other");
+
+    companion object {
+        fun fromWire(value: String?): InvitationDeliveryChannel? = entries.firstOrNull { it.wire == value }
+    }
+}
+
 class NativeDomainApiClient(
     private val transport: WeddingDayHttpTransport,
     private val onSessionInvalid: () -> Unit = {},
@@ -111,12 +138,49 @@ class NativeDomainApiClient(
 
     /**
      * QRO05-PIQR01 — the same `loadPlannerInvitationProjection` the desktop Planner's
-     * `GET /api/planner/guests/invitations` reads. Read-only: there is deliberately no native
-     * POST/PUT/PATCH for invitations. The body carries each Guest's private invitation link, so the
-     * caller must hold it transiently and never log it.
+     * `GET /api/planner/guests/invitations` reads. The body carries each Guest's private invitation
+     * link, so the caller must hold it transiently and never log it.
      */
     suspend fun plannerInvitations(sessionToken: String, grantId: String): NativeDomainFetch<JSONObject> =
         runGet("api/native/wedding/invitations", sessionToken, grantId)
+
+    // NATIVE-MOBILE-QRO08 — Planner invitation/guest writes. Each is a thin call to the native twin
+    // of the desktop route; the server runs the SAME shared operation function the desktop does.
+    // Nothing is stored on the device: callers re-read [plannerInvitations] after every write.
+
+    /** Records that the Planner sent these invitations through [channel]. Audit-only; never an open. */
+    suspend fun markInvitationsSent(sessionToken: String, grantId: String, guestIds: List<String>, channel: InvitationDeliveryChannel): NativeWriteResult =
+        runWrite("POST", "api/native/wedding/invitations/delivery", sessionToken, grantId,
+            JSONObject().put("guestIds", JSONArray(guestIds)).put("channel", channel.wire))
+
+    /** Clears the sent record for these Guests (history is kept server-side). */
+    suspend fun resetInvitationDelivery(sessionToken: String, grantId: String, guestIds: List<String>): NativeWriteResult =
+        runWrite("DELETE", "api/native/wedding/invitations/delivery", sessionToken, grantId,
+            JSONObject().put("guestIds", JSONArray(guestIds)))
+
+    /** Explicit Planner action: issues a personal link for every Guest that has none. */
+    suspend fun generateMissingInvitationLinks(sessionToken: String, grantId: String): NativeWriteResult =
+        runWrite("POST", "api/native/wedding/invitations", sessionToken, grantId, JSONObject())
+
+    /** Destructive: replaces one Guest's personal link; the previous link stops working. */
+    suspend fun rotateInvitationLink(sessionToken: String, grantId: String, guestId: String): NativeWriteResult =
+        runWrite("PATCH", "api/native/wedding/invitations", sessionToken, grantId, JSONObject().put("guestId", guestId))
+
+    suspend fun createGuest(sessionToken: String, grantId: String, name: String, email: String?, phone: String?): NativeWriteResult =
+        runWrite("POST", "api/native/wedding/guests", sessionToken, grantId, guestContactBody(name, email, phone))
+
+    suspend fun updateGuest(sessionToken: String, grantId: String, guestId: String, name: String, email: String?, phone: String?): NativeWriteResult =
+        runWrite("PATCH", "api/native/wedding/guests/${URLEncoder.encode(guestId, Charsets.UTF_8.name())}", sessionToken, grantId,
+            guestContactBody(name, email, phone))
+
+    /** Destructive: removes the Guest, their RSVP and their personal link. */
+    suspend fun deleteGuest(sessionToken: String, grantId: String, guestId: String): NativeWriteResult =
+        runWrite("DELETE", "api/native/wedding/guests/${URLEncoder.encode(guestId, Charsets.UTF_8.name())}", sessionToken, grantId, null)
+
+    private fun guestContactBody(name: String, email: String?, phone: String?): JSONObject = JSONObject()
+        .put("name", name)
+        .put("email", email?.trim()?.takeIf { it.isNotEmpty() } ?: JSONObject.NULL)
+        .put("phone", phone?.trim()?.takeIf { it.isNotEmpty() } ?: JSONObject.NULL)
 
     /** QRO05-PIQR01 — Printed Invitation Access (`loadPhysicalInvitationProjection`). Never creates a destination. */
     suspend fun plannerPhysicalInvitation(sessionToken: String, grantId: String): NativeDomainFetch<JSONObject> =
@@ -179,6 +243,40 @@ class NativeDomainApiClient(
         statusToFetch<JSONArray>(status, body, grantId)?.let { return it }
         return runCatching { NativeDomainFetch.Success(JSONObject(body).getJSONArray(arrayField)) }
             .getOrElse { NativeDomainFetch.Transport(status) }
+    }
+
+    private suspend fun runWrite(method: String, path: String, sessionToken: String, grantId: String, requestBody: JSONObject?): NativeWriteResult {
+        val encodedGrant = URLEncoder.encode(grantId, Charsets.UTF_8.name())
+        val url = "$path?grantId=$encodedGrant"
+        val headers = mapOf("Authorization" to "Bearer $sessionToken", "Content-Type" to "application/json")
+        val response = runCatching {
+            when (method) {
+                "POST" -> transport.post(url, headers, requestBody?.toString() ?: "{}")
+                "PATCH" -> transport.patch(url, headers, requestBody?.toString() ?: "{}")
+                "DELETE" -> transport.delete(url, headers, requestBody?.toString())
+                else -> error("unsupported write method")
+            }
+        }.getOrElse { return NativeWriteResult.Transport(-1) }
+        return writeResult(response.status, response.body, grantId)
+    }
+
+    private fun writeResult(status: Int, rawBody: String, grantId: String): NativeWriteResult {
+        val json = runCatching { JSONObject(rawBody) }.getOrNull()
+        val code = json?.optString("code")?.takeIf { it.isNotEmpty() }
+        return when {
+            status == 401 -> NativeWriteResult.SessionInvalid.also { onSessionInvalid() }
+            status == 403 && (code == "GRANT_REVOKED" || code == "AUTHORITY_UNAVAILABLE") ->
+                NativeWriteResult.GrantRevoked.also { onGrantRevoked(grantId) }
+            status == 403 -> NativeWriteResult.Forbidden
+            status in 200..299 && json != null && json.optBoolean("success", false) -> NativeWriteResult.Ok(json)
+            status in 400..499 && json != null && json.optString("error").isNotBlank() -> NativeWriteResult.Rejected(
+                status = status,
+                message = json.optString("error"),
+                code = code,
+                field = json.optString("field").takeIf { it.isNotEmpty() },
+            )
+            else -> NativeWriteResult.Transport(status)
+        }
     }
 
     private suspend fun runPost(path: String, sessionToken: String, grantId: String, requestBody: String, resultField: String): NativeDomainFetch<JSONObject> {
