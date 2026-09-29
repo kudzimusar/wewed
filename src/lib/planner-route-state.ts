@@ -4,6 +4,7 @@ export type PlannerModuleSlug =
   | 'budget'
   | 'vendors'
   | 'guests'
+  | 'invitations'
   | 'timeline'
   | 'seating'
   | 'contributions'
@@ -16,6 +17,7 @@ const MODULES = new Set<PlannerModuleSlug>([
   'budget',
   'vendors',
   'guests',
+  'invitations',
   'timeline',
   'seating',
   'contributions',
