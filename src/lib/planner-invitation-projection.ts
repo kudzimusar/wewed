@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { db } from '@/lib/db'
 import {
   buildDigitalInvitationMessage,
@@ -29,6 +30,17 @@ export const CANONICAL_WEWED_ORIGIN = 'https://wewed.pro'
 
 export function normalizeChildrenPolicy(value: unknown): ChildrenPolicy {
   return value === 'adults_only' ? 'adults_only' : 'welcome'
+}
+
+/**
+ * Stable one-way marker for the exact personal invitation link version that was handed off.
+ * It lets the Planner warn that a link was rotated after sending without storing/logging the
+ * private RSVP credential itself.
+ */
+export function invitationDeliveryVersionFingerprint(rsvpToken: string): string {
+  return createHash('sha256')
+    .update(`wewed.invitation.delivery.v1:${rsvpToken}`)
+    .digest('base64url')
 }
 
 export function invitationWeddingSelect() {
@@ -86,6 +98,11 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
         channel: true,
         recipient: true,
         sentAt: true,
+        invitationVersionFingerprint: true,
+        invitationStyle: true,
+        invitationMessage: true,
+        rsvpDeadline: true,
+        childrenPolicy: true,
       },
     }),
   ])
@@ -136,6 +153,13 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       lastSentAt: latestDelivery?.sentAt.toISOString() ?? null,
       lastSentVia: latestDelivery?.channel ?? null,
       lastSentRecipient: latestDelivery?.recipient ?? null,
+      lastSentInvitationStyle: latestDelivery?.invitationStyle ?? null,
+      lastSentInvitationMessage: latestDelivery?.invitationMessage ?? null,
+      lastSentRsvpDeadline: latestDelivery?.rsvpDeadline?.toISOString() ?? null,
+      lastSentChildrenPolicy: latestDelivery?.childrenPolicy ?? null,
+      lastSentLinkCurrent: latestDelivery && guest.rsvp?.token
+        ? latestDelivery.invitationVersionFingerprint === invitationDeliveryVersionFingerprint(guest.rsvp.token)
+        : latestDelivery ? false : null,
       invitationUrl,
       qrValue: invitationUrl,
       shareMessage: invitationUrl
