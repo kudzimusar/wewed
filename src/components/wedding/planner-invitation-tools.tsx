@@ -48,7 +48,7 @@ export function PlannerInvitationTools({ embedded = false }: { embedded?: boolea
             className={mode === 'guest' ? 'min-h-12 justify-start bg-gold text-espresso hover:bg-gold-light' : 'min-h-12 justify-start text-espresso/65 hover:bg-ivory'}
           >
             <Users className="size-4" />
-            Open Invitation · Guest delivery
+            Open Invitation · Guest cards, RSVP & guest QR
           </Button>
           <Button
             type="button"
