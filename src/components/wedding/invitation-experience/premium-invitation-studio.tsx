@@ -88,16 +88,19 @@ export function PremiumInvitationStudio({
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-muted">Invitation studio</p>
           <h3 id="premium-card-studio-heading" className="mt-1 font-serif text-2xl sm:text-3xl">Choose how your invitation comes to life</h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-espresso/55">Guests receive a personalised interactive invitation. The selected design controls the opening motion, atmosphere and visual language without changing RSVP security.</p>
+          <p className="mt-2 max-w-2xl rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-950" data-testid="invitation-studio-save-warning">
+            Changes in this studio are preview-only until you save. Saving writes the invitation message, RSVP deadline, children policy and selected design to the wedding record used by web and current native Guest clients.
+          </p>
         </div>
         <Button type="button" onClick={onSave} disabled={busy} className="bg-gold text-espresso hover:bg-gold-light">
           <Save className={`size-4 ${busy ? 'animate-pulse' : ''}`} />
-          Save card design
+          {busy ? 'Saving…' : 'Save & make live'}
         </Button>
       </div>
 
       {saved && (
         <p className="mx-4 mt-4 flex items-center gap-2 rounded-xl border border-sage/30 bg-sage/10 p-3 text-sm sm:mx-6">
-          <Check className="size-4" /> Invitation experience saved. New personal links and QR values use this design.
+          <Check className="size-4" /> Saved to the wedding. Message, RSVP deadline, children policy and invitation design are now live server data; Guest clients pick them up on their next refresh/open.
         </p>
       )}
 
