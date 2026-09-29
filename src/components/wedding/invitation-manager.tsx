@@ -421,7 +421,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
   }
 
   async function deleteGuest(row: InvitationRow) {
-    if (!window.confirm(`Remove ${row.name} from this wedding? This deletes their guest record, RSVP and private invitation link. This cannot be undone from this screen.`)) return
+    if (!window.confirm(`Remove ${row.name} from this wedding? Only an unused pending Guest with no delivery, contribution, Pass or check-in history can be removed. This deletes their unused RSVP credential and cannot be undone from this screen.`)) return
     setBusy(`delete-${row.id}`)
     setError(null)
     try {
@@ -686,7 +686,17 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                       <div className="absolute bottom-11 left-0 z-30 rounded-xl border border-gold/20 bg-champagne p-3 shadow-xl">{row.qrValue ? <GuestQr value={row.qrValue} name={row.name} /> : <div className="flex size-36 items-center justify-center text-xs text-espresso/45">No link yet</div>}</div>
                     </details>
                     <Button type="button" size="sm" variant="outline" onClick={() => void rotate(row)} disabled={busy !== null}><RotateCcw className={`size-4 ${busy === `rotate-${row.id}` ? 'animate-spin' : ''}`} />Rotate</Button>
-                    <Button type="button" size="sm" variant="ghost" onClick={() => void deleteGuest(row)} disabled={busy !== null} className="ml-auto text-clay hover:bg-clay/10 hover:text-clay"><Trash2 className="size-4" />Remove</Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => void deleteGuest(row)}
+                      disabled={busy !== null || row.status !== 'pending' || row.checkedIn || Boolean(row.lastSentAt)}
+                      title={row.status !== 'pending' || row.checkedIn || row.lastSentAt ? 'Guests with response, check-in or delivery history are protected from deletion.' : 'Remove this unused pending guest.'}
+                      className="ml-auto text-clay hover:bg-clay/10 hover:text-clay"
+                    >
+                      <Trash2 className="size-4" />Remove
+                    </Button>
                   </div>
                 </article>
               )
