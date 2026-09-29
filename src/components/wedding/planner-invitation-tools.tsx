@@ -16,9 +16,7 @@ export function PlannerInvitationTools({ embedded = false }: { embedded?: boolea
 
   if (!embedded) {
     return (
-      <Button
-        asChild
-        type="button"
+      <Button asChild
         size="sm"
         variant="outline"
         className="gap-1.5 border-gold/30 bg-espresso/95 text-champagne shadow-lg hover:bg-gold/10 hover:text-gold"
