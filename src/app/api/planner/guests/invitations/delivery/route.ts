@@ -169,6 +169,11 @@ export async function POST(request: NextRequest) {
     }
 
     const token = guest.rsvp!.token
+    const fingerprint = invitationVersionFingerprint({
+      weddingId: access.context.weddingId,
+      guestId: guest.id,
+      rsvpToken: token,
+    })
     return db.auditEvent.create({
       data: {
         action: INVITATION_DELIVERY_SENT_ACTION,
@@ -181,11 +186,7 @@ export async function POST(request: NextRequest) {
           invitationMessage: wedding.invitationCardMessage,
           rsvpDeadline: wedding.rsvpDeadline?.toISOString() ?? null,
           childrenPolicy,
-          invitationFingerprint: invitationVersionFingerprint({
-            weddingId: access.context.weddingId,
-            guestId: guest.id,
-            rsvpToken: token,
-          }),
+          invitationFingerprint: fingerprint,
           messageTemplate: 'wewed-personal-invitation-v1',
           sentAt: now.toISOString(),
         }),
