@@ -154,9 +154,14 @@ model GuestInvitationDelivery {
   id        String   @id @default(cuid())
   channel   String
   state     String   @default("sent")
-  recipient String?
-  note      String?
-  sentAt    DateTime @default(now())
+  recipient                    String?
+  note                         String?
+  invitationVersionFingerprint String
+  invitationStyle              String
+  invitationMessage            String?
+  rsvpDeadline                 DateTime?
+  childrenPolicy               String
+  sentAt                       DateTime @default(now())
   createdAt DateTime @default(now())
 
   weddingId String
