@@ -122,6 +122,7 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
           in: [
             'guest.invitation_delivery_marked',
             'guest.invitation_delivery_unmarked',
+            'guest.invitation_opened',
           ],
         },
       },
@@ -143,9 +144,18 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
   const origin = siteUrl.replace(/\/$/, '')
   const missingTokens = guests.filter((guest) => !guest.rsvp?.token).length
   const deliveryByGuest = new Map<string, InvitationDeliveryState>()
+  const openedAtByGuest = new Map<string, string>()
   for (const event of deliveryEvents) {
-    if (!event.resourceId || deliveryByGuest.has(event.resourceId)) continue
-    deliveryByGuest.set(event.resourceId, deliveryStateFromAudit(event))
+    if (!event.resourceId) continue
+    if (event.action === 'guest.invitation_opened') {
+      if (!openedAtByGuest.has(event.resourceId)) {
+        openedAtByGuest.set(event.resourceId, event.createdAt.toISOString())
+      }
+      continue
+    }
+    if (!deliveryByGuest.has(event.resourceId)) {
+      deliveryByGuest.set(event.resourceId, deliveryStateFromAudit(event))
+    }
   }
 
   const data = guests.map((guest) => {
@@ -190,6 +200,7 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       deliveryChannel: delivery.channel,
       deliveredAt: delivery.sentAt,
       deliveredBy: delivery.sentBy,
+      openedAt: openedAtByGuest.get(guest.id) ?? null,
     }
   })
 
