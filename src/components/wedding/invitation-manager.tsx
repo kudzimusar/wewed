@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import QRCode from 'qrcode'
 import {
   Check,
@@ -373,7 +373,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
     }
   }
 
-  async function addGuest(event: React.FormEvent<HTMLFormElement>) {
+  async function addGuest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!newGuest.name.trim()) return
     setBusy('add-guest')
