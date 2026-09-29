@@ -91,13 +91,13 @@ export function PremiumInvitationStudio({
         </div>
         <Button type="button" onClick={onSave} disabled={busy} className="bg-gold text-espresso hover:bg-gold-light">
           <Save className={`size-4 ${busy ? 'animate-pulse' : ''}`} />
-          Save card design
+          Save invitation settings
         </Button>
       </div>
 
       {saved && (
         <p className="mx-4 mt-4 flex items-center gap-2 rounded-xl border border-sage/30 bg-sage/10 p-3 text-sm sm:mx-6">
-          <Check className="size-4" /> Invitation experience saved. New personal links and QR values use this design.
+          <Check className="size-4" /> Invitation settings saved to this wedding. Web guest RSVP and current native guest-session clients read the same message, deadline and children policy.
         </p>
       )}
 
