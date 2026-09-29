@@ -149,7 +149,7 @@ describe('Stage 8 planner information architecture', () => {
     for (const marker of [
       'onSave: () => void',
       'onClick={onSave}',
-      'Save card design',
+      'Save invitation settings',
     ]) {
       expect(invitationStudio).toContain(marker)
     }

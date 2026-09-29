@@ -25,7 +25,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -890,9 +889,6 @@ private fun LiveIssuedGuestPass(profile: LiveInvitationPresentation, coordinator
         catch (_: Exception) { failed = true }
     }
     if (pass != null) pro.wewed.app.ui.pass.WeddingReferencePassScreen(onOpenScanner = {}, providedPass = pass, showScanner = false)
-    else if (failed && availability?.state == pro.wewed.app.models.WeddingPassAvailabilityState.NOT_YET_ISSUABLE) {
-        GuestPassComingSoon(profile, availability)
-    }
     else if (failed) Column(
         modifier = Modifier.padding(20.dp).testTag(WeddingPassAvailabilityCopy.testTag(availability)),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -909,134 +905,6 @@ private fun LiveIssuedGuestPass(profile: LiveInvitationPresentation, coordinator
         }
     }
     else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-}
-
-/**
- * Pass tab before venue admission opens (owner decision, final C&K UAT 2026-09-29).
- *
- * An attending Guest sees a QR in their own name straight away, which is reassuring, alongside a
- * clear promise that the real Wedding Pass QR appears here later. The keepsake QR deliberately
- * carries NO credential: it encodes only the wedding page (`/w/<slug>`), so a screenshot or a
- * forwarded image grants nothing. It is labelled as an invitation keepsake, never as the venue
- * pass, and uses the invitation QR component — never the Wedding Pass QR (`wedding-pass-qr`).
- */
-@Composable
-private fun GuestPassComingSoon(
-    profile: LiveInvitationPresentation,
-    availability: pro.wewed.app.models.WeddingPassAvailability?,
-) {
-    val keepsakeUrl = remember(profile.weddingSlug) { guestWebUrl("/w/${profile.weddingSlug}") }
-    val opensOn = availability?.let { WeddingPassAvailabilityCopy.availableFrom(it) }
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(WeddingIdentityPalette.Ivory)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 24.dp)
-            .testTag(WeddingPassAvailabilityCopy.testTag(availability)),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        Text(
-            "WEDDING PASS",
-            color = WeddingIdentityPalette.ChampagneDeep,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 2.sp
-        )
-        Text(
-            "Your pass is on its way",
-            color = WeddingIdentityPalette.Ink,
-            fontFamily = FontFamily.Serif,
-            fontSize = 26.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.testTag("guest-pass-coming-soon-title")
-        )
-        Surface(
-            modifier = Modifier.fillMaxWidth().testTag("guest-invitation-keepsake"),
-            shape = RoundedCornerShape(24.dp),
-            color = WeddingIdentityPalette.IvorySoft,
-            border = androidx.compose.foundation.BorderStroke(1.dp, WeddingIdentityPalette.ChampagneDeep.copy(alpha = 0.45f)),
-            shadowElevation = 2.dp
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    profile.coupleNames,
-                    color = WeddingIdentityPalette.ChampagneDeep,
-                    fontFamily = FontFamily.Serif,
-                    fontSize = 18.sp,
-                    textAlign = TextAlign.Center
-                )
-                Surface(shape = RoundedCornerShape(16.dp), color = Color.White) {
-                    pro.wewed.app.ui.qr.WewedQrCode(
-                        payload = keepsakeUrl,
-                        contentDescription = "Invitation keepsake QR for ${profile.guestName}",
-                        testTag = "guest-invitation-keepsake-qr",
-                        modifier = Modifier.padding(14.dp),
-                        size = 190.dp,
-                    )
-                }
-                Text(
-                    profile.guestName,
-                    color = WeddingIdentityPalette.Ink,
-                    fontFamily = FontFamily.Serif,
-                    fontSize = 21.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.testTag("guest-invitation-keepsake-name")
-                )
-                Text(
-                    listOf(formatWeddingDate(profile.weddingDate), profile.venue.orEmpty())
-                        .filter { it.isNotBlank() }.joinToString(" · "),
-                    color = WeddingIdentityPalette.Muted,
-                    fontSize = 13.sp,
-                    textAlign = TextAlign.Center
-                )
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = WeddingIdentityPalette.ChampagneDeep.copy(alpha = 0.10f)
-                ) {
-                    Text(
-                        "Invitation keepsake · not your venue pass",
-                        color = WeddingIdentityPalette.ChampagneDeep,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
-                    )
-                }
-            }
-        }
-        Surface(
-            modifier = Modifier.fillMaxWidth().testTag("guest-pass-coming-soon-notice"),
-            shape = RoundedCornerShape(18.dp),
-            color = WeddingIdentityPalette.Forest.copy(alpha = 0.06f),
-            border = androidx.compose.foundation.BorderStroke(1.dp, WeddingIdentityPalette.Forest.copy(alpha = 0.25f))
-        ) {
-            Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.Top) {
-                Icon(Icons.Filled.QrCode, contentDescription = null, tint = WeddingIdentityPalette.Forest, modifier = Modifier.size(26.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Your Wedding Pass QR", color = WeddingIdentityPalette.Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                    Text(
-                        WeddingPassAvailabilityCopy.message(availability),
-                        color = WeddingIdentityPalette.Muted,
-                        fontSize = 13.sp
-                    )
-                    opensOn?.let {
-                        Text(it, color = WeddingIdentityPalette.Forest, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
-                            modifier = Modifier.testTag("guest-pass-opens-on"))
-                    }
-                    Text(
-                        "It will appear here automatically — there is nothing you need to do. Show it at the entrance on the day.",
-                        color = WeddingIdentityPalette.Muted,
-                        fontSize = 12.sp
-                    )
-                }
-            }
-        }
-    }
 }
 
 /**
