@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import { requireWeddingPermission } from '@/lib/wedding-access'
 import {
+  invitationDeliveryVersionFingerprint,
   invitationWeddingSelect,
   loadPlannerInvitationProjection,
   normalizeChildrenPolicy,
@@ -110,12 +111,50 @@ export async function POST(request: NextRequest) {
       const note = typeof body.note === 'string'
         ? body.note.replace(/\u0000/g, '').trim().slice(0, 500) || null
         : null
-      const guests = await db.guest.findMany({
-        where: { weddingId: access.context.weddingId, id: { in: guestIds } },
-        select: { id: true, email: true, phone: true },
-      })
+      const [guests, wedding, childrenPolicyRow] = await Promise.all([
+        db.guest.findMany({
+          where: { weddingId: access.context.weddingId, id: { in: guestIds } },
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            rsvp: { select: { token: true } },
+          },
+        }),
+        db.wedding.findUnique({
+          where: { id: access.context.weddingId },
+          select: {
+            invitationCardStyle: true,
+            invitationCardMessage: true,
+            rsvpDeadline: true,
+          },
+        }),
+        db.weddingContent.findUnique({
+          where: {
+            weddingId_section_field: {
+              weddingId: access.context.weddingId,
+              section: 'rsvp',
+              field: 'childrenPolicy',
+            },
+          },
+          select: { value: true },
+        }),
+      ])
       if (guests.length !== guestIds.length) {
         return privateJson({ success: false, error: 'One or more selected guests are no longer in this wedding.' }, 409)
+      }
+      if (!wedding) {
+        return privateJson({ success: false, error: 'Wedding not found.' }, 404)
+      }
+      const withoutPrivateLinks = guests.filter((guest) => !guest.rsvp?.token)
+      if (withoutPrivateLinks.length > 0) {
+        return privateJson(
+          {
+            success: false,
+            error: `${withoutPrivateLinks.length} selected guest${withoutPrivateLinks.length === 1 ? '' : 's'} do not have a private invitation link yet. Generate missing links before recording delivery.`,
+          },
+          409,
+        )
       }
 
       const recipientFor = (guest: (typeof guests)[number]) => {
@@ -123,6 +162,25 @@ export async function POST(request: NextRequest) {
         if (channel === 'whatsapp' || channel === 'sms') return guest.phone
         return guest.email ?? guest.phone
       }
+      const missingRecipient = guests.find((guest) => {
+        if (channel === 'email') return !guest.email
+        if (channel === 'whatsapp' || channel === 'sms') return !guest.phone
+        return false
+      })
+      if (missingRecipient) {
+        return privateJson(
+          {
+            success: false,
+            error: channel === 'email'
+              ? 'Every selected guest needs an email address before marking an email send.'
+              : 'Every selected guest needs a phone number before marking a WhatsApp/SMS send.',
+          },
+          409,
+        )
+      }
+
+      const invitationStyle = normalizeInvitationCardStyle(wedding.invitationCardStyle)
+      const childrenPolicy = normalizeChildrenPolicy(childrenPolicyRow?.value)
       const sentAt = new Date()
       await db.$transaction(async (tx) => {
         await tx.guestInvitationDelivery.createMany({
@@ -133,6 +191,11 @@ export async function POST(request: NextRequest) {
             channel,
             recipient: recipientFor(guest),
             note,
+            invitationVersionFingerprint: invitationDeliveryVersionFingerprint(guest.rsvp!.token),
+            invitationStyle,
+            invitationMessage: wedding.invitationCardMessage,
+            rsvpDeadline: wedding.rsvpDeadline,
+            childrenPolicy,
             sentAt,
           })),
         })
@@ -144,6 +207,9 @@ export async function POST(request: NextRequest) {
             afterValue: JSON.stringify({
               count: guests.length,
               channel,
+              invitationStyle,
+              childrenPolicy,
+              rsvpDeadline: wedding.rsvpDeadline?.toISOString() ?? null,
               sentAt: sentAt.toISOString(),
             }),
             weddingId: access.context.weddingId,
