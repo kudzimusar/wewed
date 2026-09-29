@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
 
     if (request.nextUrl.searchParams.get('format') === 'csv') {
       const csv = [
-        'Name,Email,Phone,RSVP Status,Checked In,Table,Card Style,Digital Invitation URL,Share Message',
+        'Name,Email,Phone,RSVP Status,Checked In,Table,Delivery Status,Delivery Channel,Sent At,Opened At,Card Style,Digital Invitation URL,Share Message',
         ...data.map((row) =>
           [
             csvCell(row.name),
@@ -54,6 +54,10 @@ export async function GET(request: NextRequest) {
             csvCell(row.status),
             csvCell(row.checkedIn ? 'yes' : 'no'),
             csvCell(row.tableNumber?.toString()),
+            csvCell(row.deliveryStatus),
+            csvCell(row.deliveryChannel),
+            csvCell(row.deliveredAt),
+            csvCell(row.openedAt),
             csvCell(style),
             csvCell(row.invitationUrl),
             csvCell(row.shareMessage),
