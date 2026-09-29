@@ -157,7 +157,12 @@ describe('P13-LIVE-1 Preview backstop coverage', () => {
       }
     }
     walk('src/app/api/native')
-    const guard = /shouldBlockPreviewWrite|previewWriteError|requireWeddingPermission|assertPreviewWeddingMutationAllowed/
+    const guard = /shouldBlockPreviewWrite|previewWriteError|requireWeddingPermission|assertPreviewWeddingMutationAllowed|resolveNativeGuestWrite/
+    // QRO08: the native Planner guest/invitation write twins are guarded through this shared
+    // authority, which must itself apply the Preview block before handing out a write actor.
+    const nativeGuestWrite = readFileSync('src/lib/native-planner-guest-write.ts', 'utf8')
+    expect(nativeGuestWrite).toContain('shouldBlockPreviewWrite({ method: request.method, weddingId: scope.weddingId })')
+    expect(nativeGuestWrite).toContain("code: 'PREVIEW_WRITE_BLOCKED'")
     // POST handlers that write nothing. The exemption is itself verified: the route must stay
     // free of write statements, so adding a write later re-opens this gate.
     const WRITE_FREE_POST = new Set([join('src/app/api/native/account/signin/route.ts')])

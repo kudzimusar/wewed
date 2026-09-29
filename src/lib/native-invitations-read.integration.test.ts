@@ -233,11 +233,17 @@ describeLocal('QRO05-PIQR01 native Invitations & QR read parity', () => {
     expect(stillMissing).toBe(0)
   })
 
-  test('the native invitation routes expose GET only', async () => {
+  test('native invitation writes are exactly the QRO08 twins; printed access stays read-only', async () => {
+    const writes = (mod: Record<string, unknown>) =>
+      Object.keys(mod).filter((key) => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(key)).sort()
     const native = await import('@/app/api/native/wedding/invitations/route')
     const physical = await import('@/app/api/native/wedding/invitations/physical/route')
-    for (const mod of [native, physical] as Record<string, unknown>[]) {
-      expect(Object.keys(mod).filter((key) => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(key))).toEqual([])
-    }
+    const delivery = await import('@/app/api/native/wedding/invitations/delivery/route')
+    // QRO08: repair missing links (POST) and rotate one link (PATCH) — the desktop twins; no PUT
+    // (card settings stay a desktop/Couple Studio action).
+    expect(writes(native as Record<string, unknown>)).toEqual(['PATCH', 'POST'])
+    expect(writes(delivery as Record<string, unknown>)).toEqual(['DELETE', 'POST'])
+    // The shared printed-invitation QR is never created or changed from native.
+    expect(writes(physical as Record<string, unknown>)).toEqual([])
   })
 })

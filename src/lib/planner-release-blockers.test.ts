@@ -23,8 +23,10 @@ describe('final worksheet and Seating release blockers', () => {
   })
 
   test('keeps Guest creation and live seating edits inside retrying serializable transactions', async () => {
-    const createRoute = await source('src/app/api/planner/guests/route.ts')
-    const updateRoute = await source('src/app/api/planner/guests/[id]/route.ts')
+    // QRO08: guest-mode writes live in the shared operations both desktop and native routes call.
+    const guestOperations = await source('src/lib/planner-guest-operations.ts')
+    const createRoute = (await source('src/app/api/planner/guests/route.ts')) + guestOperations
+    const updateRoute = (await source('src/app/api/planner/guests/[id]/route.ts')) + guestOperations
     const transaction = await source('src/lib/planner-seating-transaction.ts')
 
     expect(createRoute).toContain('const guest = await runSerializableSeatingTransaction(async (tx) =>')

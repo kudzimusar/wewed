@@ -54,13 +54,28 @@ describe('Planner invitation command center', () => {
   })
 
   test('sent tracking is audit-only and cannot mutate RSVP or guest business state', () => {
-    expect(deliveryRoute).toContain("action: 'guest.invitation_delivery_marked'")
-    expect(deliveryRoute).toContain("action: 'guest.invitation_delivery_unmarked'")
-    expect(deliveryRoute).toContain('db.auditEvent.createMany')
-    expect(deliveryRoute).not.toContain('db.rSVP.update')
-    expect(deliveryRoute).not.toContain('db.rSVP.create')
-    expect(deliveryRoute).not.toContain('db.guest.update')
-    expect(deliveryRoute).not.toContain('db.guest.delete')
+    // QRO08: the one implementation lives in planner-invitation-operations; the desktop (cookie)
+    // and native (Bearer grant) delivery routes are both thin front doors to it.
+    const operations = readFileSync('src/lib/planner-invitation-operations.ts', 'utf8')
+    const delivery = operations.slice(
+      operations.indexOf('export async function recordInvitationDelivery'),
+      operations.indexOf('export async function repairMissingInvitationLinks'),
+    )
+    expect(delivery).toContain("action: 'guest.invitation_delivery_marked'")
+    expect(delivery).toContain("action: 'guest.invitation_delivery_unmarked'")
+    expect(delivery).toContain('db.auditEvent.createMany')
+    expect(delivery).not.toContain('db.rSVP.update')
+    expect(delivery).not.toContain('db.rSVP.create')
+    expect(delivery).not.toContain('db.guest.update')
+    expect(delivery).not.toContain('db.guest.delete')
+    expect(delivery).not.toContain('guest.invitation_opened')
+
+    const nativeDelivery = readFileSync('src/app/api/native/wedding/invitations/delivery/route.ts', 'utf8')
+    for (const route of [deliveryRoute, nativeDelivery]) {
+      expect(route).toContain('recordInvitationDelivery(')
+      expect(route).toContain('resetInvitationDelivery(')
+      expect(route).not.toMatch(/db\.(rSVP|guest|auditEvent)\./)
+    }
   })
 
   test('actual invitation redemption is tracked separately without storing credentials', () => {

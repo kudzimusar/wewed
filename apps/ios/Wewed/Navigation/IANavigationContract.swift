@@ -106,7 +106,7 @@ public enum IANavigationContract {
         primary: [
             PrimaryDestination(
                 id: "workspace", label: "Workspace",
-                sections: ["Overview", "Tasks", "Budget", "Guests", "Vendors", "Contributions", "Seating", "Timeline", "Documents"]
+                sections: ["Overview", "Tasks", "Budget", "Guests", "Invitations", "Vendors", "Contributions", "Seating", "Timeline", "Documents"]
             ),
             PrimaryDestination(
                 id: "clients", label: "Clients",

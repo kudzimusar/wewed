@@ -13,9 +13,8 @@ import {
   SeatingTargetError,
 } from '@/lib/planner-seating-transaction'
 import { requireWeddingPermission } from '@/lib/wedding-access'
+import { deletePlannerGuest, updatePlannerGuest } from '@/lib/planner-guest-operations'
 
-const GUEST_ROLES = ['guest', 'bridal_party', 'family', 'officiant', 'vip'] as const
-const GUEST_SIDES = ['bride', 'groom', 'family', 'neutral'] as const
 const MAX_TABLE_CAPACITY = 50
 
 interface PatchGuestPayload {
@@ -254,146 +253,15 @@ export async function PATCH(
       return NextResponse.json({ success: true, data: formatTable(updated) })
     }
 
-    const existing = await db.guest.findFirst({
-      where: { id, weddingId },
-      include: {
-        rsvp: true,
-        seatingTable: { select: { id: true, name: true, capacity: true } },
-      },
-    })
-    if (!existing) {
-      return NextResponse.json({ success: false, error: 'Guest not found' }, { status: 404 })
-    }
-
     const body = (await request.json()) as PatchGuestPayload
-    const updates: Record<string, unknown> = {}
-    if (body.name !== undefined) {
-      const name = clean(body.name, 160)
-      if (!name) {
-        return NextResponse.json({ success: false, error: 'Name cannot be empty' }, { status: 400 })
-      }
-      updates.name = name
+    const result = await updatePlannerGuest({ weddingId, actorId: access.context.session.userId }, id, body)
+    if (!result.ok) {
+      return NextResponse.json(
+        { success: false, error: result.error, ...('field' in result && result.field ? { field: result.field } : {}) },
+        { status: result.status },
+      )
     }
-    if (body.email !== undefined) {
-      const email = body.email?.trim().toLowerCase() || null
-      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        return NextResponse.json(
-          { success: false, error: 'Enter a valid email address.', field: 'email' },
-          { status: 400 },
-        )
-      }
-      if (email) {
-        const duplicate = await db.guest.findFirst({
-          where: {
-            weddingId,
-            email: { equals: email, mode: 'insensitive' },
-            NOT: { id: existing.id },
-          },
-          select: { id: true },
-        })
-        if (duplicate) {
-          return NextResponse.json(
-            { success: false, error: 'A guest with this email already exists for this wedding.', field: 'email' },
-            { status: 409 },
-          )
-        }
-      }
-      updates.email = email
-    }
-    if (body.phone !== undefined) updates.phone = clean(body.phone, 80)
-    if (body.role !== undefined) {
-      if (!GUEST_ROLES.includes(body.role as (typeof GUEST_ROLES)[number])) {
-        return NextResponse.json(
-          { success: false, error: `Invalid role. Allowed: ${GUEST_ROLES.join(', ')}` },
-          { status: 400 },
-        )
-      }
-      updates.role = body.role
-    }
-    if (body.roleDetail !== undefined) updates.roleDetail = clean(body.roleDetail, 160)
-    if (body.side !== undefined) {
-      if (!GUEST_SIDES.includes(body.side as (typeof GUEST_SIDES)[number])) {
-        return NextResponse.json(
-          { success: false, error: `Invalid side. Allowed: ${GUEST_SIDES.join(', ')}` },
-          { status: 400 },
-        )
-      }
-      updates.side = body.side
-    }
-    if (body.seatingTableId !== undefined) {
-      updates.seatingTableId = body.seatingTableId || null
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ success: false, error: 'No updates provided' }, { status: 400 })
-    }
-
-    const updated = await runSerializableSeatingTransaction(async (tx) => {
-      const current = await tx.guest.findFirst({
-        where: { id: existing.id, weddingId },
-        include: {
-          rsvp: true,
-          seatingTable: { select: { id: true, name: true, capacity: true } },
-        },
-      })
-      if (!current) throw new SeatingTargetError('Guest not found')
-
-      if (body.seatingTableId) {
-        const table = await tx.seatingTable.findFirst({
-          where: { id: body.seatingTableId, weddingId },
-          include: {
-            guests: {
-              where: { NOT: { id: current.id } },
-              include: { rsvp: true },
-            },
-          },
-        })
-        if (!table) throw new SeatingTargetError('Invalid seatingTableId')
-        const occupied = table.guests.reduce((sum, guest) => sum + plannedSeatsForGuest(guest), 0)
-        const required = plannedSeatsForGuest(current)
-        if (occupied + required > table.capacity) {
-          throw new SeatingCapacityError(
-            `${table.name} has ${Math.max(0, table.capacity - occupied)} available seat${table.capacity - occupied === 1 ? '' : 's'}; ${current.name}'s party requires ${required}.`,
-          )
-        }
-      }
-
-      const guest = await tx.guest.update({
-        where: { id: current.id },
-        data: updates,
-        include: {
-          rsvp: true,
-          seatingTable: { select: { id: true, name: true, capacity: true } },
-        },
-      })
-      await tx.auditEvent.create({
-        data: {
-          action: body.seatingTableId !== undefined ? 'seating.guest_assignment' : 'guest.update',
-          resourceType: 'guest',
-          resourceId: current.id,
-          beforeValue: JSON.stringify({
-            name: current.name,
-            email: current.email,
-            phone: current.phone,
-            role: current.role,
-            side: current.side,
-            seatingTableId: current.seatingTableId,
-          }),
-          afterValue: JSON.stringify({
-            name: guest.name,
-            email: guest.email,
-            phone: guest.phone,
-            role: guest.role,
-            side: guest.side,
-            seatingTableId: guest.seatingTableId,
-          }),
-          weddingId,
-          actorId: access.context.session.userId,
-        },
-      })
-      return guest
-    })
-    return NextResponse.json({ success: true, data: formatGuest(updated) })
+    return NextResponse.json({ success: true, data: formatGuest(result.data) })
   } catch (error) {
     if (error instanceof SeatingCapacityError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 409 })
@@ -460,34 +328,18 @@ export async function DELETE(
       })
     }
 
-    const existing = await db.guest.findFirst({
-      where: { id, weddingId },
-      include: { rsvp: true },
-    })
-    if (!existing) {
-      return NextResponse.json({ success: false, error: 'Guest not found' }, { status: 404 })
-    }
-
-    await db.$transaction(async (tx) => {
-      await tx.rSVP.deleteMany({ where: { guestId: existing.id } })
-      await tx.guest.delete({ where: { id: existing.id } })
-      await tx.auditEvent.create({
-        data: {
-          action: 'guest.delete',
-          resourceType: 'guest',
-          resourceId: existing.id,
-          beforeValue: JSON.stringify({
-            name: existing.name,
-            email: existing.email,
-            seatingTableId: existing.seatingTableId,
-          }),
-          afterValue: JSON.stringify({ deleted: true }),
-          weddingId,
-          actorId: access.context.session.userId,
+    const result = await deletePlannerGuest({ weddingId, actorId: access.context.session.userId }, id)
+    if (!result.ok) {
+      // QRO08: a protected Guest (pass / check-in / contribution history) is a deliberate 409.
+      return NextResponse.json(
+        {
+          success: false,
+          error: result.error,
+          ...('code' in result ? { code: result.code, protectedRecords: result.protectedRecords } : {}),
         },
-      })
-    })
-
+        { status: result.status },
+      )
+    }
     return NextResponse.json({ success: true, data: { id, deleted: true, kind: 'guest' } })
   } catch (error) {
     console.error('[PLANNER GUEST DELETE] error:', error)

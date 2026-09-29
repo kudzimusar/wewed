@@ -173,11 +173,15 @@ class FinalNativeUiLaneRegressionTest {
         assertEquals(2, Regex("applySystemBarInsets = true").findAll(root).count())
     }
 
-    // QRO05-PIQR01 — Planner Invitations & QR reads real data, read-only.
+    // QRO05-PIQR01 / QRO08 — Planner Invitations reads real data; the command center writes only
+    // through the production repository's operations (the native twins), and is a Workspace section.
 
     @Test fun productionPlannerInvitationsQrRendersRealDataNotThePlaceholder() {
         val workspaces = source("ui/roles/RoleWorkspaces.kt")
-        assertTrue(workspaces.contains("PlannerInvitationsQrSection(load = { production.loadPlannerInvitations() })"))
+        assertTrue(workspaces.contains("load = { production.loadPlannerInvitations() },"))
+        assertTrue(workspaces.contains("operations = production.plannerInvitationOperations,"))
+        assertTrue(workspaces.contains("\"Invitations\" -> PlannerInvitationsDestination(appViewModel, context, graph)"))
+        assertTrue(workspaces.contains("\"Invitations & QR\" -> PlannerInvitationsDestination(appViewModel, context, graph)"))
         val sections = source("ui/roles/ProductionDataSections.kt")
         assertFalse("the not-loaded placeholder must be gone", sections.contains("The app does not load them yet."))
         val view = source("ui/roles/PlannerInvitationsQrSection.kt")
@@ -208,11 +212,31 @@ class FinalNativeUiLaneRegressionTest {
         assertFalse("must never join the graph-loading interface", repository.contains("loadPlannerInvitations"))
     }
 
-    @Test fun nativeInvitationClientIsReadOnly() {
+    // QRO08 — invitation reads stay GET projections; writes are only the explicit native twins of the
+    // desktop routes, and nothing about delivery is persisted on the device.
+    @Test fun nativeInvitationClientReadsProjectionsAndWritesOnlyThroughTheNativeTwins() {
         val client = source("services/NativeDomainApiClient.kt")
-        val lines = client.lines().filter { it.contains("api/native/wedding/invitations") }
-        assertEquals(2, lines.size)
-        lines.forEach { assertTrue("invitation routes are GET-only: $it", it.trim().startsWith("runGet(\"")) }
+        val reads = client.lines().filter { it.contains("api/native/wedding/invitations") && it.trim().startsWith("runGet(\"") }
+        assertEquals(2, reads.size)
+        val writes = client.lines().filter { it.trim().startsWith("runWrite(\"") }.map { it.trim() }
+        val expected = listOf(
+            "runWrite(\"POST\", \"api/native/wedding/invitations/delivery\"",
+            "runWrite(\"DELETE\", \"api/native/wedding/invitations/delivery\"",
+            "runWrite(\"POST\", \"api/native/wedding/invitations\"",
+            "runWrite(\"PATCH\", \"api/native/wedding/invitations\"",
+            "runWrite(\"POST\", \"api/native/wedding/guests\"",
+            "runWrite(\"PATCH\", \"api/native/wedding/guests/",
+            "runWrite(\"DELETE\", \"api/native/wedding/guests/",
+        )
+        assertEquals(expected.size, writes.size)
+        expected.forEach { prefix -> assertTrue("missing write $prefix", writes.any { it.startsWith(prefix) }) }
+        val screen = source("ui/roles/PlannerInvitationsQrSection.kt")
+        for (forbidden in listOf("SharedPreferences", "SecureStorage", "DataStore", "edit on the web", "on the web")) {
+            assertFalse("command center must not persist or defer to the web: $forbidden", screen.contains(forbidden))
+        }
+        // Share / Copy / Show QR never record a delivery or an open.
+        val share = screen.substring(screen.indexOf("RowAction(\"Share\""), screen.indexOf("RowAction(\"Copy\""))
+        assertFalse(share.contains("markSent") || share.contains("operations."))
     }
 
     // QRO06 — Couple Website / Gifts carry Guest authority into the browser via the handoff.

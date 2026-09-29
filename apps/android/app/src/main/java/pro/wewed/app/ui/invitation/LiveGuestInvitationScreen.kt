@@ -441,7 +441,7 @@ private fun LiveInvitationPresentation.toIvoryData(): IvoryInvitationData {
         venueCityCountry = venueCityCountry,
         tagline = tagline,
         guestName = guestName,
-        rsvpDeadlineLabel = rsvpDeadline
+        rsvpDeadlineLabel = pro.wewed.app.invitation.InvitationDeadlineFormat.label(rsvpDeadline)
     )
 }
 
