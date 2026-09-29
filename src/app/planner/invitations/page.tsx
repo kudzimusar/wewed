@@ -7,6 +7,7 @@ import { DashboardAuthGate } from '@/components/wedding/dashboard-auth-gate'
 import { PlannerInvitationWorkspace } from '@/components/wedding/planner-invitation-tools'
 
 const INVITATION_DESK_ROLES = ['admin', 'couple', 'planner'] as const
+const INVITATION_DESK_WEDDING_ROLES = ['admin', 'owner', 'planner', 'coordinator'] as const
 
 export default function PlannerInvitationsPage() {
   const router = useRouter()
@@ -16,6 +17,7 @@ export default function PlannerInvitationsPage() {
       title="Invitation Desk"
       description="Sign in as the couple, an assigned planner, or an administrator to manage guest invitations."
       allowedRoles={INVITATION_DESK_ROLES}
+      allowedWeddingRoles={INVITATION_DESK_WEDDING_ROLES}
       onClose={() => router.push('/planner/overview#planner-workspace')}
     >
       <main className="min-h-screen bg-espresso px-3 pb-24 pt-4 text-champagne sm:px-5 lg:px-7">
