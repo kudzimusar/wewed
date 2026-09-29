@@ -6,6 +6,7 @@ const manager = readFileSync('src/components/wedding/invitation-manager.tsx', 'u
 const studio = readFileSync('src/components/wedding/invitation-experience/premium-invitation-studio.tsx', 'utf8')
 const route = readFileSync('src/app/planner/invitations/page.tsx', 'utf8')
 const api = readFileSync('src/app/api/planner/guests/invitations/route.ts', 'utf8')
+const guestApi = readFileSync('src/app/api/planner/guests/[id]/route.ts', 'utf8')
 const migration = readFileSync('prisma/migrations/20260929094500_guest_invitation_delivery_tracking/migration.sql', 'utf8')
 
 describe('Planner Invitation Desk', () => {
@@ -56,6 +57,15 @@ describe('Planner Invitation Desk', () => {
     expect(api).toContain('invitationDeliveryVersionFingerprint')
     expect(api).toContain('invitationMessage: wedding.invitationCardMessage')
     expect(api).not.toContain('deliveryConfirmed')
+  })
+
+  test('protects wedding history when the desk offers guest removal', () => {
+    expect(guestApi).toContain('invitationDeliveries')
+    expect(guestApi).toContain('passCredentials')
+    expect(guestApi).toContain('weddingCheckIns')
+    expect(guestApi).toContain('contribution')
+    expect(guestApi).toContain('Edit the record instead of deleting its history.')
+    expect(manager).toContain('Guests with response, check-in or delivery history are protected from deletion.')
   })
 
   test('shows stale sends when a private link or invitation settings change', () => {
