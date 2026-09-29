@@ -63,7 +63,7 @@ test('Planner Card Studio provides a compact premium library and one interactive
   await expect(toolsDisclosure).toBeVisible()
   await toolsDisclosure.click()
   await expect(toolsDisclosure).toHaveAttribute('aria-expanded', 'true')
-  await page.getByRole('button', { name: 'Invitations & QR', exact: true }).click()
+  await page.getByRole('link', { name: 'Invitations & QR', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Invitations & secure QR' })).toBeVisible()
 
   const studioHeading = page.getByRole('heading', { name: 'Choose how your invitation comes to life' })
