@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { loadWeddingChildrenPolicy } from '@/lib/guest-rsvp-mutation'
+import { sortTimelineItems } from '@/lib/planner-timeline-order'
 import { readWeddingDayGuestContext } from '@/lib/wedding-day'
 import { loadPublicSiteStructure, loadPublishedAnnouncements } from '@/lib/wedding-site/server'
 import { programmeIsPublic } from '@/lib/wedding-site/model'
@@ -55,15 +57,27 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // Guests see the same programme the website shows: nothing while the couple keeps it unpublished.
-  const siteStructure = await loadPublicSiteStructure(context.weddingId)
-  const programme = !programmeIsPublic(siteStructure.sections) ? [] : await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
+  // Guests see the same programme the Planner presents: nothing while the couple keeps it
+  // unpublished, and chronological clock time is authoritative once it is public.
+  const [siteStructure, childrenPolicy] = await Promise.all([
+    loadPublicSiteStructure(context.weddingId),
+    loadWeddingChildrenPolicy(context.weddingId),
+  ])
+  const programmeRows = !programmeIsPublic(siteStructure.sections) ? [] : await db.$queryRawUnsafe<Array<{
+    id: string
+    time: string
+    title: string
+    description: string | null
+    location: string | null
+    order: number
+  }>>(
     `SELECT id, time, title, description, location, "order"
        FROM public."ProgrammeItem"
       WHERE "weddingId" = $1
       ORDER BY "order" ASC, id ASC`,
     context.weddingId,
   )
+  const programme = sortTimelineItems(programmeRows)
 
   const announcements = await loadPublishedAnnouncements(context.weddingId, {
     includeAttendingOnly: guest.attending === true,
@@ -83,7 +97,7 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  if (guest.kidsAttending && (guest.kidsCount ?? 0) > 0) {
+  if (childrenPolicy !== 'adults_only' && guest.kidsAttending && (guest.kidsCount ?? 0) > 0) {
     for (let index = 1; index <= (guest.kidsCount ?? 0); index += 1) {
       household.push({
         attendeeKey: `child-${index}`,

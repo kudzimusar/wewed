@@ -1,6 +1,7 @@
 import { weddingGuestSessionExpiry } from '@/lib/wedding-guest-session'
 import { invitationVersionFingerprint } from '@/lib/wedding-guest-session'
 import { NextRequest, NextResponse } from 'next/server'
+import { recordGuestInvitationOpened } from '@/lib/guest-invitation-telemetry'
 import { resolvePersonalInvitation } from '@/lib/personal-invitation-access'
 import {
   clearPendingInvitationCookie,
@@ -62,6 +63,14 @@ export async function GET(request: NextRequest, { params }: Params) {
 
   if (!invitation) {
     return failedExchange(slug, 'invalid')
+  }
+
+  if (!pending.suppressOpenTracking) {
+    await recordGuestInvitationOpened({
+      weddingId: invitation.weddingId,
+      guestId: invitation.guestId,
+      source: 'web_exchange',
+    })
   }
 
   const query = new URLSearchParams({ invitation: '1', card: invitation.card })

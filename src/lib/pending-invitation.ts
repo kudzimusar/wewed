@@ -19,6 +19,7 @@ export interface PendingInvitation {
   weddingSlug: string
   rsvpToken: string
   card: InvitationCardStyle
+  suppressOpenTracking?: boolean
   expiresAt: number
 }
 
@@ -76,12 +77,14 @@ export function createPendingInvitationToken(input: {
   weddingSlug: string
   rsvpToken: string
   card: InvitationCardStyle
+  suppressOpenTracking?: boolean
 }): string {
   const payload: PendingInvitation = {
     version: 1,
     weddingSlug: input.weddingSlug,
     rsvpToken: input.rsvpToken,
     card: input.card,
+    ...(input.suppressOpenTracking ? { suppressOpenTracking: true } : {}),
     expiresAt: Date.now() + PENDING_INVITATION_TTL_SECONDS * 1000,
   }
   const encoded = Buffer.from(JSON.stringify(payload), 'utf8').toString(
@@ -108,6 +111,7 @@ export function verifyPendingInvitationToken(
       typeof payload.rsvpToken !== 'string' ||
       typeof payload.card !== 'string' ||
       !INVITATION_CARD_STYLE_IDS.has(payload.card) ||
+      (payload.suppressOpenTracking !== undefined && typeof payload.suppressOpenTracking !== 'boolean') ||
       typeof payload.expiresAt !== 'number' ||
       payload.expiresAt <= Date.now()
     ) {
@@ -133,6 +137,7 @@ export function setPendingInvitationCookie(
     weddingSlug: string
     rsvpToken: string
     card: InvitationCardStyle
+    suppressOpenTracking?: boolean
   },
 ): void {
   response.cookies.set(
