@@ -18,7 +18,7 @@ export default function PlannerInvitationsPage() {
     >
       <main className="min-h-dvh bg-espresso pb-10 text-champagne" data-planner-invitations-page>
         <div className="mx-auto flex w-full max-w-[1500px] items-center justify-between gap-3 px-3 pt-4 sm:px-5">
-          <Button asChild type="button" variant="outline" className="border-gold/25 bg-transparent text-champagne hover:bg-gold/10 hover:text-gold">
+          <Button asChild variant="outline" className="border-gold/25 bg-transparent text-champagne hover:bg-gold/10 hover:text-gold">
             <Link href="/planner/guests#planner-workspace">
               <ArrowLeft className="size-4" />
               Back to Guests
