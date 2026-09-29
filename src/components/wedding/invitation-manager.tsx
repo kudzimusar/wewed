@@ -36,6 +36,7 @@ type DeliveryStatus = 'sent' | 'not_sent'
 type RsvpFilter = 'all' | 'attending' | 'declined' | 'pending'
 type DeliveryFilter = 'all' | DeliveryStatus
 type ContactFilter = 'all' | 'with_contact' | 'missing_contact'
+type OpenFilter = 'all' | 'opened' | 'not_opened'
 
 interface InvitationRow {
   id: string
@@ -52,6 +53,7 @@ interface InvitationRow {
   deliveryChannel: DeliveryChannel | null
   deliveredAt: string | null
   deliveredBy: string | null
+  openedAt: string | null
 }
 
 interface InvitationWedding {
@@ -156,6 +158,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const [rsvpFilter, setRsvpFilter] = useState<RsvpFilter>('all')
   const [deliveryFilter, setDeliveryFilter] = useState<DeliveryFilter>('all')
   const [contactFilter, setContactFilter] = useState<ContactFilter>('all')
+  const [openFilter, setOpenFilter] = useState<OpenFilter>('all')
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [deliveryChannel, setDeliveryChannel] = useState<DeliveryChannel>('whatsapp')
@@ -200,7 +203,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE)
-  }, [search, rsvpFilter, deliveryFilter, contactFilter])
+  }, [search, rsvpFilter, deliveryFilter, contactFilter, openFilter])
 
   const previewData = useMemo(() => wedding ? {
     title: wedding.title,
@@ -226,6 +229,8 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
       const hasContact = Boolean(row.email || row.phone)
       if (contactFilter === 'with_contact' && !hasContact) return false
       if (contactFilter === 'missing_contact' && hasContact) return false
+      if (openFilter === 'opened' && !row.openedAt) return false
+      if (openFilter === 'not_opened' && row.openedAt) return false
       if (!query) return true
       return [
         row.name,
@@ -236,7 +241,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
         row.deliveredBy ?? '',
       ].some((value) => value.toLowerCase().includes(query))
     })
-  }, [rows, search, rsvpFilter, deliveryFilter, contactFilter])
+  }, [rows, search, rsvpFilter, deliveryFilter, contactFilter, openFilter])
 
   const displayedRows = filteredRows.slice(0, visibleCount)
   const allFilteredSelected = filteredRows.length > 0 && filteredRows.every((row) => selectedIds.has(row.id))
@@ -249,6 +254,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
     attending: rows.filter((row) => row.status === 'attending').length,
     pending: rows.filter((row) => row.status === 'pending').length,
     missingContact: rows.filter((row) => !row.email && !row.phone).length,
+    opened: rows.filter((row) => Boolean(row.openedAt)).length,
   }), [rows])
 
   async function rememberCopied(key: string, value: string) {
@@ -593,6 +599,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
             ['Attending', stats.attending],
             ['Pending RSVP', stats.pending],
             ['Missing contact', stats.missingContact],
+            ['Opened', stats.opened],
           ].map(([label, value]) => (
             <div key={String(label)} className="rounded-xl border border-gold/15 bg-white/75 px-3 py-3 text-center">
               <p className="font-serif text-2xl">{value}</p>
@@ -601,7 +608,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           ))}
         </div>
 
-        <div className="mt-4 grid gap-2 lg:grid-cols-[minmax(16rem,1fr)_12rem_12rem_12rem_auto]">
+        <div className="mt-4 grid gap-2 xl:grid-cols-[minmax(16rem,1fr)_11rem_11rem_11rem_11rem_auto]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-espresso/35" />
             <Input
@@ -627,6 +634,11 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
             <option value="with_contact">Has contact</option>
             <option value="missing_contact">Missing contact</option>
           </select>
+          <select value={openFilter} onChange={(event) => setOpenFilter(event.target.value as OpenFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
+            <option value="all">All open states</option>
+            <option value="opened">Opened invitation</option>
+            <option value="not_opened">Not opened yet</option>
+          </select>
           <Button
             type="button"
             variant="outline"
@@ -635,6 +647,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
               setRsvpFilter('all')
               setDeliveryFilter('all')
               setContactFilter('all')
+              setOpenFilter('all')
             }}
           >
             Reset
@@ -751,11 +764,12 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                             </div>
                           </div>
 
-                          <div className="mt-3 grid gap-2 text-xs text-espresso/55 sm:grid-cols-2 xl:grid-cols-4">
+                          <div className="mt-3 grid gap-2 text-xs text-espresso/55 sm:grid-cols-2 xl:grid-cols-5">
                             <p>Table: <strong>{row.tableNumber ?? 'Not assigned'}</strong></p>
                             <p>{row.checkedIn ? 'Checked in' : 'Not checked in'}</p>
                             <p>Channel: <strong>{channelLabel(row.deliveryChannel)}</strong></p>
                             <p>Sent: <strong>{deliveryTime(row.deliveredAt)}</strong></p>
+                            <p>Opened: <strong>{deliveryTime(row.openedAt)}</strong></p>
                           </div>
                           {row.deliveredBy && <p className="mt-1 text-[11px] text-espresso/45">Recorded by {row.deliveredBy}</p>}
 
