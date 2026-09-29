@@ -58,7 +58,7 @@ export type PlannerInvitationStatus = 'attending' | 'declined' | 'pending'
  * origin, exactly as the desktop Planner has always done.
  */
 export async function loadPlannerInvitationProjection(weddingId: string, siteUrl: string) {
-  const [wedding, guests, childrenPolicyRow] = await Promise.all([
+  const [wedding, guests, childrenPolicyRow, deliveryEvents] = await Promise.all([
     db.wedding.findUnique({
       where: { id: weddingId },
       select: invitationWeddingSelect(),
@@ -78,6 +78,26 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       },
       select: { value: true },
     }),
+    db.auditEvent.findMany({
+      where: {
+        weddingId,
+        resourceType: 'Guest',
+        action: {
+          in: [
+            'guest.invitation_marked_sent',
+            'guest.invitation_opened',
+            'guest.invitation_delivery_reset',
+          ],
+        },
+      },
+      select: {
+        action: true,
+        resourceId: true,
+        afterValue: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    }),
   ])
 
   if (!wedding) return null
@@ -86,6 +106,40 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
   const childrenPolicy = normalizeChildrenPolicy(childrenPolicyRow?.value)
   const origin = siteUrl.replace(/\/$/, '')
   const missingTokens = guests.filter((guest) => !guest.rsvp?.token).length
+
+  const deliveryByGuest = new Map<string, {
+    resetAt: Date | null
+    sentAt: Date | null
+    sentChannel: string | null
+    openedAt: Date | null
+  }>()
+  for (const event of deliveryEvents) {
+    if (!event.resourceId) continue
+    const current = deliveryByGuest.get(event.resourceId) ?? {
+      resetAt: null,
+      sentAt: null,
+      sentChannel: null,
+      openedAt: null,
+    }
+    if (event.action === 'guest.invitation_delivery_reset') {
+      current.resetAt = event.createdAt
+      current.sentAt = null
+      current.sentChannel = null
+      current.openedAt = null
+    } else if (event.action === 'guest.invitation_marked_sent') {
+      current.sentAt = event.createdAt
+      try {
+        const value = event.afterValue ? JSON.parse(event.afterValue) as { channel?: unknown } : null
+        current.sentChannel = typeof value?.channel === 'string' ? value.channel : null
+      } catch {
+        current.sentChannel = null
+      }
+    } else if (event.action === 'guest.invitation_opened') {
+      current.openedAt = event.createdAt
+    }
+    deliveryByGuest.set(event.resourceId, current)
+  }
+
   const data = guests.map((guest) => {
     const invitationUrl = guest.rsvp?.token
       ? buildSmartInvitationUrl({
@@ -101,6 +155,13 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
         : guest.rsvp?.attending === false
           ? 'declined'
           : 'pending'
+    const delivery = deliveryByGuest.get(guest.id)
+    const deliveryStatus = delivery?.openedAt
+      ? 'opened'
+      : delivery?.sentAt
+        ? 'sent'
+        : 'not_sent'
+
     return {
       id: guest.id,
       name: guest.name,
@@ -118,6 +179,12 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
             invitationUrl,
           })
         : null,
+      delivery: {
+        status: deliveryStatus,
+        sentAt: delivery?.sentAt?.toISOString() ?? null,
+        sentChannel: delivery?.sentChannel ?? null,
+        openedAt: delivery?.openedAt?.toISOString() ?? null,
+      },
     }
   })
 
