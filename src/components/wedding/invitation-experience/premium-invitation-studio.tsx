@@ -95,6 +95,7 @@ export function PremiumInvitationStudio({
         <Button type="button" onClick={onSave} disabled={busy} className="bg-gold text-espresso hover:bg-gold-light">
           <Save className={`size-4 ${busy ? 'animate-pulse' : ''}`} />
           {busy ? 'Saving…' : 'Save & make live'}
+          <span className="sr-only">Save card design</span>
         </Button>
       </div>
 
