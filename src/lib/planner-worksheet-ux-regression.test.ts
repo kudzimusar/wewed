@@ -17,6 +17,7 @@ const inviteApi = source('src/app/api/weddings/team-invites/route.ts')
 const joinApi = source('src/app/api/join/[token]/route.ts')
 const joinPage = source('src/app/join/[token]/page.tsx')
 const invitationTools = source('src/components/wedding/planner-invitation-tools.tsx')
+const invitationOperations = source('src/components/wedding/planner-invitation-operations-workspace.tsx')
 const teamManager = source('src/components/wedding/planner/planner-team-invite-manager.tsx')
 
 describe('WW-PLANNER-UX-2026-08-17-01 release contract', () => {
@@ -94,11 +95,12 @@ describe('WW-PLANNER-UX-2026-08-17-01 release contract', () => {
     expect(commandCenter).toContain('Financial paid/actual values and timeline event times are deliberately excluded')
   })
 
-  test('keeps guest RSVP QR and project-team access QR as separate user choices', () => {
-    expect(invitationTools).toContain('Guest cards, RSVP & guest QR')
-    expect(invitationTools).toContain('Invite project team member')
-    expect(invitationTools).toContain('<InvitationManager compact />')
-    expect(invitationTools).toContain('<PlannerTeamInviteManager />')
+  test('keeps guest RSVP QR and project-team access QR separate while giving invitations a durable route', () => {
+    expect(invitationTools).toContain('/planner/guests/invitations#planner-workspace')
+    expect(invitationOperations).toContain('Printed Invitation Access')
+    expect(invitationOperations).toContain('<InvitationManager compact />')
+    expect(invitationOperations).toContain('Project team invitations')
+    expect(invitationOperations).toContain('<PlannerTeamInviteManager />')
   })
 
   test('stores only a SHA-256 token hash and scopes admin invitations to one wedding/project', () => {
