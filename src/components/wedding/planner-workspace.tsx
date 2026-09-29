@@ -20,11 +20,13 @@ import {
   RefreshCw,
   Store,
   Users,
+  Send,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { PlannerBudgetModule } from '@/components/wedding/planner/modules/planner-budget-module'
+import { PlannerInvitationWorkspace } from '@/components/wedding/planner-invitation-tools'
 import { PlannerContributionsWorkspace } from '@/components/wedding/planner/planner-contributions-workspace'
 import {
   PlannerGuestsModule,
@@ -59,6 +61,7 @@ export type WorkspaceTab =
   | 'budget'
   | 'vendors'
   | 'guests'
+  | 'invitations'
   | 'timeline'
   | 'seating'
   | 'contributions'
@@ -130,6 +133,7 @@ const TABS: Array<{ value: WorkspaceTab; label: string; icon: ReactNode }> = [
   { value: 'contributions', label: 'Contributions', icon: <HandHeart className="size-3.5" /> },
   { value: 'vendors', label: 'Vendors', icon: <Store className="size-3.5" /> },
   { value: 'guests', label: 'Guests', icon: <Users className="size-3.5" /> },
+  { value: 'invitations', label: 'Invitations', icon: <Send className="size-3.5" /> },
   { value: 'timeline', label: 'Timeline', icon: <CalendarDays className="size-3.5" /> },
   { value: 'seating', label: 'Seating', icon: <LayoutGrid className="size-3.5" /> },
 ]
@@ -728,6 +732,7 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
             {activeTab === 'contributions' && <PlannerContributionsWorkspace embedded />}
             {activeTab === 'budget' && <PlannerBudgetModule budget={budget} budgetSummary={budgetSummary} budgetByCategory={budgetByCategory} budgetForm={budgetForm} setBudgetForm={setBudgetForm} vendors={vendors} saving={saving} onAddBudgetItem={addBudgetItem} onUpdateBudgetItem={updateBudgetItem} onDeleteBudgetItem={deleteBudgetItem} />}
             {activeTab === 'vendors' && <PlannerVendorsModule vendors={vendors} vendorForm={vendorForm} setVendorForm={setVendorForm} saving={saving} onAddVendor={addVendor} onUpdateVendor={updateVendor} onDeleteVendor={deleteVendor} />}
+            {activeTab === 'invitations' && <PlannerInvitationWorkspace />}
             {activeTab === 'guests' && <PlannerGuestsModule guests={guests} tables={tables} guestForm={guestForm} setGuestForm={setGuestForm} guestStats={guestStats} saving={saving} onAddGuest={addGuest} onUpdateGuest={updateGuest} onAssignGuestTable={assignGuestTable} onDeleteGuest={deleteGuest} />}
             {activeTab === 'timeline' && <PlannerTimelineModule timeline={timeline} saving={saving} onCreateTimelineItem={addTimelineItem} onUpdateTimelineItem={updateTimelineItem} onDeleteTimelineItem={deleteTimelineItem} onMoveTimelineItem={moveTimelineItem} onPrintTimeline={printTimeline} />}
             {activeTab === 'seating' && <PlannerSeatingModule tables={tables} guests={guests} tableForm={tableForm} setTableForm={setTableForm} tableOccupancy={tableOccupancy} saving={saving} onAddTable={addTable} onUpdateTable={updateTable} onDeleteTable={deleteTable} onAssignGuestToTable={assignGuestToTable} />}
