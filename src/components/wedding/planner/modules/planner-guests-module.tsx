@@ -1,7 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react'
-import { Check, CheckCircle2, Circle, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { Check, CheckCircle2, Circle, Pencil, Plus, Search, Send, Trash2, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -69,6 +70,19 @@ export function PlannerGuestsModule({ guests, tables, guestForm, setGuestForm, g
   }
 
   return <div className="space-y-4">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <p className="font-sans text-[10px] font-semibold uppercase tracking-[0.16em] text-gold/70">Guest operations</p>
+        <h2 className="mt-1 font-serif text-xl">Guest register</h2>
+        <p className="mt-1 font-sans text-xs text-champagne/50">Edit guest records here; prepare, send and track personal invitations in the dedicated command center.</p>
+      </div>
+      <Button asChild type="button" variant="outline" className="border-gold/25 bg-transparent text-gold">
+        <Link href="/planner/invitations">
+          <Send className="size-4" />
+          Invitation delivery
+        </Link>
+      </Button>
+    </div>
     <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 xl:grid-cols-8">{[['Invited', guestStats.total], ['Confirmed', guestStats.confirmed], ['Declined', guestStats.declined], ['Pending', guestStats.pending], ['Plus-ones', guestStats.plusOnes], ['Kids', guestStats.kidsTotal], ['Heads', guestStats.heads], ['Checked-in', guestStats.checkedIn]].map(([label, value]) => <SectionCard key={String(label)} className="p-3 text-center"><p className="font-serif text-xl">{value}</p><p className="font-sans text-[9px] uppercase tracking-wider text-champagne/45">{label}</p></SectionCard>)}</div>
 
     <SectionCard className="p-4"><div className="mb-3"><h2 className="font-serif text-lg">Add guest</h2><p className="font-sans text-xs text-champagne/50">Create the invitation record and optionally assign an initial table.</p></div><form onSubmit={onAddGuest} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[1.5fr_1.5fr_1fr_1fr_1fr_1.25fr_auto]">
