@@ -80,7 +80,7 @@ describe('Planner production blocker repair', () => {
     expect(timelineItem).toContain('where: { id, weddingId: access.context.weddingId }')
   })
 
-  test('Guests worksheet exposes the complete twenty-field lossless contract', () => {
+  test('Guests worksheet exposes the complete allocation-aware lossless contract', () => {
     expect(guestWorksheetSchema.key).toBe('guests')
     expect(guestWorksheetSchema.version).toBe('1.1.0')
     expect(guestWorksheetSchema.fields.map((field) => field.label)).toEqual([
@@ -91,6 +91,7 @@ describe('Planner production blocker repair', () => {
       'Email',
       'Phone',
       'Family/Group',
+      'Attendance Allocation',
       'Invitation Status',
       'RSVP Status',
       'Number Attending',
