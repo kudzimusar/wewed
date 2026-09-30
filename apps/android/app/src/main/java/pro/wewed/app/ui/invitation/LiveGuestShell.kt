@@ -29,6 +29,9 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.delay
 import pro.wewed.app.R
 import pro.wewed.app.invitation.*
@@ -39,6 +42,7 @@ import pro.wewed.app.state.NativeServerOrigin
 import pro.wewed.app.ui.roles.IACard
 import pro.wewed.app.ui.roles.IASectionList
 import java.text.SimpleDateFormat
+import java.time.Instant
 import java.util.Locale
 import kotlin.math.max
 
@@ -891,8 +895,9 @@ private fun LiveIssuedGuestPass(profile: LiveInvitationPresentation, coordinator
     var pass by remember(profile.guestId) { mutableStateOf<pro.wewed.app.models.WeddingPass?>(null) }
     var failed by remember(profile.guestId) { mutableStateOf(false) }
     var retryNonce by remember(profile.guestId) { mutableStateOf(0) }
-    // LQR01: the server's availability state, when it named one, so the Guest is told why.
     var availability by remember(profile.guestId) { mutableStateOf<pro.wewed.app.models.WeddingPassAvailability?>(null) }
+    val lifecycleOwner = LocalContext.current as? LifecycleOwner
+
     LaunchedEffect(profile.guestId, retryNonce) {
         pass = null
         failed = false
@@ -905,23 +910,82 @@ private fun LiveIssuedGuestPass(profile: LiveInvitationPresentation, coordinator
         }
         catch (_: Exception) { failed = true }
     }
-    if (pass != null) pro.wewed.app.ui.pass.WeddingReferencePassScreen(onOpenScanner = {}, providedPass = pass, showScanner = false)
-    else if (failed) Column(
-        modifier = Modifier.padding(20.dp).testTag(WeddingPassAvailabilityCopy.testTag(availability)),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Text(WeddingPassAvailabilityCopy.message(availability))
-        availability?.let { WeddingPassAvailabilityCopy.availableFrom(it) }?.let { Text(it) }
-        if (availability == null) {
+
+    DisposableEffect(lifecycleOwner, profile.guestId) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) retryNonce += 1
+        }
+        lifecycleOwner?.lifecycle?.addObserver(observer)
+        onDispose { lifecycleOwner?.lifecycle?.removeObserver(observer) }
+    }
+
+    LaunchedEffect(availability?.opensAt) {
+        val opensAtMillis = availability?.opensAt?.let { raw ->
+            runCatching { Instant.parse(raw).toEpochMilli() }.getOrNull()
+        } ?: return@LaunchedEffect
+        val waitMillis = opensAtMillis - System.currentTimeMillis() + 250L
+        if (waitMillis > 0) delay(waitMillis)
+        retryNonce += 1
+    }
+
+    if (pass != null) {
+        pro.wewed.app.ui.pass.WeddingReferencePassScreen(onOpenScanner = {}, providedPass = pass, showScanner = false)
+    } else if (failed && availability != null) {
+        LockedGuestPassCard(profile = profile, availability = availability!!)
+    } else if (failed) {
+        Column(
+            modifier = Modifier.padding(20.dp).testTag("live-guest-pass-unavailable"),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(WeddingPassAvailabilityCopy.GENERIC_UNAVAILABLE)
             OutlinedButton(
                 onClick = { retryNonce += 1 },
                 modifier = Modifier.testTag("wedding-pass-retry")
-            ) {
-                Text("Try again")
-            }
+            ) { Text("Try again") }
         }
+    } else {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
     }
-    else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+}
+
+@Composable
+private fun LockedGuestPassCard(
+    profile: LiveInvitationPresentation,
+    availability: pro.wewed.app.models.WeddingPassAvailability
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(18.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(WeddingIdentityPalette.IvorySoft)
+            .border(1.dp, WeddingIdentityPalette.Champagne.copy(alpha = 0.70f), RoundedCornerShape(22.dp))
+            .padding(20.dp)
+            .testTag("wedding-pass-locked-card"),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(Icons.Default.Lock, contentDescription = null, tint = WeddingIdentityPalette.ChampagneDeep, modifier = Modifier.size(36.dp))
+        Text(profile.title, fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = WeddingIdentityPalette.Ink)
+        Text(profile.guestName, fontFamily = FontFamily.Serif, fontSize = 28.sp, color = WeddingIdentityPalette.Ink, modifier = Modifier.testTag("wedding-pass-locked-guest-name"))
+        Text(WeddingPassAvailabilityCopy.message(availability), color = WeddingIdentityPalette.Muted, fontSize = 13.sp)
+        WeddingPassAvailabilityCopy.availableFrom(availability)?.let {
+            Text(it, color = WeddingIdentityPalette.ChampagneDeep, fontWeight = FontWeight.SemiBold)
+        }
+        HorizontalDivider(color = WeddingIdentityPalette.Champagne.copy(alpha = 0.35f))
+        Text("✓ Invitation verified", color = WeddingIdentityPalette.Forest, modifier = Modifier.fillMaxWidth())
+        Text(if (profile.attending == true) "✓ RSVP confirmed" else "RSVP required", color = WeddingIdentityPalette.Forest, modifier = Modifier.fillMaxWidth())
+        Text("🔒 Secure admission QR is not issued yet", color = WeddingIdentityPalette.Ink, modifier = Modifier.fillMaxWidth())
+        Text(formatWeddingDate(profile.weddingDate), color = WeddingIdentityPalette.Muted, modifier = Modifier.fillMaxWidth())
+        Text(listOfNotNull(profile.venue, profile.venueCityCountry.takeIf { it.isNotBlank() }).joinToString(" · "), color = WeddingIdentityPalette.Muted, modifier = Modifier.fillMaxWidth())
+        Text(
+            "Your signed WW2 admission QR appears here only when Wedding Pass authority makes it available.",
+            color = WeddingIdentityPalette.Muted,
+            fontSize = 11.sp,
+            modifier = Modifier.testTag(WeddingPassAvailabilityCopy.testTag(availability))
+        )
+    }
 }
 
 /**
