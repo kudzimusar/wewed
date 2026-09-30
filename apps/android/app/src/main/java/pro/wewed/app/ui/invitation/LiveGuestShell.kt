@@ -899,12 +899,15 @@ private fun LiveIssuedGuestPass(profile: LiveInvitationPresentation, coordinator
     val lifecycleOwner = LocalContext.current as? LifecycleOwner
 
     DisposableEffect(lifecycleOwner, profile.guestId) {
-        if (lifecycleOwner == null) return@DisposableEffect onDispose { }
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && pass == null) retryNonce += 1
+        if (lifecycleOwner == null) {
+            onDispose { }
+        } else {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME && pass == null) retryNonce += 1
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
         }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     LaunchedEffect(profile.guestId, retryNonce) {
