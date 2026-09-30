@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { withdrawWeddingPassesForAttendance } from '@/lib/wedding-pass-attendance'
+import { runSerializableSeatingTransaction } from '@/lib/planner-seating-transaction'
 import {
   assertAttendanceAllocationCapacity,
   normalizeAttendanceAllocation,
@@ -148,7 +149,7 @@ export async function applyGuestWorksheetRow(
   existingId?: string,
 ): Promise<{ id: string; created: boolean }> {
   const input = toGuestWorksheetInput(row)
-  return db.$transaction(async (tx) => {
+  return runSerializableSeatingTransaction(async (tx) => {
     const existingGuest = existingId
       ? await tx.guest.findFirst({ where: { id: existingId, weddingId }, include: { rsvp: true } })
       : null
