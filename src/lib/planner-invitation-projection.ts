@@ -322,6 +322,7 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       role: guest.role,
       roleDetail: guest.roleDetail,
       side: guest.side,
+      attendanceAllocation: guest.attendanceAllocation,
       seatingTableId: guest.seatingTableId,
       seatingTableName: guest.seatingTable?.name ?? null,
       tableNumber: guest.tableNumber,
