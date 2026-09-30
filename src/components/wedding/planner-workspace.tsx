@@ -208,6 +208,7 @@ const EMPTY_GUEST_FORM: GuestForm = {
   role: 'guest',
   roleDetail: '',
   side: 'neutral',
+  attendanceAllocation: 'shared',
   seatingTableId: '',
 }
 
@@ -497,7 +498,7 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
     event.preventDefault()
     if (!guestForm.name.trim()) return
     await mutate(
-      () => api('/api/planner/guests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'guest', name: guestForm.name.trim(), email: guestForm.email.trim() || null, phone: guestForm.phone.trim() || null, role: guestForm.role, roleDetail: guestForm.roleDetail.trim() || null, side: guestForm.side, seatingTableId: guestForm.seatingTableId || null }) }),
+      () => api('/api/planner/guests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'guest', name: guestForm.name.trim(), email: guestForm.email.trim() || null, phone: guestForm.phone.trim() || null, role: guestForm.role, roleDetail: guestForm.roleDetail.trim() || null, side: guestForm.side, attendanceAllocation: guestForm.attendanceAllocation, seatingTableId: guestForm.seatingTableId || null }) }),
       'Guest added',
       () => setGuestForm(EMPTY_GUEST_FORM),
     )
