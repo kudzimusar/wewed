@@ -738,9 +738,13 @@ export async function readWeddingDayGuestContext(request: NextRequest) {
     guestName: string
     attending: boolean | null
     weddingDate: Date
+    venue: string
+    venueCity: string
+    venueCountry: string
   }>>(
     `SELECT g.id AS "guestId", g."weddingId", w.slug AS "weddingSlug", w.title AS "weddingTitle",
-            g.name AS "guestName", r.attending, w.date AS "weddingDate"
+            g.name AS "guestName", r.attending, w.date AS "weddingDate",
+            w.venue, w."venueCity", w."venueCountry"
        FROM public."Guest" g
        JOIN public."Wedding" w ON w.id = g."weddingId"
        LEFT JOIN public."RSVP" r ON r."guestId" = g.id
@@ -760,6 +764,9 @@ export async function readWeddingDayGuestContext(request: NextRequest) {
     guestName: row.guestName,
     attending: row.attending,
     weddingDate: row.weddingDate,
+    venue: row.venue,
+    venueCity: row.venueCity,
+    venueCountry: row.venueCountry,
   }
 }
 
