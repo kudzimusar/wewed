@@ -1,0 +1,89 @@
+import { describe, expect, test } from 'bun:test'
+import { readFileSync } from 'node:fs'
+import { buildPlannerAttendanceSummary } from './planner-invitation-projection'
+
+describe('canonical Planner invitation / RSVP / attendance summary', () => {
+  test('Responded, response rate and named-person attendance use canonical Guest identities', () => {
+    const rows = [
+      {
+        status: 'attending' as const,
+        deliveryStatus: 'sent' as const,
+        openedAt: '2026-09-30T00:00:00.000Z',
+        checkedIn: true,
+        email: 'one@example.com',
+        phone: null,
+        passEligible: true,
+        passIssued: true,
+      },
+      {
+        status: 'attending' as const,
+        deliveryStatus: 'sent' as const,
+        openedAt: null,
+        checkedIn: false,
+        email: null,
+        phone: '+263700000000',
+        passEligible: true,
+        passIssued: false,
+      },
+      {
+        status: 'declined' as const,
+        deliveryStatus: 'not_sent' as const,
+        openedAt: null,
+        checkedIn: false,
+        email: null,
+        phone: null,
+        passEligible: false,
+        passIssued: false,
+      },
+      {
+        status: 'pending' as const,
+        deliveryStatus: 'not_sent' as const,
+        openedAt: null,
+        checkedIn: false,
+        email: 'pending@example.com',
+        phone: null,
+        passEligible: false,
+        passIssued: false,
+      },
+    ]
+
+    expect(buildPlannerAttendanceSummary(rows)).toEqual({
+      registered: 4,
+      sent: 2,
+      notSent: 2,
+      opened: 1,
+      responded: 3,
+      responseRate: 0.75,
+      attending: 2,
+      declined: 1,
+      awaiting: 1,
+      expectedNamedAttendees: 2,
+      checkedIn: 1,
+      notYetArrived: 1,
+      missingContact: 1,
+      passEligible: 2,
+      passIssued: 1,
+    })
+  })
+
+  test('empty weddings have a zero response rate rather than NaN', () => {
+    expect(buildPlannerAttendanceSummary([]).responseRate).toBe(0)
+  })
+
+  test('web and native Planner invitation APIs consume the same server projection', () => {
+    const web = readFileSync('src/app/api/planner/guests/invitations/route.ts', 'utf8')
+    const native = readFileSync('src/app/api/native/wedding/invitations/route.ts', 'utf8')
+    expect(web).toContain('loadPlannerInvitationProjection(')
+    expect(native).toContain('loadPlannerInvitationProjection(')
+  })
+
+  test('Invitation Manager renders server summary and does not recalculate canonical totals', () => {
+    const manager = readFileSync('src/components/wedding/invitation-manager.tsx', 'utf8')
+    expect(manager).toContain('setSummary(payload.summary ?? null)')
+    expect(manager).toContain('data-testid="canonical-attendance-summary"')
+    expect(manager).toContain("['responded', 'Responded', summary.responded]")
+    expect(manager).toContain("['responseRate', 'Response rate'")
+    expect(manager).not.toContain("const stats = useMemo(() => ({")
+    expect(manager).not.toContain("rows.filter((row) => row.status === 'attending').length")
+  })
+})
