@@ -104,6 +104,10 @@ export interface PlannerAttendanceSummary {
   missingContact: number
   passEligible: number
   passIssued: number
+  nativeActivated: number
+  nativeActivationRate: number
+  nativeAndroid: number
+  nativeIos: number
 }
 
 export function buildPlannerAttendanceSummary(rows: Array<{
@@ -115,12 +119,15 @@ export function buildPlannerAttendanceSummary(rows: Array<{
   phone: string | null
   passEligible: boolean
   passIssued: boolean
+  nativeActivated?: boolean
+  nativePlatforms?: string[]
 }>): PlannerAttendanceSummary {
   const registered = rows.length
   const attending = rows.filter((row) => row.status === 'attending').length
   const declined = rows.filter((row) => row.status === 'declined').length
   const responded = attending + declined
   const checkedIn = rows.filter((row) => row.checkedIn).length
+  const nativeActivated = rows.filter((row) => row.nativeActivated).length
   return {
     registered,
     sent: rows.filter((row) => row.deliveryStatus === 'sent').length,
@@ -138,6 +145,10 @@ export function buildPlannerAttendanceSummary(rows: Array<{
     missingContact: rows.filter((row) => !row.email && !row.phone).length,
     passEligible: rows.filter((row) => row.passEligible).length,
     passIssued: rows.filter((row) => row.passIssued).length,
+    nativeActivated,
+    nativeActivationRate: registered > 0 ? nativeActivated / registered : 0,
+    nativeAndroid: rows.filter((row) => row.nativePlatforms?.includes('android')).length,
+    nativeIos: rows.filter((row) => row.nativePlatforms?.includes('ios')).length,
   }
 }
 
@@ -147,7 +158,7 @@ export function buildPlannerAttendanceSummary(rows: Array<{
  * origin, exactly as the desktop Planner has always done.
  */
 export async function loadPlannerInvitationProjection(weddingId: string, siteUrl: string) {
-  const [wedding, guests, tables, childrenPolicyRow, deliveryEvents, activePasses] = await Promise.all([
+  const [wedding, guests, tables, childrenPolicyRow, deliveryEvents, activePasses, nativePresences] = await Promise.all([
     db.wedding.findUnique({
       where: { id: weddingId },
       select: invitationWeddingSelect(),
@@ -200,6 +211,19 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       where: { weddingId, revokedAt: null, supersededAt: null },
       select: { guestId: true },
     }),
+    db.guestNativePresence.findMany({
+      where: { weddingId },
+      select: {
+        guestId: true,
+        platform: true,
+        appVersion: true,
+        buildVersion: true,
+        firstActivatedAt: true,
+        lastSeenAt: true,
+        lastInvitationOpenAt: true,
+      },
+      orderBy: { lastSeenAt: 'desc' },
+    }),
   ])
 
   if (!wedding) return null
@@ -211,6 +235,12 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
   const deliveryByGuest = new Map<string, InvitationDeliveryState>()
   const openedAtByGuest = new Map<string, string>()
   const activePassGuestIds = new Set(activePasses.map((credential) => credential.guestId))
+  const nativePresenceByGuest = new Map<string, typeof nativePresences>()
+  for (const presence of nativePresences) {
+    const current = nativePresenceByGuest.get(presence.guestId) ?? []
+    current.push(presence)
+    nativePresenceByGuest.set(presence.guestId, current)
+  }
   for (const event of deliveryEvents) {
     if (!event.resourceId) continue
     if (event.action === 'guest.invitation_opened') {
@@ -245,6 +275,14 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       sentAt: null,
       sentBy: null,
     }
+    const nativeClients = (nativePresenceByGuest.get(guest.id) ?? []).map((presence) => ({
+      platform: presence.platform,
+      appVersion: presence.appVersion,
+      buildVersion: presence.buildVersion,
+      firstActivatedAt: presence.firstActivatedAt.toISOString(),
+      lastSeenAt: presence.lastSeenAt.toISOString(),
+      lastInvitationOpenAt: presence.lastInvitationOpenAt?.toISOString() ?? null,
+    }))
     return {
       id: guest.id,
       name: guest.name,
@@ -260,6 +298,10 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       checkedIn: guest.rsvp?.checkedIn ?? false,
       passEligible: status === 'attending',
       passIssued: activePassGuestIds.has(guest.id),
+      nativeActivated: nativeClients.length > 0,
+      nativePlatforms: nativeClients.map((client) => client.platform),
+      nativeLastSeenAt: nativeClients[0]?.lastSeenAt ?? null,
+      nativeClients,
       invitationUrl,
       qrValue: invitationUrl,
       shareMessage: invitationUrl
