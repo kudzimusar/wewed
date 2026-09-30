@@ -95,7 +95,14 @@ export async function POST(request: NextRequest) {
         result.status,
       )
     }
-    return noStoreJson({ success: true, data: nativeGuestSummary(result.data) }, 201)
+    return noStoreJson({
+      success: true,
+      data: nativeGuestSummary(result.data),
+      capacity: result.capacity ?? null,
+      capacityWarning: result.capacity?.warning
+        ? `${result.capacity.allocation} allocation has reached its warning threshold (${result.capacity.registered}${result.capacity.hardLimit == null ? '' : `/${result.capacity.hardLimit}`} registered).`
+        : null,
+    }, 201)
   } catch (error) {
     console.error('[native wedding guests POST] failed', error instanceof Error ? error.name : 'unknown')
     return noStoreJson({ success: false, error: 'Failed to create guest.' }, 500)
