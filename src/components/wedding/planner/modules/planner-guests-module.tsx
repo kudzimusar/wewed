@@ -24,9 +24,11 @@ export interface GuestRow {
 export interface SeatingTableOption { id: string; name: string; capacity: number }
 export type GuestForm = PlannerGuestEditorValue
 export interface GuestStats { total: number; confirmed: number; declined: number; pending: number; plusOnes: number; kidsTotal: number; checkedIn: number; heads: number }
+interface GuestRegisterSummary { registered: number; sent: number; notSent: number; opened: number; responded: number; responseRate: number; attending: number; declined: number; awaiting: number; expectedNamedAttendees: number; checkedIn: number; notYetArrived: number; missingContact: number; passEligible: number; passIssued: number }
+interface GuestInvitationOperationalRow extends PlannerGuestInvitationActionData { status: 'attending' | 'declined' | 'pending'; openedAt: string | null; checkedIn: boolean; passEligible: boolean; passIssued: boolean; email: string | null; phone: string | null; role: string; side: string | null }
 export interface GuestUpdate { name: string; email: string | null; phone: string | null; role: string; roleDetail: string | null; side: string; seatingTableId: string | null }
 interface PlannerGuestsModuleProps {
-  guests: GuestRow[]; tables: SeatingTableOption[]; guestForm: GuestForm; setGuestForm: Dispatch<SetStateAction<GuestForm>>; guestStats: GuestStats; saving: boolean
+  guests: GuestRow[]; tables: SeatingTableOption[]; guestForm: GuestForm; setGuestForm: Dispatch<SetStateAction<GuestForm>>; saving: boolean
   onAddGuest: (event: FormEvent<HTMLFormElement>) => void | Promise<void>
   onUpdateGuest: (guest: GuestRow, updates: GuestUpdate) => Promise<{ success: boolean; error?: string; field?: string }>
   onAssignGuestTable: (guest: GuestRow, tableId: string | null) => void | Promise<void>
@@ -39,12 +41,13 @@ function SectionCard({ children, className = '' }: { children: React.ReactNode; 
 function EmptyState({ title, detail }: { title: string; detail: string }) { return <div className="rounded-xl border border-dashed border-gold/20 px-5 py-10 text-center"><p className="font-serif text-lg text-champagne">{title}</p><p className="mx-auto mt-2 max-w-lg font-sans text-xs leading-5 text-champagne/50">{detail}</p></div> }
 function validEmail(value: string): boolean { return !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) }
 
-export function PlannerGuestsModule({ guests, tables, guestForm, setGuestForm, guestStats, saving, onAddGuest, onUpdateGuest, onAssignGuestTable, onDeleteGuest }: PlannerGuestsModuleProps) {
-  const [filters, setFilters, resetFilters] = usePlannerFilterState('wewed:planner:guests:filters', { search: '', side: 'all', status: 'all' })
+export function PlannerGuestsModule({ guests, tables, guestForm, setGuestForm, saving, onAddGuest, onUpdateGuest, onAssignGuestTable, onDeleteGuest }: PlannerGuestsModuleProps) {
+  const [filters, setFilters, resetFilters] = usePlannerFilterState('wewed:planner:guests:filters', { search: '', side: 'all', status: 'all', delivery: 'all', open: 'all', contact: 'all', arrival: 'all', pass: 'all' })
   const [editingGuestId, setEditingGuestId] = useState<string | null>(null)
   const [editGuest, setEditGuest] = useState<PlannerGuestEditorValue>({ name: '', email: '', phone: '', role: 'guest', roleDetail: '', side: 'neutral', seatingTableId: '' })
   const [editError, setEditError] = useState<string | null>(null)
-  const [invitationActions, setInvitationActions] = useState<Record<string, PlannerGuestInvitationActionData>>({})
+  const [invitationActions, setInvitationActions] = useState<Record<string, GuestInvitationOperationalRow>>({})
+  const [attendanceSummary, setAttendanceSummary] = useState<GuestRegisterSummary | null>(null)
 
   const guestRevision = useMemo(
     () => guests.map((guest) => [guest.id, guest.name, guest.email ?? '', guest.phone ?? ''].join(':')).join('|'),
@@ -56,9 +59,10 @@ export function PlannerGuestsModule({ guests, tables, guestForm, setGuestForm, g
       const response = await fetch('/api/planner/guests/invitations', { cache: 'no-store' })
       const payload = await response.json()
       if (!response.ok || !payload.success || !Array.isArray(payload.data)) return
-      const next: Record<string, PlannerGuestInvitationActionData> = {}
-      for (const row of payload.data as PlannerGuestInvitationActionData[]) next[row.id] = row
+      const next: Record<string, GuestInvitationOperationalRow> = {}
+      for (const row of payload.data as GuestInvitationOperationalRow[]) next[row.id] = row
       setInvitationActions(next)
+      setAttendanceSummary(payload.summary ?? null)
     } catch {
       // Guest register remains usable when invitation delivery data is temporarily unavailable.
     }
@@ -70,13 +74,42 @@ export function PlannerGuestsModule({ guests, tables, guestForm, setGuestForm, g
     const query = filters.search.trim().toLowerCase()
     return guests.filter((guest) => {
       if (filters.side !== 'all' && guest.side !== filters.side) return false
+      const operational = invitationActions[guest.id]
       const attending = guest.rsvp?.attending
-      if (filters.status === 'confirmed' && attending !== true) return false
+      if (filters.status === 'responded' && attending == null) return false
+      if (filters.status === 'attending' && attending !== true) return false
       if (filters.status === 'declined' && attending !== false) return false
       if (filters.status === 'pending' && attending !== null && attending !== undefined) return false
+      if (filters.delivery !== 'all' && operational?.deliveryStatus !== filters.delivery) return false
+      if (filters.open === 'opened' && !operational?.openedAt) return false
+      if (filters.open === 'not_opened' && operational?.openedAt) return false
+      const hasContact = Boolean(guest.email || guest.phone)
+      if (filters.contact === 'missing_contact' && hasContact) return false
+      if (filters.contact === 'with_contact' && !hasContact) return false
+      if (filters.arrival === 'checked_in' && !operational?.checkedIn) return false
+      if (filters.arrival === 'not_arrived' && (attending !== true || operational?.checkedIn)) return false
+      if (filters.pass === 'eligible' && !operational?.passEligible) return false
+      if (filters.pass === 'issued' && !operational?.passIssued) return false
+      if (filters.pass === 'not_issued' && (attending !== true || operational?.passIssued)) return false
       return !query || [guest.name, guest.email ?? '', guest.phone ?? '', guest.seatingTableName ?? ''].some((value) => value.toLowerCase().includes(query))
     })
-  }, [guests, filters])
+  }, [guests, filters, invitationActions])
+
+  function focusSummary(key: string) {
+    resetFilters()
+    if (key === 'sent') setFilters((current) => ({ ...current, delivery: 'sent' }))
+    if (key === 'notSent') setFilters((current) => ({ ...current, delivery: 'not_sent' }))
+    if (key === 'opened') setFilters((current) => ({ ...current, open: 'opened' }))
+    if (key === 'responded') setFilters((current) => ({ ...current, status: 'responded' }))
+    if (key === 'attending' || key === 'expectedNamedAttendees') setFilters((current) => ({ ...current, status: 'attending' }))
+    if (key === 'declined') setFilters((current) => ({ ...current, status: 'declined' }))
+    if (key === 'awaiting') setFilters((current) => ({ ...current, status: 'pending' }))
+    if (key === 'checkedIn') setFilters((current) => ({ ...current, arrival: 'checked_in' }))
+    if (key === 'notYetArrived') setFilters((current) => ({ ...current, arrival: 'not_arrived' }))
+    if (key === 'missingContact') setFilters((current) => ({ ...current, contact: 'missing_contact' }))
+    if (key === 'passEligible') setFilters((current) => ({ ...current, pass: 'eligible' }))
+    if (key === 'passIssued') setFilters((current) => ({ ...current, pass: 'issued' }))
+  }
 
   function startEdit(guest: GuestRow) {
     setEditingGuestId(guest.id)
@@ -127,7 +160,9 @@ export function PlannerGuestsModule({ guests, tables, guestForm, setGuestForm, g
         </Link>
       </Button>
     </div>
-    <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 xl:grid-cols-8">{[['Invited', guestStats.total], ['Confirmed', guestStats.confirmed], ['Declined', guestStats.declined], ['Pending', guestStats.pending], ['Plus-ones', guestStats.plusOnes], ['Kids', guestStats.kidsTotal], ['Heads', guestStats.heads], ['Checked-in', guestStats.checkedIn]].map(([label, value]) => <SectionCard key={String(label)} className="p-3 text-center"><p className="font-serif text-xl">{value}</p><p className="font-sans text-[9px] uppercase tracking-wider text-champagne/45">{label}</p></SectionCard>)}</div>
+    {attendanceSummary && <div data-testid="guest-register-canonical-summary" className="grid gap-3 grid-cols-2 sm:grid-cols-4 xl:grid-cols-5">{[
+      ['registered', 'Registered', attendanceSummary.registered], ['sent', 'Sent', attendanceSummary.sent], ['notSent', 'Not sent', attendanceSummary.notSent], ['opened', 'Opened', attendanceSummary.opened], ['responded', 'Responded', attendanceSummary.responded], ['responseRate', 'Response rate', `${Math.round(attendanceSummary.responseRate * 100)}%`], ['attending', 'Attending', attendanceSummary.attending], ['declined', 'Declined', attendanceSummary.declined], ['awaiting', 'Awaiting', attendanceSummary.awaiting], ['expectedNamedAttendees', 'Expected named', attendanceSummary.expectedNamedAttendees], ['checkedIn', 'Checked in', attendanceSummary.checkedIn], ['notYetArrived', 'Not arrived', attendanceSummary.notYetArrived], ['missingContact', 'Missing contact', attendanceSummary.missingContact], ['passEligible', 'Pass eligible', attendanceSummary.passEligible], ['passIssued', 'Pass issued', attendanceSummary.passIssued],
+    ].map(([key, label, value]) => <button key={String(key)} type="button" onClick={() => focusSummary(String(key))} className="rounded-2xl border border-gold/15 bg-champagne/[0.035] p-3 text-center hover:border-gold/30"><p className="font-serif text-xl">{value}</p><p className="font-sans text-[9px] uppercase tracking-wider text-champagne/45">{label}</p></button>)}</div>}
 
     <SectionCard className="p-4">
       <div className="mb-3"><h2 className="font-serif text-lg">Add guest</h2><p className="font-sans text-xs text-champagne/50">Create the canonical Guest record and optionally assign an initial table.</p></div>
@@ -138,7 +173,7 @@ export function PlannerGuestsModule({ guests, tables, guestForm, setGuestForm, g
     </SectionCard>
 
     <SectionCard className="overflow-hidden">
-      <div className="grid gap-3 border-b border-gold/10 p-4 lg:grid-cols-[minmax(0,1fr)_13rem_13rem_auto]"><div className="relative"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-champagne/35" /><Input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search name, email, phone, or table" className="border-gold/20 bg-espresso/70 pl-9" /></div><select value={filters.side} onChange={(event) => setFilters((current) => ({ ...current, side: event.target.value }))} aria-label="Filter guests by side" className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="all">All sides</option>{GUEST_SIDES.map((side) => <option key={side.value} value={side.value}>{side.label}</option>)}</select><select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} aria-label="Filter guests by RSVP" className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="all">All RSVP states</option><option value="confirmed">Confirmed</option><option value="declined">Declined</option><option value="pending">Pending</option></select><Button type="button" variant="outline" onClick={resetFilters} className="border-gold/20 bg-transparent text-champagne/60">Reset</Button></div>
+      <div className="grid gap-3 border-b border-gold/10 p-4 sm:grid-cols-2 xl:grid-cols-5"><div className="relative sm:col-span-2"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-champagne/35" /><Input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Search name, email, phone, or table" className="border-gold/20 bg-espresso/70 pl-9" /></div><select value={filters.side} onChange={(event) => setFilters((current) => ({ ...current, side: event.target.value }))} aria-label="Filter guests by allocation" className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="all">All allocations</option>{GUEST_SIDES.map((side) => <option key={side.value} value={side.value}>{side.label}</option>)}</select><select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} aria-label="Filter guests by RSVP" className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="all">All RSVP states</option><option value="responded">Responded</option><option value="attending">Attending</option><option value="declined">Declined</option><option value="pending">Awaiting</option></select><select value={filters.delivery} onChange={(event) => setFilters((current) => ({ ...current, delivery: event.target.value }))} aria-label="Filter guests by delivery" className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="all">All delivery states</option><option value="sent">Sent</option><option value="not_sent">Not sent</option></select><select value={filters.open} onChange={(event) => setFilters((current) => ({ ...current, open: event.target.value }))} aria-label="Filter guests by open state" className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="all">All open states</option><option value="opened">Opened</option><option value="not_opened">Not opened</option></select><select value={filters.contact} onChange={(event) => setFilters((current) => ({ ...current, contact: event.target.value }))} aria-label="Filter guests by contact" className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="all">All contacts</option><option value="with_contact">Has contact</option><option value="missing_contact">Missing contact</option></select><select value={filters.arrival} onChange={(event) => setFilters((current) => ({ ...current, arrival: event.target.value }))} aria-label="Filter guests by arrival" className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="all">All arrival states</option><option value="checked_in">Checked in</option><option value="not_arrived">Not arrived</option></select><select value={filters.pass} onChange={(event) => setFilters((current) => ({ ...current, pass: event.target.value }))} aria-label="Filter guests by Pass" className="h-10 rounded-md border border-gold/20 bg-espresso px-3 text-sm"><option value="all">All Pass states</option><option value="eligible">Pass eligible</option><option value="issued">Pass issued</option><option value="not_issued">Attending · Pass not issued</option></select><Button type="button" variant="outline" onClick={resetFilters} className="border-gold/20 bg-transparent text-champagne/60">Reset</Button></div>
       <div className="space-y-2 p-4">{guests.length === 0 ? <EmptyState title="No guests" detail="Add guests here or use the Guests worksheet import." /> : filteredGuests.length === 0 ? <EmptyState title="No guests in this view" detail="Clear the search or filters to see the remaining guest records." /> : filteredGuests.map((guest) => {
         const editing = editingGuestId === guest.id
         return <div key={guest.id} className="rounded-xl border border-gold/10 bg-espresso/45 p-3">
