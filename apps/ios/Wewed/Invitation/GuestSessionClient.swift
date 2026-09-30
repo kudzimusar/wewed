@@ -585,6 +585,13 @@ public actor GuestSessionClient {
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("native", forHTTPHeaderField: "x-wewed-client")
+        request.setValue("ios", forHTTPHeaderField: "x-wewed-native-platform")
+        if let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
+            request.setValue(appVersion, forHTTPHeaderField: "x-wewed-app-version")
+        }
+        if let buildVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String {
+            request.setValue(buildVersion, forHTTPHeaderField: "x-wewed-build-version")
+        }
         let sentSession = withSession ? storage.get(key: Self.storedSession) : nil
         if let stored = sentSession {
             request.setValue("\(Self.sessionCookie)=\(stored)", forHTTPHeaderField: "Cookie")
