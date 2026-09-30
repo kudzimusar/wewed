@@ -18,7 +18,7 @@ import {
 import { usePlannerFilterState } from '@/lib/planner-filter-state'
 
 export interface GuestRow {
-  id: string; name: string; email: string | null; phone: string | null; role: string; roleDetail: string | null; side: string | null; seatingTableId: string | null; seatingTableName: string | null
+  id: string; name: string; email: string | null; phone: string | null; role: string; roleDetail: string | null; side: string | null; attendanceAllocation: string; seatingTableId: string | null; seatingTableName: string | null
   rsvp: { attending: boolean | null; mealChoice: string | null; plusOne: boolean; plusOneName: string | null; plusOneMeal: string | null; kidsAttending: boolean; kidsCount: number; dietaryNotes: string | null; checkedIn: boolean; checkedInAt: string | null } | null
 }
 export interface SeatingTableOption { id: string; name: string; capacity: number }
@@ -27,7 +27,7 @@ export interface GuestStats { total: number; confirmed: number; declined: number
 type GuestPassState = 'pending_rsvp' | 'declined' | 'not_yet_issuable' | 'not_yet_issued' | 'active' | 'revoked' | 'superseded' | 'issuance_closed'
 interface GuestRegisterSummary { registered: number; sent: number; notSent: number; opened: number; responded: number; responseRate: number; attending: number; declined: number; awaiting: number; expectedNamedAttendees: number; checkedIn: number; notYetArrived: number; missingContact: number; passPendingRsvp: number; passDeclined: number; passNotYetIssuable: number; passNotYetIssued: number; passActive: number; passRevoked: number; passSuperseded: number; passIssuanceClosed: number; nativeActivated: number; nativeActivationRate: number; nativeAndroid: number; nativeIos: number }
 interface GuestInvitationOperationalRow extends PlannerGuestInvitationActionData { status: 'attending' | 'declined' | 'pending'; openedAt: string | null; checkedIn: boolean; passState: GuestPassState; nativeActivated: boolean; nativePlatforms: string[]; nativeLastSeenAt: string | null; email: string | null; phone: string | null; role: string; side: string | null }
-export interface GuestUpdate { name: string; email: string | null; phone: string | null; role: string; roleDetail: string | null; side: string; seatingTableId: string | null }
+export interface GuestUpdate { name: string; email: string | null; phone: string | null; role: string; roleDetail: string | null; side: string; attendanceAllocation: string; seatingTableId: string | null }
 interface PlannerGuestsModuleProps {
   guests: GuestRow[]; tables: SeatingTableOption[]; guestForm: GuestForm; setGuestForm: Dispatch<SetStateAction<GuestForm>>; saving: boolean
   onAddGuest: (event: FormEvent<HTMLFormElement>) => void | Promise<void>
@@ -45,7 +45,7 @@ function validEmail(value: string): boolean { return !value || /^[^\s@]+@[^\s@]+
 export function PlannerGuestsModule({ guests, tables, guestForm, setGuestForm, saving, onAddGuest, onUpdateGuest, onAssignGuestTable, onDeleteGuest }: PlannerGuestsModuleProps) {
   const [filters, setFilters, resetFilters] = usePlannerFilterState('wewed:planner:guests:filters', { search: '', side: 'all', status: 'all', delivery: 'all', open: 'all', contact: 'all', arrival: 'all', pass: 'all', native: 'all' })
   const [editingGuestId, setEditingGuestId] = useState<string | null>(null)
-  const [editGuest, setEditGuest] = useState<PlannerGuestEditorValue>({ name: '', email: '', phone: '', role: 'guest', roleDetail: '', side: 'neutral', seatingTableId: '' })
+  const [editGuest, setEditGuest] = useState<PlannerGuestEditorValue>({ name: '', email: '', phone: '', role: 'guest', roleDetail: '', side: 'neutral', attendanceAllocation: 'shared', seatingTableId: '' })
   const [editError, setEditError] = useState<string | null>(null)
   const [invitationActions, setInvitationActions] = useState<Record<string, GuestInvitationOperationalRow>>({})
   const [attendanceSummary, setAttendanceSummary] = useState<GuestRegisterSummary | null>(null)
@@ -133,6 +133,7 @@ export function PlannerGuestsModule({ guests, tables, guestForm, setGuestForm, s
       role: guest.role,
       roleDetail: guest.roleDetail ?? '',
       side: guest.side ?? 'neutral',
+      attendanceAllocation: guest.attendanceAllocation ?? 'shared',
       seatingTableId: guest.seatingTableId ?? '',
     })
   }
@@ -148,6 +149,7 @@ export function PlannerGuestsModule({ guests, tables, guestForm, setGuestForm, s
       role: editGuest.role,
       roleDetail: editGuest.roleDetail.trim() || null,
       side: editGuest.side,
+      attendanceAllocation: editGuest.attendanceAllocation,
       seatingTableId: editGuest.seatingTableId || null,
     })
     if (result.success) {
