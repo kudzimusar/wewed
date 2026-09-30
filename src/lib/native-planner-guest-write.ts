@@ -38,6 +38,24 @@ export async function resolveNativeGuestWrite(
  * record including the RSVP row (the Guest's private invitation token); the native client re-reads
  * the canonical invitations projection instead, so no credential is ever echoed by a write.
  */
-export function nativeGuestSummary(guest: { id: string; name: string; email: string | null; phone: string | null; attendanceAllocation?: string }) {
-  return { id: guest.id, name: guest.name, email: guest.email, phone: guest.phone }
+export function nativeGuestSummary(guest: {
+  id: string
+  name: string
+  email: string | null
+  phone: string | null
+  role?: string
+  roleDetail?: string | null
+  side?: string | null
+  attendanceAllocation?: string
+}) {
+  return {
+    id: guest.id,
+    name: guest.name,
+    email: guest.email,
+    phone: guest.phone,
+    role: guest.role ?? 'guest',
+    roleDetail: guest.roleDetail ?? null,
+    side: guest.side ?? null,
+    attendanceAllocation: guest.attendanceAllocation ?? 'shared',
+  }
 }
