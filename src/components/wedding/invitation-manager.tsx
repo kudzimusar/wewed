@@ -43,6 +43,7 @@ type OpenFilter = 'all' | 'opened' | 'not_opened'
 type ArrivalFilter = 'all' | 'checked_in' | 'not_arrived'
 type PassState = 'pending_rsvp' | 'declined' | 'not_yet_issuable' | 'not_yet_issued' | 'active' | 'revoked' | 'superseded' | 'issuance_closed'
 type PassFilter = 'all' | PassState
+type NativeFilter = 'all' | 'active' | 'not_active' | 'android' | 'ios'
 
 interface InvitationRow {
   id: string
@@ -58,6 +59,9 @@ interface InvitationRow {
   status: 'attending' | 'declined' | 'pending'
   checkedIn: boolean
   passState: PassState
+  nativeActivated: boolean
+  nativePlatforms: string[]
+  nativeLastSeenAt: string | null
   invitationUrl: string | null
   qrValue: string | null
   shareMessage: string | null
@@ -90,6 +94,10 @@ interface PlannerAttendanceSummary {
   passRevoked: number
   passSuperseded: number
   passIssuanceClosed: number
+  nativeActivated: number
+  nativeActivationRate: number
+  nativeAndroid: number
+  nativeIos: number
 }
 
 interface InvitationWedding {
@@ -194,6 +202,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const [allocationFilter, setAllocationFilter] = useState('all')
   const [arrivalFilter, setArrivalFilter] = useState<ArrivalFilter>('all')
   const [passFilter, setPassFilter] = useState<PassFilter>('all')
+  const [nativeFilter, setNativeFilter] = useState<NativeFilter>('all')
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [deliveryChannel, setDeliveryChannel] = useState<DeliveryChannel>('whatsapp')
@@ -240,7 +249,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE)
-  }, [search, rsvpFilter, deliveryFilter, contactFilter, openFilter, roleFilter, allocationFilter, arrivalFilter, passFilter])
+  }, [search, rsvpFilter, deliveryFilter, contactFilter, openFilter, roleFilter, allocationFilter, arrivalFilter, passFilter, nativeFilter])
 
   const previewData = useMemo(() => wedding ? {
     title: wedding.title,
@@ -274,6 +283,10 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
       if (arrivalFilter === 'checked_in' && !row.checkedIn) return false
       if (arrivalFilter === 'not_arrived' && (row.status !== 'attending' || row.checkedIn)) return false
       if (passFilter !== 'all' && row.passState !== passFilter) return false
+      if (nativeFilter === 'active' && !row.nativeActivated) return false
+      if (nativeFilter === 'not_active' && row.nativeActivated) return false
+      if (nativeFilter === 'android' && !row.nativePlatforms.includes('android')) return false
+      if (nativeFilter === 'ios' && !row.nativePlatforms.includes('ios')) return false
       if (!query) return true
       return [
         row.name,
@@ -288,7 +301,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
         row.deliveredBy ?? '',
       ].some((value) => value.toLowerCase().includes(query))
     })
-  }, [rows, search, rsvpFilter, deliveryFilter, contactFilter, openFilter, roleFilter, allocationFilter, arrivalFilter, passFilter])
+  }, [rows, search, rsvpFilter, deliveryFilter, contactFilter, openFilter, roleFilter, allocationFilter, arrivalFilter, passFilter, nativeFilter])
 
   const displayedRows = filteredRows.slice(0, visibleCount)
   const allFilteredSelected = filteredRows.length > 0 && filteredRows.every((row) => selectedIds.has(row.id))
@@ -309,6 +322,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
     setAllocationFilter('all')
     setArrivalFilter('all')
     setPassFilter('all')
+    setNativeFilter('all')
   }
 
   function focusSummary(key: string) {
@@ -331,6 +345,9 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
     if (key === 'passRevoked') setPassFilter('revoked')
     if (key === 'passSuperseded') setPassFilter('superseded')
     if (key === 'passIssuanceClosed') setPassFilter('issuance_closed')
+    if (key === 'nativeActivated') setNativeFilter('active')
+    if (key === 'nativeAndroid') setNativeFilter('android')
+    if (key === 'nativeIos') setNativeFilter('ios')
   }
 
   async function generateMissingLinks() {
@@ -669,6 +686,10 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
               ['passRevoked', 'Pass · Revoked', summary.passRevoked],
               ['passSuperseded', 'Pass · Superseded', summary.passSuperseded],
               ['passIssuanceClosed', 'Pass · Issuance closed', summary.passIssuanceClosed],
+              ['nativeActivated', 'App active', summary.nativeActivated],
+              ['nativeActivationRate', 'App activation', `${Math.round(summary.nativeActivationRate * 100)}%`],
+              ['nativeAndroid', 'Android active', summary.nativeAndroid],
+              ['nativeIos', 'iOS active', summary.nativeIos],
             ].map(([key, label, value]) => (
               <button
                 key={String(key)}
@@ -719,8 +740,10 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
             <option value="all">All arrival states</option><option value="checked_in">Checked in</option><option value="not_arrived">Not arrived</option>
           </select>
           <select value={passFilter} onChange={(event) => setPassFilter(event.target.value as PassFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
-            <option value="all">All Pass states</option>
-            <option value="pending_rsvp">RSVP required</option><option value="declined">Declined</option><option value="not_yet_issuable">Not yet issuable</option><option value="not_yet_issued">Ready / not issued</option><option value="active">Active</option><option value="revoked">Revoked</option><option value="superseded">Superseded</option><option value="issuance_closed">Issuance closed</option>
+            <option value="all">All Pass states</option><option value="pending_rsvp">RSVP required</option><option value="declined">Declined</option><option value="not_yet_issuable">Not yet issuable</option><option value="not_yet_issued">Ready / not issued</option><option value="active">Active</option><option value="revoked">Revoked</option><option value="superseded">Superseded</option><option value="issuance_closed">Issuance closed</option>
+          </select>
+          <select value={nativeFilter} onChange={(event) => setNativeFilter(event.target.value as NativeFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
+            <option value="all">All app states</option><option value="active">App active</option><option value="not_active">App not active</option><option value="android">Android active</option><option value="ios">iOS active</option>
           </select>
           <Button type="button" variant="outline" onClick={resetOperationalFilters}>Reset</Button>
         </div>
@@ -838,6 +861,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                             <p>Table: <strong>{row.seatingTableName || row.tableNumber || 'Not assigned'}</strong></p>
                             <p>{row.checkedIn ? 'Checked in' : 'Not checked in'}</p>
                             <p>Pass: <strong>{row.passState.replaceAll('_', ' ')}</strong></p>
+                            <p>App: <strong>{row.nativeActivated ? row.nativePlatforms.join(' + ') : 'Not active'}</strong></p>
                             <p>Channel: <strong>{channelLabel(row.deliveryChannel)}</strong></p>
                             <p>Sent: <strong>{deliveryTime(row.deliveredAt)}</strong></p>
                             <p>Opened: <strong>{deliveryTime(row.openedAt)}</strong></p>
