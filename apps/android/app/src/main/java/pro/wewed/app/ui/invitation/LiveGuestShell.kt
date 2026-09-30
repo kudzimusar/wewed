@@ -967,7 +967,7 @@ private fun LockedGuestPassCard(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Icon(Icons.Default.Lock, contentDescription = null, tint = WeddingIdentityPalette.ChampagneDeep, modifier = Modifier.size(36.dp))
-        Text(profile.title, fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = WeddingIdentityPalette.Ink)
+        Text(profile.coupleNames, fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold, fontSize = 20.sp, color = WeddingIdentityPalette.Ink)
         Text(profile.guestName, fontFamily = FontFamily.Serif, fontSize = 28.sp, color = WeddingIdentityPalette.Ink, modifier = Modifier.testTag("wedding-pass-locked-guest-name"))
         Text(WeddingPassAvailabilityCopy.message(availability), color = WeddingIdentityPalette.Muted, fontSize = 13.sp)
         WeddingPassAvailabilityCopy.availableFrom(availability)?.let {
