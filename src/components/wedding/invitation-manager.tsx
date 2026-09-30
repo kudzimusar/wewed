@@ -289,6 +289,39 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const displayedRows = filteredRows.slice(0, visibleCount)
   const allFilteredSelected = filteredRows.length > 0 && filteredRows.every((row) => selectedIds.has(row.id))
   const selectedRows = rows.filter((row) => selectedIds.has(row.id))
+  const roleOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.role))).sort(), [rows])
+  const allocationOptions = useMemo(
+    () => Array.from(new Set(rows.map((row) => row.side ?? 'neutral'))).sort(),
+    [rows],
+  )
+
+  function resetOperationalFilters() {
+    setSearch('')
+    setRsvpFilter('all')
+    setDeliveryFilter('all')
+    setContactFilter('all')
+    setOpenFilter('all')
+    setRoleFilter('all')
+    setAllocationFilter('all')
+    setArrivalFilter('all')
+    setPassFilter('all')
+  }
+
+  function focusSummary(key: string) {
+    resetOperationalFilters()
+    if (key === 'sent') setDeliveryFilter('sent')
+    if (key === 'notSent') setDeliveryFilter('not_sent')
+    if (key === 'opened') setOpenFilter('opened')
+    if (key === 'responded') setRsvpFilter('responded')
+    if (key === 'attending' || key === 'expectedNamedAttendees') setRsvpFilter('attending')
+    if (key === 'declined') setRsvpFilter('declined')
+    if (key === 'awaiting') setRsvpFilter('pending')
+    if (key === 'checkedIn') setArrivalFilter('checked_in')
+    if (key === 'notYetArrived') setArrivalFilter('not_arrived')
+    if (key === 'missingContact') setContactFilter('missing_contact')
+    if (key === 'passEligible') setPassFilter('eligible')
+    if (key === 'passIssued') setPassFilter('issued')
+  }
 
   async function generateMissingLinks() {
     if (missingTokens <= 0) return
@@ -602,67 +635,77 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           </form>
         )}
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
-          {[
-            ['Guests', stats.total],
-            ['Sent', stats.sent],
-            ['Not sent', stats.notSent],
-            ['Attending', stats.attending],
-            ['Pending RSVP', stats.pending],
-            ['Missing contact', stats.missingContact],
-            ['Opened', stats.opened],
-          ].map(([label, value]) => (
-            <div key={String(label)} className="rounded-xl border border-gold/15 bg-white/75 px-3 py-3 text-center">
-              <p className="font-serif text-2xl">{value}</p>
-              <p className="text-[10px] uppercase tracking-[0.12em] text-espresso/45">{label}</p>
-            </div>
-          ))}
-        </div>
+        {summary && (
+          <div data-testid="canonical-attendance-summary" className="mt-4 grid gap-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+            {[
+              ['registered', 'Registered', summary.registered],
+              ['sent', 'Sent', summary.sent],
+              ['notSent', 'Not sent', summary.notSent],
+              ['opened', 'Opened', summary.opened],
+              ['responded', 'Responded', summary.responded],
+              ['responseRate', 'Response rate', `${Math.round(summary.responseRate * 100)}%`],
+              ['attending', 'Attending', summary.attending],
+              ['declined', 'Declined', summary.declined],
+              ['awaiting', 'Awaiting', summary.awaiting],
+              ['expectedNamedAttendees', 'Expected named', summary.expectedNamedAttendees],
+              ['checkedIn', 'Checked in', summary.checkedIn],
+              ['notYetArrived', 'Not arrived', summary.notYetArrived],
+              ['missingContact', 'Missing contact', summary.missingContact],
+              ['passEligible', 'Pass eligible', summary.passEligible],
+              ['passIssued', 'Pass issued', summary.passIssued],
+            ].map(([key, label, value]) => (
+              <button
+                key={String(key)}
+                type="button"
+                onClick={() => focusSummary(String(key))}
+                className="rounded-xl border border-gold/15 bg-white/75 px-3 py-3 text-center transition hover:border-gold/35 hover:bg-white"
+              >
+                <p className="font-serif text-2xl">{value}</p>
+                <p className="text-[10px] uppercase tracking-[0.12em] text-espresso/45">{label}</p>
+              </button>
+            ))}
+          </div>
+        )}
 
-        <div className="mt-4 grid gap-2 xl:grid-cols-[minmax(16rem,1fr)_11rem_11rem_11rem_11rem_auto]">
-          <div className="relative">
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="relative sm:col-span-2">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-espresso/35" />
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search guest, email, phone, table, sender…"
+              placeholder="Search guest, role, allocation, table, sender…"
               className="bg-white pl-9"
             />
           </div>
           <select value={rsvpFilter} onChange={(event) => setRsvpFilter(event.target.value as RsvpFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
             <option value="all">All RSVP states</option>
+            <option value="responded">Responded</option>
             <option value="attending">Attending</option>
             <option value="declined">Declined</option>
-            <option value="pending">Pending</option>
+            <option value="pending">Awaiting</option>
           </select>
           <select value={deliveryFilter} onChange={(event) => setDeliveryFilter(event.target.value as DeliveryFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
-            <option value="all">All delivery states</option>
-            <option value="sent">Sent</option>
-            <option value="not_sent">Not sent</option>
-          </select>
-          <select value={contactFilter} onChange={(event) => setContactFilter(event.target.value as ContactFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
-            <option value="all">All contacts</option>
-            <option value="with_contact">Has contact</option>
-            <option value="missing_contact">Missing contact</option>
+            <option value="all">All delivery states</option><option value="sent">Sent</option><option value="not_sent">Not sent</option>
           </select>
           <select value={openFilter} onChange={(event) => setOpenFilter(event.target.value as OpenFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
-            <option value="all">All open states</option>
-            <option value="opened">Opened invitation</option>
-            <option value="not_opened">Not opened yet</option>
+            <option value="all">All open states</option><option value="opened">Opened invitation</option><option value="not_opened">Not opened yet</option>
           </select>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setSearch('')
-              setRsvpFilter('all')
-              setDeliveryFilter('all')
-              setContactFilter('all')
-              setOpenFilter('all')
-            }}
-          >
-            Reset
-          </Button>
+          <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
+            <option value="all">All participant types</option>{roleOptions.map((role) => <option key={role} value={role}>{role.replaceAll('_', ' ')}</option>)}
+          </select>
+          <select value={allocationFilter} onChange={(event) => setAllocationFilter(event.target.value)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
+            <option value="all">All allocations</option>{allocationOptions.map((side) => <option key={side} value={side}>{side}</option>)}
+          </select>
+          <select value={contactFilter} onChange={(event) => setContactFilter(event.target.value as ContactFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
+            <option value="all">All contacts</option><option value="with_contact">Has contact</option><option value="missing_contact">Missing contact</option>
+          </select>
+          <select value={arrivalFilter} onChange={(event) => setArrivalFilter(event.target.value as ArrivalFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
+            <option value="all">All arrival states</option><option value="checked_in">Checked in</option><option value="not_arrived">Not arrived</option>
+          </select>
+          <select value={passFilter} onChange={(event) => setPassFilter(event.target.value as PassFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
+            <option value="all">All Pass states</option><option value="eligible">Pass eligible</option><option value="issued">Pass issued</option><option value="not_issued">Attending · Pass not issued</option>
+          </select>
+          <Button type="button" variant="outline" onClick={resetOperationalFilters}>Reset</Button>
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-gold/15 bg-white/70 p-3">
