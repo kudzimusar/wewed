@@ -5,6 +5,10 @@ import {
 } from '@/lib/digital-invitation-card'
 import { buildSmartInvitationUrl } from '@/lib/invitation-links'
 import {
+  resolveWeddingPassCredentialAdminState,
+  type WeddingPassCredentialAdminState,
+} from '@/lib/wedding-pass-availability'
+import {
   formatPhysicalInvitationCode,
   physicalInvitationCodeFromDestinationId,
 } from '@/lib/physical-invitation-code'
@@ -102,8 +106,14 @@ export interface PlannerAttendanceSummary {
   checkedIn: number
   notYetArrived: number
   missingContact: number
-  passEligible: number
-  passIssued: number
+  passPendingRsvp: number
+  passDeclined: number
+  passNotYetIssuable: number
+  passNotYetIssued: number
+  passActive: number
+  passRevoked: number
+  passSuperseded: number
+  passIssuanceClosed: number
   nativeActivated: number
   nativeActivationRate: number
   nativeAndroid: number
@@ -117,8 +127,7 @@ export function buildPlannerAttendanceSummary(rows: Array<{
   checkedIn: boolean
   email: string | null
   phone: string | null
-  passEligible: boolean
-  passIssued: boolean
+  passState: WeddingPassCredentialAdminState
   nativeActivated?: boolean
   nativePlatforms?: string[]
 }>): PlannerAttendanceSummary {
@@ -143,8 +152,14 @@ export function buildPlannerAttendanceSummary(rows: Array<{
     checkedIn,
     notYetArrived: Math.max(0, attending - checkedIn),
     missingContact: rows.filter((row) => !row.email && !row.phone).length,
-    passEligible: rows.filter((row) => row.passEligible).length,
-    passIssued: rows.filter((row) => row.passIssued).length,
+    passPendingRsvp: rows.filter((row) => row.passState === 'pending_rsvp').length,
+    passDeclined: rows.filter((row) => row.passState === 'declined').length,
+    passNotYetIssuable: rows.filter((row) => row.passState === 'not_yet_issuable').length,
+    passNotYetIssued: rows.filter((row) => row.passState === 'not_yet_issued').length,
+    passActive: rows.filter((row) => row.passState === 'active').length,
+    passRevoked: rows.filter((row) => row.passState === 'revoked').length,
+    passSuperseded: rows.filter((row) => row.passState === 'superseded').length,
+    passIssuanceClosed: rows.filter((row) => row.passState === 'issuance_closed').length,
     nativeActivated,
     nativeActivationRate: registered > 0 ? nativeActivated / registered : 0,
     nativeAndroid: rows.filter((row) => row.nativePlatforms?.includes('android')).length,
@@ -158,7 +173,7 @@ export function buildPlannerAttendanceSummary(rows: Array<{
  * origin, exactly as the desktop Planner has always done.
  */
 export async function loadPlannerInvitationProjection(weddingId: string, siteUrl: string) {
-  const [wedding, guests, tables, childrenPolicyRow, deliveryEvents, activePasses, nativePresences] = await Promise.all([
+  const [wedding, guests, tables, childrenPolicyRow, deliveryEvents, passCredentials, nativePresences] = await Promise.all([
     db.wedding.findUnique({
       where: { id: weddingId },
       select: invitationWeddingSelect(),
@@ -208,8 +223,16 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       },
     }),
     db.weddingPassCredential.findMany({
-      where: { weddingId, revokedAt: null, supersededAt: null },
-      select: { guestId: true },
+      where: { weddingId },
+      select: {
+        guestId: true,
+        issueSeq: true,
+        revokedAt: true,
+        revocationReason: true,
+        supersededAt: true,
+        expiresAt: true,
+      },
+      orderBy: [{ guestId: 'asc' }, { issueSeq: 'desc' }],
     }),
     db.guestNativePresence.findMany({
       where: { weddingId },
@@ -234,7 +257,10 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
   const missingTokens = guests.filter((guest) => !guest.rsvp?.token).length
   const deliveryByGuest = new Map<string, InvitationDeliveryState>()
   const openedAtByGuest = new Map<string, string>()
-  const activePassGuestIds = new Set(activePasses.map((credential) => credential.guestId))
+  const latestPassByGuest = new Map<string, (typeof passCredentials)[number]>()
+  for (const credential of passCredentials) {
+    if (!latestPassByGuest.has(credential.guestId)) latestPassByGuest.set(credential.guestId, credential)
+  }
   const nativePresenceByGuest = new Map<string, typeof nativePresences>()
   for (const presence of nativePresences) {
     const current = nativePresenceByGuest.get(presence.guestId) ?? []
@@ -275,6 +301,11 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       sentAt: null,
       sentBy: null,
     }
+    const passState = resolveWeddingPassCredentialAdminState({
+      attending: guest.rsvp?.attending ?? null,
+      weddingDate: wedding.date,
+      latest: latestPassByGuest.get(guest.id) ?? null,
+    })
     const nativeClients = (nativePresenceByGuest.get(guest.id) ?? []).map((presence) => ({
       platform: presence.platform,
       appVersion: presence.appVersion,
@@ -296,8 +327,7 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       tableNumber: guest.tableNumber,
       status,
       checkedIn: guest.rsvp?.checkedIn ?? false,
-      passEligible: status === 'attending',
-      passIssued: activePassGuestIds.has(guest.id),
+      passState,
       nativeActivated: nativeClients.length > 0,
       nativePlatforms: nativeClients.map((client) => client.platform),
       nativeLastSeenAt: nativeClients[0]?.lastSeenAt ?? null,
