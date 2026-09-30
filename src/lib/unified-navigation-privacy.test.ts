@@ -152,11 +152,13 @@ describe('unified Wewed navigation and wedding privacy', () => {
 
   test('QR management is visible to authorized couple and planner stakeholders', async () => {
     const manager = await source('src/components/wedding/invitation-manager.tsx')
+    const individualActions = await source('src/components/wedding/planner/planner-guest-invitation-actions.tsx')
     const plannerTool = await source('src/components/wedding/planner-invitation-tools.tsx')
     const coupleRoute = await source('src/app/couple/invitations/page.tsx')
 
     expect(manager).toContain('QRCode.toDataURL')
-    expect(manager).toContain('Copy link')
+    expect(manager).toContain('<PlannerGuestInvitationActions')
+    expect(individualActions).toContain('Copy link')
     expect(manager).toContain('Rotate')
     expect(manager).toContain('CSV')
     expect(plannerTool).toContain('Invitations & QR')
