@@ -78,7 +78,6 @@ export async function GET(request: NextRequest, { params }: Params) {
     headers: request.headers,
     weddingId: wedding.id,
     guestId: guest.id,
-    invitationOpened: true,
   }).catch(() => null)
 
   const response = NextResponse.json({
@@ -186,6 +185,16 @@ export async function POST(request: NextRequest, { params }: Params) {
     guestId: rsvp.guest.id,
     source: 'guest_session_exchange',
   })
+
+  // The initial native invitation exchange is the activation boundary: a valid token has resolved
+  // to one canonical Guest, and the app has proven it can establish Guest identity. Web exchanges
+  // carry no native platform header and therefore create no native-presence record.
+  await recordGuestNativePresence({
+    headers: request.headers,
+    weddingId: rsvp.guest.wedding.id,
+    guestId: rsvp.guest.id,
+    invitationOpened: true,
+  }).catch(() => null)
 
   const card = normalizeInvitationCardStyle(rsvp.guest.wedding.invitationCardStyle)
   const response = NextResponse.json({
