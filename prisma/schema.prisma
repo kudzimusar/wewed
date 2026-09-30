@@ -117,11 +117,33 @@ model Guest {
   contribution    GuestContribution?
   passCredentials WeddingPassCredential[]
   weddingCheckIns WeddingCheckIn[]
+  nativePresences GuestNativePresence[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([id, weddingId])
+}
+
+model GuestNativePresence {
+  id                   String   @id @default(cuid())
+  weddingId            String
+  guestId              String
+  platform             String
+  appVersion           String?
+  buildVersion         String?
+  firstActivatedAt     DateTime @default(now())
+  lastSeenAt           DateTime @default(now())
+  lastInvitationOpenAt DateTime?
+  appInstanceHash      String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  guest Guest @relation(fields: [guestId, weddingId], references: [id, weddingId], onDelete: Cascade)
+
+  @@unique([weddingId, guestId, platform])
+  @@index([weddingId, platform, lastSeenAt])
+  @@index([guestId, lastSeenAt])
 }
 
 model RSVP {
