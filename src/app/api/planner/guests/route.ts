@@ -231,7 +231,14 @@ export async function POST(request: NextRequest) {
         { status: result.status },
       )
     }
-    return NextResponse.json({ success: true, data: formatGuest(result.data) }, { status: 201 })
+    return NextResponse.json({
+      success: true,
+      data: formatGuest(result.data),
+      capacity: result.capacity ?? null,
+      capacityWarning: result.capacity?.warning
+        ? `${result.capacity.allocation} allocation has reached its warning threshold (${result.capacity.registered}${result.capacity.hardLimit == null ? '' : `/${result.capacity.hardLimit}`} registered).`
+        : null,
+    }, { status: 201 })
   } catch (error) {
     if (error instanceof SeatingCapacityError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 409 })
