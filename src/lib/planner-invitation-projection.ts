@@ -88,13 +88,66 @@ export function invitationWeddingSelect() {
 
 export type PlannerInvitationStatus = 'attending' | 'declined' | 'pending'
 
+export interface PlannerAttendanceSummary {
+  registered: number
+  sent: number
+  notSent: number
+  opened: number
+  responded: number
+  responseRate: number
+  attending: number
+  declined: number
+  awaiting: number
+  expectedNamedAttendees: number
+  checkedIn: number
+  notYetArrived: number
+  missingContact: number
+  passEligible: number
+  passIssued: number
+}
+
+export function buildPlannerAttendanceSummary(rows: Array<{
+  status: PlannerInvitationStatus
+  deliveryStatus: 'sent' | 'not_sent'
+  openedAt: string | null
+  checkedIn: boolean
+  email: string | null
+  phone: string | null
+  passEligible: boolean
+  passIssued: boolean
+}>): PlannerAttendanceSummary {
+  const registered = rows.length
+  const attending = rows.filter((row) => row.status === 'attending').length
+  const declined = rows.filter((row) => row.status === 'declined').length
+  const responded = attending + declined
+  const checkedIn = rows.filter((row) => row.checkedIn).length
+  return {
+    registered,
+    sent: rows.filter((row) => row.deliveryStatus === 'sent').length,
+    notSent: rows.filter((row) => row.deliveryStatus === 'not_sent').length,
+    opened: rows.filter((row) => Boolean(row.openedAt)).length,
+    responded,
+    responseRate: registered > 0 ? responded / registered : 0,
+    attending,
+    declined,
+    awaiting: rows.filter((row) => row.status === 'pending').length,
+    // Named-person attendance counts canonical Guest identities only; never anonymous household extras.
+    expectedNamedAttendees: attending,
+    checkedIn,
+    notYetArrived: Math.max(0, attending - checkedIn),
+    missingContact: rows.filter((row) => !row.email && !row.phone).length,
+    passEligible: rows.filter((row) => row.passEligible).length,
+    passIssued: rows.filter((row) => row.passIssued).length,
+  }
+}
+
 /**
  * The wedding's invitation design plus one row per Guest (name-ordered). `siteUrl` is the origin
  * the caller was reached on — the desktop route and the native route both pass their own request
  * origin, exactly as the desktop Planner has always done.
  */
 export async function loadPlannerInvitationProjection(weddingId: string, siteUrl: string) {
-  const [wedding, guests, tables, childrenPolicyRow, deliveryEvents] = await Promise.all([
+  const [wedding, guests, tables, childrenPolicyRow, deliveryEvents, activePasses] = await Promise.all([
     db.wedding.findUnique({
       where: { id: weddingId },
       select: invitationWeddingSelect(),
@@ -143,6 +196,10 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
         actor: { select: { name: true, email: true } },
       },
     }),
+    db.weddingPassCredential.findMany({
+      where: { weddingId, revokedAt: null, supersededAt: null },
+      select: { guestId: true },
+    }),
   ])
 
   if (!wedding) return null
@@ -153,6 +210,7 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
   const missingTokens = guests.filter((guest) => !guest.rsvp?.token).length
   const deliveryByGuest = new Map<string, InvitationDeliveryState>()
   const openedAtByGuest = new Map<string, string>()
+  const activePassGuestIds = new Set(activePasses.map((credential) => credential.guestId))
   for (const event of deliveryEvents) {
     if (!event.resourceId) continue
     if (event.action === 'guest.invitation_opened') {
@@ -200,6 +258,8 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       tableNumber: guest.tableNumber,
       status,
       checkedIn: guest.rsvp?.checkedIn ?? false,
+      passEligible: status === 'attending',
+      passIssued: activePassGuestIds.has(guest.id),
       invitationUrl,
       qrValue: invitationUrl,
       shareMessage: invitationUrl
@@ -217,11 +277,14 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
     }
   })
 
+  const summary = buildPlannerAttendanceSummary(data)
+
   return {
     wedding: { ...wedding, invitationCardStyle: style, childrenPolicy },
     count: data.length,
     missingTokens,
     tables,
+    summary,
     data,
   }
 }
