@@ -14,6 +14,9 @@ const editor = readFileSync('src/components/wedding/planner/planner-guest-editor
 const capacityRoute = readFileSync('src/app/api/planner/guests/capacity/route.ts', 'utf8')
 const nativeCreate = readFileSync('src/app/api/native/wedding/guests/route.ts', 'utf8')
 const nativeEdit = readFileSync('src/app/api/native/wedding/guests/[id]/route.ts', 'utf8')
+const plannerCreate = readFileSync('src/app/api/planner/guests/route.ts', 'utf8')
+const invitationManager = readFileSync('src/components/wedding/invitation-manager.tsx', 'utf8')
+const register = readFileSync('src/components/wedding/planner/modules/planner-guests-module.tsx', 'utf8')
 
 describe('Guest capacity allocation authority', () => {
   test('relationship side and capacity allocation are separate canonical Guest fields', () => {
@@ -48,10 +51,17 @@ describe('Guest capacity allocation authority', () => {
     expect(nativeEdit).not.toContain('db.guest.update')
   })
 
+  test('Invitation Add Guest and Guest Register submit the same allocation field', () => {
+    expect(invitationManager).toContain('attendanceAllocation: newGuest.attendanceAllocation')
+    expect(invitationManager).toContain('attendanceAllocation: editGuest.attendanceAllocation')
+    expect(plannerCreate).toContain('createPlannerGuest({ weddingId')
+    expect(plannerCreate).toContain('attendanceAllocation?: string')
+  })
+
   test('worksheet import cannot bypass capacity enforcement', () => {
     expect(importContract).toContain("label: 'Attendance Allocation'")
     expect(importApply).toContain('assertAttendanceAllocationCapacity(tx')
-    expect(importApply).toContain('Prisma.TransactionIsolationLevel.Serializable')
+    expect(importApply).toContain('runSerializableSeatingTransaction(async (tx)')
     expect(importApply).toContain('attendanceAllocation')
   })
 
@@ -72,5 +82,20 @@ describe('Guest capacity allocation authority', () => {
     expect(panel).toContain('registered · {row.attending} attending')
     expect(panel).toContain('Hard limit')
     expect(panel).toContain('Warn at')
+  })
+
+  test('relationship side and capacity allocation remain independently filterable', () => {
+    expect(register).toContain('Filter guests by relationship side')
+    expect(register).toContain('Filter guests by capacity allocation')
+    expect(register).toContain("filters.allocation !== 'all'")
+    expect(register).toContain('guest.attendanceAllocation !== filters.allocation')
+  })
+
+  test('warning thresholds are non-blocking and surfaced by all shared write clients', () => {
+    expect(authority).toContain('warning:')
+    expect(operations).toContain('capacity: createdResult.capacity')
+    expect(plannerCreate).toContain('capacityWarning')
+    expect(nativeCreate).toContain('capacityWarning')
+    expect(nativeEdit).toContain('capacityWarning')
   })
 })
