@@ -125,6 +125,7 @@ model Guest {
   updatedAt DateTime @updatedAt
 
   @@unique([id, weddingId])
+  @@index([weddingId, attendanceAllocation])
 }
 
 model WeddingAttendanceAllocationLimit {
