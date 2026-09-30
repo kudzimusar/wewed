@@ -85,5 +85,16 @@ describe('canonical Planner invitation / RSVP / attendance summary', () => {
     expect(manager).toContain("['responseRate', 'Response rate'")
     expect(manager).not.toContain("const stats = useMemo(() => ({")
     expect(manager).not.toContain("rows.filter((row) => row.status === 'attending').length")
+
+    const register = readFileSync('src/components/wedding/planner/modules/planner-guests-module.tsx', 'utf8')
+    expect(register).toContain('setAttendanceSummary(payload.summary ?? null)')
+    expect(register).toContain('data-testid="guest-register-canonical-summary"')
+    expect(register).not.toContain('guestStats.confirmed')
+    expect(register).not.toContain('guestStats.heads')
+
+    const workspace = readFileSync('src/components/wedding/planner-workspace.tsx', 'utf8')
+    expect(workspace).toContain("['Attendance', api<{ summary:")
+    expect(workspace).not.toContain('const guestStats = useMemo<GuestStats>')
+    expect(workspace).not.toContain('const heads = guests.reduce')
   })
 })
