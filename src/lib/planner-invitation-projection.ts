@@ -94,14 +94,22 @@ export type PlannerInvitationStatus = 'attending' | 'declined' | 'pending'
  * origin, exactly as the desktop Planner has always done.
  */
 export async function loadPlannerInvitationProjection(weddingId: string, siteUrl: string) {
-  const [wedding, guests, childrenPolicyRow, deliveryEvents] = await Promise.all([
+  const [wedding, guests, tables, childrenPolicyRow, deliveryEvents] = await Promise.all([
     db.wedding.findUnique({
       where: { id: weddingId },
       select: invitationWeddingSelect(),
     }),
     db.guest.findMany({
       where: { weddingId },
-      include: { rsvp: { select: { token: true, attending: true, checkedIn: true } } },
+      include: {
+        rsvp: { select: { token: true, attending: true, checkedIn: true } },
+        seatingTable: { select: { id: true, name: true, capacity: true } },
+      },
+      orderBy: { name: 'asc' },
+    }),
+    db.seatingTable.findMany({
+      where: { weddingId },
+      select: { id: true, name: true, capacity: true },
       orderBy: { name: 'asc' },
     }),
     db.weddingContent.findUnique({
@@ -184,6 +192,11 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       name: guest.name,
       email: guest.email,
       phone: guest.phone,
+      role: guest.role,
+      roleDetail: guest.roleDetail,
+      side: guest.side,
+      seatingTableId: guest.seatingTableId,
+      seatingTableName: guest.seatingTable?.name ?? null,
       tableNumber: guest.tableNumber,
       status,
       checkedIn: guest.rsvp?.checkedIn ?? false,
@@ -208,6 +221,7 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
     wedding: { ...wedding, invitationCardStyle: style, childrenPolicy },
     count: data.length,
     missingTokens,
+    tables,
     data,
   }
 }
