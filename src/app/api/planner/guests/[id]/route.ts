@@ -24,6 +24,7 @@ interface PatchGuestPayload {
   role?: string
   roleDetail?: string | null
   side?: string
+  attendanceAllocation?: string
   seatingTableId?: string | null
 }
 
@@ -50,6 +51,7 @@ function formatGuest(g: {
   role: string
   roleDetail: string | null
   side: string | null
+  attendanceAllocation: string
   tableNumber: number | null
   seatingTableId: string | null
   seatingTable: { id: string; name: string; capacity: number } | null
@@ -82,6 +84,7 @@ function formatGuest(g: {
     role: g.role,
     roleDetail: g.roleDetail,
     side: g.side,
+    attendanceAllocation: g.attendanceAllocation,
     tableNumber: g.tableNumber,
     seatingTableId: g.seatingTableId,
     seatingTableName: g.seatingTable?.name ?? null,
