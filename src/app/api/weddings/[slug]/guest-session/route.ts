@@ -277,7 +277,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   if (!result.ok) {
     return noStore(
       NextResponse.json(
-        { success: false, error: result.error, code: 'CHILDREN_NOT_ALLOWED' },
+        { success: false, error: result.error, code: result.code },
         { status: 400 },
       ),
     )
