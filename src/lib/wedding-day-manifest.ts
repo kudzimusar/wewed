@@ -4,6 +4,10 @@ import { createPrivateKey, createPublicKey, sign as cryptoSign, verify as crypto
 import { db } from '@/lib/db'
 import { assertWeddingDayWW2RuntimeReady } from '@/lib/wedding-day-feature'
 import {
+  loadWeddingAdditionalAdultPolicy,
+  loadWeddingChildrenPolicy,
+} from '@/lib/guest-rsvp-mutation'
+import {
   WW2_ALGORITHM,
   WW2_VERSION,
   WEDDING_DAY_EVENT_KEY,
@@ -76,7 +80,13 @@ function signRootPayload(payload: string): string {
   }).toString('hex')
 }
 
-function householdMembers(row: ManifestCredentialRow): HouseholdMember[] {
+function householdMembers(
+  row: ManifestCredentialRow,
+  policies: {
+    additionalAdultPolicy: 'plus_ones_allowed' | 'named_guests_only'
+    childrenPolicy: 'welcome' | 'adults_only'
+  },
+): HouseholdMember[] {
   const members: HouseholdMember[] = [
     {
       attendeeKey: 'primary',
@@ -85,7 +95,7 @@ function householdMembers(row: ManifestCredentialRow): HouseholdMember[] {
     },
   ]
 
-  if (row.plusOne) {
+  if (policies.additionalAdultPolicy !== 'named_guests_only' && row.plusOne) {
     members.push({
       attendeeKey: 'plus-one',
       attendeeKind: 'plus_one',
@@ -93,7 +103,7 @@ function householdMembers(row: ManifestCredentialRow): HouseholdMember[] {
     })
   }
 
-  if (row.kidsAttending && row.kidsCount > 0) {
+  if (policies.childrenPolicy !== 'adults_only' && row.kidsAttending && row.kidsCount > 0) {
     for (let index = 1; index <= row.kidsCount; index += 1) {
       members.push({
         attendeeKey: `child-${index}`,
@@ -128,6 +138,11 @@ export async function signedNativeWeddingDayManifest(weddingId: string) {
   )
   const wedding = weddings[0]
   if (!wedding) throw new Error('WEDDING_NOT_FOUND')
+
+  const [additionalAdultPolicy, childrenPolicy] = await Promise.all([
+    loadWeddingAdditionalAdultPolicy(weddingId),
+    loadWeddingChildrenPolicy(weddingId),
+  ])
 
   const [keys, credentials, checkIns] = await Promise.all([
     db.$queryRawUnsafe<ManifestKeyRow[]>(
@@ -201,7 +216,7 @@ export async function signedNativeWeddingDayManifest(weddingId: string) {
       revokedAt: key.revokedAt?.toISOString() ?? null,
     })),
     credentials: credentials.map((credential) => {
-      const household = householdMembers(credential)
+      const household = householdMembers(credential, { additionalAdultPolicy, childrenPolicy })
       return {
         guestId: credential.guestId,
         guestName: credential.guestName,

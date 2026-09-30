@@ -835,9 +835,21 @@ export async function checkInWeddingGuest(input: {
       plusOneName: string | null
       kidsAttending: boolean | null
       kidsCount: number | null
+      additionalAdultPolicy: string
+      childrenPolicy: string
     }>>(
       `SELECT g.id AS "guestId", g.name, r.attending, r."plusOne", r."plusOneName",
-              r."kidsAttending", r."kidsCount"
+              r."kidsAttending", r."kidsCount",
+              COALESCE((
+                SELECT LOWER(TRIM(wc.value)) FROM public."WeddingContent" wc
+                 WHERE wc."weddingId" = g."weddingId" AND wc.section = 'rsvp'
+                   AND wc.field = 'additionalAdultPolicy' LIMIT 1
+              ), 'plus_ones_allowed') AS "additionalAdultPolicy",
+              COALESCE((
+                SELECT LOWER(TRIM(wc.value)) FROM public."WeddingContent" wc
+                 WHERE wc."weddingId" = g."weddingId" AND wc.section = 'rsvp'
+                   AND wc.field = 'childrenPolicy' LIMIT 1
+              ), 'welcome') AS "childrenPolicy"
          FROM public."Guest" g
          JOIN public."RSVP" r ON r."guestId" = g.id
         WHERE g.id = $1 AND g."weddingId" = $2
@@ -884,13 +896,13 @@ export async function checkInWeddingGuest(input: {
 
     const validAttendees = new Map<string, { kind: string; name: string }>()
     validAttendees.set('primary', { kind: 'primary', name: guest.name })
-    if (guest.plusOne) {
+    if (guest.additionalAdultPolicy !== 'named_guests_only' && guest.plusOne) {
       validAttendees.set('plus-one', {
         kind: 'plus_one',
         name: guest.plusOneName?.trim() || 'Plus One',
       })
     }
-    if (guest.kidsAttending && (guest.kidsCount ?? 0) > 0) {
+    if (guest.childrenPolicy !== 'adults_only' && guest.kidsAttending && (guest.kidsCount ?? 0) > 0) {
       for (let index = 1; index <= (guest.kidsCount ?? 0); index += 1) {
         validAttendees.set(`child-${index}`, { kind: 'child', name: `Child ${index}` })
       }

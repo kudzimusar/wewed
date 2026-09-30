@@ -45,6 +45,7 @@ public struct GuestInvitationSnapshot: Equatable, Sendable {
     public var weddingId: String? = nil
     public var seatingTableId: String? = nil
     public var partySize: Int? = nil
+    public var additionalAdultPolicy: String? = nil
 }
 
 /// Master plan WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01, Phase 9 — Digital Invitation + RSVP
@@ -141,6 +142,7 @@ public enum RsvpSaveResult: Equatable, Sendable {
     /// expired. The server refuses rather than writing the answer to whoever is active now.
     case staleGuestContext
     case childrenNotAllowed
+    case additionalGuestsNotAllowed
     case notAuthorized
     case failed(status: Int)
 }
@@ -420,7 +422,8 @@ public actor GuestSessionClient {
             checkedInAt: text(rsvp, "checkedInAt"),
             weddingId: text(wedding, "id"),
             seatingTableId: text(guest, "seatingTableId"),
-            partySize: rsvp["partySize"] as? Int
+            partySize: rsvp["partySize"] as? Int,
+            additionalAdultPolicy: text(wedding, "additionalAdultPolicy")
         )
     }
 
@@ -471,9 +474,11 @@ public actor GuestSessionClient {
             let json = response.body.flatMap {
                 try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
             }
-            return json?["code"] as? String == "CHILDREN_NOT_ALLOWED"
-                ? .childrenNotAllowed
-                : .failed(status: 400)
+            switch json?["code"] as? String {
+            case "CHILDREN_NOT_ALLOWED": return .childrenNotAllowed
+            case "ADDITIONAL_GUESTS_NOT_ALLOWED": return .additionalGuestsNotAllowed
+            default: return .failed(status: 400)
+            }
         default:
             return .failed(status: response.status)
         }

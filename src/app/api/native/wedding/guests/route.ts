@@ -2,6 +2,10 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { resolveNativeGrantContext, requireGrantPermission, requireWeddingScope, noStoreJson } from '@/lib/native-domain-context'
 import { guestPartySize, guestRsvpStatus, guestSeatingIdentity } from '@/lib/guest-record-authority'
+import {
+  loadWeddingAdditionalAdultPolicy,
+  loadWeddingChildrenPolicy,
+} from '@/lib/guest-rsvp-mutation'
 
 /**
  * Master plan Phase 8 §9 — Guests (Planner/Couple account access to guest management, read-only in
@@ -20,7 +24,8 @@ export async function GET(request: NextRequest) {
 
   const query = request.nextUrl.searchParams.get('q')?.trim() ?? ''
 
-  const guests = await db.guest.findMany({
+  const [guests, additionalAdultPolicy, childrenPolicy] = await Promise.all([
+    db.guest.findMany({
     where: {
       weddingId: scope.weddingId,
       ...(query
@@ -34,7 +39,11 @@ export async function GET(request: NextRequest) {
     },
     include: { seatingTable: { select: { id: true, name: true, weddingId: true } }, rsvp: true },
     orderBy: [{ createdAt: 'asc' }],
-  })
+    }),
+    loadWeddingAdditionalAdultPolicy(scope.weddingId),
+    loadWeddingChildrenPolicy(scope.weddingId),
+  ])
+  const attendancePolicies = { additionalAdultPolicy, childrenPolicy }
 
   return noStoreJson({
     success: true,
@@ -48,7 +57,7 @@ export async function GET(request: NextRequest) {
       tableNumber: guest.tableNumber,
       ...guestSeatingIdentity(guest.seatingTable, scope.weddingId),
       rsvpStatus: guestRsvpStatus(guest.rsvp?.attending),
-      partySize: guestPartySize(guest.rsvp),
+      partySize: guestPartySize(guest.rsvp, attendancePolicies),
       rsvpMessage: guest.rsvp?.message ?? null,
       checkedIn: guest.rsvp?.checkedIn ?? false,
       createdAt: guest.createdAt.toISOString(),

@@ -56,7 +56,8 @@ data class GuestInvitationSnapshot(
      */
     val weddingId: String? = null,
     val seatingTableId: String? = null,
-    val partySize: Int? = null
+    val partySize: Int? = null,
+    val additionalAdultPolicy: String? = null
 )
 
 /**
@@ -112,6 +113,7 @@ sealed interface RsvpSaveResult {
      */
     data object StaleGuestContext : RsvpSaveResult
     data object ChildrenNotAllowed : RsvpSaveResult
+    data object AdditionalGuestsNotAllowed : RsvpSaveResult
     data object NotAuthorized : RsvpSaveResult
     data class Failed(val status: Int) : RsvpSaveResult
 }
@@ -348,6 +350,7 @@ class GuestSessionClient(
             invitationCardMessage = wedding.optStringOrNull("invitationCardMessage"),
             rsvpDeadline = wedding.optStringOrNull("rsvpDeadline"),
             childrenPolicy = wedding.optStringOrNull("childrenPolicy"),
+            additionalAdultPolicy = wedding.optStringOrNull("additionalAdultPolicy"),
             guestId = guest.optStringOrNull("id").orEmpty(),
             guestName = guest.optStringOrNull("name").orEmpty(),
             email = guest.optStringOrNull("email"),
@@ -414,9 +417,10 @@ class GuestSessionClient(
             }
             status == 401 -> RsvpSaveResult.NotAuthorized
             status == 409 -> RsvpSaveResult.StaleGuestContext
-            status == 400 &&
-                payload?.let { JSONObject(it).optString("code") } == "CHILDREN_NOT_ALLOWED" ->
+            status == 400 && payload?.let { JSONObject(it).optString("code") } == "CHILDREN_NOT_ALLOWED" ->
                 RsvpSaveResult.ChildrenNotAllowed
+            status == 400 && payload?.let { JSONObject(it).optString("code") } == "ADDITIONAL_GUESTS_NOT_ALLOWED" ->
+                RsvpSaveResult.AdditionalGuestsNotAllowed
             else -> RsvpSaveResult.Failed(status)
         }
     }

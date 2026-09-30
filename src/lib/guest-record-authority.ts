@@ -32,6 +32,13 @@ export function guestSeatingIdentity(
 /** The canonical household size (primary + plus-one + attending children). */
 export function guestPartySize(
   rsvp: { plusOne: boolean | null; kidsAttending: boolean | null; kidsCount: number | null } | null | undefined,
+  policies: {
+    additionalAdultPolicy?: 'plus_ones_allowed' | 'named_guests_only' | null
+    childrenPolicy?: 'welcome' | 'adults_only' | null
+  } = {},
 ): number {
-  return weddingHouseholdAttendeeKeys(rsvp ?? { plusOne: false, kidsAttending: false, kidsCount: 0 }).length
+  return weddingHouseholdAttendeeKeys(
+    rsvp ?? { plusOne: false, kidsAttending: false, kidsCount: 0 },
+    policies,
+  ).length
 }
