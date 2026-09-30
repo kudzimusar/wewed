@@ -30,7 +30,6 @@ import {
   PlannerGuestsModule,
   type GuestForm,
   type GuestRow,
-  type GuestStats,
   type GuestUpdate,
 } from '@/components/wedding/planner/modules/planner-guests-module'
 import {
@@ -237,6 +236,7 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
   const [budgetByCategory, setBudgetByCategory] = useState<CategoryBreakdown[]>([])
   const [vendors, setVendors] = useState<VendorRow[]>([])
   const [guests, setGuests] = useState<GuestRow[]>([])
+  const [attendanceSummary, setAttendanceSummary] = useState<{ attending: number; awaiting: number; expectedNamedAttendees: number } | null>(null)
   const [tables, setTables] = useState<SeatingTableRow[]>([])
   const [timeline, setTimeline] = useState<TimelineRow[]>([])
   const [contributionSummary, setContributionSummary] = useState<ContributionOverviewSummary[]>([])
@@ -278,6 +278,7 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
       ['Budget', api<{ data: BudgetRow[]; summary: BudgetSummary; byCategory: CategoryBreakdown[] }>('/api/planner/budget', requestInit)],
       ['Vendors', api<{ data: VendorRow[] }>('/api/planner/vendors', requestInit)],
       ['Guests', api<{ data: GuestRow[]; tables: SeatingTableRow[] }>('/api/planner/guests', requestInit)],
+      ['Attendance', api<{ summary: { attending: number; awaiting: number; expectedNamedAttendees: number } }>('/api/planner/guests/invitations', requestInit)],
       ['Timeline', api<{ data: TimelineRow[] }>('/api/planner/timeline', requestInit)],
       ['Contributions', api<{ summaryByCurrency: ContributionOverviewSummary[]; counts: ContributionOverviewCounts }>('/api/planner/contributions/summary', requestInit)],
     ] as const
@@ -309,12 +310,16 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
         setTables(guestResult.value.tables ?? [])
       } else failures.push('Guests')
 
-      const timelineResult = results[4]
+      const attendanceResult = results[4]
+      if (attendanceResult.status === 'fulfilled') setAttendanceSummary(attendanceResult.value.summary ?? null)
+      else failures.push('Attendance')
+
+      const timelineResult = results[5]
       if (timelineResult.status === 'fulfilled') {
         setTimeline((timelineResult.value.data ?? []).sort((a, b) => a.order - b.order))
       } else failures.push('Timeline')
 
-      const contributionsResult = results[5]
+      const contributionsResult = results[6]
       if (contributionsResult.status === 'fulfilled') {
         setContributionSummary(contributionsResult.value.summaryByCurrency ?? [])
         setContributionCounts(contributionsResult.value.counts ?? { contributors: 0, pledged: 0, overdue: 0, unverified: 0, toThank: 0 })
@@ -636,20 +641,6 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
     return { done, blocked, overdue, percent: tasks.length ? Math.round((done / tasks.length) * 100) : 0 }
   }, [tasks])
 
-  const guestStats = useMemo<GuestStats>(() => {
-    const confirmed = guests.filter((guest) => guest.rsvp?.attending === true).length
-    const declined = guests.filter((guest) => guest.rsvp?.attending === false).length
-    const pending = guests.filter((guest) => guest.rsvp?.attending == null).length
-    const plusOnes = guests.filter((guest) => guest.rsvp?.plusOne).length
-    const kidsTotal = guests.reduce((total, guest) => total + (guest.rsvp?.kidsAttending ? guest.rsvp.kidsCount : 0), 0)
-    const checkedIn = guests.filter((guest) => guest.rsvp?.checkedIn).length
-    const heads = guests.reduce((total, guest) => {
-      if (guest.rsvp?.attending !== true) return total
-      return total + 1 + (guest.rsvp.plusOne ? 1 : 0) + (guest.rsvp.kidsAttending ? guest.rsvp.kidsCount : 0)
-    }, 0)
-    return { total: guests.length, confirmed, declined, pending, plusOnes, kidsTotal, checkedIn, heads }
-  }, [guests])
-
   const tableOccupancy = useMemo(() => {
     const counts = new Map<string, number>()
     for (const guest of guests) {
@@ -684,7 +675,7 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
                   {[
                     ['Task progress', `${taskStats.percent}%`, `${taskStats.done} of ${tasks.length} complete`],
                     ['Budget outstanding', money(budgetSummary?.totalOutstanding ?? 0, budgetSummary?.currency), `${money(budgetSummary?.totalPaid ?? 0, budgetSummary?.currency)} paid`],
-                    ['Confirmed guests', String(guestStats.confirmed), `${guestStats.heads} confirmed seats`],
+                    ['Confirmed guests', String(attendanceSummary?.attending ?? 0), `${attendanceSummary?.expectedNamedAttendees ?? 0} expected named attendees`],
                     ['Vendor pipeline', String(vendors.length), `${vendors.filter((vendor) => vendor.contractStatus === 'signed').length} signed`],
                   ].map(([label, value, detail]) => <SectionCard key={label} className="p-3 sm:p-4"><p className="font-sans text-[9px] uppercase tracking-[0.12em] text-gold/65 sm:text-[10px] sm:tracking-[0.16em]">{label}</p><p className="mt-1.5 font-serif text-2xl text-champagne sm:mt-2 sm:text-3xl">{value}</p><p className="mt-1 font-sans text-[10px] text-champagne/45 sm:text-xs">{detail}</p></SectionCard>)}
                 </div>
@@ -720,7 +711,7 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
                 <SectionCard className="p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-serif text-xl">Planning readiness</h2><p className="mt-1 font-sans text-xs text-champagne/50">This workspace uses only the selected wedding’s saved records. Empty weddings stay empty until a planner adds data, imports a file, or applies a template.</p></div><Badge variant="outline" className="border-gold/25 bg-gold/5 text-gold">{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : 'Not synced'}</Badge></div>
                   <Progress value={taskStats.percent} className="mt-5 h-2 bg-champagne/10 [&>div]:bg-gold" />
-                  <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3"><div className="rounded-xl border border-gold/10 p-3"><p className="font-sans text-[10px] text-champagne/50 sm:text-xs">Overdue tasks</p><p className="mt-1 font-serif text-xl sm:text-2xl">{taskStats.overdue}</p></div><div className="rounded-xl border border-gold/10 p-3"><p className="font-sans text-[10px] text-champagne/50 sm:text-xs">Blocked tasks</p><p className="mt-1 font-serif text-xl sm:text-2xl">{taskStats.blocked}</p></div><div className="rounded-xl border border-gold/10 p-3"><p className="font-sans text-[10px] text-champagne/50 sm:text-xs">Pending RSVPs</p><p className="mt-1 font-serif text-xl sm:text-2xl">{guestStats.pending}</p></div></div>
+                  <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3"><div className="rounded-xl border border-gold/10 p-3"><p className="font-sans text-[10px] text-champagne/50 sm:text-xs">Overdue tasks</p><p className="mt-1 font-serif text-xl sm:text-2xl">{taskStats.overdue}</p></div><div className="rounded-xl border border-gold/10 p-3"><p className="font-sans text-[10px] text-champagne/50 sm:text-xs">Blocked tasks</p><p className="mt-1 font-serif text-xl sm:text-2xl">{taskStats.blocked}</p></div><div className="rounded-xl border border-gold/10 p-3"><p className="font-sans text-[10px] text-champagne/50 sm:text-xs">Pending RSVPs</p><p className="mt-1 font-serif text-xl sm:text-2xl">{attendanceSummary?.awaiting ?? 0}</p></div></div>
                 </SectionCard>
               </div>
             )}
@@ -729,7 +720,7 @@ export function PlannerWorkspace({ activeTab: controlledTab, onActiveTabChange }
             {activeTab === 'contributions' && <PlannerContributionsWorkspace embedded />}
             {activeTab === 'budget' && <PlannerBudgetModule budget={budget} budgetSummary={budgetSummary} budgetByCategory={budgetByCategory} budgetForm={budgetForm} setBudgetForm={setBudgetForm} vendors={vendors} saving={saving} onAddBudgetItem={addBudgetItem} onUpdateBudgetItem={updateBudgetItem} onDeleteBudgetItem={deleteBudgetItem} />}
             {activeTab === 'vendors' && <PlannerVendorsModule vendors={vendors} vendorForm={vendorForm} setVendorForm={setVendorForm} saving={saving} onAddVendor={addVendor} onUpdateVendor={updateVendor} onDeleteVendor={deleteVendor} />}
-            {activeTab === 'guests' && <PlannerGuestsModule guests={guests} tables={tables} guestForm={guestForm} setGuestForm={setGuestForm} guestStats={guestStats} saving={saving} onAddGuest={addGuest} onUpdateGuest={updateGuest} onAssignGuestTable={assignGuestTable} onDeleteGuest={deleteGuest} />}
+            {activeTab === 'guests' && <PlannerGuestsModule guests={guests} tables={tables} guestForm={guestForm} setGuestForm={setGuestForm} saving={saving} onAddGuest={addGuest} onUpdateGuest={updateGuest} onAssignGuestTable={assignGuestTable} onDeleteGuest={deleteGuest} />}
             {activeTab === 'timeline' && <PlannerTimelineModule timeline={timeline} saving={saving} onCreateTimelineItem={addTimelineItem} onUpdateTimelineItem={updateTimelineItem} onDeleteTimelineItem={deleteTimelineItem} onMoveTimelineItem={moveTimelineItem} onPrintTimeline={printTimeline} />}
             {activeTab === 'seating' && <PlannerSeatingModule tables={tables} guests={guests} tableForm={tableForm} setTableForm={setTableForm} tableOccupancy={tableOccupancy} saving={saving} onAddTable={addTable} onUpdateTable={updateTable} onDeleteTable={deleteTable} onAssignGuestToTable={assignGuestToTable} />}
           </>}

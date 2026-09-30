@@ -42,10 +42,14 @@ describe('Planner invitation command center', () => {
 
   test('supports organizer-scale search, filters, selection and guest administration', () => {
     expect(manager).toContain('Invitation delivery command center')
-    expect(manager).toContain('Search guest, email, phone, table, sender')
+    expect(manager).toContain('Search guest, role, allocation, table, sender')
     expect(manager).toContain('All RSVP states')
     expect(manager).toContain('All delivery states')
     expect(manager).toContain('All open states')
+    expect(manager).toContain('All participant types')
+    expect(manager).toContain('All allocations')
+    expect(manager).toContain('All arrival states')
+    expect(manager).toContain('All Pass states')
     expect(manager).toContain('Select all')
     expect(manager).toContain('Mark selected sent')
     expect(manager).toContain('async function addGuest')
