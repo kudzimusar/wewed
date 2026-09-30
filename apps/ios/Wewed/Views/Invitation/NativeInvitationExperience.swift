@@ -129,8 +129,8 @@ public func ivoryData(
     monogram: String? = nil,
     tagline: String? = nil,
     rsvpDeadlineLabel: String? = nil,
-    /// The couple's own invitation line, where they wrote one.
-    message: String? = nil
+    /// The complete couple-authored invitation note, where they wrote one.
+    coupleNote: String? = nil
 ) -> IvoryInvitationData {
     let iso = String(invitation.weddingDate.prefix(10))
     let parts = iso.split(separator: "-").map(String.init)
@@ -156,8 +156,8 @@ public func ivoryData(
     return IvoryInvitationData(
         coupleNames: invitation.coupleNames,
         monogram: monogram ?? initials,
-        message: (message?.isEmpty == false ? message : nil)
-            ?? "Request the pleasure of your company as we celebrate our marriage.",
+        compactLine: IvoryInvitationContent.compactLine,
+        coupleNote: (coupleNote?.isEmpty == false ? coupleNote : nil),
         weekdayLabel: weekday,
         dayLabel: parts.count > 2 ? Int(parts[2]).map(String.init) : nil,
         monthLabel: monthIndex.flatMap { $0 >= 0 && $0 < months.count ? months[$0] : nil },
