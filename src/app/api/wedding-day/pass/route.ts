@@ -66,6 +66,10 @@ export async function GET(request: NextRequest) {
           weddingId: credential.weddingId,
           weddingSlug: context.weddingSlug,
           weddingTitle: context.weddingTitle,
+          weddingDate: context.weddingDate,
+          venue: context.venue,
+          venueCity: context.venueCity,
+          venueCountry: context.venueCountry,
           guestId: credential.guestId,
           guestName: context.guestName,
           passSerial: credential.passSerial,
@@ -88,6 +92,20 @@ export async function GET(request: NextRequest) {
           code: error.availability.code,
           error: error.availability.code,
           availability: error.availability,
+          context: error.context
+            ? {
+                weddingId: error.context.weddingId,
+                weddingSlug: error.context.weddingSlug,
+                weddingTitle: error.context.weddingTitle,
+                weddingDate: error.context.weddingDate,
+                venue: error.context.venue,
+                venueCity: error.context.venueCity,
+                venueCountry: error.context.venueCountry,
+                guestId: error.context.guestId,
+                guestName: error.context.guestName,
+                attending: error.context.attending,
+              }
+            : undefined,
         },
         { status: UNAVAILABLE_STATUS[error.availability.state], headers: { 'Cache-Control': 'no-store' } },
       )
