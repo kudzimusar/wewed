@@ -31,13 +31,15 @@ describe('canonical Planner Guest editor convergence', () => {
       'role',
       'roleDetail',
       'side',
+      'attendanceAllocation',
       'seatingTableId',
     ]) {
       expect(editor).toContain(field)
     }
     expect(editor).toContain('Participant type / role')
     expect(editor).toContain('Relationship / role detail')
-    expect(editor).toContain('Attendance allocation')
+    expect(editor).toContain('Relationship side')
+    expect(editor).toContain('Capacity allocation')
     expect(editor).toContain('Seating table')
   })
 
@@ -45,8 +47,10 @@ describe('canonical Planner Guest editor convergence', () => {
     expect(register).toContain('<PlannerGuestEditor')
     expect(invitations).toContain('<PlannerGuestEditor')
     expect(register).toContain('roleDetail: editGuest.roleDetail.trim() || null')
+    expect(register).toContain('attendanceAllocation: editGuest.attendanceAllocation')
     expect(register).toContain('seatingTableId: editGuest.seatingTableId || null')
     expect(invitations).toContain('roleDetail: newGuest.roleDetail.trim() || undefined')
+    expect(invitations).toContain('attendanceAllocation: newGuest.attendanceAllocation')
     expect(invitations).toContain('seatingTableId: newGuest.seatingTableId || undefined')
     expect(invitations).toContain('roleDetail: editGuest.roleDetail.trim() || null')
     expect(invitations).toContain('seatingTableId: editGuest.seatingTableId || null')
@@ -56,6 +60,7 @@ describe('canonical Planner Guest editor convergence', () => {
     expect(projection).toContain('role: guest.role')
     expect(projection).toContain('roleDetail: guest.roleDetail')
     expect(projection).toContain('side: guest.side')
+    expect(projection).toContain('attendanceAllocation: guest.attendanceAllocation')
     expect(projection).toContain('seatingTableId: guest.seatingTableId')
     expect(projection).toContain('seatingTableName: guest.seatingTable?.name ?? null')
     expect(projection).toContain('tables,')
@@ -66,6 +71,7 @@ describe('canonical Planner Guest editor convergence', () => {
     expect(operations).toContain('export async function updatePlannerGuest')
     expect(operations).toContain('export async function deletePlannerGuest')
     expect(operations).toContain('roleDetail?: string')
+    expect(operations).toContain('attendanceAllocation?: string')
     expect(operations).toContain('seatingTableId?: string')
   })
 
