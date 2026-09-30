@@ -23,8 +23,13 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { PremiumInvitationStudio } from '@/components/wedding/invitation-experience/premium-invitation-studio'
+import {
+  EMPTY_PLANNER_GUEST_EDITOR_VALUE,
+  PlannerGuestEditor,
+  type PlannerGuestEditorTable,
+  type PlannerGuestEditorValue,
+} from '@/components/wedding/planner/planner-guest-editor'
 import {
   normalizeInvitationCardStyle,
   type InvitationCardStyle,
@@ -43,6 +48,11 @@ interface InvitationRow {
   name: string
   email: string | null
   phone: string | null
+  role: string
+  roleDetail: string | null
+  side: string | null
+  seatingTableId: string | null
+  seatingTableName: string | null
   tableNumber: number | null
   status: 'attending' | 'declined' | 'pending'
   checkedIn: boolean
@@ -72,12 +82,6 @@ interface InvitationWedding {
   invitationCardMessage: string | null
   rsvpDeadline: string | null
   childrenPolicy: ChildrenPolicy
-}
-
-interface EditableGuest {
-  name: string
-  email: string
-  phone: string
 }
 
 const PAGE_SIZE = 40
@@ -153,6 +157,7 @@ function validEmail(value: string): boolean {
 
 export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const [rows, setRows] = useState<InvitationRow[]>([])
+  const [tables, setTables] = useState<PlannerGuestEditorTable[]>([])
   const [wedding, setWedding] = useState<InvitationWedding | null>(null)
   const [draftStyle, setDraftStyle] = useState<InvitationCardStyle>('botanical')
   const [draftMessage, setDraftMessage] = useState('')
@@ -174,9 +179,9 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const [deliveryChannel, setDeliveryChannel] = useState<DeliveryChannel>('whatsapp')
 
   const [showAddGuest, setShowAddGuest] = useState(false)
-  const [newGuest, setNewGuest] = useState({ name: '', email: '', phone: '' })
+  const [newGuest, setNewGuest] = useState<PlannerGuestEditorValue>({ ...EMPTY_PLANNER_GUEST_EDITOR_VALUE })
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editGuest, setEditGuest] = useState<EditableGuest>({ name: '', email: '', phone: '' })
+  const [editGuest, setEditGuest] = useState<PlannerGuestEditorValue>({ ...EMPTY_PLANNER_GUEST_EDITOR_VALUE })
 
   const load = useCallback(async () => {
     setBusy('load')
@@ -195,6 +200,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
         deliveryStatus: row.deliveryStatus === 'sent' ? 'sent' : 'not_sent',
       }))
       setRows(nextRows)
+      setTables(Array.isArray(payload.tables) ? payload.tables : [])
       setSelectedIds((current) => new Set([...current].filter((id) => nextRows.some((row: InvitationRow) => row.id === id))))
       setMissingTokens(typeof payload.missingTokens === 'number' ? payload.missingTokens : 0)
       setWedding(nextWedding)
@@ -418,13 +424,15 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           name,
           email: email || undefined,
           phone: phone || undefined,
-          role: 'guest',
-          side: 'neutral',
+          role: newGuest.role,
+          roleDetail: newGuest.roleDetail.trim() || undefined,
+          side: newGuest.side,
+          seatingTableId: newGuest.seatingTableId || undefined,
         }),
       })
       const payload = await response.json()
       if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to add guest.')
-      setNewGuest({ name: '', email: '', phone: '' })
+      setNewGuest({ ...EMPTY_PLANNER_GUEST_EDITOR_VALUE })
       setShowAddGuest(false)
       await load()
     } catch (caught) {
@@ -450,6 +458,10 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           name,
           email: email || null,
           phone: phone || null,
+          role: editGuest.role,
+          roleDetail: editGuest.roleDetail.trim() || null,
+          side: editGuest.side,
+          seatingTableId: editGuest.seatingTableId || null,
         }),
       })
       const payload = await response.json()
@@ -510,6 +522,10 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
       name: row.name,
       email: row.email ?? '',
       phone: row.phone ?? '',
+      role: row.role,
+      roleDetail: row.roleDetail ?? '',
+      side: row.side ?? 'neutral',
+      seatingTableId: row.seatingTableId ?? '',
     })
   }
 
@@ -581,23 +597,21 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
         </div>
 
         {showAddGuest && (
-          <form onSubmit={addGuest} className="mt-4 grid gap-3 rounded-xl border border-gold/15 bg-white/70 p-4 md:grid-cols-[1.4fr_1.3fr_1fr_auto]">
-            <div>
-              <Label htmlFor="invitation-add-name">Guest name</Label>
-              <Input id="invitation-add-name" value={newGuest.name} onChange={(event) => setNewGuest((current) => ({ ...current, name: event.target.value }))} className="mt-1 bg-white" />
+          <form onSubmit={addGuest} className="mt-4 space-y-3 rounded-xl border border-gold/15 bg-white/70 p-4">
+            <PlannerGuestEditor
+              value={newGuest}
+              tables={tables}
+              onChange={setNewGuest}
+              idPrefix="invitation-add-guest"
+              tone="light"
+              disabled={busy !== null}
+            />
+            <div className="flex justify-end">
+              <Button type="submit" disabled={busy !== null} className="bg-espresso text-champagne">
+                {busy === 'add-guest' ? <Loader2 className="size-4 animate-spin" /> : <UserPlus className="size-4" />}
+                Add guest
+              </Button>
             </div>
-            <div>
-              <Label htmlFor="invitation-add-email">Email</Label>
-              <Input id="invitation-add-email" type="email" value={newGuest.email} onChange={(event) => setNewGuest((current) => ({ ...current, email: event.target.value }))} className="mt-1 bg-white" />
-            </div>
-            <div>
-              <Label htmlFor="invitation-add-phone">Phone</Label>
-              <Input id="invitation-add-phone" value={newGuest.phone} onChange={(event) => setNewGuest((current) => ({ ...current, phone: event.target.value }))} className="mt-1 bg-white" />
-            </div>
-            <Button type="submit" disabled={busy !== null} className="self-end bg-espresso text-champagne">
-              {busy === 'add-guest' ? <Loader2 className="size-4 animate-spin" /> : <UserPlus className="size-4" />}
-              Add guest
-            </Button>
           </form>
         )}
 
@@ -735,20 +749,16 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                     </div>
                     <div className="min-w-0">
                       {editing ? (
-                        <div className="grid gap-3 rounded-xl border border-gold/15 bg-white/65 p-3 md:grid-cols-3">
-                          <div>
-                            <Label>Name</Label>
-                            <Input value={editGuest.name} onChange={(event) => setEditGuest((current) => ({ ...current, name: event.target.value }))} className="mt-1 bg-white" />
-                          </div>
-                          <div>
-                            <Label>Email</Label>
-                            <Input type="email" value={editGuest.email} onChange={(event) => setEditGuest((current) => ({ ...current, email: event.target.value }))} className="mt-1 bg-white" />
-                          </div>
-                          <div>
-                            <Label>Phone</Label>
-                            <Input value={editGuest.phone} onChange={(event) => setEditGuest((current) => ({ ...current, phone: event.target.value }))} className="mt-1 bg-white" />
-                          </div>
-                          <div className="flex gap-2 md:col-span-3">
+                        <div className="space-y-3 rounded-xl border border-gold/15 bg-white/65 p-3">
+                          <PlannerGuestEditor
+                            value={editGuest}
+                            tables={tables}
+                            onChange={setEditGuest}
+                            idPrefix={`invitation-edit-${row.id}`}
+                            tone="light"
+                            disabled={busy !== null}
+                          />
+                          <div className="flex gap-2">
                             <Button type="button" size="sm" disabled={busy !== null} onClick={() => void saveGuest(row)}>
                               {busy === `edit-${row.id}` ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
                               Save guest
@@ -765,6 +775,9 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                               <h4 className="font-serif text-2xl">{row.name}</h4>
                               <p className="mt-1 text-xs text-espresso/55">{row.email || row.phone || 'No contact saved'}</p>
                               {row.email && row.phone && <p className="mt-1 text-xs text-espresso/45">{row.phone}</p>}
+                              <p className="mt-1 text-[11px] text-espresso/45">
+                                {row.role.replaceAll('_', ' ')}{row.roleDetail ? ` · ${row.roleDetail}` : ''} · {row.side || 'neutral'}
+                              </p>
                             </div>
                             <div className="flex flex-wrap gap-2">
                               <span className="rounded-full bg-white/75 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]">{row.status}</span>
@@ -775,7 +788,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                           </div>
 
                           <div className="mt-3 grid gap-2 text-xs text-espresso/55 sm:grid-cols-2 xl:grid-cols-5">
-                            <p>Table: <strong>{row.tableNumber ?? 'Not assigned'}</strong></p>
+                            <p>Table: <strong>{row.seatingTableName || row.tableNumber || 'Not assigned'}</strong></p>
                             <p>{row.checkedIn ? 'Checked in' : 'Not checked in'}</p>
                             <p>Channel: <strong>{channelLabel(row.deliveryChannel)}</strong></p>
                             <p>Sent: <strong>{deliveryTime(row.deliveredAt)}</strong></p>
