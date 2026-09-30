@@ -10,10 +10,10 @@ describe('QRO07-AT01 Ivory without a couple note', () => {
   })
 
   test('without a note there is no note card, text or action', () => {
-    expect(trifold).toContain("const detailsArt: DetailsArt = note ? 'details-surface' : 'details-surface-no-note'")
+    expect(trifold).toContain("const detailsArt: DetailsArt = coupleNote ? 'details-surface' : 'details-surface-no-note'")
     expect(trifold).toContain('<Art name={detailsArt} />')
-    expect(trifold).toMatch(/\{note \? \(\s*<Region box=\{\[36, 76, 44, 4\]\} className="ivory-detail-note">/)
-    expect(trifold).toContain("{note ? hit('note', 'A Note from Us'")
+    expect(trifold).toMatch(/\{coupleNote \? \(\s*<Region box=\{\[36, 76, 44, 4\]\} className="ivory-detail-note">/)
+    expect(trifold).toContain("{coupleNote ? hit('note', 'A Note from Us'")
   })
 
   test('the monogram fallback matches the Wedding Pass form', () => {
