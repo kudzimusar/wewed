@@ -12,8 +12,7 @@ describe('canonical Planner invitation / RSVP / attendance summary', () => {
         checkedIn: true,
         email: 'one@example.com',
         phone: null,
-        passEligible: true,
-        passIssued: true,
+        passState: 'active' as const,
       },
       {
         status: 'attending' as const,
@@ -22,8 +21,7 @@ describe('canonical Planner invitation / RSVP / attendance summary', () => {
         checkedIn: false,
         email: null,
         phone: '+263700000000',
-        passEligible: true,
-        passIssued: false,
+        passState: 'not_yet_issued' as const,
       },
       {
         status: 'declined' as const,
@@ -32,8 +30,7 @@ describe('canonical Planner invitation / RSVP / attendance summary', () => {
         checkedIn: false,
         email: null,
         phone: null,
-        passEligible: false,
-        passIssued: false,
+        passState: 'declined' as const,
       },
       {
         status: 'pending' as const,
@@ -42,8 +39,7 @@ describe('canonical Planner invitation / RSVP / attendance summary', () => {
         checkedIn: false,
         email: 'pending@example.com',
         phone: null,
-        passEligible: false,
-        passIssued: false,
+        passState: 'pending_rsvp' as const,
       },
     ]
 
@@ -61,8 +57,14 @@ describe('canonical Planner invitation / RSVP / attendance summary', () => {
       checkedIn: 1,
       notYetArrived: 1,
       missingContact: 1,
-      passEligible: 2,
-      passIssued: 1,
+      passPendingRsvp: 1,
+      passDeclined: 1,
+      passNotYetIssuable: 0,
+      passNotYetIssued: 1,
+      passActive: 1,
+      passRevoked: 0,
+      passSuperseded: 0,
+      passIssuanceClosed: 0,
     })
   })
 
@@ -85,12 +87,18 @@ describe('canonical Planner invitation / RSVP / attendance summary', () => {
     expect(manager).toContain("['responseRate', 'Response rate'")
     expect(manager).not.toContain("const stats = useMemo(() => ({")
     expect(manager).not.toContain("rows.filter((row) => row.status === 'attending').length")
+    expect(manager).toContain("row.passState !== passFilter")
+    expect(manager).not.toContain('passEligible')
+    expect(manager).not.toContain('passIssued')
 
     const register = readFileSync('src/components/wedding/planner/modules/planner-guests-module.tsx', 'utf8')
     expect(register).toContain('setAttendanceSummary(payload.summary ?? null)')
     expect(register).toContain('data-testid="guest-register-canonical-summary"')
     expect(register).not.toContain('guestStats.confirmed')
     expect(register).not.toContain('guestStats.heads')
+    expect(register).toContain('Wedding Pass: {invitationActions[guest.id].passState')
+    expect(register).not.toContain('passEligible')
+    expect(register).not.toContain('passIssued')
 
     const workspace = readFileSync('src/components/wedding/planner-workspace.tsx', 'utf8')
     expect(workspace).toContain("['Attendance', api<{ summary:")
