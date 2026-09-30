@@ -240,7 +240,7 @@ export function buildGuestWorksheetSchema(fetchExisting: (weddingId: string) => 
     key: 'guests',
     name: 'Guests',
     description: 'Master guest list with RSVP, dietary, accessibility, transport, accommodation and seating data.',
-    version: '1.1.0',
+    version: '1.2.0',
     fields: guestWorksheetFields,
     rowToRecord: toGuestWorksheetInput,
     recordToRow: guestRecordToRow,
