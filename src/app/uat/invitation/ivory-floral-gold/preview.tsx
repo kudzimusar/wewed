@@ -22,6 +22,9 @@ const CHARITY_KUDZIE_UAT_DATA = {
   backgroundColor: '#fbf5e9',
 } as const
 
+const LONG_NOTE_REGRESSION_FIXTURE =
+  'This intentionally long regression note proves that a complete couple-authored message can contain many sentences, personal context, travel guidance, gratitude, and other meaningful details without ever being squeezed into the compact stationery artwork. Every word must remain available through A Note from Us.'
+
 export function IvoryFloralGoldUatPreview() {
   const [open, setOpen] = useState(false)
   const [previewView, setPreviewView] = useState<IvoryInvitationView | undefined>()
@@ -30,6 +33,14 @@ export function IvoryFloralGoldUatPreview() {
   const [run, setRun] = useState(0)
   useEffect(() => { const media=window.matchMedia('(prefers-reduced-motion: reduce)');const sync=()=>setReducedMotion(media.matches);sync();media.addEventListener('change',sync);return()=>media.removeEventListener('change',sync) }, [])
   const [rsvpPreviewOpen, setRsvpPreviewOpen] = useState(false)
+  const [longNoteFixture, setLongNoteFixture] = useState(false)
+  const invitationData = longNoteFixture
+    ? {
+        ...CHARITY_KUDZIE_UAT_DATA,
+        title: 'Synthetic Regression Couple',
+        message: LONG_NOTE_REGRESSION_FIXTURE,
+      }
+    : CHARITY_KUDZIE_UAT_DATA
 
   useEffect(() => {
     const handler = () => setRsvpPreviewOpen(true)
@@ -64,12 +75,21 @@ export function IvoryFloralGoldUatPreview() {
         {(['closed','opening','open','details'] as const).map(state=><button className="border p-2" key={state} onClick={()=>{setPreviewView(state);setRun(v=>v+1)}}>{state==='opening'?'Freeze / midpoint':state==='open'?'Fully opened':state==='details'?'Interactive':'Closed'}</button>)}
         <button className="border p-2" onClick={()=>{setPreviewView(undefined);setOpen(true);setRun(v=>v+1)}}>Play opening</button>
         <button className="border p-2" aria-pressed={reference} onClick={()=>setReference(v=>!v)}>Reference / live</button>
+        <button
+          type="button"
+          data-testid="long-note-fixture-toggle"
+          className="border p-2"
+          aria-pressed={longNoteFixture}
+          onClick={() => setLongNoteFixture((value) => !value)}
+        >
+          Long-note fixture
+        </button>
       </nav>
       {reference ? <div style={{width:'min(100%,430px,46.153846svh)',aspectRatio:'9/19.5',position:'relative'}}><img alt="Approved artwork reference" src={'/invitation-art/ivory/'+(previewView || 'closed')+'-master.webp'} style={{width:'100%',height:'100%'}} /></div> : <IvoryFloralGoldTriFold
         key={run}
         previewView={previewView}
         freezeOpening={previewView==='opening'}
-        data={CHARITY_KUDZIE_UAT_DATA}
+        data={invitationData}
         open={open}
         reducedMotion={reducedMotion}
         onOpen={() => {setPreviewView(undefined);setOpen(true)}}
