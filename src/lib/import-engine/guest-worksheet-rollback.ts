@@ -1,5 +1,9 @@
 import { db } from '@/lib/db'
 import { withdrawWeddingPassesForAttendance } from '@/lib/wedding-pass-attendance'
+import {
+  assertAttendanceAllocationCapacity,
+  normalizeAttendanceAllocation,
+} from '@/lib/guest-capacity-allocation'
 import { removeGuestWorksheetData, saveGuestWorksheetData } from './guest-worksheet-write'
 import type { GuestWorksheetDataRow } from './guest-worksheet-contract'
 import type { GuestWorksheetRollbackSnapshot, SerializedRsvpState } from './guest-worksheet-snapshot'
@@ -67,9 +71,20 @@ export async function rollbackGuestWorksheetImport(
   for (const state of snapshot.updatedSnapshots) {
     try {
       await db.$transaction(async (tx) => {
-        const guest = await tx.guest.findFirst({ where: { id: state.guestId, weddingId }, select: { id: true } })
+        const guest = await tx.guest.findFirst({
+          where: { id: state.guestId, weddingId },
+          select: { id: true, attendanceAllocation: true },
+        })
         if (!guest) throw new Error('Guest no longer exists.')
-        await tx.guest.update({ where: { id: state.guestId }, data: state.guest })
+        const restoreAllocation = normalizeAttendanceAllocation(state.guest.attendanceAllocation)
+        if (restoreAllocation !== guest.attendanceAllocation) {
+          await assertAttendanceAllocationCapacity(tx, {
+            weddingId,
+            allocation: restoreAllocation,
+            excludeGuestId: guest.id,
+          })
+        }
+        await tx.guest.update({ where: { id: state.guestId }, data: { ...state.guest, attendanceAllocation: restoreAllocation } })
         // RSVP ↔ Wedding Pass lifecycle: restoring a pre-import RSVP that is no longer attending
         // (or removing the RSVP) must withdraw any live Pass, exactly as the import itself does.
         // The Guest row is locked by the update above (Guest → RSVP → credential lock order).
