@@ -31,7 +31,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         result.status,
       )
     }
-    return noStoreJson({ success: true, data: nativeGuestSummary(result.data) })
+    return noStoreJson({
+      success: true,
+      data: nativeGuestSummary(result.data),
+      capacity: result.capacity ?? null,
+      capacityWarning: result.capacity?.warning
+        ? `${result.capacity.allocation} allocation has reached its warning threshold (${result.capacity.registered}${result.capacity.hardLimit == null ? '' : `/${result.capacity.hardLimit}`} registered).`
+        : null,
+    })
   } catch (error) {
     console.error('[native wedding guest PATCH] failed', error instanceof Error ? error.name : 'unknown')
     return noStoreJson({ success: false, error: 'Failed to update guest.' }, 500)
