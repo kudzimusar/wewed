@@ -23,6 +23,7 @@ interface ManifestKeyRow {
 interface ManifestCredentialRow {
   guestId: string
   guestName: string
+  guestRole: string
   tableNumber: number | null
   passSerial: string
   nonce: string
@@ -85,7 +86,7 @@ function householdMembers(row: ManifestCredentialRow): HouseholdMember[] {
     },
   ]
 
-  if (row.plusOne) {
+  if (row.guestRole !== 'service_provider' && row.plusOne) {
     members.push({
       attendeeKey: 'plus-one',
       attendeeKind: 'plus_one',
@@ -93,7 +94,7 @@ function householdMembers(row: ManifestCredentialRow): HouseholdMember[] {
     })
   }
 
-  if (row.kidsAttending && row.kidsCount > 0) {
+  if (row.guestRole !== 'service_provider' && row.kidsAttending && row.kidsCount > 0) {
     for (let index = 1; index <= row.kidsCount; index += 1) {
       members.push({
         attendeeKey: `child-${index}`,
@@ -140,6 +141,7 @@ export async function signedNativeWeddingDayManifest(weddingId: string) {
     db.$queryRawUnsafe<ManifestCredentialRow[]>(
       `SELECT c."guestId",
               g.name AS "guestName",
+              g.role AS "guestRole",
               g."tableNumber",
               c."passSerial",
               c.nonce,
