@@ -77,6 +77,7 @@ export interface GuestRsvpRecord {
 export type GuestRsvpUpdateResult =
   | { ok: true; rsvp: GuestRsvpRecord }
   | { ok: false; code: 'CHILDREN_NOT_ALLOWED'; status: 400; error: string }
+  | { ok: false; code: 'SERVICE_PROVIDER_HOUSEHOLD_NOT_ALLOWED'; status: 400; error: string }
   | { ok: false; code: 'PREVIEW_WRITE_BLOCKED'; status: 423; error: string }
 
 const GUEST_RSVP_SELECT = {
@@ -134,6 +135,10 @@ function buildGuestRsvpPatch(requestedFields: Partial<Record<GuestRsvpField, unk
  * `mealPreference`, `childrenAttending`, `numberOfChildren`, `messageToCouple`, ...) before calling
  * this, so this function itself carries no transport-specific vocabulary.
  */
+class ServiceProviderHouseholdError extends Error {
+  readonly code = 'SERVICE_PROVIDER_HOUSEHOLD_NOT_ALLOWED' as const
+}
+
 export async function applyGuestRsvpUpdate(params: {
   weddingId: string
   rsvpToken: string
@@ -170,9 +175,11 @@ export async function applyGuestRsvpUpdate(params: {
   // every live credential is revoked/superseded in the same transaction; re-accepting later never
   // revives it — the next authorized Pass retrieval issues a fresh credential. Edits that keep
   // attendance unchanged (meal, message, party details, ...) never touch the Pass.
-  const updated = await db.$transaction(async (tx) => {
-    const guestRows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-      `SELECT g.id
+  let updated: GuestRsvpRecord
+  try {
+    updated = await db.$transaction(async (tx) => {
+    const guestRows = await tx.$queryRawUnsafe<Array<{ id: string; role: string }>>(
+      `SELECT g.id, g.role
          FROM public."Guest" g
          JOIN public."RSVP" r ON r."guestId" = g.id
         WHERE r.token = $1 AND g."weddingId" = $2
@@ -181,8 +188,26 @@ export async function applyGuestRsvpUpdate(params: {
       rsvpToken,
       weddingId,
     )
-    const guestId = guestRows[0]?.id
+    const guest = guestRows[0]
+    const guestId = guest?.id
     if (!guestId) throw new Error('RSVP_NOT_FOUND')
+
+    if (
+      guest.role === 'service_provider'
+      && (requestedFields.plusOne === true || requestedFields.kidsAttending === true)
+    ) {
+      throw new ServiceProviderHouseholdError(
+        'Service providers are admitted as individually named crew members; plus-ones and children are not part of service attendance.',
+      )
+    }
+    if (guest.role === 'service_provider') {
+      data.plusOne = false
+      data.kidsAttending = false
+      // Keep historical labels/counts for audit; only current attendance semantics are forced off.
+      delete data.plusOneName
+      delete data.plusOneMeal
+      delete data.kidsCount
+    }
 
     const previousRows = await tx.$queryRawUnsafe<Array<{ attending: boolean | null }>>(
       `SELECT attending FROM public."RSVP" WHERE "guestId" = $1 LIMIT 1 FOR UPDATE`,
@@ -200,7 +225,18 @@ export async function applyGuestRsvpUpdate(params: {
       await withdrawWeddingPassesForAttendance(tx, { weddingId, guestId })
     }
     return record
-  })
+    })
+  } catch (error) {
+    if (error instanceof ServiceProviderHouseholdError) {
+      return {
+        ok: false,
+        code: error.code,
+        status: 400,
+        error: error.message,
+      }
+    }
+    throw error
+  }
 
   return { ok: true, rsvp: updated }
 }
