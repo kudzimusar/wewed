@@ -56,10 +56,13 @@ const MODULES = [
     path: 'src/components/wedding/planner/modules/planner-guests-module.tsx',
     importName: 'PlannerGuestsModule',
     markers: [
-      'guestForm.name',
-      'guestForm.email',
-      'guestStats.confirmed',
-      'guestStats.heads',
+      'idPrefix="workspace-guest"',
+      "set('name'",
+      "set('email'",
+      "set('phone'",
+      "set('role'",
+      "set('side'",
+      "set('seatingTableId'",
       'guest.rsvp?.attending',
       'guest.seatingTableId',
       'No guests',
@@ -118,7 +121,14 @@ describe('Stage 3 six-module extraction', () => {
 
   test('extracted modules preserve the currently active behavior exactly', async () => {
     for (const module of MODULES) {
-      const moduleSource = await source(module.path)
+      const moduleSource = (
+        await Promise.all([
+          source(module.path),
+          ...(module.key === 'guests'
+            ? [source('src/components/wedding/planner/planner-guest-editor.tsx')]
+            : []),
+        ])
+      ).join('\n')
       for (const marker of module.markers) {
         expect(moduleSource).toContain(marker)
       }
