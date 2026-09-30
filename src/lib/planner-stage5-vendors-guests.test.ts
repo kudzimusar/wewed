@@ -134,15 +134,18 @@ describe('Stage 5 Vendors and Guests parity', () => {
   })
 
   test('guest module restores complete create, filters, seating, readiness and deletion', async () => {
-    const guests = await source(
-      'src/components/wedding/planner/modules/planner-guests-module.tsx',
-    )
+    const guests = (
+      await Promise.all([
+        source('src/components/wedding/planner/modules/planner-guests-module.tsx'),
+        source('src/components/wedding/planner/planner-guest-editor.tsx'),
+      ])
+    ).join('\n')
 
     for (const marker of [
-      'workspace-guest-phone',
-      'workspace-guest-role',
-      'workspace-guest-side',
-      'workspace-guest-table',
+      'idPrefix="workspace-guest"',
+      'Participant type / role',
+      'Attendance allocation',
+      'Seating table',
       "usePlannerFilterState('wewed:planner:guests:filters'",
       'filters.search',
       'filters.side',
