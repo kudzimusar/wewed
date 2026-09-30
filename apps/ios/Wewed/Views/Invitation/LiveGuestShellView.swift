@@ -652,33 +652,141 @@ extension LiveGuestShellView {
 }
 
 private struct LiveIssuedGuestPassView: View {
+    @Environment(\.scenePhase) private var scenePhase
     let profile: LiveInvitationPresentation
     let coordinator: LiveGuestInvitationCoordinator
     @State private var pass: WeddingPass?
     @State private var availability: WeddingPassAvailability?
     @State private var failed = false
+    @State private var refreshNonce = 0
+
     var body: some View {
         Group {
-            if let pass { WeddingReferencePassView(pass: pass, showScanner: false) }
-            else if let availability, let copy = LiveGuestShellView.passAvailabilityCopy(availability) {
-                VStack(spacing: 8) {
-                    Text(copy)
-                    if let from = LiveGuestShellView.passAvailableFromLabel(availability) {
-                        Text(from).font(.footnote)
-                    }
-                }
-                .multilineTextAlignment(.center)
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("live-guest-pass-state-\(availability.state.rawValue)")
+            if let pass {
+                WeddingReferencePassView(pass: pass, showScanner: false)
+            } else if let availability, let copy = LiveGuestShellView.passAvailabilityCopy(availability) {
+                lockedPass(availability: availability, copy: copy)
+            } else if failed {
+                Text("Your Wedding Pass is unavailable. Please try again later.")
+                    .accessibilityIdentifier("live-guest-pass-unavailable")
+            } else {
+                ProgressView("Loading Wedding Pass…")
             }
-            else if failed { Text("Your Wedding Pass is unavailable. Please try again later.").accessibilityIdentifier("live-guest-pass-unavailable") }
-            else { ProgressView("Loading Wedding Pass…") }
-        }.task {
-            do { pass = try await coordinator.weddingPass(guestId: profile.guestId) }
-            catch is CancellationError { }
-            // `failed` too, so a state without distinct copy still falls back to the generic text.
-            catch let GuestSessionError.passUnavailable(value) { availability = value; failed = true }
-            catch { failed = true }
+        }
+        .task(id: refreshNonce) { await loadPass() }
+        .task(id: "locked-refresh-\(availability?.state.rawValue ?? "none")-\(refreshNonce)") {
+            guard pass == nil, availability != nil else { return }
+            try? await Task.sleep(for: .seconds(60))
+            guard !Task.isCancelled, pass == nil else { return }
+            refreshNonce += 1
+        }
+        .onChange(of: scenePhase) { _, next in
+            if next == .active, pass == nil {
+                refreshNonce += 1
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func lockedPass(
+        availability: WeddingPassAvailability,
+        copy: String
+    ) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Wedding Pass")
+                    .font(.system(size: 30, weight: .semibold, design: .serif))
+                Text(profile.coupleNames)
+                    .font(.caption)
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+                Text(profile.guestName)
+                    .font(.system(size: 24, weight: .medium, design: .serif))
+
+                VStack(spacing: 10) {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 34, weight: .semibold))
+                        .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                    Text("SECURE ADMISSION QR")
+                        .font(.caption2.weight(.semibold))
+                        .tracking(1.5)
+                        .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                    Text(
+                        LiveGuestShellView.passAvailableFromLabel(availability)?
+                            .replacingOccurrences(of: "Available from", with: "Unlocks")
+                        ?? "Locked"
+                    )
+                    .font(.subheadline.weight(.semibold))
+                    .accessibilityIdentifier("wedding-pass-unlock")
+                    Text("No Gate credential is displayed until Wewed issues the signed WW2 Wedding Pass.")
+                        .font(.caption)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(WeddingIdentityPalette.muted)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(20)
+                .background(WeddingIdentityPalette.ivory)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(WeddingIdentityPalette.champagneDeep.opacity(0.35), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 20))
+                .accessibilityIdentifier("wedding-pass-locked")
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("RSVP").font(.caption2.weight(.semibold)).foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                    Text(profile.attending == true ? "Confirmed attending" : profile.attending == false ? "Declined" : "Response required")
+                        .font(.subheadline.weight(.semibold))
+                    Text(copy).font(.caption).foregroundStyle(WeddingIdentityPalette.muted)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(WeddingIdentityPalette.ivorySoft)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .accessibilityIdentifier("wedding-pass-rsvp-state")
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("WEDDING").font(.caption2.weight(.semibold)).foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                    Text(LiveGuestShellView.formatWeddingDate(profile.weddingDate))
+                        .font(.subheadline.weight(.semibold))
+                    Text([profile.venue, profile.venueCityCountry].compactMap { value in
+                        guard let value, !value.isEmpty else { return nil }
+                        return value
+                    }.joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(WeddingIdentityPalette.ivorySoft)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .accessibilityIdentifier("wedding-pass-wedding-info")
+
+                Text("YOUR JOURNEY")
+                    .font(.caption2.weight(.semibold))
+                    .tracking(1.5)
+                    .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                Label("Invitation verified", systemImage: "checkmark.circle.fill").font(.caption)
+                Label(profile.attending == true ? "RSVP confirmed" : profile.attending == false ? "RSVP declined" : "RSVP awaiting response", systemImage: profile.attending == true ? "checkmark.circle.fill" : "clock").font(.caption)
+                Label("Wedding Pass · \(copy)", systemImage: "clock").font(.caption)
+                Label("Gate admission · signed WW2 credential required", systemImage: "clock").font(.caption)
+            }
+            .padding(20)
+        }
+        .accessibilityIdentifier("live-guest-pass-state-\(availability.state.rawValue)")
+    }
+
+    private func loadPass() async {
+        pass = nil
+        availability = nil
+        failed = false
+        do {
+            pass = try await coordinator.weddingPass(guestId: profile.guestId)
+        } catch is CancellationError {
+        } catch let GuestSessionError.passUnavailable(value) {
+            availability = value
+            failed = true
+        } catch {
+            failed = true
         }
     }
 }

@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import qrcode from 'qrcode'
-import { Loader2, QrCode, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, Clock3, Loader2, LockKeyhole, QrCode, ShieldCheck } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import {
   GUEST_PASS_AVAILABILITY_COPY,
@@ -27,9 +27,23 @@ interface WeddingPassData {
   publicKeyDerBase64: string
 }
 
+interface PrePassData {
+  weddingId: string
+  weddingSlug: string
+  weddingTitle: string
+  guestId: string
+  guestName: string
+  attending: boolean | null
+  weddingDate: string
+  venue: string
+  venueCity: string
+  venueCountry: string
+}
+
 interface WeddingPassResponse {
   success?: boolean
   data?: WeddingPassData
+  prePass?: PrePassData | null
   code?: string
   error?: string
   availability?: WeddingPassAvailability
@@ -46,6 +60,19 @@ function availabilityState(payload: WeddingPassResponse): WeddingPassAvailabilit
  */
 export function formatPassOpensAt(opensAt: Date): string {
   return opensAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function formatPrePassDate(value: string): string {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function prePassUnlockLabel(availability: WeddingPassAvailability | null): string {
+  if (availability?.state !== 'not_yet_issuable' || !availability.opensAt) return 'Locked'
+  const opensAt = new Date(availability.opensAt)
+  return Number.isNaN(opensAt.getTime()) ? 'Locked' : `Unlocks ${formatPassOpensAt(opensAt)}`
 }
 
 function friendlyPassError(payload: WeddingPassResponse): string {
@@ -76,6 +103,8 @@ export function WeddingGuestPassDialog({ slug }: { slug: string }) {
   const [error, setError] = useState<string | null>(null)
   const [passState, setPassState] = useState<WeddingPassAvailabilityState | 'error' | null>(null)
   const [pass, setPass] = useState<WeddingPassData | null>(null)
+  const [prePass, setPrePass] = useState<PrePassData | null>(null)
+  const [availability, setAvailability] = useState<WeddingPassAvailability | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
   useEffect(() => {
@@ -103,46 +132,82 @@ export function WeddingGuestPassDialog({ slug }: { slug: string }) {
     }
   }, [pass?.token])
 
-  useEffect(() => {
-    const handler = () => {
-      setOpen(true)
-      setLoading(true)
-      setError(null)
-      setPassState(null)
-      setPass(null)
-      setQrDataUrl(null)
-
-      void fetch('/api/wedding-day/pass', {
+  const loadPass = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    setQrDataUrl(null)
+    try {
+      const response = await fetch('/api/wedding-day/pass', {
         cache: 'no-store',
         headers: { Accept: 'application/json' },
       })
-        .then(async (response) => {
-          const payload = (await response.json()) as WeddingPassResponse
-          const data = payload.data
-          if (
-            !response.ok ||
-            !payload.success ||
-            !data ||
-            !data.token.startsWith('WW2.') ||
-            !data.publicKeyDerBase64
-          ) {
-            const state = availabilityState(payload)
-            setPassState(state && state !== 'active' ? state : 'error')
-            throw new Error(friendlyPassError(payload))
-          }
-          setPass(data)
-          setPassState('active')
-        })
-        .catch((caught) => {
-          setPass(null)
-          setError(caught instanceof Error ? caught.message : 'Your Wedding Pass is not available.')
-        })
-        .finally(() => setLoading(false))
+      const payload = (await response.json()) as WeddingPassResponse
+      const state = availabilityState(payload)
+
+      if (state && state !== 'active' && payload.prePass) {
+        setPass(null)
+        setPrePass(payload.prePass)
+        setAvailability(payload.availability ?? null)
+        setPassState(state)
+        return
+      }
+
+      const data = payload.data
+      if (
+        !response.ok ||
+        !payload.success ||
+        !data ||
+        !data.token.startsWith('WW2.') ||
+        !data.publicKeyDerBase64
+      ) {
+        setPass(null)
+        setPrePass(payload.prePass ?? null)
+        setAvailability(payload.availability ?? null)
+        setPassState(state && state !== 'active' ? state : 'error')
+        throw new Error(friendlyPassError(payload))
+      }
+
+      setPrePass(null)
+      setAvailability(null)
+      setPass(data)
+      setPassState('active')
+    } catch (caught) {
+      setPass(null)
+      setError(caught instanceof Error ? caught.message : 'Your Wedding Pass is not available.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handler = () => {
+      setOpen(true)
+      setPassState(null)
+      setPass(null)
+      setPrePass(null)
+      setAvailability(null)
+      setQrDataUrl(null)
+      void loadPass()
     }
 
     window.addEventListener('wewed:open-guest-pass', handler)
     return () => window.removeEventListener('wewed:open-guest-pass', handler)
-  }, [slug])
+  }, [loadPass, slug])
+
+  useEffect(() => {
+    if (!open) return
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void loadPass()
+    }
+    const interval = window.setInterval(() => { void loadPass() }, 60_000)
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+  }, [loadPass, open])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -172,6 +237,61 @@ export function WeddingGuestPassDialog({ slug }: { slug: string }) {
         {loading && (
           <div className="flex min-h-64 items-center justify-center">
             <Loader2 className="size-7 animate-spin text-[#a97831]" />
+          </div>
+        )}
+
+        {!loading && prePass && passState && passState !== 'active' && passState !== 'error' && (
+          <div data-testid="wedding-pass-locked" className="p-6">
+            <div className="rounded-[1.5rem] border border-[#c89a55]/35 bg-white/75 p-5 shadow-sm">
+              <p className="text-center text-[10px] font-semibold uppercase tracking-[0.22em] text-[#a97831]">
+                {prePass.weddingTitle}
+              </p>
+              <p data-testid="pre-pass-guest-name" className="mt-2 text-center font-serif text-3xl">
+                {prePass.guestName}
+              </p>
+
+              <div className="mx-auto mt-5 flex min-h-44 w-full max-w-72 flex-col items-center justify-center rounded-2xl border border-dashed border-[#c89a55]/45 bg-[#fff8ed] px-5 text-center">
+                <LockKeyhole className="size-10 text-[#9b6b2f]" aria-hidden="true" />
+                <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#9b6b2f]">
+                  Secure admission QR
+                </p>
+                <p data-testid="pre-pass-unlock" className="mt-2 text-sm font-semibold text-[#4e3928]">
+                  {prePassUnlockLabel(availability)}
+                </p>
+                <p className="mt-2 text-xs leading-5 text-[#7d6a58]">
+                  No Gate credential is displayed until Wewed issues the signed WW2 Wedding Pass.
+                </p>
+              </div>
+
+              <div className="mt-5 grid gap-2 text-sm">
+                <div className="rounded-xl bg-[#f7ecdc] px-3 py-3">
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[#9b6b2f]">RSVP</span>
+                  <strong className="mt-1 block">
+                    {prePass.attending === true ? 'Confirmed attending' : prePass.attending === false ? 'Declined' : 'Response required'}
+                  </strong>
+                </div>
+                <div className="rounded-xl bg-[#f7ecdc] px-3 py-3">
+                  <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[#9b6b2f]">Wedding</span>
+                  <strong className="mt-1 block">{formatPrePassDate(prePass.weddingDate)}</strong>
+                  <span className="mt-1 block text-xs text-[#7d6a58]">
+                    {[prePass.venue, prePass.venueCity, prePass.venueCountry].filter(Boolean).join(' · ')}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-5 border-t border-[#c89a55]/20 pt-4">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#9b6b2f]">Your journey</p>
+                <div className="mt-3 space-y-2 text-xs text-[#6f5a47]">
+                  <p className="flex items-center gap-2"><CheckCircle2 className="size-4 text-[#7d8a5e]" />Invitation verified</p>
+                  <p className="flex items-center gap-2">
+                    {prePass.attending === true ? <CheckCircle2 className="size-4 text-[#7d8a5e]" /> : <Clock3 className="size-4 text-[#a97831]" />}
+                    RSVP {prePass.attending === true ? 'confirmed' : prePass.attending === false ? 'declined' : 'awaiting response'}
+                  </p>
+                  <p className="flex items-center gap-2"><Clock3 className="size-4 text-[#a97831]" />Wedding Pass · {GUEST_PASS_AVAILABILITY_COPY[passState]}</p>
+                  <p className="flex items-center gap-2"><Clock3 className="size-4 text-[#a97831]" />Gate admission · signed WW2 credential required</p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
