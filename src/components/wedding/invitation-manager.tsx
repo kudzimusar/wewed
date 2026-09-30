@@ -6,9 +6,7 @@ import QRCode from 'qrcode'
 import {
   Check,
   CheckSquare2,
-  Copy,
   Download,
-  ExternalLink,
   Loader2,
   Pencil,
   QrCode,
@@ -16,7 +14,6 @@ import {
   RotateCcw,
   Search,
   Send,
-  Share2,
   Trash2,
   UserPlus,
   X,
@@ -30,6 +27,7 @@ import {
   type PlannerGuestEditorTable,
   type PlannerGuestEditorValue,
 } from '@/components/wedding/planner/planner-guest-editor'
+import { PlannerGuestInvitationActions } from '@/components/wedding/planner/planner-guest-invitation-actions'
 import {
   normalizeInvitationCardStyle,
   type InvitationCardStyle,
@@ -141,16 +139,6 @@ function deliveryTime(value: string | null): string {
       })
 }
 
-function plannerPreviewLink(value: string): string {
-  try {
-    const url = new URL(value)
-    url.searchParams.set('plannerPreview', '1')
-    return url.toString()
-  } catch {
-    return value
-  }
-}
-
 function validEmail(value: string): boolean {
   return !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
@@ -164,7 +152,6 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const [draftDeadline, setDraftDeadline] = useState('')
   const [draftChildrenPolicy, setDraftChildrenPolicy] = useState<ChildrenPolicy>('welcome')
   const [busy, setBusy] = useState<string | null>('load')
-  const [copied, setCopied] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [missingTokens, setMissingTokens] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -272,36 +259,6 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
     missingContact: rows.filter((row) => !row.email && !row.phone).length,
     opened: rows.filter((row) => Boolean(row.openedAt)).length,
   }), [rows])
-
-  async function rememberCopied(key: string, value: string) {
-    await navigator.clipboard.writeText(value)
-    setCopied(key)
-    window.setTimeout(() => setCopied((current) => current === key ? null : current), 1800)
-  }
-
-  async function copyLink(row: InvitationRow) {
-    if (row.invitationUrl) await rememberCopied(`link-${row.id}`, row.invitationUrl)
-  }
-
-  async function copyMessage(row: InvitationRow) {
-    if (row.shareMessage) await rememberCopied(`message-${row.id}`, row.shareMessage)
-  }
-
-  async function share(row: InvitationRow) {
-    if (!row.invitationUrl || !row.shareMessage) return
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: wedding?.title ? `Wewed · ${wedding.title}` : 'Wewed · Private wedding invitation',
-          text: row.shareMessage,
-        })
-        return
-      } catch (caught) {
-        if (caught instanceof DOMException && caught.name === 'AbortError') return
-      }
-    }
-    await rememberCopied(`share-${row.id}`, row.shareMessage)
-  }
 
   async function generateMissingLinks() {
     if (missingTokens <= 0) return
@@ -796,32 +753,13 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                           </div>
                           {row.deliveredBy && <p className="mt-1 text-[11px] text-espresso/45">Recorded by {row.deliveredBy}</p>}
 
-                          <div className="mt-4 flex flex-wrap gap-2">
-                            <Button type="button" size="sm" onClick={() => void copyMessage(row)} disabled={!row.shareMessage}>
-                              <Copy className="size-4" />{copied === `message-${row.id}` ? 'Message copied' : 'Copy message'}
-                            </Button>
-                            <Button type="button" size="sm" variant="outline" onClick={() => void share(row)} disabled={!row.invitationUrl}>
-                              <Share2 className="size-4" />{copied === `share-${row.id}` ? 'Copied' : 'Share card'}
-                            </Button>
-                            <Button type="button" size="sm" variant="outline" onClick={() => void copyLink(row)} disabled={!row.invitationUrl}>
-                              {copied === `link-${row.id}` ? <Check className="size-4" /> : <Copy className="size-4" />}
-                              {copied === `link-${row.id}` ? 'Link copied' : 'Copy link'}
-                            </Button>
-                            {row.invitationUrl && (
-                              <Button asChild size="sm" variant="outline">
-                                <a href={plannerPreviewLink(row.invitationUrl)} target="_blank" rel="noreferrer">
-                                  <ExternalLink className="size-4" />Preview
-                                </a>
-                              </Button>
-                            )}
-                            <Button type="button" size="sm" variant="outline" onClick={() => void recordDelivery([row.id])} disabled={busy !== null}>
-                              <Send className="size-4" />Mark sent
-                            </Button>
-                            {row.deliveryStatus === 'sent' && (
-                              <Button type="button" size="sm" variant="outline" onClick={() => void clearDelivery([row.id])} disabled={busy !== null}>
-                                Reset sent
-                              </Button>
-                            )}
+                          <PlannerGuestInvitationActions
+                            guest={row}
+                            disabled={busy !== null}
+                            initialChannel={deliveryChannel}
+                            onDeliveryChanged={load}
+                          />
+                          <div className="mt-2 flex flex-wrap gap-2">
                             <Button type="button" size="sm" variant="outline" onClick={() => startEdit(row)} disabled={busy !== null}>
                               <Pencil className="size-4" />Edit guest
                             </Button>

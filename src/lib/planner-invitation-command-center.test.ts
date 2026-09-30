@@ -20,6 +20,7 @@ const weddingDayGuest = readFileSync('src/app/api/wedding-day/guest/route.ts', '
 const plannerPortal = readFileSync('src/components/wedding/planner-portal.tsx', 'utf8')
 const adaptiveNavigation = readFileSync('src/components/navigation/planner-adaptive-navigation.tsx', 'utf8')
 const invitationStudio = readFileSync('src/components/wedding/invitation-experience/premium-invitation-studio.tsx', 'utf8')
+const individualActions = readFileSync('src/components/wedding/planner/planner-guest-invitation-actions.tsx', 'utf8')
 
 describe('Planner invitation command center', () => {
   test('has a durable planner route instead of a modal-only workspace', () => {
@@ -89,7 +90,8 @@ describe('Planner invitation command center', () => {
     expect(inviteContinue).toContain('!pending.suppressOpenTracking')
     expect(inviteRoute).toContain("plannerPreview') === '1'")
     expect(pendingInvitation).toContain('suppressOpenTracking?: boolean')
-    expect(manager).toContain("url.searchParams.set('plannerPreview', '1')")
+    expect(individualActions).toContain("url.searchParams.set('plannerPreview', '1')")
+    expect(manager).toContain('<PlannerGuestInvitationActions')
   })
 
   test('planner programme and children policy converge into the guest wedding-day projection', () => {

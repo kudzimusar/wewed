@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react'
 import { Check, CheckCircle2, Circle, Pencil, Plus, Search, Send, Trash2, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,10 @@ import {
   PLANNER_GUEST_SIDE_OPTIONS,
   type PlannerGuestEditorValue,
 } from '@/components/wedding/planner/planner-guest-editor'
+import {
+  PlannerGuestInvitationActions,
+  type PlannerGuestInvitationActionData,
+} from '@/components/wedding/planner/planner-guest-invitation-actions'
 import { usePlannerFilterState } from '@/lib/planner-filter-state'
 
 export interface GuestRow {
@@ -40,6 +44,27 @@ export function PlannerGuestsModule({ guests, tables, guestForm, setGuestForm, g
   const [editingGuestId, setEditingGuestId] = useState<string | null>(null)
   const [editGuest, setEditGuest] = useState<PlannerGuestEditorValue>({ name: '', email: '', phone: '', role: 'guest', roleDetail: '', side: 'neutral', seatingTableId: '' })
   const [editError, setEditError] = useState<string | null>(null)
+  const [invitationActions, setInvitationActions] = useState<Record<string, PlannerGuestInvitationActionData>>({})
+
+  const guestRevision = useMemo(
+    () => guests.map((guest) => [guest.id, guest.name, guest.email ?? '', guest.phone ?? ''].join(':')).join('|'),
+    [guests],
+  )
+
+  const loadInvitationActions = useCallback(async () => {
+    try {
+      const response = await fetch('/api/planner/guests/invitations', { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok || !payload.success || !Array.isArray(payload.data)) return
+      const next: Record<string, PlannerGuestInvitationActionData> = {}
+      for (const row of payload.data as PlannerGuestInvitationActionData[]) next[row.id] = row
+      setInvitationActions(next)
+    } catch {
+      // Guest register remains usable when invitation delivery data is temporarily unavailable.
+    }
+  }, [])
+
+  useEffect(() => { void loadInvitationActions() }, [guestRevision, loadInvitationActions])
 
   const filteredGuests = useMemo(() => {
     const query = filters.search.trim().toLowerCase()
@@ -117,7 +142,7 @@ export function PlannerGuestsModule({ guests, tables, guestForm, setGuestForm, g
       <div className="space-y-2 p-4">{guests.length === 0 ? <EmptyState title="No guests" detail="Add guests here or use the Guests worksheet import." /> : filteredGuests.length === 0 ? <EmptyState title="No guests in this view" detail="Clear the search or filters to see the remaining guest records." /> : filteredGuests.map((guest) => {
         const editing = editingGuestId === guest.id
         return <div key={guest.id} className="rounded-xl border border-gold/10 bg-espresso/45 p-3">
-          {editing ? <div className="space-y-3"><PlannerGuestEditor value={editGuest} tables={tables} onChange={(value) => { setEditGuest(value); setEditError(null) }} idPrefix={`guest-edit-${guest.id}`} tone="dark" disabled={saving} />{editError && <p id={`guest-edit-error-${guest.id}`} role="alert" className="font-sans text-xs text-clay-light">{editError}</p>}<div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setEditingGuestId(null)}><X className="size-4" />Cancel</Button><Button type="button" disabled={saving} onClick={() => void saveEdit(guest)} className="bg-gold text-espresso"><Check className="size-4" />Save guest</Button></div></div> : <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_13rem_auto] md:items-center"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-sans text-sm font-medium">{guest.name}</p><Badge variant="outline" className="border-gold/25 text-[10px] text-champagne/70">{titleCase(guest.role)}</Badge><Badge variant="outline" className="border-gold/25 text-[10px] text-champagne/70">{sideLabel(guest.side)}</Badge>{guest.rsvp?.attending === true ? <Badge className="bg-sage/15 text-sage-light"><CheckCircle2 className="mr-1 size-3" />Confirmed</Badge> : guest.rsvp?.attending === false ? <Badge variant="outline" className="border-clay/40 text-clay-light">Declined</Badge> : <Badge variant="outline" className="border-gold/20 text-champagne/55"><Circle className="mr-1 size-3" />Pending</Badge>}</div><p className="mt-1 truncate font-sans text-xs text-champagne/55">{guest.email || 'No email'} · {guest.phone || 'No phone'}</p>{guest.rsvp && <p className="mt-1 font-sans text-[11px] leading-5 text-champagne/45">Meal choice: {guest.rsvp.mealChoice || 'Not set'} · Plus-one name: {guest.rsvp.plusOneName || 'None'} · Kids count: {guest.rsvp.kidsCount} · Dietary notes: {guest.rsvp.dietaryNotes || 'None'} · Checked in: {guest.rsvp.checkedIn ? 'Yes' : 'No'}</p>}</div><select value={guest.seatingTableId ?? ''} onChange={(event) => void onAssignGuestTable(guest, event.target.value || null)} aria-label={`Assign table for ${guest.name}`} className="h-9 rounded-md border border-gold/20 bg-espresso px-2 font-sans text-xs"><option value="">Unassigned</option>{tables.map((table) => <option key={table.id} value={table.id}>{table.name}</option>)}</select><div className="flex items-center gap-1"><Button type="button" variant="ghost" size="icon" aria-label={`Edit ${guest.name}`} disabled={saving} onClick={() => startEdit(guest)} className="size-9 text-champagne/50 hover:text-gold"><Pencil className="size-4" /></Button><Button type="button" variant="ghost" size="icon" aria-label={`Delete ${guest.name}`} disabled={saving} onClick={() => { if (window.confirm(`Delete guest “${guest.name}”?`)) void onDeleteGuest(guest) }} className="size-9 text-champagne/45 hover:bg-clay/10 hover:text-clay-light"><Trash2 className="size-4" /></Button></div></div>}
+          {editing ? <div className="space-y-3"><PlannerGuestEditor value={editGuest} tables={tables} onChange={(value) => { setEditGuest(value); setEditError(null) }} idPrefix={`guest-edit-${guest.id}`} tone="dark" disabled={saving} />{editError && <p id={`guest-edit-error-${guest.id}`} role="alert" className="font-sans text-xs text-clay-light">{editError}</p>}<div className="flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setEditingGuestId(null)}><X className="size-4" />Cancel</Button><Button type="button" disabled={saving} onClick={() => void saveEdit(guest)} className="bg-gold text-espresso"><Check className="size-4" />Save guest</Button></div></div> : <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_13rem_auto] md:items-center"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="font-sans text-sm font-medium">{guest.name}</p><Badge variant="outline" className="border-gold/25 text-[10px] text-champagne/70">{titleCase(guest.role)}</Badge><Badge variant="outline" className="border-gold/25 text-[10px] text-champagne/70">{sideLabel(guest.side)}</Badge>{guest.rsvp?.attending === true ? <Badge className="bg-sage/15 text-sage-light"><CheckCircle2 className="mr-1 size-3" />Confirmed</Badge> : guest.rsvp?.attending === false ? <Badge variant="outline" className="border-clay/40 text-clay-light">Declined</Badge> : <Badge variant="outline" className="border-gold/20 text-champagne/55"><Circle className="mr-1 size-3" />Pending</Badge>}</div><p className="mt-1 truncate font-sans text-xs text-champagne/55">{guest.email || 'No email'} · {guest.phone || 'No phone'}</p>{guest.roleDetail && <p className="mt-1 font-sans text-[11px] text-champagne/45">{guest.roleDetail}</p>}{guest.rsvp && <p className="mt-1 font-sans text-[11px] leading-5 text-champagne/45">Meal choice: {guest.rsvp.mealChoice || 'Not set'} · Plus-one name: {guest.rsvp.plusOneName || 'None'} · Kids count: {guest.rsvp.kidsCount} · Dietary notes: {guest.rsvp.dietaryNotes || 'None'} · Checked in: {guest.rsvp.checkedIn ? 'Yes' : 'No'}</p>}{invitationActions[guest.id] && <PlannerGuestInvitationActions guest={invitationActions[guest.id]} compact disabled={saving} onDeliveryChanged={loadInvitationActions} />}</div><select value={guest.seatingTableId ?? ''} onChange={(event) => void onAssignGuestTable(guest, event.target.value || null)} aria-label={`Assign table for ${guest.name}`} className="h-9 rounded-md border border-gold/20 bg-espresso px-2 font-sans text-xs"><option value="">Unassigned</option>{tables.map((table) => <option key={table.id} value={table.id}>{table.name}</option>)}</select><div className="flex items-center gap-1"><Button type="button" variant="ghost" size="icon" aria-label={`Edit ${guest.name}`} disabled={saving} onClick={() => startEdit(guest)} className="size-9 text-champagne/50 hover:text-gold"><Pencil className="size-4" /></Button><Button type="button" variant="ghost" size="icon" aria-label={`Delete ${guest.name}`} disabled={saving} onClick={() => { if (window.confirm(`Delete guest “${guest.name}”?`)) void onDeleteGuest(guest) }} className="size-9 text-champagne/45 hover:bg-clay/10 hover:text-clay-light"><Trash2 className="size-4" /></Button></div></div>}
         </div>
       })}</div>
     </SectionCard>
