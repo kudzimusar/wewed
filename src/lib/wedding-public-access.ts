@@ -56,6 +56,7 @@ export interface WeddingGuestIdentity {
   id: string
   name: string
   email: string | null
+  role: string
   tableNumber: number | null
   tableName: string | null
   /** The SeatingTable identity, only when that table belongs to this wedding. */
@@ -210,6 +211,7 @@ export async function resolveGuestSessionForWedding(
           weddingId: true,
           name: true,
           email: true,
+          role: true,
           tableNumber: true,
           seatingTable: { select: { id: true, name: true, weddingId: true } },
         },
@@ -230,15 +232,16 @@ export async function resolveGuestSessionForWedding(
     id: rsvp.guest.id,
     name: rsvp.guest.name,
     email: rsvp.guest.email,
+    role: rsvp.guest.role,
     tableNumber: rsvp.guest.tableNumber,
     ...guestSeatingIdentity(rsvp.guest.seatingTable, wedding.id),
     rsvpToken: rsvp.token,
     attending: rsvp.attending,
     mealChoice: rsvp.mealChoice,
-    plusOne: rsvp.plusOne,
+    plusOne: rsvp.guest.role === 'service_provider' ? false : rsvp.plusOne,
     plusOneName: rsvp.plusOneName,
     plusOneMeal: rsvp.plusOneMeal,
-    kidsAttending: rsvp.kidsAttending,
+    kidsAttending: rsvp.guest.role === 'service_provider' ? false : rsvp.kidsAttending,
     kidsCount: rsvp.kidsCount,
     dietaryNotes: rsvp.dietaryNotes,
     message: rsvp.message,
