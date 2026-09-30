@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import qrcode from 'qrcode'
-import { Loader2, QrCode, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, Clock3, Loader2, LockKeyhole, QrCode, ShieldCheck } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import {
   GUEST_PASS_AVAILABILITY_COPY,
@@ -27,9 +27,23 @@ interface WeddingPassData {
   publicKeyDerBase64: string
 }
 
+interface PrePassData {
+  weddingId: string
+  weddingSlug: string
+  weddingTitle: string
+  guestId: string
+  guestName: string
+  attending: boolean | null
+  weddingDate: string
+  venue: string
+  venueCity: string
+  venueCountry: string
+}
+
 interface WeddingPassResponse {
   success?: boolean
   data?: WeddingPassData
+  prePass?: PrePassData | null
   code?: string
   error?: string
   availability?: WeddingPassAvailability
@@ -76,6 +90,8 @@ export function WeddingGuestPassDialog({ slug }: { slug: string }) {
   const [error, setError] = useState<string | null>(null)
   const [passState, setPassState] = useState<WeddingPassAvailabilityState | 'error' | null>(null)
   const [pass, setPass] = useState<WeddingPassData | null>(null)
+  const [prePass, setPrePass] = useState<PrePassData | null>(null)
+  const [availability, setAvailability] = useState<WeddingPassAvailability | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
   useEffect(() => {
@@ -103,46 +119,82 @@ export function WeddingGuestPassDialog({ slug }: { slug: string }) {
     }
   }, [pass?.token])
 
-  useEffect(() => {
-    const handler = () => {
-      setOpen(true)
-      setLoading(true)
-      setError(null)
-      setPassState(null)
-      setPass(null)
-      setQrDataUrl(null)
-
-      void fetch('/api/wedding-day/pass', {
+  const loadPass = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    setQrDataUrl(null)
+    try {
+      const response = await fetch('/api/wedding-day/pass', {
         cache: 'no-store',
         headers: { Accept: 'application/json' },
       })
-        .then(async (response) => {
-          const payload = (await response.json()) as WeddingPassResponse
-          const data = payload.data
-          if (
-            !response.ok ||
-            !payload.success ||
-            !data ||
-            !data.token.startsWith('WW2.') ||
-            !data.publicKeyDerBase64
-          ) {
-            const state = availabilityState(payload)
-            setPassState(state && state !== 'active' ? state : 'error')
-            throw new Error(friendlyPassError(payload))
-          }
-          setPass(data)
-          setPassState('active')
-        })
-        .catch((caught) => {
-          setPass(null)
-          setError(caught instanceof Error ? caught.message : 'Your Wedding Pass is not available.')
-        })
-        .finally(() => setLoading(false))
+      const payload = (await response.json()) as WeddingPassResponse
+      const state = availabilityState(payload)
+
+      if (state && state !== 'active' && payload.prePass) {
+        setPass(null)
+        setPrePass(payload.prePass)
+        setAvailability(payload.availability ?? null)
+        setPassState(state)
+        return
+      }
+
+      const data = payload.data
+      if (
+        !response.ok ||
+        !payload.success ||
+        !data ||
+        !data.token.startsWith('WW2.') ||
+        !data.publicKeyDerBase64
+      ) {
+        setPass(null)
+        setPrePass(payload.prePass ?? null)
+        setAvailability(payload.availability ?? null)
+        setPassState(state && state !== 'active' ? state : 'error')
+        throw new Error(friendlyPassError(payload))
+      }
+
+      setPrePass(null)
+      setAvailability(null)
+      setPass(data)
+      setPassState('active')
+    } catch (caught) {
+      setPass(null)
+      setError(caught instanceof Error ? caught.message : 'Your Wedding Pass is not available.')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handler = () => {
+      setOpen(true)
+      setPassState(null)
+      setPass(null)
+      setPrePass(null)
+      setAvailability(null)
+      setQrDataUrl(null)
+      void loadPass()
     }
 
     window.addEventListener('wewed:open-guest-pass', handler)
     return () => window.removeEventListener('wewed:open-guest-pass', handler)
-  }, [slug])
+  }, [loadPass, slug])
+
+  useEffect(() => {
+    if (!open) return
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void loadPass()
+    }
+    const interval = window.setInterval(() => { void loadPass() }, 60_000)
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+  }, [loadPass, open])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
