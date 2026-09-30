@@ -16,7 +16,10 @@ import {
 } from '@/lib/digital-invitation-card'
 
 interface InvitationData {
-  wedding: { childrenPolicy: 'welcome' | 'adults_only' }
+  wedding: {
+    childrenPolicy: 'welcome' | 'adults_only'
+    additionalAdultPolicy: 'plus_ones_allowed' | 'named_guests_only'
+  }
   guest: { id: string; name: string; email: string | null; tableNumber: number | null }
   rsvp: {
     attending: boolean | null
@@ -65,14 +68,17 @@ export function PremiumInvitationRsvpDialog({
         throw new Error(payload.error || 'Invitation access is not active.')
       }
       const childrenPolicy = payload.wedding?.childrenPolicy === 'adults_only' ? 'adults_only' : 'welcome'
+      const additionalAdultPolicy = payload.wedding?.additionalAdultPolicy === 'named_guests_only'
+        ? 'named_guests_only'
+        : 'plus_ones_allowed'
       const nextData = {
-        wedding: { childrenPolicy },
+        wedding: { childrenPolicy, additionalAdultPolicy },
         guest: payload.guest,
         rsvp: payload.rsvp,
       } as InvitationData
       setData(nextData)
       setAttendance(nextData.rsvp.attending === false ? 'decline' : 'accept')
-      setPlusOne(Boolean(nextData.rsvp.plusOne))
+      setPlusOne(additionalAdultPolicy === 'named_guests_only' ? false : Boolean(nextData.rsvp.plusOne))
       setKidsAttending(
         childrenPolicy === 'adults_only' ? false : Boolean(nextData.rsvp.kidsAttending),
       )
@@ -104,10 +110,11 @@ export function PremiumInvitationRsvpDialog({
     const form = new FormData(event.currentTarget)
     const accepting = attendance === 'accept'
     const adultsOnly = data.wedding.childrenPolicy === 'adults_only'
+    const namedGuestsOnly = data.wedding.additionalAdultPolicy === 'named_guests_only'
     const rsvpUpdate: Record<string, unknown> = {
       originGuestId: data.guest.id,
       attending: accepting,
-      plusOne: accepting ? plusOne : false,
+      plusOne: accepting && !namedGuestsOnly ? plusOne : false,
       kidsAttending: accepting && !adultsOnly ? kidsAttending : false,
       message: form.get('message') || null,
     }
@@ -119,7 +126,7 @@ export function PremiumInvitationRsvpDialog({
     if (accepting) {
       rsvpUpdate.mealChoice = form.get('mealChoice') || null
       rsvpUpdate.dietaryNotes = form.get('dietaryNotes') || null
-      if (plusOne) {
+      if (!namedGuestsOnly && plusOne) {
         rsvpUpdate.plusOneName = form.get('plusOneName') || null
         rsvpUpdate.plusOneMeal = form.get('plusOneMeal') || null
       }
@@ -156,6 +163,7 @@ export function PremiumInvitationRsvpDialog({
     color: theme.palette.ink,
   }
   const adultsOnly = data?.wedding.childrenPolicy === 'adults_only'
+  const namedGuestsOnly = data?.wedding.additionalAdultPolicy === 'named_guests_only'
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -293,63 +301,76 @@ export function PremiumInvitationRsvpDialog({
                   </Select>
                 </div>
 
-                <section
-                  className="rounded-2xl border p-4"
-                  style={{ borderColor: cardBorder, background: plusOne ? selectedSurface : `${theme.palette.paper}a8` }}
-                >
-                  <div className="flex min-h-10 items-center gap-3">
-                    <Checkbox
-                      name="plusOne"
-                      id="premium-invite-plus-one"
-                      aria-label="I am bringing a plus-one"
-                      checked={plusOne}
-                      onCheckedChange={(value) => {
-                        setSaved(false)
-                        setPlusOne(value === true)
-                      }}
-                      className="!size-6 rounded-md border-2 shadow-none"
-                      style={{
-                        borderColor: theme.palette.primary,
-                        background: plusOne ? theme.palette.primary : theme.palette.paper,
-                        color: theme.palette.paper,
-                      }}
-                    />
-                    <Label htmlFor="premium-invite-plus-one" className="cursor-pointer text-base font-semibold">
-                      I am bringing a plus-one
-                    </Label>
-                  </div>
-
-                  {plusOne && (
-                    <div data-testid="premium-rsvp-plus-one-details" className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="premium-invite-plus-one-name" className="text-xs font-semibold uppercase tracking-[0.12em]">
-                          Plus-one name
-                        </Label>
-                        <Input
-                          id="premium-invite-plus-one-name"
-                          name="plusOneName"
-                          defaultValue={data.rsvp.plusOneName || ''}
-                          placeholder="Guest name"
-                          className="h-12 rounded-xl border px-4 shadow-none"
-                          style={controlStyle}
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="premium-invite-plus-one-meal" className="text-xs font-semibold uppercase tracking-[0.12em]">
-                          Meal preference
-                        </Label>
-                        <Input
-                          id="premium-invite-plus-one-meal"
-                          name="plusOneMeal"
-                          defaultValue={data.rsvp.plusOneMeal || ''}
-                          placeholder="Meal preference"
-                          className="h-12 rounded-xl border px-4 shadow-none"
-                          style={controlStyle}
-                        />
-                      </div>
+                {namedGuestsOnly ? (
+                  <section
+                    data-testid="premium-rsvp-named-guests-only-note"
+                    className="rounded-2xl border px-5 py-4 text-center"
+                    style={{ borderColor: `${theme.palette.primary}66`, background: selectedSurface }}
+                  >
+                    <p className="text-sm font-semibold">Named guests only</p>
+                    <p className="mt-1 text-sm leading-6" style={{ color: theme.palette.muted }}>
+                      Every attending adult needs their own named invitation. Additional adults cannot be added to this RSVP.
+                    </p>
+                  </section>
+                ) : (
+                  <section
+                    className="rounded-2xl border p-4"
+                    style={{ borderColor: cardBorder, background: plusOne ? selectedSurface : `${theme.palette.paper}a8` }}
+                  >
+                    <div className="flex min-h-10 items-center gap-3">
+                      <Checkbox
+                        name="plusOne"
+                        id="premium-invite-plus-one"
+                        aria-label="I am bringing a plus-one"
+                        checked={plusOne}
+                        onCheckedChange={(value) => {
+                          setSaved(false)
+                          setPlusOne(value === true)
+                        }}
+                        className="!size-6 rounded-md border-2 shadow-none"
+                        style={{
+                          borderColor: theme.palette.primary,
+                          background: plusOne ? theme.palette.primary : theme.palette.paper,
+                          color: theme.palette.paper,
+                        }}
+                      />
+                      <Label htmlFor="premium-invite-plus-one" className="cursor-pointer text-base font-semibold">
+                        I am bringing a plus-one
+                      </Label>
                     </div>
-                  )}
-                </section>
+
+                    {plusOne && (
+                      <div data-testid="premium-rsvp-plus-one-details" className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="premium-invite-plus-one-name" className="text-xs font-semibold uppercase tracking-[0.12em]">
+                            Plus-one name
+                          </Label>
+                          <Input
+                            id="premium-invite-plus-one-name"
+                            name="plusOneName"
+                            defaultValue={data.rsvp.plusOneName || ''}
+                            placeholder="Guest name"
+                            className="h-12 rounded-xl border px-4 shadow-none"
+                            style={controlStyle}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="premium-invite-plus-one-meal" className="text-xs font-semibold uppercase tracking-[0.12em]">
+                            Meal preference
+                          </Label>
+                          <Input
+                            id="premium-invite-plus-one-meal"
+                            name="plusOneMeal"
+                            defaultValue={data.rsvp.plusOneMeal || ''}
+                            placeholder="Meal preference"
+                            className="h-12 rounded-xl border px-4 shadow-none"
+                            style={controlStyle}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                )}
 
                 {adultsOnly ? (
                   <section

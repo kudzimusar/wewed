@@ -80,6 +80,7 @@ public struct LiveGuestInvitationView: View {
     @State private var reopenRequired = false
     @State private var staleOrReplacedGuest = false
     @State private var childrenNotAllowed = false
+    @State private var additionalGuestsNotAllowed = false
     @State private var showNote = false
     @State private var browserHandoffFailed = false
     @State private var calendarStart: Date?
@@ -158,6 +159,8 @@ public struct LiveGuestInvitationView: View {
             // session — a "reopen your invitation" message would be actively misleading here.
             case .childrenNotAllowed:
                 childrenNotAllowed = true
+            case .additionalGuestsNotAllowed:
+                additionalGuestsNotAllowed = true
             }
             submitting = false
         }
@@ -190,10 +193,13 @@ public struct LiveGuestInvitationView: View {
                 LiveRsvpFormView(
                     guestName: editorPresentation.guestName,
                     childrenPolicy: editorPresentation.childrenPolicy,
+                    additionalAdultPolicy: editorPresentation.additionalAdultPolicy,
                     initial: editorPresentation,
                     isSubmitting: submitting,
                     childrenNotAllowed: childrenNotAllowed,
+                    additionalGuestsNotAllowed: additionalGuestsNotAllowed,
                     onDismissChildrenNotice: { childrenNotAllowed = false },
+                    onDismissAdditionalGuestsNotice: { additionalGuestsNotAllowed = false },
                     onSubmit: { answer($0) },
                     onDismiss: {
                         if !submitting {
@@ -549,10 +555,13 @@ private let liveRsvpMealOptions: [(value: String, label: String)] = [
 private struct LiveRsvpFormView: View {
     let guestName: String
     let childrenPolicy: String?
+    let additionalAdultPolicy: String?
     let initial: LiveInvitationPresentation
     let isSubmitting: Bool
     let childrenNotAllowed: Bool
+    let additionalGuestsNotAllowed: Bool
     let onDismissChildrenNotice: () -> Void
+    let onDismissAdditionalGuestsNotice: () -> Void
     let onSubmit: (GuestRsvpUpdate) -> Void
     let onDismiss: () -> Void
 
@@ -567,31 +576,39 @@ private struct LiveRsvpFormView: View {
     @State private var message: String
 
     private var adultsOnly: Bool { childrenPolicy == "adults_only" }
+    private var namedGuestsOnly: Bool { additionalAdultPolicy == "named_guests_only" }
 
     init(
         guestName: String,
         childrenPolicy: String?,
+        additionalAdultPolicy: String?,
         initial: LiveInvitationPresentation,
         isSubmitting: Bool,
         childrenNotAllowed: Bool,
+        additionalGuestsNotAllowed: Bool,
         onDismissChildrenNotice: @escaping () -> Void,
+        onDismissAdditionalGuestsNotice: @escaping () -> Void,
         onSubmit: @escaping (GuestRsvpUpdate) -> Void,
         onDismiss: @escaping () -> Void
     ) {
         self.guestName = guestName
         self.childrenPolicy = childrenPolicy
+        self.additionalAdultPolicy = additionalAdultPolicy
         self.initial = initial
         self.isSubmitting = isSubmitting
         self.childrenNotAllowed = childrenNotAllowed
+        self.additionalGuestsNotAllowed = additionalGuestsNotAllowed
         self.onDismissChildrenNotice = onDismissChildrenNotice
+        self.onDismissAdditionalGuestsNotice = onDismissAdditionalGuestsNotice
         self.onSubmit = onSubmit
         self.onDismiss = onDismiss
         // Never let a stale client pre-select children attendance on an adults-only wedding — the
         // server remains final enforcement authority regardless, but the form must not encourage it.
         let adultsOnlyPolicy = childrenPolicy == "adults_only"
+        let namedGuestsOnlyPolicy = additionalAdultPolicy == "named_guests_only"
         _accepting = State(initialValue: initial.attending != false)
         _mealChoice = State(initialValue: initial.mealChoice ?? "")
-        _plusOne = State(initialValue: initial.plusOne)
+        _plusOne = State(initialValue: namedGuestsOnlyPolicy ? false : initial.plusOne)
         _plusOneName = State(initialValue: initial.plusOneName ?? "")
         _plusOneMeal = State(initialValue: initial.plusOneMeal ?? "")
         _kidsAttending = State(initialValue: adultsOnlyPolicy ? false : initial.kidsAttending)
@@ -608,10 +625,10 @@ private struct LiveRsvpFormView: View {
             // omitted entirely while declining, so a decline never disturbs a meal choice saved
             // from a prior acceptance.
             mealChoice: accepting ? mealChoice.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
-            plusOne: accepting ? plusOne : false,
-            plusOneName: (accepting && plusOne)
+            plusOne: (accepting && !namedGuestsOnly) ? plusOne : false,
+            plusOneName: (accepting && !namedGuestsOnly && plusOne)
                 ? plusOneName.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
-            plusOneMeal: (accepting && plusOne)
+            plusOneMeal: (accepting && !namedGuestsOnly && plusOne)
                 ? plusOneMeal.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
             kidsAttending: (accepting && !adultsOnly) ? kidsAttending : false,
             kidsCount: (accepting && !adultsOnly && kidsAttending) ? kidsCount : nil,
@@ -712,26 +729,35 @@ private struct LiveRsvpFormView: View {
 
                                     Divider().padding(.vertical, 4)
 
-                                    toggleRow(
-                                        "Bringing a plus one",
-                                        isOn: $plusOne,
-                                        identifier: "invitation-rsvp-plus-one-toggle"
-                                    )
-                                    .frame(width: contentWidth)
-
-                                    if plusOne {
-                                        VStack(spacing: 8) {
-                                            TextField("Plus one's name", text: $plusOneName)
-                                                .textFieldStyle(.roundedBorder)
-                                                .frame(width: contentWidth)
-                                                .accessibilityIdentifier("invitation-rsvp-plus-one-name")
-                                            TextField("Their meal preference", text: $plusOneMeal)
-                                                .textFieldStyle(.roundedBorder)
-                                                .frame(width: contentWidth)
-                                                .accessibilityIdentifier("invitation-rsvp-plus-one-meal")
-                                        }
+                                    if namedGuestsOnly {
+                                        Text("Every attending adult receives their own named invitation.")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(WeddingIdentityPalette.muted)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .frame(width: contentWidth, alignment: .leading)
+                                            .accessibilityIdentifier("invitation-rsvp-named-guests-only-note")
+                                    } else {
+                                        toggleRow(
+                                            "Bringing a plus one",
+                                            isOn: $plusOne,
+                                            identifier: "invitation-rsvp-plus-one-toggle"
+                                        )
                                         .frame(width: contentWidth)
-                                        .accessibilityIdentifier("invitation-rsvp-plus-one-details")
+
+                                        if plusOne {
+                                            VStack(spacing: 8) {
+                                                TextField("Plus one's name", text: $plusOneName)
+                                                    .textFieldStyle(.roundedBorder)
+                                                    .frame(width: contentWidth)
+                                                    .accessibilityIdentifier("invitation-rsvp-plus-one-name")
+                                                TextField("Their meal preference", text: $plusOneMeal)
+                                                    .textFieldStyle(.roundedBorder)
+                                                    .frame(width: contentWidth)
+                                                    .accessibilityIdentifier("invitation-rsvp-plus-one-meal")
+                                            }
+                                            .frame(width: contentWidth)
+                                            .accessibilityIdentifier("invitation-rsvp-plus-one-details")
+                                        }
                                     }
 
                                     Divider().padding(.vertical, 4)
@@ -804,6 +830,15 @@ private struct LiveRsvpFormView: View {
                                     .frame(width: contentWidth, alignment: .leading)
                                     .onTapGesture(perform: onDismissChildrenNotice)
                                     .accessibilityIdentifier("invitation-rsvp-children-not-allowed")
+                            }
+                            if additionalGuestsNotAllowed {
+                                Text("Additional adults must have their own named invitation.")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(WewedColors.error)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(width: contentWidth, alignment: .leading)
+                                    .onTapGesture(perform: onDismissAdditionalGuestsNotice)
+                                    .accessibilityIdentifier("invitation-rsvp-additional-guests-not-allowed")
                             }
 
                             if isSubmitting {

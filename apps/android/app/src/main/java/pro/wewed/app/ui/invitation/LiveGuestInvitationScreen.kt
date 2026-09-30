@@ -70,6 +70,7 @@ fun LiveGuestInvitationScreen(
     var reopenRequired by remember { mutableStateOf(false) }
     var staleOrReplacedGuest by remember { mutableStateOf(false) }
     var childrenNotAllowed by remember { mutableStateOf(false) }
+    var additionalGuestsNotAllowed by remember { mutableStateOf(false) }
     var showNote by remember { mutableStateOf(false) }
 
     val status = presentation.rsvpStatus
@@ -131,6 +132,7 @@ fun LiveGuestInvitationScreen(
                 // Distinct from ReopenRequired: this is a policy refusal (adults-only), not a stale
                 // session — a "reopen your invitation" message would be actively misleading here.
                 is RsvpOutcome.ChildrenNotAllowed -> childrenNotAllowed = true
+                is RsvpOutcome.AdditionalGuestsNotAllowed -> additionalGuestsNotAllowed = true
                 is RsvpOutcome.Unavailable -> {
                     rsvpPrompt = false
                     rsvpEditorPresentation = null
@@ -238,10 +240,13 @@ fun LiveGuestInvitationScreen(
                 LiveRsvpForm(
                     guestName = editorPresentation.guestName,
                     childrenPolicy = editorPresentation.childrenPolicy,
+                    additionalAdultPolicy = editorPresentation.additionalAdultPolicy,
                     initial = editorPresentation,
                     isSubmitting = submitting,
                     childrenNotAllowed = childrenNotAllowed,
+                    additionalGuestsNotAllowed = additionalGuestsNotAllowed,
                     onDismissChildrenNotice = { childrenNotAllowed = false },
+                    onDismissAdditionalGuestsNotice = { additionalGuestsNotAllowed = false },
                     onSubmit = { answer(it) },
                     onDismiss = {
                         if (!submitting) {
@@ -500,17 +505,21 @@ private val MEAL_OPTIONS = listOf(
 private fun LiveRsvpForm(
     guestName: String,
     childrenPolicy: String?,
+    additionalAdultPolicy: String?,
     initial: LiveInvitationPresentation,
     isSubmitting: Boolean,
     childrenNotAllowed: Boolean,
+    additionalGuestsNotAllowed: Boolean,
     onDismissChildrenNotice: () -> Unit,
+    onDismissAdditionalGuestsNotice: () -> Unit,
     onSubmit: (GuestRsvpUpdate) -> Unit,
     onDismiss: () -> Unit
 ) {
     val adultsOnly = childrenPolicy == "adults_only"
+    val namedGuestsOnly = additionalAdultPolicy == "named_guests_only"
     var accepting by remember(initial) { mutableStateOf(initial.attending != false) }
     var mealChoice by remember(initial) { mutableStateOf(initial.mealChoice.orEmpty()) }
-    var plusOne by remember(initial) { mutableStateOf(initial.plusOne) }
+    var plusOne by remember(initial) { mutableStateOf(if (namedGuestsOnly) false else initial.plusOne) }
     var plusOneName by remember(initial) { mutableStateOf(initial.plusOneName.orEmpty()) }
     var plusOneMeal by remember(initial) { mutableStateOf(initial.plusOneMeal.orEmpty()) }
     // Never let a stale client pre-select children attendance on an adults-only wedding — the
@@ -529,9 +538,9 @@ private fun LiveRsvpForm(
         // entirely while declining, so a decline never disturbs a meal choice saved from a prior
         // acceptance.
         mealChoice = if (accepting) mealChoice.trim() else null,
-        plusOne = if (accepting) plusOne else false,
-        plusOneName = if (accepting && plusOne) plusOneName.trim() else null,
-        plusOneMeal = if (accepting && plusOne) plusOneMeal.trim() else null,
+        plusOne = if (accepting && !namedGuestsOnly) plusOne else false,
+        plusOneName = if (accepting && !namedGuestsOnly && plusOne) plusOneName.trim() else null,
+        plusOneMeal = if (accepting && !namedGuestsOnly && plusOne) plusOneMeal.trim() else null,
         kidsAttending = if (accepting && !adultsOnly) kidsAttending else false,
         kidsCount = if (accepting && !adultsOnly && kidsAttending) kidsCount.coerceAtLeast(1) else null,
         dietaryNotes = if (accepting) dietaryNotes.trim() else null,
@@ -634,31 +643,40 @@ private fun LiveRsvpForm(
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-                    RsvpToggleRow(
-                        label = "Bringing a plus one",
-                        checked = plusOne,
-                        onCheckedChange = { plusOne = it },
-                        testTag = "invitation-rsvp-plus-one-toggle"
-                    )
-                    if (plusOne) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.testTag("invitation-rsvp-plus-one-details")
-                        ) {
-                            OutlinedTextField(
-                                value = plusOneName,
-                                onValueChange = { plusOneName = it },
-                                label = { Text("Plus one's name") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth().testTag("invitation-rsvp-plus-one-name")
-                            )
-                            OutlinedTextField(
-                                value = plusOneMeal,
-                                onValueChange = { plusOneMeal = it },
-                                label = { Text("Their meal preference") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth().testTag("invitation-rsvp-plus-one-meal")
-                            )
+                    if (namedGuestsOnly) {
+                        Text(
+                            "Every attending adult receives their own named invitation.",
+                            fontSize = 12.sp,
+                            color = WeddingIdentityPalette.Muted,
+                            modifier = Modifier.testTag("invitation-rsvp-named-guests-only-note")
+                        )
+                    } else {
+                        RsvpToggleRow(
+                            label = "Bringing a plus one",
+                            checked = plusOne,
+                            onCheckedChange = { plusOne = it },
+                            testTag = "invitation-rsvp-plus-one-toggle"
+                        )
+                        if (plusOne) {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.testTag("invitation-rsvp-plus-one-details")
+                            ) {
+                                OutlinedTextField(
+                                    value = plusOneName,
+                                    onValueChange = { plusOneName = it },
+                                    label = { Text("Plus one's name") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth().testTag("invitation-rsvp-plus-one-name")
+                                )
+                                OutlinedTextField(
+                                    value = plusOneMeal,
+                                    onValueChange = { plusOneMeal = it },
+                                    label = { Text("Their meal preference") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth().testTag("invitation-rsvp-plus-one-meal")
+                                )
+                            }
                         }
                     }
 
@@ -739,6 +757,16 @@ private fun LiveRsvpForm(
                     modifier = Modifier
                         .clickable(onClick = onDismissChildrenNotice)
                         .testTag("invitation-rsvp-children-not-allowed")
+                )
+            }
+            if (additionalGuestsNotAllowed) {
+                Text(
+                    "Additional adults must have their own named invitation.",
+                    fontSize = 12.sp,
+                    color = WewedColors.Error,
+                    modifier = Modifier
+                        .clickable(onClick = onDismissAdditionalGuestsNotice)
+                        .testTag("invitation-rsvp-additional-guests-not-allowed")
                 )
             }
 

@@ -45,6 +45,7 @@ public struct LiveInvitationPresentation: Equatable, Sendable {
     public let message: String?
     public let checkedIn: Bool
     public let checkedInAt: String?
+    public var additionalAdultPolicy: String? = nil
 
     /// Three states, because "not attending" is not "not answered".
     public var rsvpStatus: RSVPStatus {
@@ -96,7 +97,8 @@ public struct LiveInvitationPresentation: Equatable, Sendable {
             dietaryNotes: snapshot.dietaryNotes,
             message: snapshot.message,
             checkedIn: snapshot.checkedIn,
-            checkedInAt: snapshot.checkedInAt
+            checkedInAt: snapshot.checkedInAt,
+            additionalAdultPolicy: snapshot.additionalAdultPolicy
         )
     }
 }

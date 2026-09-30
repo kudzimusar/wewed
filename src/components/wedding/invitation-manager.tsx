@@ -31,6 +31,7 @@ import {
 } from '@/lib/digital-invitation-card'
 
 type ChildrenPolicy = 'welcome' | 'adults_only'
+type AdditionalAdultPolicy = 'plus_ones_allowed' | 'named_guests_only'
 type DeliveryChannel = 'whatsapp' | 'email' | 'sms' | 'other'
 type DeliveryStatus = 'sent' | 'not_sent'
 type RsvpFilter = 'all' | 'attending' | 'declined' | 'pending'
@@ -72,6 +73,7 @@ interface InvitationWedding {
   invitationCardMessage: string | null
   rsvpDeadline: string | null
   childrenPolicy: ChildrenPolicy
+  additionalAdultPolicy: AdditionalAdultPolicy
 }
 
 interface EditableGuest {
@@ -158,6 +160,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const [draftMessage, setDraftMessage] = useState('')
   const [draftDeadline, setDraftDeadline] = useState('')
   const [draftChildrenPolicy, setDraftChildrenPolicy] = useState<ChildrenPolicy>('welcome')
+  const [draftAdditionalAdultPolicy, setDraftAdditionalAdultPolicy] = useState<AdditionalAdultPolicy>('plus_ones_allowed')
   const [busy, setBusy] = useState<string | null>('load')
   const [copied, setCopied] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -189,6 +192,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
         ...payload.wedding,
         invitationCardStyle: normalizeInvitationCardStyle(payload.wedding.invitationCardStyle),
         childrenPolicy: payload.wedding.childrenPolicy === 'adults_only' ? 'adults_only' : 'welcome',
+        additionalAdultPolicy: payload.wedding.additionalAdultPolicy === 'named_guests_only' ? 'named_guests_only' : 'plus_ones_allowed',
       } as InvitationWedding
       const nextRows = (Array.isArray(payload.data) ? payload.data : []).map((row: InvitationRow) => ({
         ...row,
@@ -202,6 +206,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
       setDraftMessage(nextWedding.invitationCardMessage || '')
       setDraftDeadline(dateInputValue(nextWedding.rsvpDeadline))
       setDraftChildrenPolicy(nextWedding.childrenPolicy)
+      setDraftAdditionalAdultPolicy(nextWedding.additionalAdultPolicy)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to load invitations.')
     } finally {
@@ -327,6 +332,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           message: draftMessage,
           rsvpDeadline: draftDeadline || null,
           childrenPolicy: draftChildrenPolicy,
+          additionalAdultPolicy: draftAdditionalAdultPolicy,
         }),
       })
       const payload = await response.json()
@@ -522,7 +528,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-muted">Digital wedding cards & RSVP</p>
           <h2 className="mt-2 font-serif text-3xl">{wedding?.title || 'Active wedding'}</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-espresso/60">
-            Invitation settings are saved to the selected wedding. The web RSVP and current native guest-session contract read the same saved message, deadline and children policy.
+            Invitation settings are saved to the selected wedding. Web and native Guest RSVP read the same saved message, deadline, children policy and Additional adults policy.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -550,12 +556,14 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           message={draftMessage}
           deadline={draftDeadline}
           childrenPolicy={draftChildrenPolicy}
+          additionalAdultPolicy={draftAdditionalAdultPolicy}
           saved={saved}
           busy={busy !== null}
           onStyleChange={(next) => { setDraftStyle(next); setSaved(false) }}
           onMessageChange={(next) => { setDraftMessage(next); setSaved(false) }}
           onDeadlineChange={(next) => { setDraftDeadline(next); setSaved(false) }}
           onChildrenPolicyChange={(next) => { setDraftChildrenPolicy(next); setSaved(false) }}
+          onAdditionalAdultPolicyChange={(next) => { setDraftAdditionalAdultPolicy(next); setSaved(false) }}
           onSave={() => void saveDesign()}
         />
       )}

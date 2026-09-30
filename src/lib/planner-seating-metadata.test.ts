@@ -44,10 +44,16 @@ describe('planner seating metadata', () => {
     expect(seatingTableTypeLabel('vip_parents')).toBe('VIP — parents')
   })
 
-  test('counts the complete planned party size', () => {
+  test('counts the policy-aware planned party size', () => {
+    const household = { rsvp: { plusOne: true, kidsAttending: true, kidsCount: 3 } }
     expect(plannedSeatsForGuest({ rsvp: null })).toBe(1)
     expect(plannedSeatsForGuest({ rsvp: { plusOne: true, kidsAttending: false, kidsCount: 0 } })).toBe(2)
-    expect(plannedSeatsForGuest({ rsvp: { plusOne: true, kidsAttending: true, kidsCount: 3 } })).toBe(5)
+    expect(plannedSeatsForGuest(household)).toBe(5)
+    expect(plannedSeatsForGuest(household, { additionalAdultPolicy: 'named_guests_only' })).toBe(4)
+    expect(plannedSeatsForGuest(household, {
+      additionalAdultPolicy: 'named_guests_only',
+      childrenPolicy: 'adults_only',
+    })).toBe(1)
     expect(plannedSeatsForGuest({ rsvp: { plusOne: false, kidsAttending: true, kidsCount: -2 } })).toBe(1)
   })
 })

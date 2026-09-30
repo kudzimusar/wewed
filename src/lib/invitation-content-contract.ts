@@ -3,6 +3,10 @@ export const IVORY_INVITATION_COMPACT_LINE = 'We’d be honoured to celebrate wi
 export type ChildrenPolicy = 'welcome' | 'adults_only'
 export type AdditionalAdultPolicy = 'plus_ones_allowed' | 'named_guests_only'
 
+export function normalizeAdditionalAdultPolicy(value: unknown): AdditionalAdultPolicy {
+  return value === 'named_guests_only' ? 'named_guests_only' : 'plus_ones_allowed'
+}
+
 /**
  * Semantic invitation content shared by every client.
  *

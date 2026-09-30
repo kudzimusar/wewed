@@ -55,7 +55,8 @@ data class LiveInvitationPresentation(
     val dietaryNotes: String?,
     val message: String?,
     val checkedIn: Boolean,
-    val checkedInAt: String?
+    val checkedInAt: String?,
+    val additionalAdultPolicy: String? = null
 ) {
     /** Three states, because "not attending" is not "not answered". */
     val rsvpStatus: RSVPStatus
@@ -109,7 +110,8 @@ data class LiveInvitationPresentation(
                 dietaryNotes = snapshot.dietaryNotes,
                 message = snapshot.message,
                 checkedIn = snapshot.checkedIn,
-                checkedInAt = snapshot.checkedInAt
+                checkedInAt = snapshot.checkedInAt,
+                additionalAdultPolicy = snapshot.additionalAdultPolicy
             )
     }
 }
