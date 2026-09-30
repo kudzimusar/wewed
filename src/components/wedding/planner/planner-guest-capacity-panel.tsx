@@ -22,7 +22,7 @@ const LABEL: Record<CapacityRow['allocation'], string> = {
   operational: 'Operational',
 }
 
-export function PlannerGuestCapacityPanel() {
+export function PlannerGuestCapacityPanel({ revision = '' }: { revision?: string }) {
   const [rows, setRows] = useState<CapacityRow[]>([])
   const [draft, setDraft] = useState<Record<string, { hardLimit: string; warningAt: string }>>({})
   const [busy, setBusy] = useState<string | null>('load')
@@ -48,7 +48,7 @@ export function PlannerGuestCapacityPanel() {
     }
   }, [])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { void load() }, [load, revision])
 
   async function save(row: CapacityRow) {
     setBusy(row.allocation)
