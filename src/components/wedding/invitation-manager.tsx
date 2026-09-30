@@ -42,6 +42,7 @@ type ContactFilter = 'all' | 'with_contact' | 'missing_contact'
 type OpenFilter = 'all' | 'opened' | 'not_opened'
 type ArrivalFilter = 'all' | 'checked_in' | 'not_arrived'
 type PassFilter = 'all' | 'eligible' | 'issued' | 'not_issued'
+type NativeFilter = 'all' | 'active' | 'not_active' | 'android' | 'ios'
 
 interface InvitationRow {
   id: string
@@ -58,6 +59,9 @@ interface InvitationRow {
   checkedIn: boolean
   passEligible: boolean
   passIssued: boolean
+  nativeActivated: boolean
+  nativePlatforms: string[]
+  nativeLastSeenAt: string | null
   invitationUrl: string | null
   qrValue: string | null
   shareMessage: string | null
@@ -84,6 +88,10 @@ interface PlannerAttendanceSummary {
   missingContact: number
   passEligible: number
   passIssued: number
+  nativeActivated: number
+  nativeActivationRate: number
+  nativeAndroid: number
+  nativeIos: number
 }
 
 interface InvitationWedding {
@@ -188,6 +196,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const [allocationFilter, setAllocationFilter] = useState('all')
   const [arrivalFilter, setArrivalFilter] = useState<ArrivalFilter>('all')
   const [passFilter, setPassFilter] = useState<PassFilter>('all')
+  const [nativeFilter, setNativeFilter] = useState<NativeFilter>('all')
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [deliveryChannel, setDeliveryChannel] = useState<DeliveryChannel>('whatsapp')
@@ -234,7 +243,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE)
-  }, [search, rsvpFilter, deliveryFilter, contactFilter, openFilter, roleFilter, allocationFilter, arrivalFilter, passFilter])
+  }, [search, rsvpFilter, deliveryFilter, contactFilter, openFilter, roleFilter, allocationFilter, arrivalFilter, passFilter, nativeFilter])
 
   const previewData = useMemo(() => wedding ? {
     title: wedding.title,
@@ -270,6 +279,10 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
       if (passFilter === 'eligible' && !row.passEligible) return false
       if (passFilter === 'issued' && !row.passIssued) return false
       if (passFilter === 'not_issued' && (row.status !== 'attending' || row.passIssued)) return false
+      if (nativeFilter === 'active' && !row.nativeActivated) return false
+      if (nativeFilter === 'not_active' && row.nativeActivated) return false
+      if (nativeFilter === 'android' && !row.nativePlatforms.includes('android')) return false
+      if (nativeFilter === 'ios' && !row.nativePlatforms.includes('ios')) return false
       if (!query) return true
       return [
         row.name,
@@ -284,7 +297,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
         row.deliveredBy ?? '',
       ].some((value) => value.toLowerCase().includes(query))
     })
-  }, [rows, search, rsvpFilter, deliveryFilter, contactFilter, openFilter, roleFilter, allocationFilter, arrivalFilter, passFilter])
+  }, [rows, search, rsvpFilter, deliveryFilter, contactFilter, openFilter, roleFilter, allocationFilter, arrivalFilter, passFilter, nativeFilter])
 
   const displayedRows = filteredRows.slice(0, visibleCount)
   const allFilteredSelected = filteredRows.length > 0 && filteredRows.every((row) => selectedIds.has(row.id))
@@ -305,6 +318,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
     setAllocationFilter('all')
     setArrivalFilter('all')
     setPassFilter('all')
+    setNativeFilter('all')
   }
 
   function focusSummary(key: string) {
@@ -321,6 +335,9 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
     if (key === 'missingContact') setContactFilter('missing_contact')
     if (key === 'passEligible') setPassFilter('eligible')
     if (key === 'passIssued') setPassFilter('issued')
+    if (key === 'nativeActivated') setNativeFilter('active')
+    if (key === 'nativeAndroid') setNativeFilter('android')
+    if (key === 'nativeIos') setNativeFilter('ios')
   }
 
   async function generateMissingLinks() {
@@ -653,6 +670,10 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
               ['missingContact', 'Missing contact', summary.missingContact],
               ['passEligible', 'Pass eligible', summary.passEligible],
               ['passIssued', 'Pass issued', summary.passIssued],
+              ['nativeActivated', 'App active', summary.nativeActivated],
+              ['nativeActivationRate', 'App activation', `${Math.round(summary.nativeActivationRate * 100)}%`],
+              ['nativeAndroid', 'Android active', summary.nativeAndroid],
+              ['nativeIos', 'iOS active', summary.nativeIos],
             ].map(([key, label, value]) => (
               <button
                 key={String(key)}
@@ -704,6 +725,9 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           </select>
           <select value={passFilter} onChange={(event) => setPassFilter(event.target.value as PassFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
             <option value="all">All Pass states</option><option value="eligible">Pass eligible</option><option value="issued">Pass issued</option><option value="not_issued">Attending · Pass not issued</option>
+          </select>
+          <select value={nativeFilter} onChange={(event) => setNativeFilter(event.target.value as NativeFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
+            <option value="all">All app states</option><option value="active">App active</option><option value="not_active">App not active</option><option value="android">Android active</option><option value="ios">iOS active</option>
           </select>
           <Button type="button" variant="outline" onClick={resetOperationalFilters}>Reset</Button>
         </div>
@@ -820,6 +844,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                           <div className="mt-3 grid gap-2 text-xs text-espresso/55 sm:grid-cols-2 xl:grid-cols-5">
                             <p>Table: <strong>{row.seatingTableName || row.tableNumber || 'Not assigned'}</strong></p>
                             <p>{row.checkedIn ? 'Checked in' : 'Not checked in'}</p>
+                            <p>App: <strong>{row.nativeActivated ? row.nativePlatforms.join(' + ') : 'Not active'}</strong></p>
                             <p>Channel: <strong>{channelLabel(row.deliveryChannel)}</strong></p>
                             <p>Sent: <strong>{deliveryTime(row.deliveredAt)}</strong></p>
                             <p>Opened: <strong>{deliveryTime(row.openedAt)}</strong></p>
