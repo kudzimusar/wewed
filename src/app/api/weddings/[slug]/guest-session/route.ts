@@ -27,6 +27,7 @@ import {
   resolveGuestSessionForWedding,
 } from '@/lib/wedding-public-access'
 import { guestPartySize } from '@/lib/guest-record-authority'
+import { recordGuestNativePresence } from '@/lib/guest-native-presence'
 
 interface Params {
   params: Promise<{ slug: string }>
@@ -70,6 +71,15 @@ export async function GET(request: NextRequest, { params }: Params) {
   }
 
   const childrenPolicy = await loadWeddingChildrenPolicy(wedding.id)
+
+  // Confirmed Native Activation is recorded only after this request has resolved a real Guest
+  // session. Telemetry is deliberately non-blocking for the invitation experience.
+  await recordGuestNativePresence({
+    headers: request.headers,
+    weddingId: wedding.id,
+    guestId: guest.id,
+    invitationOpened: true,
+  }).catch(() => null)
 
   const response = NextResponse.json({
       success: true,
@@ -272,6 +282,12 @@ export async function PUT(request: NextRequest, { params }: Params) {
       ),
     )
   }
+
+  await recordGuestNativePresence({
+    headers: request.headers,
+    weddingId: wedding.id,
+    guestId: guest.id,
+  }).catch(() => null)
 
   const response = noStore(NextResponse.json({ success: true, rsvp: result.rsvp }))
   if (readWeddingGuestSession(request)?.version === 1) setWeddingGuestSessionCookie(response, {
