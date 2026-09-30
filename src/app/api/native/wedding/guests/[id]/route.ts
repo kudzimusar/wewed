@@ -5,8 +5,8 @@ import { deletePlannerGuest, updatePlannerGuest } from '@/lib/planner-guest-oper
 
 /**
  * NATIVE-MOBILE-QRO08 — native twins of the desktop guest edit/delete
- * (PATCH/DELETE /api/planner/guests/[id], guest mode). Native edits only name, email and phone;
- * seating/role changes remain on their existing surfaces. Responses carry no credential fields.
+ * (PATCH/DELETE /api/planner/guests/[id], guest mode). Capacity allocation writes use the same
+ * canonical Guest operation as web Planner; responses carry no credential fields.
  */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const write = await resolveNativeGuestWrite(request)
@@ -17,11 +17,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       name?: unknown
       email?: unknown
       phone?: unknown
+      attendanceAllocation?: unknown
     } | null
-    const input: { name?: string; email?: string | null; phone?: string | null } = {}
+    const input: { name?: string; email?: string | null; phone?: string | null; attendanceAllocation?: string } = {}
     if (typeof body?.name === 'string') input.name = body.name
     if (body && 'email' in body) input.email = typeof body.email === 'string' ? body.email : null
     if (body && 'phone' in body) input.phone = typeof body.phone === 'string' ? body.phone : null
+    if (typeof body?.attendanceAllocation === 'string') input.attendanceAllocation = body.attendanceAllocation
     const result = await updatePlannerGuest(write.actor, id, input)
     if (!result.ok) {
       return noStoreJson(
