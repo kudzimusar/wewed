@@ -429,8 +429,8 @@ private fun LiveInvitationPresentation.toIvoryData(): IvoryInvitationData {
         monogram = monogram ?: coupleNames.split(Regex("\\s*&\\s*"))
             .mapNotNull { it.trim().firstOrNull()?.uppercase() }
             .joinToString("&"),
-        message = invitationCardMessage?.takeIf { it.isNotBlank() }
-            ?: "Request the pleasure of your company as we celebrate our marriage.",
+        compactLine = pro.wewed.app.ui.invitation.ivory.IvoryInvitationContent.COMPACT_LINE,
+        coupleNote = invitationCardMessage?.takeIf { it.isNotBlank() },
         weddingDateLabel = weddingDate.orEmpty(),
         weekdayLabel = weekday,
         dayLabel = parts.getOrNull(2)?.toIntOrNull()?.toString(),
