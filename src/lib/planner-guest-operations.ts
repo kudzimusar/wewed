@@ -6,6 +6,7 @@ import {
   AttendanceAllocationCapacityError,
   normalizeAttendanceAllocation,
   type AttendanceAllocation,
+  type AttendanceAllocationUsage,
 } from '@/lib/guest-capacity-allocation'
 import {
   runSerializableSeatingTransaction,
@@ -55,7 +56,7 @@ export interface UpdatePlannerGuestInput {
 }
 
 export type GuestOperationResult<T> =
-  | { ok: true; status: number; data: T }
+  | { ok: true; status: number; data: T; capacity?: AttendanceAllocationUsage }
   | { ok: false; status: number; error: string; field?: string }
 
 const guestInclude = {
@@ -100,7 +101,7 @@ export async function createPlannerGuest(actor: PlannerGuestActor, body: CreateP
   const attendanceAllocation = normalizeAttendanceAllocation(body.attendanceAllocation)
 
   try {
-    const guest = await runSerializableSeatingTransaction(async (tx) => {
+    const createdResult = await runSerializableSeatingTransaction(async (tx) => {
       const capacity = await assertAttendanceAllocationCapacity(tx, {
         weddingId,
         allocation: attendanceAllocation,
@@ -149,9 +150,10 @@ export async function createPlannerGuest(actor: PlannerGuestActor, body: CreateP
           actorId: actor.actorId,
         },
       })
-      return tx.guest.findUniqueOrThrow({ where: { id: created.id }, include: guestInclude })
+      const guest = await tx.guest.findUniqueOrThrow({ where: { id: created.id }, include: guestInclude })
+      return { guest, capacity }
     })
-    return { ok: true, status: 201, data: guest } as const
+    return { ok: true, status: 201, data: createdResult.guest, capacity: createdResult.capacity } as const
   } catch (error) {
     const failure = seatingFailure(error)
     if (failure) return failure
@@ -213,7 +215,7 @@ export async function updatePlannerGuest(actor: PlannerGuestActor, guestId: stri
   if (Object.keys(updates).length === 0) return { ok: false, status: 400, error: 'No updates provided' } as const
 
   try {
-    const updated = await runSerializableSeatingTransaction(async (tx) => {
+    const updateResult = await runSerializableSeatingTransaction(async (tx) => {
       const current = await tx.guest.findFirst({ where: { id: existing.id, weddingId }, include: guestInclude })
       if (!current) throw new SeatingTargetError('Guest not found')
 
@@ -271,9 +273,9 @@ export async function updatePlannerGuest(actor: PlannerGuestActor, guestId: stri
           actorId: actor.actorId,
         },
       })
-      return guest
+      return { guest, capacity }
     })
-    return { ok: true, status: 200, data: updated } as const
+    return { ok: true, status: 200, data: updateResult.guest, ...(updateResult.capacity ? { capacity: updateResult.capacity } : {}) } as const
   } catch (error) {
     const failure = seatingFailure(error)
     if (failure) return failure
