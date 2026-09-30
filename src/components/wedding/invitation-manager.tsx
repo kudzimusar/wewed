@@ -53,6 +53,7 @@ interface InvitationRow {
   role: string
   roleDetail: string | null
   side: string | null
+  attendanceAllocation: string
   seatingTableId: string | null
   seatingTableName: string | null
   tableNumber: number | null
@@ -474,6 +475,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           role: newGuest.role,
           roleDetail: newGuest.roleDetail.trim() || undefined,
           side: newGuest.side,
+          attendanceAllocation: newGuest.attendanceAllocation,
           seatingTableId: newGuest.seatingTableId || undefined,
         }),
       })
@@ -508,6 +510,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           role: editGuest.role,
           roleDetail: editGuest.roleDetail.trim() || null,
           side: editGuest.side,
+          attendanceAllocation: editGuest.attendanceAllocation,
           seatingTableId: editGuest.seatingTableId || null,
         }),
       })
@@ -572,6 +575,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
       role: row.role,
       roleDetail: row.roleDetail ?? '',
       side: row.side ?? 'neutral',
+      attendanceAllocation: row.attendanceAllocation ?? 'shared',
       seatingTableId: row.seatingTableId ?? '',
     })
   }
@@ -846,7 +850,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                               <p className="mt-1 text-xs text-espresso/55">{row.email || row.phone || 'No contact saved'}</p>
                               {row.email && row.phone && <p className="mt-1 text-xs text-espresso/45">{row.phone}</p>}
                               <p className="mt-1 text-[11px] text-espresso/45">
-                                {row.role.replaceAll('_', ' ')}{row.roleDetail ? ` · ${row.roleDetail}` : ''} · {row.side || 'neutral'}
+                                {row.role.replaceAll('_', ' ')}{row.roleDetail ? ` · ${row.roleDetail}` : ''} · {row.side || 'neutral'} · {row.attendanceAllocation}
                               </p>
                             </div>
                             <div className="flex flex-wrap gap-2">
