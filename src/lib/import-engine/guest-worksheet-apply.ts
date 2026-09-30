@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { withdrawWeddingPassesForAttendance } from '@/lib/wedding-pass-attendance'
+import {
+  assertAttendanceAllocationCapacity,
+  normalizeAttendanceAllocation,
+} from '@/lib/guest-capacity-allocation'
 import {
   INVITATION_STATUSES,
   RESPONSE_STATUSES,
@@ -54,6 +58,7 @@ export async function snapshotGuestWorksheetState(
       name: guest.name,
       email: guest.email,
       phone: guest.phone,
+      attendanceAllocation: guest.attendanceAllocation,
       seatingTableId: guest.seatingTableId,
       tableNumber: guest.tableNumber,
     },
@@ -165,6 +170,17 @@ export async function applyGuestWorksheetRow(
       : createName
     if (!mergedName) throw new Error('Guest name is required.')
 
+    const attendanceAllocation = input.attendanceAllocation
+      ? normalizeAttendanceAllocation(input.attendanceAllocation)
+      : normalizeAttendanceAllocation(existingGuest?.attendanceAllocation)
+    if (!existingGuest || attendanceAllocation !== existingGuest.attendanceAllocation) {
+      await assertAttendanceAllocationCapacity(tx, {
+        weddingId,
+        allocation: attendanceAllocation,
+        excludeGuestId: existingGuest?.id ?? null,
+      })
+    }
+
     const guest = existingGuest
       ? await tx.guest.update({
           where: { id: existingGuest.id },
@@ -172,6 +188,7 @@ export async function applyGuestWorksheetRow(
             ...(requestedUpdateName ? { name: mergedName } : {}),
             ...(input.email ? { email: input.email } : {}),
             ...(input.phone ? { phone: input.phone } : {}),
+            ...(input.attendanceAllocation ? { attendanceAllocation } : {}),
           },
         })
       : await tx.guest.create({
@@ -182,6 +199,7 @@ export async function applyGuestWorksheetRow(
             phone: input.phone || null,
             role: 'guest',
             side: 'neutral',
+            attendanceAllocation,
           },
         })
 
@@ -249,5 +267,5 @@ export async function applyGuestWorksheetRow(
     }))
 
     return { id: guest.id, created: !existingGuest }
-  })
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 }
