@@ -11,6 +11,7 @@ import {
   PLANNER_GUEST_SIDE_OPTIONS,
   type PlannerGuestEditorValue,
 } from '@/components/wedding/planner/planner-guest-editor'
+import { PlannerGuestCapacityPanel } from '@/components/wedding/planner/planner-guest-capacity-panel'
 import {
   PlannerGuestInvitationActions,
   type PlannerGuestInvitationActionData,
@@ -177,6 +178,8 @@ export function PlannerGuestsModule({ guests, tables, guestForm, setGuestForm, s
     {attendanceSummary && <div data-testid="guest-register-canonical-summary" className="grid gap-3 grid-cols-2 sm:grid-cols-4 xl:grid-cols-5">{[
       ['registered', 'Registered', attendanceSummary.registered], ['sent', 'Sent', attendanceSummary.sent], ['notSent', 'Not sent', attendanceSummary.notSent], ['opened', 'Opened', attendanceSummary.opened], ['responded', 'Responded', attendanceSummary.responded], ['responseRate', 'Response rate', `${Math.round(attendanceSummary.responseRate * 100)}%`], ['attending', 'Attending', attendanceSummary.attending], ['declined', 'Declined', attendanceSummary.declined], ['awaiting', 'Awaiting', attendanceSummary.awaiting], ['expectedNamedAttendees', 'Expected named', attendanceSummary.expectedNamedAttendees], ['checkedIn', 'Checked in', attendanceSummary.checkedIn], ['notYetArrived', 'Not arrived', attendanceSummary.notYetArrived], ['missingContact', 'Missing contact', attendanceSummary.missingContact], ['passPendingRsvp', 'Pass · RSVP required', attendanceSummary.passPendingRsvp], ['passDeclined', 'Pass · Declined', attendanceSummary.passDeclined], ['passNotYetIssuable', 'Pass · Not yet issuable', attendanceSummary.passNotYetIssuable], ['passNotYetIssued', 'Pass · Ready / not issued', attendanceSummary.passNotYetIssued], ['passActive', 'Pass · Active', attendanceSummary.passActive], ['passRevoked', 'Pass · Revoked', attendanceSummary.passRevoked], ['passSuperseded', 'Pass · Superseded', attendanceSummary.passSuperseded], ['passIssuanceClosed', 'Pass · Issuance closed', attendanceSummary.passIssuanceClosed], ['nativeActivated', 'App active', attendanceSummary.nativeActivated], ['nativeActivationRate', 'App activation', `${Math.round(attendanceSummary.nativeActivationRate * 100)}%`], ['nativeAndroid', 'Android active', attendanceSummary.nativeAndroid], ['nativeIos', 'iOS active', attendanceSummary.nativeIos],
     ].map(([key, label, value]) => <button key={String(key)} type="button" onClick={() => focusSummary(String(key))} className="rounded-2xl border border-gold/15 bg-champagne/[0.035] p-3 text-center hover:border-gold/30"><p className="font-serif text-xl">{value}</p><p className="font-sans text-[9px] uppercase tracking-wider text-champagne/45">{label}</p></button>)}</div>}
+
+    <PlannerGuestCapacityPanel />
 
     <SectionCard className="p-4">
       <div className="mb-3"><h2 className="font-serif text-lg">Add guest</h2><p className="font-sans text-xs text-champagne/50">Create the canonical Guest record and optionally assign an initial table.</p></div>
