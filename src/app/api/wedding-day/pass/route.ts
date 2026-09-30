@@ -5,6 +5,7 @@ import {
 } from '@/lib/wedding-day-feature'
 import {
   guestPassForRequest,
+  readWeddingDayGuestContext,
   WeddingPassUnavailableError,
   type WeddingPassAvailabilityState,
 } from '@/lib/wedding-day'
@@ -82,12 +83,27 @@ export async function GET(request: NextRequest) {
     )
   } catch (error) {
     if (error instanceof WeddingPassUnavailableError && error.availability.state !== 'active') {
+      const context = await readWeddingDayGuestContext(request)
       return NextResponse.json(
         {
           success: false,
           code: error.availability.code,
           error: error.availability.code,
           availability: error.availability,
+          prePass: context
+            ? {
+                weddingId: context.weddingId,
+                weddingSlug: context.weddingSlug,
+                weddingTitle: context.weddingTitle,
+                guestId: context.guestId,
+                guestName: context.guestName,
+                attending: context.attending,
+                weddingDate: context.weddingDate,
+                venue: context.venue,
+                venueCity: context.venueCity,
+                venueCountry: context.venueCountry,
+              }
+            : null,
         },
         { status: UNAVAILABLE_STATUS[error.availability.state], headers: { 'Cache-Control': 'no-store' } },
       )
