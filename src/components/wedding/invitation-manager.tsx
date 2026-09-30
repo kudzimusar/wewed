@@ -36,10 +36,12 @@ import {
 type ChildrenPolicy = 'welcome' | 'adults_only'
 type DeliveryChannel = 'whatsapp' | 'email' | 'sms' | 'other'
 type DeliveryStatus = 'sent' | 'not_sent'
-type RsvpFilter = 'all' | 'attending' | 'declined' | 'pending'
+type RsvpFilter = 'all' | 'responded' | 'attending' | 'declined' | 'pending'
 type DeliveryFilter = 'all' | DeliveryStatus
 type ContactFilter = 'all' | 'with_contact' | 'missing_contact'
 type OpenFilter = 'all' | 'opened' | 'not_opened'
+type ArrivalFilter = 'all' | 'checked_in' | 'not_arrived'
+type PassFilter = 'all' | 'eligible' | 'issued' | 'not_issued'
 
 interface InvitationRow {
   id: string
@@ -54,6 +56,8 @@ interface InvitationRow {
   tableNumber: number | null
   status: 'attending' | 'declined' | 'pending'
   checkedIn: boolean
+  passEligible: boolean
+  passIssued: boolean
   invitationUrl: string | null
   qrValue: string | null
   shareMessage: string | null
@@ -62,6 +66,24 @@ interface InvitationRow {
   deliveredAt: string | null
   deliveredBy: string | null
   openedAt: string | null
+}
+
+interface PlannerAttendanceSummary {
+  registered: number
+  sent: number
+  notSent: number
+  opened: number
+  responded: number
+  responseRate: number
+  attending: number
+  declined: number
+  awaiting: number
+  expectedNamedAttendees: number
+  checkedIn: number
+  notYetArrived: number
+  missingContact: number
+  passEligible: number
+  passIssued: number
 }
 
 interface InvitationWedding {
@@ -145,6 +167,7 @@ function validEmail(value: string): boolean {
 
 export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const [rows, setRows] = useState<InvitationRow[]>([])
+  const [summary, setSummary] = useState<PlannerAttendanceSummary | null>(null)
   const [tables, setTables] = useState<PlannerGuestEditorTable[]>([])
   const [wedding, setWedding] = useState<InvitationWedding | null>(null)
   const [draftStyle, setDraftStyle] = useState<InvitationCardStyle>('botanical')
@@ -161,6 +184,10 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const [deliveryFilter, setDeliveryFilter] = useState<DeliveryFilter>('all')
   const [contactFilter, setContactFilter] = useState<ContactFilter>('all')
   const [openFilter, setOpenFilter] = useState<OpenFilter>('all')
+  const [roleFilter, setRoleFilter] = useState('all')
+  const [allocationFilter, setAllocationFilter] = useState('all')
+  const [arrivalFilter, setArrivalFilter] = useState<ArrivalFilter>('all')
+  const [passFilter, setPassFilter] = useState<PassFilter>('all')
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [deliveryChannel, setDeliveryChannel] = useState<DeliveryChannel>('whatsapp')
@@ -187,6 +214,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
         deliveryStatus: row.deliveryStatus === 'sent' ? 'sent' : 'not_sent',
       }))
       setRows(nextRows)
+      setSummary(payload.summary ?? null)
       setTables(Array.isArray(payload.tables) ? payload.tables : [])
       setSelectedIds((current) => new Set([...current].filter((id) => nextRows.some((row: InvitationRow) => row.id === id))))
       setMissingTokens(typeof payload.missingTokens === 'number' ? payload.missingTokens : 0)
@@ -206,7 +234,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE)
-  }, [search, rsvpFilter, deliveryFilter, contactFilter, openFilter])
+  }, [search, rsvpFilter, deliveryFilter, contactFilter, openFilter, roleFilter, allocationFilter, arrivalFilter, passFilter])
 
   const previewData = useMemo(() => wedding ? {
     title: wedding.title,
@@ -227,38 +255,40 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase()
     return rows.filter((row) => {
-      if (rsvpFilter !== 'all' && row.status !== rsvpFilter) return false
+      if (rsvpFilter === 'responded' && row.status === 'pending') return false
+      if (rsvpFilter !== 'all' && rsvpFilter !== 'responded' && row.status !== rsvpFilter) return false
       if (deliveryFilter !== 'all' && row.deliveryStatus !== deliveryFilter) return false
+      if (roleFilter !== 'all' && row.role !== roleFilter) return false
+      if (allocationFilter !== 'all' && (row.side ?? 'neutral') !== allocationFilter) return false
       const hasContact = Boolean(row.email || row.phone)
       if (contactFilter === 'with_contact' && !hasContact) return false
       if (contactFilter === 'missing_contact' && hasContact) return false
       if (openFilter === 'opened' && !row.openedAt) return false
       if (openFilter === 'not_opened' && row.openedAt) return false
+      if (arrivalFilter === 'checked_in' && !row.checkedIn) return false
+      if (arrivalFilter === 'not_arrived' && (row.status !== 'attending' || row.checkedIn)) return false
+      if (passFilter === 'eligible' && !row.passEligible) return false
+      if (passFilter === 'issued' && !row.passIssued) return false
+      if (passFilter === 'not_issued' && (row.status !== 'attending' || row.passIssued)) return false
       if (!query) return true
       return [
         row.name,
         row.email ?? '',
         row.phone ?? '',
+        row.role,
+        row.roleDetail ?? '',
+        row.side ?? '',
+        row.seatingTableName ?? '',
         row.tableNumber?.toString() ?? '',
         channelLabel(row.deliveryChannel),
         row.deliveredBy ?? '',
       ].some((value) => value.toLowerCase().includes(query))
     })
-  }, [rows, search, rsvpFilter, deliveryFilter, contactFilter, openFilter])
+  }, [rows, search, rsvpFilter, deliveryFilter, contactFilter, openFilter, roleFilter, allocationFilter, arrivalFilter, passFilter])
 
   const displayedRows = filteredRows.slice(0, visibleCount)
   const allFilteredSelected = filteredRows.length > 0 && filteredRows.every((row) => selectedIds.has(row.id))
   const selectedRows = rows.filter((row) => selectedIds.has(row.id))
-
-  const stats = useMemo(() => ({
-    total: rows.length,
-    sent: rows.filter((row) => row.deliveryStatus === 'sent').length,
-    notSent: rows.filter((row) => row.deliveryStatus !== 'sent').length,
-    attending: rows.filter((row) => row.status === 'attending').length,
-    pending: rows.filter((row) => row.status === 'pending').length,
-    missingContact: rows.filter((row) => !row.email && !row.phone).length,
-    opened: rows.filter((row) => Boolean(row.openedAt)).length,
-  }), [rows])
 
   async function generateMissingLinks() {
     if (missingTokens <= 0) return
