@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
       id: guest.id,
       name: guest.name,
       side: guest.side,
+      attendanceAllocation: guest.attendanceAllocation,
       role: guest.role,
       tableNumber: guest.tableNumber,
       ...guestSeatingIdentity(guest.seatingTable, scope.weddingId),
@@ -72,11 +73,21 @@ export async function POST(request: NextRequest) {
       name?: unknown
       email?: unknown
       phone?: unknown
+      role?: unknown
+      roleDetail?: unknown
+      side?: unknown
+      attendanceAllocation?: unknown
+      seatingTableId?: unknown
     } | null
     const result = await createPlannerGuest(write.actor, {
       name: typeof body?.name === 'string' ? body.name : undefined,
       email: typeof body?.email === 'string' ? body.email : undefined,
       phone: typeof body?.phone === 'string' ? body.phone : undefined,
+      role: typeof body?.role === 'string' ? body.role : undefined,
+      roleDetail: typeof body?.roleDetail === 'string' ? body.roleDetail : undefined,
+      side: typeof body?.side === 'string' ? body.side : undefined,
+      attendanceAllocation: typeof body?.attendanceAllocation === 'string' ? body.attendanceAllocation : undefined,
+      seatingTableId: typeof body?.seatingTableId === 'string' ? body.seatingTableId : undefined,
     })
     if (!result.ok) {
       return noStoreJson(
