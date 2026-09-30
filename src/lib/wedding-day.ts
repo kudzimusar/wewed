@@ -837,13 +837,14 @@ export async function checkInWeddingGuest(input: {
     const guestRows = await tx.$queryRawUnsafe<Array<{
       guestId: string
       name: string
+      role: string
       attending: boolean | null
       plusOne: boolean | null
       plusOneName: string | null
       kidsAttending: boolean | null
       kidsCount: number | null
     }>>(
-      `SELECT g.id AS "guestId", g.name, r.attending, r."plusOne", r."plusOneName",
+      `SELECT g.id AS "guestId", g.name, g.role, r.attending, r."plusOne", r."plusOneName",
               r."kidsAttending", r."kidsCount"
          FROM public."Guest" g
          JOIN public."RSVP" r ON r."guestId" = g.id
@@ -891,13 +892,13 @@ export async function checkInWeddingGuest(input: {
 
     const validAttendees = new Map<string, { kind: string; name: string }>()
     validAttendees.set('primary', { kind: 'primary', name: guest.name })
-    if (guest.plusOne) {
+    if (guest.role !== 'service_provider' && guest.plusOne) {
       validAttendees.set('plus-one', {
         kind: 'plus_one',
         name: guest.plusOneName?.trim() || 'Plus One',
       })
     }
-    if (guest.kidsAttending && (guest.kidsCount ?? 0) > 0) {
+    if (guest.role !== 'service_provider' && guest.kidsAttending && (guest.kidsCount ?? 0) > 0) {
       for (let index = 1; index <= (guest.kidsCount ?? 0); index += 1) {
         validAttendees.set(`child-${index}`, { kind: 'child', name: `Child ${index}` })
       }
