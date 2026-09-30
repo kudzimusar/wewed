@@ -14,6 +14,8 @@ describe('canonical Planner invitation / RSVP / attendance summary', () => {
         phone: null,
         passEligible: true,
         passIssued: true,
+        nativeActivated: true,
+        nativePlatforms: ['android'],
       },
       {
         status: 'attending' as const,
@@ -24,6 +26,8 @@ describe('canonical Planner invitation / RSVP / attendance summary', () => {
         phone: '+263700000000',
         passEligible: true,
         passIssued: false,
+        nativeActivated: true,
+        nativePlatforms: ['ios'],
       },
       {
         status: 'declined' as const,
@@ -63,6 +67,10 @@ describe('canonical Planner invitation / RSVP / attendance summary', () => {
       missingContact: 1,
       passEligible: 2,
       passIssued: 1,
+      nativeActivated: 2,
+      nativeActivationRate: 0.5,
+      nativeAndroid: 1,
+      nativeIos: 1,
     })
   })
 
@@ -83,12 +91,16 @@ describe('canonical Planner invitation / RSVP / attendance summary', () => {
     expect(manager).toContain('data-testid="canonical-attendance-summary"')
     expect(manager).toContain("['responded', 'Responded', summary.responded]")
     expect(manager).toContain("['responseRate', 'Response rate'")
+    expect(manager).toContain("['nativeActivated', 'App active', summary.nativeActivated]")
+    expect(manager).toContain("['nativeAndroid', 'Android active', summary.nativeAndroid]")
     expect(manager).not.toContain("const stats = useMemo(() => ({")
     expect(manager).not.toContain("rows.filter((row) => row.status === 'attending').length")
 
     const register = readFileSync('src/components/wedding/planner/modules/planner-guests-module.tsx', 'utf8')
     expect(register).toContain('setAttendanceSummary(payload.summary ?? null)')
     expect(register).toContain('data-testid="guest-register-canonical-summary"')
+    expect(register).toContain("'App active', attendanceSummary.nativeActivated")
+    expect(register).toContain('Filter guests by app activation')
     expect(register).not.toContain('guestStats.confirmed')
     expect(register).not.toContain('guestStats.heads')
 
