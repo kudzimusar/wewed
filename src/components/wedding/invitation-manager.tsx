@@ -41,7 +41,8 @@ type DeliveryFilter = 'all' | DeliveryStatus
 type ContactFilter = 'all' | 'with_contact' | 'missing_contact'
 type OpenFilter = 'all' | 'opened' | 'not_opened'
 type ArrivalFilter = 'all' | 'checked_in' | 'not_arrived'
-type PassFilter = 'all' | 'eligible' | 'issued' | 'not_issued'
+type PassState = 'pending_rsvp' | 'declined' | 'not_yet_issuable' | 'not_yet_issued' | 'active' | 'revoked' | 'superseded' | 'issuance_closed'
+type PassFilter = 'all' | PassState
 
 interface InvitationRow {
   id: string
@@ -56,8 +57,7 @@ interface InvitationRow {
   tableNumber: number | null
   status: 'attending' | 'declined' | 'pending'
   checkedIn: boolean
-  passEligible: boolean
-  passIssued: boolean
+  passState: PassState
   invitationUrl: string | null
   qrValue: string | null
   shareMessage: string | null
@@ -82,8 +82,14 @@ interface PlannerAttendanceSummary {
   checkedIn: number
   notYetArrived: number
   missingContact: number
-  passEligible: number
-  passIssued: number
+  passPendingRsvp: number
+  passDeclined: number
+  passNotYetIssuable: number
+  passNotYetIssued: number
+  passActive: number
+  passRevoked: number
+  passSuperseded: number
+  passIssuanceClosed: number
 }
 
 interface InvitationWedding {
@@ -267,9 +273,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
       if (openFilter === 'not_opened' && row.openedAt) return false
       if (arrivalFilter === 'checked_in' && !row.checkedIn) return false
       if (arrivalFilter === 'not_arrived' && (row.status !== 'attending' || row.checkedIn)) return false
-      if (passFilter === 'eligible' && !row.passEligible) return false
-      if (passFilter === 'issued' && !row.passIssued) return false
-      if (passFilter === 'not_issued' && (row.status !== 'attending' || row.passIssued)) return false
+      if (passFilter !== 'all' && row.passState !== passFilter) return false
       if (!query) return true
       return [
         row.name,
@@ -319,8 +323,14 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
     if (key === 'checkedIn') setArrivalFilter('checked_in')
     if (key === 'notYetArrived') setArrivalFilter('not_arrived')
     if (key === 'missingContact') setContactFilter('missing_contact')
-    if (key === 'passEligible') setPassFilter('eligible')
-    if (key === 'passIssued') setPassFilter('issued')
+    if (key === 'passPendingRsvp') setPassFilter('pending_rsvp')
+    if (key === 'passDeclined') setPassFilter('declined')
+    if (key === 'passNotYetIssuable') setPassFilter('not_yet_issuable')
+    if (key === 'passNotYetIssued') setPassFilter('not_yet_issued')
+    if (key === 'passActive') setPassFilter('active')
+    if (key === 'passRevoked') setPassFilter('revoked')
+    if (key === 'passSuperseded') setPassFilter('superseded')
+    if (key === 'passIssuanceClosed') setPassFilter('issuance_closed')
   }
 
   async function generateMissingLinks() {
@@ -651,8 +661,14 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
               ['checkedIn', 'Checked in', summary.checkedIn],
               ['notYetArrived', 'Not arrived', summary.notYetArrived],
               ['missingContact', 'Missing contact', summary.missingContact],
-              ['passEligible', 'Pass eligible', summary.passEligible],
-              ['passIssued', 'Pass issued', summary.passIssued],
+              ['passPendingRsvp', 'Pass · RSVP required', summary.passPendingRsvp],
+              ['passDeclined', 'Pass · Declined', summary.passDeclined],
+              ['passNotYetIssuable', 'Pass · Not yet issuable', summary.passNotYetIssuable],
+              ['passNotYetIssued', 'Pass · Ready / not issued', summary.passNotYetIssued],
+              ['passActive', 'Pass · Active', summary.passActive],
+              ['passRevoked', 'Pass · Revoked', summary.passRevoked],
+              ['passSuperseded', 'Pass · Superseded', summary.passSuperseded],
+              ['passIssuanceClosed', 'Pass · Issuance closed', summary.passIssuanceClosed],
             ].map(([key, label, value]) => (
               <button
                 key={String(key)}
@@ -703,7 +719,8 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
             <option value="all">All arrival states</option><option value="checked_in">Checked in</option><option value="not_arrived">Not arrived</option>
           </select>
           <select value={passFilter} onChange={(event) => setPassFilter(event.target.value as PassFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
-            <option value="all">All Pass states</option><option value="eligible">Pass eligible</option><option value="issued">Pass issued</option><option value="not_issued">Attending · Pass not issued</option>
+            <option value="all">All Pass states</option>
+            <option value="pending_rsvp">RSVP required</option><option value="declined">Declined</option><option value="not_yet_issuable">Not yet issuable</option><option value="not_yet_issued">Ready / not issued</option><option value="active">Active</option><option value="revoked">Revoked</option><option value="superseded">Superseded</option><option value="issuance_closed">Issuance closed</option>
           </select>
           <Button type="button" variant="outline" onClick={resetOperationalFilters}>Reset</Button>
         </div>
@@ -820,6 +837,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                           <div className="mt-3 grid gap-2 text-xs text-espresso/55 sm:grid-cols-2 xl:grid-cols-5">
                             <p>Table: <strong>{row.seatingTableName || row.tableNumber || 'Not assigned'}</strong></p>
                             <p>{row.checkedIn ? 'Checked in' : 'Not checked in'}</p>
+                            <p>Pass: <strong>{row.passState.replaceAll('_', ' ')}</strong></p>
                             <p>Channel: <strong>{channelLabel(row.deliveryChannel)}</strong></p>
                             <p>Sent: <strong>{deliveryTime(row.deliveredAt)}</strong></p>
                             <p>Opened: <strong>{deliveryTime(row.openedAt)}</strong></p>
