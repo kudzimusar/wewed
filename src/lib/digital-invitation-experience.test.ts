@@ -12,6 +12,7 @@ describe('premium digital invitation experience', () => {
     const experience = source(
       'src/components/wedding/invitation-experience/ivory-floral-gold-trifold.tsx',
     )
+    const contentContract = source('src/lib/invitation-content-contract.ts')
     expect(shell).toContain('IvoryFloralGoldTriFold')
     expect(experience).toContain('data-testid="invitation-trifold"')
     expect(experience).toContain('data-card-object="physical-stationery"')
@@ -23,8 +24,8 @@ describe('premium digital invitation experience', () => {
     expect(experience).toContain('A special invitation awaits')
     expect(experience).toContain('Tap to open')
     expect(experience).toContain('Opening your invitation…')
-    expect(experience).toContain('We’d be honoured to celebrate with you.')
-    expect(experience).toContain('const coupleNote = data.message?.trim()')
+    expect(contentContract).toContain('We’d be honoured to celebrate with you.')
+    expect(experience).toContain('ivoryInvitationContent(data.message)')
     expect(experience).toContain('data-testid="invitation-couple-note"')
     expect(experience).toContain('data-testid="invitation-rsvp-deadline"')
     expect(experience).toContain('RSVP by {formatDate(data.rsvpDeadline)}')

@@ -965,8 +965,8 @@ private extension LiveInvitationPresentation {
         return IvoryInvitationData(
             coupleNames: coupleNames,
             monogram: monogram ?? initials,
-            message: (invitationCardMessage?.isEmpty == false ? invitationCardMessage : nil)
-                ?? "Request the pleasure of your company as we celebrate our marriage.",
+            compactLine: IvoryInvitationContent.compactLine,
+            coupleNote: (invitationCardMessage?.isEmpty == false ? invitationCardMessage : nil),
             weekdayLabel: weekday,
             dayLabel: parts.count > 2 ? Int(parts[2]).map(String.init) : nil,
             monthLabel: parts.count > 1 ? Int(parts[1]).flatMap { $0 >= 1 && $0 <= 12 ? months[$0 - 1] : nil } : nil,

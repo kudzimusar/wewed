@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { DigitalInvitationCardData } from '@/components/wedding/digital-invitation-card'
+import { ivoryInvitationContent } from '@/lib/invitation-content-contract'
 import './ivory-floral-gold.css'
 
 export type IvoryInvitationView = 'closed' | 'opening' | 'open' | 'details'
@@ -21,7 +22,6 @@ type Props = {
   freezeOpening?: boolean
 }
 const ART = '/invitation-art/ivory/'
-const IVORY_COMPACT_COUPLE_LINE = 'We’d be honoured to celebrate with you.'
 const REQUIRED_ART = [
   'left-door',
   'right-door',
@@ -152,8 +152,7 @@ export function IvoryFloralGoldTriFold({
   // QRO06: 'A Note from Us' is the couple's own message only — never the tagline or a stock line.
   // Keep the saved couple-authored note separate from compact artwork copy so long notes can never
   // overflow the approved stationery regions. The complete note remains available in the dialog.
-  const coupleNote = data.message?.trim() || ''
-  const compactLine = IVORY_COMPACT_COUPLE_LINE
+  const { coupleNote, compactLine } = ivoryInvitationContent(data.message)
   const detailsArt: DetailsArt = coupleNote ? 'details-surface' : 'details-surface-no-note'
 
   useEffect(() => {
