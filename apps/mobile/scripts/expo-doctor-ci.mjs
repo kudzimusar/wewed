@@ -18,7 +18,9 @@ if (output) process.stdout.write(output.endsWith('\n') ? output : `${output}\n`)
 
 if (exitCode === 0) process.exit(0)
 
-const failedChecks = (output.match(/^✖ /gm) ?? []).length
+const failedCheckMarkers = (output.match(/^✖ /gm) ?? []).length
+const failedSummary = output.match(/(\d+) checks? failed, indicating possible issues with the project\./)
+const reportedFailedChecks = failedCheckMarkers || Number(failedSummary?.[1] ?? 0)
 const unexpectedChecks = (output.match(/Unexpected error while running '.+' check:/g) ?? []).length
 const errorLines = output
   .split(/\r?\n/)
@@ -29,8 +31,8 @@ const knownInternalFailure = (line) =>
   /^Error: Failed to find dependency tree for .+: npm explain .+ --json exited with non-zero code: 1$/.test(line)
 
 const onlyKnownDoctorInternalErrors =
-  failedChecks > 0 &&
-  failedChecks === unexpectedChecks &&
+  reportedFailedChecks > 0 &&
+  reportedFailedChecks === unexpectedChecks &&
   errorLines.length === unexpectedChecks &&
   errorLines.every(knownInternalFailure)
 
