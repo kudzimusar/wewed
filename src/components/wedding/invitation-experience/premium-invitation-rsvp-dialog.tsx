@@ -17,7 +17,7 @@ import {
 
 interface InvitationData {
   wedding: { childrenPolicy: 'welcome' | 'adults_only' }
-  guest: { id: string; name: string; email: string | null; tableNumber: number | null }
+  guest: { id: string; name: string; email: string | null; role: string; tableNumber: number | null }
   rsvp: {
     attending: boolean | null
     mealChoice: string | null
@@ -72,7 +72,7 @@ export function PremiumInvitationRsvpDialog({
       } as InvitationData
       setData(nextData)
       setAttendance(nextData.rsvp.attending === false ? 'decline' : 'accept')
-      setPlusOne(Boolean(nextData.rsvp.plusOne))
+      setPlusOne(nextData.guest.role === 'service_provider' ? false : Boolean(nextData.rsvp.plusOne))
       setKidsAttending(
         childrenPolicy === 'adults_only' ? false : Boolean(nextData.rsvp.kidsAttending),
       )
@@ -104,11 +104,12 @@ export function PremiumInvitationRsvpDialog({
     const form = new FormData(event.currentTarget)
     const accepting = attendance === 'accept'
     const adultsOnly = data.wedding.childrenPolicy === 'adults_only'
+    const professional = data.guest.role === 'service_provider'
     const rsvpUpdate: Record<string, unknown> = {
       originGuestId: data.guest.id,
       attending: accepting,
-      plusOne: accepting ? plusOne : false,
-      kidsAttending: accepting && !adultsOnly ? kidsAttending : false,
+      plusOne: accepting && !professional ? plusOne : false,
+      kidsAttending: accepting && !adultsOnly && !professional ? kidsAttending : false,
       message: form.get('message') || null,
     }
 
@@ -119,11 +120,11 @@ export function PremiumInvitationRsvpDialog({
     if (accepting) {
       rsvpUpdate.mealChoice = form.get('mealChoice') || null
       rsvpUpdate.dietaryNotes = form.get('dietaryNotes') || null
-      if (plusOne) {
+      if (!professional && plusOne) {
         rsvpUpdate.plusOneName = form.get('plusOneName') || null
         rsvpUpdate.plusOneMeal = form.get('plusOneMeal') || null
       }
-      if (!adultsOnly && kidsAttending) {
+      if (!professional && !adultsOnly && kidsAttending) {
         rsvpUpdate.kidsCount = kidsCount
       }
     }
@@ -156,6 +157,7 @@ export function PremiumInvitationRsvpDialog({
     color: theme.palette.ink,
   }
   const adultsOnly = data?.wedding.childrenPolicy === 'adults_only'
+  const professional = data?.guest.role === 'service_provider'
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -293,6 +295,13 @@ export function PremiumInvitationRsvpDialog({
                   </Select>
                 </div>
 
+                {professional ? (
+                  <section data-testid="premium-rsvp-service-provider-note" className="rounded-2xl border px-5 py-4 text-center" style={{ borderColor: `${theme.palette.primary}66`, background: selectedSurface }}>
+                    <p className="text-sm font-semibold">Named service attendance</p>
+                    <p className="mt-1 text-sm leading-6" style={{ color: theme.palette.muted }}>Service providers attend as individually registered team members. Plus-ones and children are not part of this service RSVP.</p>
+                  </section>
+                ) : (
+                  <>
                 <section
                   className="rounded-2xl border p-4"
                   style={{ borderColor: cardBorder, background: plusOne ? selectedSurface : `${theme.palette.paper}a8` }}
@@ -351,7 +360,10 @@ export function PremiumInvitationRsvpDialog({
                   )}
                 </section>
 
-                {adultsOnly ? (
+                  </>
+                )}
+
+                {!professional && (adultsOnly ? (
                   <section
                     data-testid="premium-rsvp-adults-only-note"
                     className="rounded-2xl border px-5 py-4 text-center"
@@ -431,7 +443,7 @@ export function PremiumInvitationRsvpDialog({
                       </div>
                     )}
                   </section>
-                )}
+                ))}
 
                 <div className="space-y-2">
                   <Label htmlFor="premium-invite-dietary" className="text-sm font-semibold">
