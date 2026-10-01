@@ -117,7 +117,7 @@ describe('complete planner gap closure', () => {
     expect(priorityGate).toContain('expect(after.data).toEqual(before.data)')
     for (const marker of ['Search item, vendor, category, notes or document', 'All payment states', 'Vendor:', 'border-champagne bg-champagne']) expect(budget).toContain(marker)
     expect(budget).toContain('...(item.documents ?? []).map((document) => document.displayName)')
-    for (const marker of ['Save guest', 'Filter guests by allocation', 'Filter guests by RSVP', 'Filter guests by delivery', 'onUpdateGuest']) expect(guests).toContain(marker)
+    for (const marker of ['Save guest', 'Filter guests by relationship side', 'Filter guests by capacity allocation', 'Filter guests by RSVP', 'Filter guests by delivery', 'onUpdateGuest']) expect(guests).toContain(marker)
     for (const marker of ['Search table, zone, note, or Guest', 'Filter seating by table type', 'Filter seating by assignment', 'Filter seating by capacity', 'Filter seating by occupancy', 'Move selected', 'Print plan']) expect(seating).toContain(marker)
     expect(guestApi).toContain("NOT: { id: existing.id }")
     expect(guestApi).toContain("field: 'email'")
