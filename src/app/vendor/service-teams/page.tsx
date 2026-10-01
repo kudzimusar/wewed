@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, Loader2, Plus, RefreshCw, Send, UsersRound } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Loader2, Pencil, Plus, RefreshCw, Send, Trash2, UsersRound } from 'lucide-react'
 import { DashboardAuthGate } from '@/components/wedding/dashboard-auth-gate'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -94,6 +94,42 @@ export default function VendorServiceTeamsPage() {
     }
   }
 
+  async function editMember(teamId: string, member: Member, event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    setBusy(`edit-${member.id}`)
+    try {
+      await request(`/api/vendor/service-teams/${teamId}/roster/${member.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: String(form.get('name') || ''),
+          email: String(form.get('email') || ''),
+          phone: String(form.get('phone') || ''),
+          function: String(form.get('function') || ''),
+        }),
+      })
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Unable to update crew member.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function removeMember(teamId: string, member: Member) {
+    if (!window.confirm(`Remove ${member.name} from this service roster and delete their unprotected Guest record?`)) return
+    setBusy(`remove-${member.id}`)
+    try {
+      await request(`/api/vendor/service-teams/${teamId}/roster/${member.id}`, { method: 'DELETE' })
+      await load()
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Unable to remove crew member.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   async function submit(teamId: string) {
     setBusy(`submit-${teamId}`)
     try {
@@ -163,10 +199,27 @@ export default function VendorServiceTeamsPage() {
 
                 <div className="mt-4 space-y-2">
                   {team.members.map((member) => (
-                    <div key={member.id} className="grid gap-2 rounded-xl border border-gold/10 p-3 text-sm md:grid-cols-[minmax(0,1fr)_1fr_auto] md:items-center">
-                      <div><strong>{member.name}</strong>{member.isLeader && <span className="ml-2 text-xs text-gold-muted">Team leader</span>}<p className="mt-1 text-xs text-espresso/45">{member.email || member.phone || 'No contact'}</p></div>
-                      <div className="text-xs text-espresso/60">{member.function} · {member.confirmed ? 'Confirmed' : 'Awaiting RSVP'} · {member.appActive ? `App: ${member.nativePlatforms.join(' + ')}` : 'No app activation'} · Pass: {member.passState.replaceAll('_', ' ')}</div>
-                      <div className="text-xs font-semibold">{member.arrived ? <span className="inline-flex items-center gap-1 text-sage"><CheckCircle2 className="size-4" />Arrived</span> : member.missing ? 'Missing' : 'Not due'}</div>
+                    <div key={member.id} className="rounded-xl border border-gold/10 p-3 text-sm">
+                      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_1fr_auto] md:items-center">
+                        <div><strong>{member.name}</strong>{member.isLeader && <span className="ml-2 text-xs text-gold-muted">Team leader</span>}<p className="mt-1 text-xs text-espresso/45">{member.email || member.phone || 'No contact'}</p></div>
+                        <div className="text-xs text-espresso/60">{member.function} · {member.confirmed ? 'Confirmed' : 'Awaiting RSVP'} · {member.appActive ? `App: ${member.nativePlatforms.join(' + ')}` : 'No app activation'} · Pass: {member.passState.replaceAll('_', ' ')}</div>
+                        <div className="text-xs font-semibold">{member.arrived ? <span className="inline-flex items-center gap-1 text-sage"><CheckCircle2 className="size-4" />Arrived</span> : member.missing ? 'Missing' : 'Not due'}</div>
+                      </div>
+                      {team.rosterStatus !== 'approved' && (
+                        <details className="mt-2">
+                          <summary className="cursor-pointer text-xs font-semibold text-gold-muted"><Pencil className="mr-1 inline size-3" />Edit crew member</summary>
+                          <form onSubmit={(event) => void editMember(team.id, member, event)} className="mt-2 grid gap-2 md:grid-cols-4">
+                            <Input name="name" defaultValue={member.name} required />
+                            <Input name="email" type="email" defaultValue={member.email ?? ''} placeholder="Email" />
+                            <Input name="phone" defaultValue={member.phone ?? ''} placeholder="Phone" />
+                            <Input name="function" defaultValue={member.function} required />
+                            <div className="md:col-span-4 flex justify-end gap-2">
+                              <Button type="button" variant="outline" size="sm" disabled={busy !== null} onClick={() => void removeMember(team.id, member)}><Trash2 className="size-4" />Remove</Button>
+                              <Button type="submit" size="sm" disabled={busy !== null}>Save</Button>
+                            </div>
+                          </form>
+                        </details>
+                      )}
                     </div>
                   ))}
                 </div>
