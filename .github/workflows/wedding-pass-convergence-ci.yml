@@ -101,6 +101,17 @@ jobs:
       - name: Guest RSVP convergence
         run: bun test src/lib/guest-rsvp-convergence.integration.test.ts
 
+      - name: Guest / invitation / attendance increment contracts
+        run: >-
+          bun test
+          src/lib/additional-adult-policy-settings.test.ts
+          src/lib/planner-attendance-summary.test.ts
+          src/lib/guest-native-presence.test.ts
+          src/lib/locked-prepass-experience.test.ts
+          src/lib/guest-capacity-allocation.test.ts
+          src/lib/service-provider-teams.test.ts
+          src/lib/planner-guest-360.test.ts
+
       - name: Guest Session is not admission authority (source contract)
         run: bun test src/lib/unified-navigation-privacy.test.ts
 
