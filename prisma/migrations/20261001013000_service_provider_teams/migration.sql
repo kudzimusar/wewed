@@ -58,7 +58,7 @@ CREATE TABLE "ServiceTeamMember" (
 
 CREATE UNIQUE INDEX "ServiceTeamMember_serviceTeamId_guestId_key"
   ON "ServiceTeamMember"("serviceTeamId", "guestId");
-CREATE INDEX "ServiceTeamMember_weddingId_guestId_idx"
+CREATE UNIQUE INDEX "ServiceTeamMember_weddingId_guestId_key"
   ON "ServiceTeamMember"("weddingId", "guestId");
 CREATE INDEX "ServiceTeamMember_serviceTeamId_approvedAt_idx"
   ON "ServiceTeamMember"("serviceTeamId", "approvedAt");
