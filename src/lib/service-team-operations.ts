@@ -133,6 +133,13 @@ export async function submitServiceTeam(input: {
       include: { members: true },
     })
     if (!team) throw new ServiceTeamRosterError('SERVICE_TEAM_NOT_FOUND', 'Service team not found.', 404)
+    if (team.rosterStatus !== 'draft') {
+      throw new ServiceTeamRosterError(
+        'SERVICE_TEAM_ROSTER_APPROVED',
+        'Only a draft service roster can be submitted. Reopen it before making another submission.',
+        409,
+      )
+    }
     if (team.members.length === 0) {
       throw new ServiceTeamRosterError('SERVICE_TEAM_CREW_LIMIT_EXCEEDED', 'Add at least one named crew member before submitting.', 400)
     }
