@@ -24,6 +24,7 @@ data class LiveInvitationPresentation(
     val weddingSlug: String,
     val guestId: String,
     val guestName: String,
+    val participantType: String?,
 
     val coupleNames: String,
     val monogram: String?,
@@ -84,6 +85,7 @@ data class LiveInvitationPresentation(
                 weddingSlug = snapshot.weddingSlug,
                 guestId = snapshot.guestId,
                 guestName = snapshot.guestName,
+                participantType = snapshot.participantType,
                 coupleNames = snapshot.title,
                 monogram = snapshot.monogram,
                 tagline = snapshot.tagline,
