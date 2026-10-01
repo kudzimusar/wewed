@@ -86,7 +86,7 @@ public struct GuestInvitationJourneyView: View {
     }
 
     public var body: some View {
-        Group {
+        ZStack {
             if showSplash {
                 splashStage
             } else if showPass {
