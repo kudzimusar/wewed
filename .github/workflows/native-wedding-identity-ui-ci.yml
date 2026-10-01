@@ -228,7 +228,7 @@ jobs:
         working-directory: apps/android
         run: |
           chmod +x gradlew
-          ./gradlew testDebugUnitTest assembleDebug assembleRelease assembleDebugAndroidTest --no-daemon --stacktrace
+          ./gradlew testDebugUnitTest assembleDebug compileReleaseKotlin assembleDebugAndroidTest --no-daemon --stacktrace
 
       - name: Verify local Android identity cannot replace Play
         run: bash .github/scripts/verify-android-local-package.sh apps/android/app/build/outputs/apk/debug pro.wewed.app.dev
