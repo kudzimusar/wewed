@@ -291,6 +291,7 @@ export async function loadServiceTeamOperations(weddingId: string) {
         attending: member.guest.rsvp?.attending ?? null,
         weddingDate: wedding.date,
         latest,
+        admissionApproved: Boolean(member.approvedAt),
       })
       const appActive = member.guest.nativePresences.length > 0
       const confirmed = member.guest.rsvp?.attending === true
