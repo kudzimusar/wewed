@@ -78,7 +78,7 @@ jobs:
         run: bun run deps:check
 
       - name: Run Expo Doctor
-        run: bunx expo-doctor@latest
+        run: bun scripts/expo-doctor-ci.mjs
 
       - name: Run native unit tests
         run: bun run test:unit
