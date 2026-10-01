@@ -1,12 +1,15 @@
 import { randomUUID } from 'node:crypto'
-import { describe, expect, test } from 'bun:test'
-import { db } from './db'
-import { executeGuestWorksheetImport } from './import-engine/guest-worksheet-executor'
-import { rollbackGuestWorksheetImport } from './import-engine/guest-worksheet-rollback'
-import { fetchGuestWorksheetRecords } from './import-engine/guest-worksheet-read'
-import { guestWorksheetSchema } from './import-engine/guest-worksheet-schema'
-import { generatePreview } from './import-engine/preview'
+import { describe, expect, mock, test } from 'bun:test'
 import type { ParsedFile } from './import-engine/types'
+
+mock.module('server-only', () => ({}))
+
+const { db } = await import('./db')
+const { executeGuestWorksheetImport } = await import('./import-engine/guest-worksheet-executor')
+const { rollbackGuestWorksheetImport } = await import('./import-engine/guest-worksheet-rollback')
+const { fetchGuestWorksheetRecords } = await import('./import-engine/guest-worksheet-read')
+const { guestWorksheetSchema } = await import('./import-engine/guest-worksheet-schema')
+const { generatePreview } = await import('./import-engine/preview')
 
 function worksheetFile(row: Record<string, string>): ParsedFile {
   return {
