@@ -122,11 +122,13 @@ test('guest core fields edit directly with duplicate-email feedback and wedding-
   await page.getByRole('button', { name: 'Save guest' }).click()
   await expect(page.locator('[id^="guest-edit-error-"]')).toContainText('already exists')
 
-  await page.locator('[data-testid="canonical-planner-guest-editor"] input[required]').fill('Gap Guest One Updated')
-  await page.locator('[data-testid="canonical-planner-guest-editor"] input[type="email"]').fill('gap.one.updated@example.test')
-  await page.getByLabel('Phone').fill('+263700001111')
-  await page.getByLabel('Participant type / role').selectOption('vip')
-  await page.getByLabel('Relationship side').selectOption('groom')
+  // Scope the edit fields by their edit-form IDs. The canonical Add Guest editor remains mounted
+  // above the register, so unscoped labels/testids legitimately match both editors.
+  await page.locator('[id^="guest-edit-"][id$="-name"]').fill('Gap Guest One Updated')
+  await page.locator('[id^="guest-edit-"][id$="-email"]').fill('gap.one.updated@example.test')
+  await page.locator('[id^="guest-edit-"][id$="-phone"]').fill('+263700001111')
+  await page.locator('[id^="guest-edit-"][id$="-role"]').selectOption('vip')
+  await page.locator('[id^="guest-edit-"][id$="-side"]').selectOption('groom')
   await page.getByRole('button', { name: 'Save guest' }).click()
   await expect(page.getByText('Gap Guest One Updated', { exact: true })).toBeVisible()
   await page.reload()
