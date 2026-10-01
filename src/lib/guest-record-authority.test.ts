@@ -18,10 +18,17 @@ describe('shared Guest-record projection (QRO 01 §24)', () => {
     expect(guestSeatingIdentity(null, 'wedding-a')).toEqual({ seatingTableId: null, tableName: null })
   })
 
-  test('party size is the canonical Gate household', () => {
+  test('party size is the canonical policy-aware Gate household', () => {
     const rsvp = { plusOne: true, kidsAttending: true, kidsCount: 2 }
     expect(guestPartySize(rsvp)).toBe(weddingHouseholdAttendeeKeys(rsvp).length)
     expect(guestPartySize(rsvp)).toBe(4)
+    expect(guestPartySize(rsvp, { additionalAdultPolicy: 'named_guests_only' })).toBe(3)
+    expect(
+      guestPartySize(rsvp, {
+        additionalAdultPolicy: 'named_guests_only',
+        childrenPolicy: 'adults_only',
+      }),
+    ).toBe(1)
     expect(guestPartySize({ plusOne: false, kidsAttending: false, kidsCount: 3 })).toBe(1)
     expect(guestPartySize(null)).toBe(1)
   })
@@ -31,9 +38,10 @@ describe('shared Guest-record projection (QRO 01 §24)', () => {
     expect(native).toContain('guestSeatingIdentity(guest.seatingTable, scope.weddingId)')
     expect(native).toContain('guestRsvpStatus(guest.rsvp?.attending)')
     expect(native).not.toContain("attending === true ? 'attending'")
+    expect(native).toContain('guestPartySize(guest.rsvp, attendancePolicies)')
     const desktop = readFileSync('src/app/api/planner/guests/route.ts', 'utf8')
     expect(desktop).toContain('guestRsvpStatus(g.rsvp?.attending)')
-    expect(desktop).toContain('guestPartySize(g.rsvp)')
+    expect(desktop).toContain('guestPartySize(g.rsvp, attendancePolicies)')
     expect(readFileSync('src/lib/wedding-public-access.ts', 'utf8')).toContain('guestSeatingIdentity(rsvp.guest.seatingTable, wedding.id)')
   })
 })
