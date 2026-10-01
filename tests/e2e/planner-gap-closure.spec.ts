@@ -37,16 +37,16 @@ test('module, task filter, and full task edits survive refresh and navigation', 
   await expect(page.getByPlaceholder('Search tasks, descriptions, or assignees')).toHaveValue('Primary')
   await page.getByRole('button', { name: 'Reset' }).click()
 
-  await page.getByRole('button', { name: 'Add guest', exact: true }).click()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(page.locator('#workspace-task-title-error')).toContainText('Enter a task title')
   await page.locator('#workspace-task-title').fill('--- !!!')
-  await page.getByRole('button', { name: 'Add guest', exact: true }).click()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(page.locator('#workspace-task-title-error')).toContainText('letter or number')
 
   const original = 'Gap closure editable task'
   const updated = 'Gap closure edited task'
   await page.locator('#workspace-task-title').fill(original)
-  await page.getByRole('button', { name: 'Add guest', exact: true }).click()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(page.getByText(original, { exact: true })).toBeVisible()
   await page.getByRole('button', { name: `Edit ${original}` }).click()
   await page.locator('[id^="task-edit-title-"]').fill(updated)
@@ -85,7 +85,7 @@ test('budget search covers item, vendor, category, notes, status, and persists',
   await page.locator('#workspace-budget-estimated-cost').fill('800')
   await page.locator('#workspace-budget-paid-amount').fill('200')
   await page.locator('#workspace-budget-notes').fill('Final quote includes table centrepieces')
-  await page.getByRole('button', { name: 'Add guest', exact: true }).click()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(page.getByText(item, { exact: true })).toBeVisible()
 
   const search = page.getByPlaceholder('Search item, vendor, category, notes or document')
@@ -118,15 +118,15 @@ test('guest core fields edit directly with duplicate-email feedback and wedding-
   await addGuest(page, second, 'gap.two@example.test')
 
   await page.getByRole('button', { name: `Edit ${first}` }).click()
-  await page.getByLabel(`Edit email for ${first}`).fill('gap.two@example.test')
+  await page.locator('[data-testid="canonical-planner-guest-editor"] input[type="email"]').fill('gap.two@example.test')
   await page.getByRole('button', { name: 'Save guest' }).click()
   await expect(page.locator('[id^="guest-edit-error-"]')).toContainText('already exists')
 
-  await page.getByLabel(`Edit name for ${first}`).fill('Gap Guest One Updated')
-  await page.getByLabel(`Edit email for ${first}`).fill('gap.one.updated@example.test')
-  await page.getByLabel(`Edit phone for ${first}`).fill('+263700001111')
-  await page.getByLabel(`Edit role for ${first}`).selectOption('vip')
-  await page.getByLabel(`Edit side for ${first}`).selectOption('groom')
+  await page.locator('[data-testid="canonical-planner-guest-editor"] input[required]').fill('Gap Guest One Updated')
+  await page.locator('[data-testid="canonical-planner-guest-editor"] input[type="email"]').fill('gap.one.updated@example.test')
+  await page.getByLabel('Phone').fill('+263700001111')
+  await page.getByLabel('Participant type / role').selectOption('vip')
+  await page.getByLabel('Relationship side').selectOption('groom')
   await page.getByRole('button', { name: 'Save guest' }).click()
   await expect(page.getByText('Gap Guest One Updated', { exact: true })).toBeVisible()
   await page.reload()
