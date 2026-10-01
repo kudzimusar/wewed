@@ -36,7 +36,7 @@ data class GuestInvitationSnapshot(
     val childrenPolicy: String?,
     val guestId: String,
     val guestName: String,
-    val participantType: String?,
+    val participantType: String? = null,
     val email: String?,
     val tableNumber: Int?,
     /** e.g. "Table 1 — Family". Server-projected; never another guest's record. */
