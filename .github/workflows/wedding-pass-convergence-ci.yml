@@ -107,10 +107,12 @@ jobs:
           src/lib/additional-adult-policy-settings.test.ts
           src/lib/planner-attendance-summary.test.ts
           src/lib/guest-native-presence.test.ts
+          src/lib/guest-native-presence.integration.test.ts
           src/lib/locked-prepass-experience.test.ts
           src/lib/guest-capacity-allocation.test.ts
           src/lib/guest-capacity-allocation.integration.test.ts
           src/lib/service-provider-teams.test.ts
+          src/lib/service-provider-teams.integration.test.ts
           src/lib/planner-guest-360.test.ts
 
       - name: Guest Session is not admission authority (source contract)
