@@ -150,7 +150,7 @@ const plannerGuests = includesAll('src/app/api/planner/guests/route.ts', [
   'include: {',
   'rsvp: true',
   'createPlannerGuest(',
-  'data: guests.map(formatGuest)',
+  'data: guests.map((guest) => formatGuest(guest, attendancePolicies))',
 ])
 // QRO08: guest creation (and its personal-link RSVP) lives in the operations the desktop and native
 // Planner routes share.
