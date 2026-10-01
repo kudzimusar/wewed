@@ -24,7 +24,7 @@ data class LiveInvitationPresentation(
     val weddingSlug: String,
     val guestId: String,
     val guestName: String,
-    val participantType: String?,
+    val participantType: String? = null,
 
     val coupleNames: String,
     val monogram: String?,
