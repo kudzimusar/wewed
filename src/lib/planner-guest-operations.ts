@@ -13,6 +13,7 @@ import {
   SeatingCapacityError,
   SeatingTargetError,
 } from '@/lib/planner-seating-transaction'
+import { lockServiceTeamRosterSlot, ServiceTeamRosterError } from '@/lib/service-team-authority'
 
 /**
  * NATIVE-MOBILE-QRO08 — the ONE implementation of Planner guest create / update / delete (guest
@@ -25,7 +26,7 @@ import {
  * not hold credentials.
  */
 
-export const PLANNER_GUEST_ROLES = ['guest', 'bridal_party', 'family', 'officiant', 'vip'] as const
+export const PLANNER_GUEST_ROLES = ['guest', 'bridal_party', 'family', 'officiant', 'vip', 'service_provider'] as const
 export const PLANNER_GUEST_SIDES = ['bride', 'groom', 'family', 'neutral'] as const
 
 export interface PlannerGuestActor {
@@ -42,6 +43,11 @@ export interface CreatePlannerGuestInput {
   side?: string
   attendanceAllocation?: string
   seatingTableId?: string
+  /** Internal service-roster mode. Generic Guest UI never needs to set these. */
+  serviceTeamId?: string
+  serviceFunction?: string
+  serviceLeader?: boolean
+  serviceSubmitted?: boolean
 }
 
 export interface UpdatePlannerGuestInput {
@@ -78,6 +84,9 @@ function seatingFailure(error: unknown): { ok: false; status: number; error: str
   if (error instanceof AttendanceAllocationCapacityError) {
     return { ok: false, status: 409, error: error.message, code: error.code, field: 'attendanceAllocation' } as const
   }
+  if (error instanceof ServiceTeamRosterError) {
+    return { ok: false, status: error.status, error: error.message, code: error.code, field: 'serviceTeamId' } as const
+  }
   return null
 }
 
@@ -96,12 +105,25 @@ export async function createPlannerGuest(actor: PlannerGuestActor, body: CreateP
     }
   }
 
-  const role = PLANNER_GUEST_ROLES.includes(body.role as (typeof PLANNER_GUEST_ROLES)[number]) ? body.role! : 'guest'
-  const side = PLANNER_GUEST_SIDES.includes(body.side as (typeof PLANNER_GUEST_SIDES)[number]) ? body.side! : 'neutral'
-  const attendanceAllocation = normalizeAttendanceAllocation(body.attendanceAllocation)
+  const serviceRoster = Boolean(body.serviceTeamId)
+  const role = serviceRoster
+    ? 'service_provider'
+    : PLANNER_GUEST_ROLES.includes(body.role as (typeof PLANNER_GUEST_ROLES)[number]) ? body.role! : 'guest'
+  const side = serviceRoster
+    ? 'neutral'
+    : PLANNER_GUEST_SIDES.includes(body.side as (typeof PLANNER_GUEST_SIDES)[number]) ? body.side! : 'neutral'
+  const attendanceAllocation = serviceRoster
+    ? 'operational' as const
+    : normalizeAttendanceAllocation(body.attendanceAllocation)
+  const serviceFunction = serviceRoster
+    ? cleanGuestText(body.serviceFunction || body.roleDetail || 'Service team', 160) || 'Service team'
+    : null
 
   try {
     const createdResult = await runSerializableSeatingTransaction(async (tx) => {
+      const teamSlot = body.serviceTeamId
+        ? await lockServiceTeamRosterSlot(tx, { weddingId, serviceTeamId: body.serviceTeamId })
+        : null
       const capacity = await assertAttendanceAllocationCapacity(tx, {
         weddingId,
         allocation: attendanceAllocation,
@@ -124,7 +146,7 @@ export async function createPlannerGuest(actor: PlannerGuestActor, body: CreateP
           email,
           phone: cleanGuestText(body.phone, 80),
           role,
-          roleDetail: cleanGuestText(body.roleDetail, 160),
+          roleDetail: serviceRoster ? serviceFunction : cleanGuestText(body.roleDetail, 160),
           side,
           attendanceAllocation,
           seatingTableId: body.seatingTableId || null,
@@ -132,6 +154,18 @@ export async function createPlannerGuest(actor: PlannerGuestActor, body: CreateP
         },
       })
       await tx.rSVP.create({ data: { token: randomUUID(), guestId: created.id } })
+      if (body.serviceTeamId && teamSlot) {
+        await tx.serviceTeamMember.create({
+          data: {
+            serviceTeamId: body.serviceTeamId,
+            weddingId,
+            guestId: created.id,
+            function: serviceFunction || 'Service team',
+            isLeader: body.serviceLeader === true,
+            submittedAt: body.serviceSubmitted === true ? new Date() : null,
+          },
+        })
+      }
       await tx.auditEvent.create({
         data: {
           action: 'guest.create',
@@ -145,6 +179,13 @@ export async function createPlannerGuest(actor: PlannerGuestActor, body: CreateP
             capacityWarning: capacity.warning,
             capacityRegistered: capacity.registered,
             capacityHardLimit: capacity.hardLimit,
+            ...(body.serviceTeamId
+              ? {
+                  serviceTeamId: body.serviceTeamId,
+                  serviceFunction,
+                  serviceLeader: body.serviceLeader === true,
+                }
+              : {}),
           }),
           weddingId,
           actorId: actor.actorId,
