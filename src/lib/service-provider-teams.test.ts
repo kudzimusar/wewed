@@ -28,8 +28,8 @@ describe('service-provider team admission authority', () => {
     expect(schema).toContain('guest       Guest')
     expect(schema).toContain('@@unique([weddingId, guestId])')
     expect(migration).toContain('ServiceTeamMember_weddingId_guestId_key')
-    expect(guestOps).toContain("role: 'service_provider'")
-    expect(guestOps).toContain("attendanceAllocation: 'operational'")
+    expect(guestOps).toContain("? 'service_provider'")
+    expect(guestOps).toContain("? 'operational' as const")
     expect(guestOps).toContain('tx.serviceTeamMember.create')
   })
 
