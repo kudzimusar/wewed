@@ -4,6 +4,7 @@ import {
   normalizeInvitationCardStyle,
 } from '@/lib/digital-invitation-card'
 import { buildSmartInvitationUrl } from '@/lib/invitation-links'
+import { normalizeAdditionalAdultPolicy } from '@/lib/invitation-content-contract'
 import {
   resolveWeddingPassCredentialAdminState,
   type WeddingPassCredentialAdminState,
@@ -173,7 +174,7 @@ export function buildPlannerAttendanceSummary(rows: Array<{
  * origin, exactly as the desktop Planner has always done.
  */
 export async function loadPlannerInvitationProjection(weddingId: string, siteUrl: string) {
-  const [wedding, guests, tables, childrenPolicyRow, deliveryEvents, passCredentials, nativePresences] = await Promise.all([
+  const [wedding, guests, tables, childrenPolicyRow, additionalAdultPolicyRow, deliveryEvents, passCredentials, nativePresences] = await Promise.all([
     db.wedding.findUnique({
       where: { id: weddingId },
       select: invitationWeddingSelect(),
@@ -198,6 +199,16 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
           weddingId,
           section: 'rsvp',
           field: 'childrenPolicy',
+        },
+      },
+      select: { value: true },
+    }),
+    db.weddingContent.findUnique({
+      where: {
+        weddingId_section_field: {
+          weddingId,
+          section: 'rsvp',
+          field: 'additionalAdultPolicy',
         },
       },
       select: { value: true },
@@ -254,6 +265,7 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
 
   const style = normalizeInvitationCardStyle(wedding.invitationCardStyle)
   const childrenPolicy = normalizeChildrenPolicy(childrenPolicyRow?.value)
+  const additionalAdultPolicy = normalizeAdditionalAdultPolicy(additionalAdultPolicyRow?.value)
   const origin = siteUrl.replace(/\/$/, '')
   const missingTokens = guests.filter((guest) => !guest.rsvp?.token).length
   const deliveryByGuest = new Map<string, InvitationDeliveryState>()
@@ -357,7 +369,7 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
   const summary = buildPlannerAttendanceSummary(data)
 
   return {
-    wedding: { ...wedding, invitationCardStyle: style, childrenPolicy },
+    wedding: { ...wedding, invitationCardStyle: style, childrenPolicy, additionalAdultPolicy },
     count: data.length,
     missingTokens,
     tables,
