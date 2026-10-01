@@ -25,6 +25,7 @@ public struct GuestInvitationSnapshot: Equatable, Sendable {
     public var additionalAdultPolicy: String? = nil
     public let guestId: String
     public let guestName: String
+    public var participantType: String? = nil
     public let email: String?
     public let tableNumber: Int?
     /// e.g. "Table 1 — Family". Server-projected; never another guest's record.
@@ -408,6 +409,7 @@ public actor GuestSessionClient {
             additionalAdultPolicy: text(wedding, "additionalAdultPolicy"),
             guestId: text(guest, "id") ?? "",
             guestName: text(guest, "name") ?? "",
+            participantType: text(guest, "role"),
             email: text(guest, "email"),
             tableNumber: guest["tableNumber"] as? Int,
             tableName: text(guest, "tableName"),
