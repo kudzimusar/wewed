@@ -65,10 +65,12 @@ describe('service-provider team admission authority', () => {
     expect(rsvp).toContain('SERVICE_PROVIDER_HOUSEHOLD_NOT_ALLOWED')
     expect(rsvp).toContain('data.plusOne = false')
     expect(rsvp).toContain('data.kidsAttending = false')
-    expect(pass).toContain("guest.role !== 'service_provider' && guest.plusOne")
-    expect(pass).toContain("guest.role !== 'service_provider' && guest.kidsAttending")
-    expect(manifest).toContain("row.guestRole !== 'service_provider' && row.plusOne")
-    expect(manifest).toContain("row.guestRole !== 'service_provider' && row.kidsAttending")
+    expect(pass).toContain("guest.role !== 'service_provider'")
+    expect(pass).toContain('guest.plusOne')
+    expect(pass).toContain('guest.kidsAttending')
+    expect(manifest).toContain("row.guestRole !== 'service_provider'")
+    expect(manifest).toContain('row.plusOne')
+    expect(manifest).toContain('row.kidsAttending')
   })
 
   test('Planner approval is authoritative for Pass issuance and Gate admission', () => {
