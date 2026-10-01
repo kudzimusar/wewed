@@ -11,6 +11,13 @@ export const PLANNER_GUEST_ROLE_OPTIONS = [
   { value: 'vip', label: 'VIP' },
 ] as const
 
+export const PLANNER_GUEST_ALLOCATION_OPTIONS = [
+  { value: 'bride', label: 'Bride' },
+  { value: 'groom', label: 'Groom' },
+  { value: 'shared', label: 'Shared' },
+  { value: 'operational', label: 'Operational' },
+] as const
+
 export const PLANNER_GUEST_SIDE_OPTIONS = [
   { value: 'bride', label: "Bride's side" },
   { value: 'groom', label: "Groom's side" },
@@ -25,6 +32,7 @@ export interface PlannerGuestEditorValue {
   role: string
   roleDetail: string
   side: string
+  attendanceAllocation: string
   seatingTableId: string
 }
 
@@ -41,6 +49,7 @@ export const EMPTY_PLANNER_GUEST_EDITOR_VALUE: PlannerGuestEditorValue = {
   role: 'guest',
   roleDetail: '',
   side: 'neutral',
+  attendanceAllocation: 'shared',
   seatingTableId: '',
 }
 
@@ -134,7 +143,7 @@ export function PlannerGuestEditor({
         />
       </div>
       <div>
-        <Label htmlFor={`${idPrefix}-side`}>Attendance allocation</Label>
+        <Label htmlFor={`${idPrefix}-side`}>Relationship side</Label>
         <select
           id={`${idPrefix}-side`}
           value={value.side}
@@ -144,6 +153,20 @@ export function PlannerGuestEditor({
         >
           {PLANNER_GUEST_SIDE_OPTIONS.map((side) => (
             <option key={side.value} value={side.value}>{side.label}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <Label htmlFor={`${idPrefix}-allocation`}>Capacity allocation</Label>
+        <select
+          id={`${idPrefix}-allocation`}
+          value={value.attendanceAllocation}
+          onChange={(event) => set('attendanceAllocation', event.target.value)}
+          className={selectClass}
+          disabled={disabled}
+        >
+          {PLANNER_GUEST_ALLOCATION_OPTIONS.map((allocation) => (
+            <option key={allocation.value} value={allocation.value}>{allocation.label}</option>
           ))}
         </select>
       </div>

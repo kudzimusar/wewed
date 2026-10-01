@@ -2,6 +2,7 @@ import type { FieldDefinition, ModuleSchema } from './types'
 
 export const INVITATION_STATUSES = ['pending', 'sent', 'confirmed', 'declined'] as const
 export const RESPONSE_STATUSES = ['pending', 'attending', 'declined', 'maybe'] as const
+export const ATTENDANCE_ALLOCATION_VALUES = ['bride', 'groom', 'shared', 'operational'] as const
 
 export interface GuestWorksheetDataRow {
   guestId: string
@@ -31,6 +32,7 @@ export interface GuestWorksheetRecord {
   role: string
   roleDetail: string | null
   side: string | null
+  attendanceAllocation: string
   tableNumber: number | null
   seatingTableId: string | null
   weddingId: string
@@ -65,6 +67,7 @@ export interface GuestWorksheetInput {
   email: string
   phone: string
   group: string
+  attendanceAllocation: string
   invitationStatus: string
   rsvpStatus: string
   numberAttending: number | null
@@ -88,6 +91,7 @@ export const guestWorksheetFields: FieldDefinition[] = [
   { key: 'email', label: 'Email', required: false, type: 'email', sensitive: true, example: 'tendai@example.com' },
   { key: 'phone', label: 'Phone', required: false, type: 'phone', sensitive: true, example: '+263 77 123 4567' },
   { key: 'group', label: 'Family/Group', required: false, type: 'string', example: "Bride's Family" },
+  { key: 'attendanceAllocation', label: 'Attendance Allocation', required: false, type: 'enum', allowedValues: [...ATTENDANCE_ALLOCATION_VALUES], example: 'groom', description: 'Capacity allocation: bride, groom, shared, or operational.' },
   { key: 'invitationStatus', label: 'Invitation Status', required: false, type: 'enum', allowedValues: [...INVITATION_STATUSES], example: 'sent' },
   { key: 'rsvpStatus', label: 'RSVP Status', required: false, type: 'enum', allowedValues: [...RESPONSE_STATUSES], example: 'pending' },
   { key: 'numberAttending', label: 'Number Attending', required: false, type: 'number', example: '1' },
@@ -131,6 +135,7 @@ export function toGuestWorksheetInput(row: Record<string, string>): GuestWorkshe
     email: cap(cleanGuestValue(row.email)),
     phone: cap(cleanGuestValue(row.phone)),
     group: cap(cleanGuestValue(row.group)),
+    attendanceAllocation: cleanGuestValue(row.attendanceAllocation).toLowerCase(),
     invitationStatus: cleanGuestValue(row.invitationStatus),
     rsvpStatus: cleanGuestValue(row.rsvpStatus),
     numberAttending: parseGuestInteger(row.numberAttending, 1),
@@ -169,6 +174,7 @@ export function guestRecordToRow(record: GuestWorksheetRecord): Record<string, s
     email: record.email || '',
     phone: record.phone || '',
     group: x?.guestGroup || '',
+    attendanceAllocation: record.attendanceAllocation || 'shared',
     invitationStatus: x?.invitationStatus || 'pending',
     rsvpStatus: x?.responseStatus || statusFromAttending(record.rsvp?.attending),
     numberAttending: String(Math.max(1, x?.partySize ?? (record.rsvp?.plusOne ? 2 : 1))),
@@ -188,6 +194,8 @@ export function guestRecordToRow(record: GuestWorksheetRecord): Record<string, s
 export function validateGuestWorksheetRow(row: Record<string, string>): string[] {
   const errors: string[] = []
   if (!cleanGuestValue(row.firstName) && !cleanGuestValue(row.displayName)) errors.push('Either "First Name" or "Display Name" is required')
+  const allocation = cleanGuestValue(row.attendanceAllocation).toLowerCase()
+  if (allocation && !ATTENDANCE_ALLOCATION_VALUES.includes(allocation as (typeof ATTENDANCE_ALLOCATION_VALUES)[number])) errors.push('Attendance Allocation must be bride, groom, shared, or operational')
   if (cleanGuestValue(row.numberAttending) && parseGuestInteger(row.numberAttending, 1) == null) errors.push('Number Attending must be a whole number of at least 1')
   if (cleanGuestValue(row.numberOfChildren) && parseGuestInteger(row.numberOfChildren, 0) == null) errors.push('Number of Children must be a whole number of 0 or more')
   return errors
@@ -232,7 +240,7 @@ export function buildGuestWorksheetSchema(fetchExisting: (weddingId: string) => 
     key: 'guests',
     name: 'Guests',
     description: 'Master guest list with RSVP, dietary, accessibility, transport, accommodation and seating data.',
-    version: '1.1.0',
+    version: '1.2.0',
     fields: guestWorksheetFields,
     rowToRecord: toGuestWorksheetInput,
     recordToRow: guestRecordToRow,

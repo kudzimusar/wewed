@@ -233,9 +233,9 @@ export const ORIGINAL_PLANNER_PARITY: readonly PlannerParityCapability[] = [
   capability(
     'guests.create-complete',
     'guests',
-    'Guest creation includes contact, role, side, and initial table.',
+    'Guest creation includes contact, role, relationship side, capacity allocation, and initial table.',
     ["phone: ''", "role: 'guest'", "side: 'neutral'", "seatingTableId: ''"],
-    ["set('phone'", "set('role'", "set('side'", "set('seatingTableId'"],
+    ["set('phone'", "set('role'", "set('side'", "set('attendanceAllocation'", "set('seatingTableId'"],
   ),
   capability(
     'guests.search-filter',

@@ -27,6 +27,7 @@ export interface GuestRollbackState {
     name: string
     email: string | null
     phone: string | null
+    attendanceAllocation: string
     seatingTableId: string | null
     tableNumber: number | null
   }

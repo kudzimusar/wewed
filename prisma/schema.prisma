@@ -91,6 +91,7 @@ model Wedding {
   passKeys                WeddingPassKey[]
   passCredentials         WeddingPassCredential[]
   weddingCheckIns         WeddingCheckIn[]
+  attendanceAllocationLimits WeddingAttendanceAllocationLimit[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -104,6 +105,7 @@ model Guest {
   role               String  @default("guest")
   roleDetail         String?
   side               String?
+  attendanceAllocation String @default("shared")
   tableNumber        Int?
   seatingTableId     String?
   seatingTable       SeatingTable? @relation(fields: [seatingTableId], references: [id])
@@ -123,6 +125,22 @@ model Guest {
   updatedAt DateTime @updatedAt
 
   @@unique([id, weddingId])
+  @@index([weddingId, attendanceAllocation])
+}
+
+model WeddingAttendanceAllocationLimit {
+  id           String   @id @default(cuid())
+  weddingId    String
+  allocation   String
+  hardLimit    Int?
+  warningAt    Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  wedding Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+
+  @@unique([weddingId, allocation])
+  @@index([weddingId])
 }
 
 model GuestNativePresence {

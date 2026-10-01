@@ -24,6 +24,7 @@ interface PatchGuestPayload {
   role?: string
   roleDetail?: string | null
   side?: string
+  attendanceAllocation?: string
   seatingTableId?: string | null
 }
 
@@ -50,6 +51,7 @@ function formatGuest(g: {
   role: string
   roleDetail: string | null
   side: string | null
+  attendanceAllocation: string
   tableNumber: number | null
   seatingTableId: string | null
   seatingTable: { id: string; name: string; capacity: number } | null
@@ -82,6 +84,7 @@ function formatGuest(g: {
     role: g.role,
     roleDetail: g.roleDetail,
     side: g.side,
+    attendanceAllocation: g.attendanceAllocation,
     tableNumber: g.tableNumber,
     seatingTableId: g.seatingTableId,
     seatingTableName: g.seatingTable?.name ?? null,
@@ -261,7 +264,14 @@ export async function PATCH(
         { status: result.status },
       )
     }
-    return NextResponse.json({ success: true, data: formatGuest(result.data) })
+    return NextResponse.json({
+      success: true,
+      data: formatGuest(result.data),
+      capacity: result.capacity ?? null,
+      capacityWarning: result.capacity?.warning
+        ? `${result.capacity.allocation} allocation has reached its warning threshold (${result.capacity.registered}${result.capacity.hardLimit == null ? '' : `/${result.capacity.hardLimit}`} registered).`
+        : null,
+    })
   } catch (error) {
     if (error instanceof SeatingCapacityError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 409 })

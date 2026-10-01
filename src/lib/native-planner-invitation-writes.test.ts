@@ -100,7 +100,7 @@ describe('QRO08 native Planner write authority', () => {
     expect(read(NATIVE.guests)).toContain('nativeGuestSummary(result.data)')
     expect(read(NATIVE.guest)).toContain('nativeGuestSummary(result.data)')
     const summary = read('src/lib/native-planner-guest-write.ts')
-    expect(summary).toContain('return { id: guest.id, name: guest.name, email: guest.email, phone: guest.phone }')
+    for (const marker of ['id: guest.id', 'name: guest.name', 'email: guest.email', 'phone: guest.phone', 'attendanceAllocation: guest.attendanceAllocation']) expect(summary).toContain(marker)
     // Repair/rotate return only a count / success flag.
     const invitations = read(NATIVE.invitations)
     expect(handler(invitations, 'POST')).toContain('{ success: true, generated: result.ok ? result.data.generated : 0 }')
@@ -116,15 +116,16 @@ describe('QRO08 native Planner write authority', () => {
     }
   })
 
-  test('native guest edits are limited to name, email and phone', () => {
-    const body = handler(read(NATIVE.guest), 'PATCH')
-    for (const field of ['role', 'side', 'seatingTableId', 'roleDetail']) {
-      expect(body).not.toContain(`input.${field}`)
-    }
+  test('native guest writes expose the canonical Guest editor fields through shared authority', () => {
     const create = handler(read(NATIVE.guests), 'POST')
-    for (const field of ['role', 'side', 'seatingTableId', 'roleDetail']) {
-      expect(create).not.toContain(`${field}:`)
+    for (const field of ['name', 'email', 'phone', 'role', 'roleDetail', 'side', 'attendanceAllocation', 'seatingTableId']) {
+      expect(create).toContain(`${field}:`)
     }
+    const edit = handler(read(NATIVE.guest), 'PATCH')
+    expect(edit).toContain('updatePlannerGuest(write.actor')
+    expect(edit).toContain('attendanceAllocation')
+    expect(create).not.toContain('db.guest.create')
+    expect(edit).not.toContain('db.guest.update')
   })
 
   test('P1: desktop and native Guest DELETE expose the same protected-deletion contract', () => {

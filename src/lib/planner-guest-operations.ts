@@ -2,6 +2,13 @@ import { randomUUID } from 'node:crypto'
 import { db } from '@/lib/db'
 import { plannedSeatsForGuest } from '@/lib/planner-seating-metadata'
 import {
+  assertAttendanceAllocationCapacity,
+  AttendanceAllocationCapacityError,
+  normalizeAttendanceAllocation,
+  type AttendanceAllocation,
+  type AttendanceAllocationUsage,
+} from '@/lib/guest-capacity-allocation'
+import {
   runSerializableSeatingTransaction,
   SeatingCapacityError,
   SeatingTargetError,
@@ -33,6 +40,7 @@ export interface CreatePlannerGuestInput {
   role?: string
   roleDetail?: string
   side?: string
+  attendanceAllocation?: string
   seatingTableId?: string
 }
 
@@ -43,11 +51,12 @@ export interface UpdatePlannerGuestInput {
   role?: string
   roleDetail?: string | null
   side?: string
+  attendanceAllocation?: string
   seatingTableId?: string | null
 }
 
 export type GuestOperationResult<T> =
-  | { ok: true; status: number; data: T }
+  | { ok: true; status: number; data: T; capacity?: AttendanceAllocationUsage }
   | { ok: false; status: number; error: string; field?: string }
 
 const guestInclude = {
@@ -66,6 +75,9 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 function seatingFailure(error: unknown): { ok: false; status: number; error: string } | null {
   if (error instanceof SeatingCapacityError) return { ok: false, status: 409, error: error.message }
   if (error instanceof SeatingTargetError) return { ok: false, status: 400, error: error.message }
+  if (error instanceof AttendanceAllocationCapacityError) {
+    return { ok: false, status: 409, error: error.message, code: error.code, field: 'attendanceAllocation' } as const
+  }
   return null
 }
 
@@ -86,9 +98,14 @@ export async function createPlannerGuest(actor: PlannerGuestActor, body: CreateP
 
   const role = PLANNER_GUEST_ROLES.includes(body.role as (typeof PLANNER_GUEST_ROLES)[number]) ? body.role! : 'guest'
   const side = PLANNER_GUEST_SIDES.includes(body.side as (typeof PLANNER_GUEST_SIDES)[number]) ? body.side! : 'neutral'
+  const attendanceAllocation = normalizeAttendanceAllocation(body.attendanceAllocation)
 
   try {
-    const guest = await runSerializableSeatingTransaction(async (tx) => {
+    const createdResult = await runSerializableSeatingTransaction(async (tx) => {
+      const capacity = await assertAttendanceAllocationCapacity(tx, {
+        weddingId,
+        allocation: attendanceAllocation,
+      })
       if (body.seatingTableId) {
         const table = await tx.seatingTable.findFirst({
           where: { id: body.seatingTableId, weddingId },
@@ -109,6 +126,7 @@ export async function createPlannerGuest(actor: PlannerGuestActor, body: CreateP
           role,
           roleDetail: cleanGuestText(body.roleDetail, 160),
           side,
+          attendanceAllocation,
           seatingTableId: body.seatingTableId || null,
           weddingId,
         },
@@ -119,14 +137,23 @@ export async function createPlannerGuest(actor: PlannerGuestActor, body: CreateP
           action: 'guest.create',
           resourceType: 'guest',
           resourceId: created.id,
-          afterValue: JSON.stringify({ name: created.name, email: created.email, role: created.role }),
+          afterValue: JSON.stringify({
+            name: created.name,
+            email: created.email,
+            role: created.role,
+            attendanceAllocation: created.attendanceAllocation,
+            capacityWarning: capacity.warning,
+            capacityRegistered: capacity.registered,
+            capacityHardLimit: capacity.hardLimit,
+          }),
           weddingId,
           actorId: actor.actorId,
         },
       })
-      return tx.guest.findUniqueOrThrow({ where: { id: created.id }, include: guestInclude })
+      const guest = await tx.guest.findUniqueOrThrow({ where: { id: created.id }, include: guestInclude })
+      return { guest, capacity }
     })
-    return { ok: true, status: 201, data: guest } as const
+    return { ok: true, status: 201, data: createdResult.guest, capacity: createdResult.capacity } as const
   } catch (error) {
     const failure = seatingFailure(error)
     if (failure) return failure
@@ -169,6 +196,14 @@ export async function updatePlannerGuest(actor: PlannerGuestActor, guestId: stri
     updates.role = body.role
   }
   if (body.roleDetail !== undefined) updates.roleDetail = cleanGuestText(body.roleDetail, 160)
+  let nextAttendanceAllocation: AttendanceAllocation = normalizeAttendanceAllocation(existing.attendanceAllocation)
+  if (body.attendanceAllocation !== undefined) {
+    if (!['bride', 'groom', 'shared', 'operational'].includes(body.attendanceAllocation)) {
+      return { ok: false, status: 400, error: 'Invalid attendance allocation. Allowed: bride, groom, shared, operational', field: 'attendanceAllocation' } as const
+    }
+    nextAttendanceAllocation = normalizeAttendanceAllocation(body.attendanceAllocation)
+    updates.attendanceAllocation = nextAttendanceAllocation
+  }
   if (body.side !== undefined) {
     if (!PLANNER_GUEST_SIDES.includes(body.side as (typeof PLANNER_GUEST_SIDES)[number])) {
       return { ok: false, status: 400, error: `Invalid side. Allowed: ${PLANNER_GUEST_SIDES.join(', ')}` } as const
@@ -180,9 +215,17 @@ export async function updatePlannerGuest(actor: PlannerGuestActor, guestId: stri
   if (Object.keys(updates).length === 0) return { ok: false, status: 400, error: 'No updates provided' } as const
 
   try {
-    const updated = await runSerializableSeatingTransaction(async (tx) => {
+    const updateResult = await runSerializableSeatingTransaction(async (tx) => {
       const current = await tx.guest.findFirst({ where: { id: existing.id, weddingId }, include: guestInclude })
       if (!current) throw new SeatingTargetError('Guest not found')
+
+      const capacity = body.attendanceAllocation !== undefined && nextAttendanceAllocation !== current.attendanceAllocation
+        ? await assertAttendanceAllocationCapacity(tx, {
+            weddingId,
+            allocation: nextAttendanceAllocation,
+            excludeGuestId: current.id,
+          })
+        : null
 
       if (body.seatingTableId) {
         const table = await tx.seatingTable.findFirst({
@@ -211,6 +254,7 @@ export async function updatePlannerGuest(actor: PlannerGuestActor, guestId: stri
             phone: current.phone,
             role: current.role,
             side: current.side,
+            attendanceAllocation: current.attendanceAllocation,
             seatingTableId: current.seatingTableId,
           }),
           afterValue: JSON.stringify({
@@ -219,15 +263,19 @@ export async function updatePlannerGuest(actor: PlannerGuestActor, guestId: stri
             phone: guest.phone,
             role: guest.role,
             side: guest.side,
+            attendanceAllocation: guest.attendanceAllocation,
+            capacityWarning: capacity?.warning ?? false,
+            capacityRegistered: capacity?.registered ?? null,
+            capacityHardLimit: capacity?.hardLimit ?? null,
             seatingTableId: guest.seatingTableId,
           }),
           weddingId,
           actorId: actor.actorId,
         },
       })
-      return guest
+      return { guest, capacity }
     })
-    return { ok: true, status: 200, data: updated } as const
+    return { ok: true, status: 200, data: updateResult.guest, ...(updateResult.capacity ? { capacity: updateResult.capacity } : {}) } as const
   } catch (error) {
     const failure = seatingFailure(error)
     if (failure) return failure
