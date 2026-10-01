@@ -83,11 +83,11 @@ final class GuestPresentationConvergenceTests: XCTestCase {
         for field in [
             "attending: accepting",
             "mealChoice: accepting ?",
-            "plusOne: accepting ? plusOne : false",
-            "plusOneName: (accepting && plusOne)",
-            "plusOneMeal: (accepting && plusOne)",
-            "kidsAttending: (accepting && !adultsOnly)",
-            "kidsCount: (accepting && !adultsOnly && kidsAttending)",
+            "plusOne: (accepting && !namedGuestsOnly && !serviceProvider) ? plusOne : false",
+            "plusOneName: (accepting && !namedGuestsOnly && !serviceProvider && plusOne)",
+            "plusOneMeal: (accepting && !namedGuestsOnly && !serviceProvider && plusOne)",
+            "kidsAttending: (accepting && !adultsOnly && !serviceProvider)",
+            "kidsCount: (accepting && !adultsOnly && !serviceProvider && kidsAttending)",
             "dietaryNotes: accepting ?",
             "message: message.trimmingCharacters"
         ] {
