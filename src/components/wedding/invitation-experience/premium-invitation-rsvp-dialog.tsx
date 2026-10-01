@@ -16,7 +16,10 @@ import {
 } from '@/lib/digital-invitation-card'
 
 interface InvitationData {
-  wedding: { childrenPolicy: 'welcome' | 'adults_only' }
+  wedding: {
+    childrenPolicy: 'welcome' | 'adults_only'
+    additionalAdultPolicy: 'plus_ones_allowed' | 'named_guests_only'
+  }
   guest: { id: string; name: string; email: string | null; role: string; tableNumber: number | null }
   rsvp: {
     attending: boolean | null
@@ -65,14 +68,17 @@ export function PremiumInvitationRsvpDialog({
         throw new Error(payload.error || 'Invitation access is not active.')
       }
       const childrenPolicy = payload.wedding?.childrenPolicy === 'adults_only' ? 'adults_only' : 'welcome'
+      const additionalAdultPolicy = payload.wedding?.additionalAdultPolicy === 'named_guests_only'
+        ? 'named_guests_only'
+        : 'plus_ones_allowed'
       const nextData = {
-        wedding: { childrenPolicy },
+        wedding: { childrenPolicy, additionalAdultPolicy },
         guest: payload.guest,
         rsvp: payload.rsvp,
       } as InvitationData
       setData(nextData)
       setAttendance(nextData.rsvp.attending === false ? 'decline' : 'accept')
-      setPlusOne(nextData.guest.role === 'service_provider' ? false : Boolean(nextData.rsvp.plusOne))
+      setPlusOne(nextData.guest.role === 'service_provider' || additionalAdultPolicy === 'named_guests_only' ? false : Boolean(nextData.rsvp.plusOne))
       setKidsAttending(
         childrenPolicy === 'adults_only' ? false : Boolean(nextData.rsvp.kidsAttending),
       )
@@ -104,11 +110,12 @@ export function PremiumInvitationRsvpDialog({
     const form = new FormData(event.currentTarget)
     const accepting = attendance === 'accept'
     const adultsOnly = data.wedding.childrenPolicy === 'adults_only'
+    const namedGuestsOnly = data.wedding.additionalAdultPolicy === 'named_guests_only'
     const professional = data.guest.role === 'service_provider'
     const rsvpUpdate: Record<string, unknown> = {
       originGuestId: data.guest.id,
       attending: accepting,
-      plusOne: accepting && !professional ? plusOne : false,
+      plusOne: accepting && !professional && !namedGuestsOnly ? plusOne : false,
       kidsAttending: accepting && !adultsOnly && !professional ? kidsAttending : false,
       message: form.get('message') || null,
     }
@@ -120,7 +127,7 @@ export function PremiumInvitationRsvpDialog({
     if (accepting) {
       rsvpUpdate.mealChoice = form.get('mealChoice') || null
       rsvpUpdate.dietaryNotes = form.get('dietaryNotes') || null
-      if (!professional && plusOne) {
+      if (!professional && !namedGuestsOnly && plusOne) {
         rsvpUpdate.plusOneName = form.get('plusOneName') || null
         rsvpUpdate.plusOneMeal = form.get('plusOneMeal') || null
       }
@@ -157,6 +164,7 @@ export function PremiumInvitationRsvpDialog({
     color: theme.palette.ink,
   }
   const adultsOnly = data?.wedding.childrenPolicy === 'adults_only'
+  const namedGuestsOnly = data?.wedding.additionalAdultPolicy === 'named_guests_only'
   const professional = data?.guest.role === 'service_provider'
 
   return (
@@ -299,6 +307,17 @@ export function PremiumInvitationRsvpDialog({
                   <section data-testid="premium-rsvp-service-provider-note" className="rounded-2xl border px-5 py-4 text-center" style={{ borderColor: `${theme.palette.primary}66`, background: selectedSurface }}>
                     <p className="text-sm font-semibold">Named service attendance</p>
                     <p className="mt-1 text-sm leading-6" style={{ color: theme.palette.muted }}>Service providers attend as individually registered team members. Plus-ones and children are not part of this service RSVP.</p>
+                  </section>
+                ) : namedGuestsOnly ? (
+                  <section
+                    data-testid="premium-rsvp-named-guests-only-note"
+                    className="rounded-2xl border px-5 py-4 text-center"
+                    style={{ borderColor: `${theme.palette.primary}66`, background: selectedSurface }}
+                  >
+                    <p className="text-sm font-semibold">Named guests only</p>
+                    <p className="mt-1 text-sm leading-6" style={{ color: theme.palette.muted }}>
+                      Every attending adult needs their own named invitation. Additional adults cannot be added to this RSVP.
+                    </p>
                   </section>
                 ) : (
                   <>
