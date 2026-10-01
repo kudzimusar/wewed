@@ -13,6 +13,7 @@ public struct LiveInvitationPresentation: Equatable, Sendable {
     public let weddingSlug: String
     public let guestId: String
     public let guestName: String
+    public var participantType: String? = nil
 
     public let coupleNames: String
     public let monogram: String?
@@ -72,6 +73,7 @@ public struct LiveInvitationPresentation: Equatable, Sendable {
             weddingSlug: snapshot.weddingSlug,
             guestId: snapshot.guestId,
             guestName: snapshot.guestName,
+            participantType: snapshot.participantType,
             coupleNames: snapshot.title,
             monogram: snapshot.monogram,
             tagline: snapshot.tagline,
