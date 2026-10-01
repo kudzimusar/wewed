@@ -54,8 +54,8 @@ describe('Additional adults RSVP policy settings', () => {
 
     expect(premium).toContain("additionalAdultPolicy === 'named_guests_only'")
     expect(premium).toContain('premium-rsvp-named-guests-only-note')
-    expect(premium).toContain('plusOne: accepting && !namedGuestsOnly ? plusOne : false')
-    expect(premium).toContain('if (!namedGuestsOnly && plusOne)')
+    expect(premium).toContain('plusOne: accepting && !professional && !namedGuestsOnly ? plusOne : false')
+    expect(premium).toContain('if (!professional && !namedGuestsOnly && plusOne)')
 
     expect(legacy).toContain("additionalAdultPolicy === 'named_guests_only'")
     expect(legacy).toContain('legacy-rsvp-named-guests-only')
@@ -85,6 +85,8 @@ describe('Additional adults RSVP policy settings', () => {
     expect(mutation).toContain('data.plusOne = false')
     expect(mutation).toContain('delete data.plusOneName')
     expect(mutation).toContain('delete data.plusOneMeal')
-    expect(gate).toContain("guest.additionalAdultPolicy !== 'named_guests_only' && guest.plusOne")
+    expect(gate).toContain("guest.additionalAdultPolicy !== 'named_guests_only'")
+    expect(gate).toContain("guest.role !== 'service_provider'")
+    expect(gate).toContain('guest.plusOne')
   })
 })
