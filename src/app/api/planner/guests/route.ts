@@ -15,9 +15,18 @@ import {
 import { requireWeddingPermission } from '@/lib/wedding-access'
 import { createPlannerGuest } from '@/lib/planner-guest-operations'
 import { guestPartySize, guestRsvpStatus } from '@/lib/guest-record-authority'
+import {
+  loadWeddingAdditionalAdultPolicy,
+  loadWeddingChildrenPolicy,
+} from '@/lib/guest-rsvp-mutation'
 
 const MAX_TABLE_CAPACITY = 50
 const MAX_BULK_GUESTS = 500
+
+type AttendancePolicies = {
+  additionalAdultPolicy: 'plus_ones_allowed' | 'named_guests_only'
+  childrenPolicy: 'welcome' | 'adults_only'
+}
 
 function formatGuest(g: {
   id: string
@@ -51,6 +60,9 @@ function formatGuest(g: {
     createdAt: Date
     updatedAt: Date
   } | null
+}, attendancePolicies: AttendancePolicies = {
+  additionalAdultPolicy: 'plus_ones_allowed',
+  childrenPolicy: 'welcome',
 }) {
   return {
     id: g.id,
@@ -67,7 +79,7 @@ function formatGuest(g: {
     weddingId: g.weddingId,
     // Shared Guest-record projection: identical to the native guest list and the Guest session.
     rsvpStatus: guestRsvpStatus(g.rsvp?.attending),
-    partySize: guestPartySize(g.rsvp),
+    partySize: g.role === 'service_provider' ? 1 : guestPartySize(g.rsvp, attendancePolicies),
     createdAt: g.createdAt.toISOString(),
     updatedAt: g.updatedAt.toISOString(),
     rsvp: g.rsvp
@@ -119,7 +131,7 @@ export async function GET(request: NextRequest) {
   if (access.error) return access.error
 
   try {
-    const [guests, tables] = await Promise.all([
+    const [guests, tables, additionalAdultPolicy, childrenPolicy] = await Promise.all([
       db.guest.findMany({
         where: { weddingId: access.context.weddingId },
         include: {
@@ -132,12 +144,15 @@ export async function GET(request: NextRequest) {
         where: { weddingId: access.context.weddingId },
         orderBy: { name: 'asc' },
       }),
+      loadWeddingAdditionalAdultPolicy(access.context.weddingId),
+      loadWeddingChildrenPolicy(access.context.weddingId),
     ])
+    const attendancePolicies = { additionalAdultPolicy, childrenPolicy }
 
     return NextResponse.json({
       success: true,
       count: guests.length,
-      data: guests.map(formatGuest),
+      data: guests.map((guest) => formatGuest(guest, attendancePolicies)),
       tables: tables.map(formatTable),
     })
   } catch (error) {
@@ -173,6 +188,11 @@ export async function POST(request: NextRequest) {
     )
     if (access.error) return access.error
     const weddingId = access.context.weddingId
+    const [additionalAdultPolicy, childrenPolicy] = await Promise.all([
+      loadWeddingAdditionalAdultPolicy(weddingId),
+      loadWeddingChildrenPolicy(weddingId),
+    ])
+    const attendancePolicies = { additionalAdultPolicy, childrenPolicy }
 
     if (body.kind === 'table') {
       const tableName = clean(body.tableName, 120) ?? ''
@@ -233,7 +253,7 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({
       success: true,
-      data: formatGuest(result.data),
+      data: formatGuest(result.data, attendancePolicies),
       capacity: result.capacity ?? null,
       capacityWarning: result.capacity?.warning
         ? `${result.capacity.allocation} allocation has reached its warning threshold (${result.capacity.registered}${result.capacity.hardLimit == null ? '' : `/${result.capacity.hardLimit}`} registered).`
@@ -274,6 +294,11 @@ export async function PATCH(request: NextRequest) {
       )
     }
     const weddingId = access.context.weddingId
+    const [additionalAdultPolicy, childrenPolicy] = await Promise.all([
+      loadWeddingAdditionalAdultPolicy(weddingId),
+      loadWeddingChildrenPolicy(weddingId),
+    ])
+    const attendancePolicies = { additionalAdultPolicy, childrenPolicy }
 
     const updatedGuests = await runSerializableSeatingTransaction(async (tx) => {
       const guests = await tx.guest.findMany({
@@ -297,8 +322,8 @@ export async function PATCH(request: NextRequest) {
           },
           include: { rsvp: true },
         })
-        const occupied = otherGuests.reduce((sum, guest) => sum + plannedSeatsForGuest(guest), 0)
-        const moving = guests.reduce((sum, guest) => sum + plannedSeatsForGuest(guest), 0)
+        const occupied = otherGuests.reduce((sum, guest) => sum + guest.role === 'service_provider' ? 1 : plannedSeatsForGuest(guest, attendancePolicies), 0)
+        const moving = guests.reduce((sum, guest) => sum + guest.role === 'service_provider' ? 1 : plannedSeatsForGuest(guest, attendancePolicies), 0)
         if (occupied + moving > table.capacity) {
           throw new SeatingCapacityError(
             `${table.name} has ${Math.max(0, table.capacity - occupied)} available seat${table.capacity - occupied === 1 ? '' : 's'}; the selected parties require ${moving}.`,
@@ -331,7 +356,7 @@ export async function PATCH(request: NextRequest) {
       })
     })
 
-    return NextResponse.json({ success: true, count: updatedGuests.length, data: updatedGuests.map(formatGuest) })
+    return NextResponse.json({ success: true, count: updatedGuests.length, data: updatedGuests.map((guest) => formatGuest(guest, attendancePolicies)) })
   } catch (error) {
     if (error instanceof SeatingCapacityError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 409 })
