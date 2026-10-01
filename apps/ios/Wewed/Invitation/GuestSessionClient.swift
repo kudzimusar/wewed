@@ -22,6 +22,7 @@ public struct GuestInvitationSnapshot: Equatable, Sendable {
     public let invitationCardMessage: String?
     public let rsvpDeadline: String?
     public let childrenPolicy: String?
+    public var additionalAdultPolicy: String? = nil
     public let guestId: String
     public let guestName: String
     public let email: String?
@@ -141,6 +142,8 @@ public enum RsvpSaveResult: Equatable, Sendable {
     /// expired. The server refuses rather than writing the answer to whoever is active now.
     case staleGuestContext
     case childrenNotAllowed
+    case additionalGuestsNotAllowed
+    case serviceProviderHouseholdNotAllowed
     case notAuthorized
     case failed(status: Int)
 }
@@ -402,6 +405,7 @@ public actor GuestSessionClient {
             invitationCardMessage: text(wedding, "invitationCardMessage"),
             rsvpDeadline: text(wedding, "rsvpDeadline"),
             childrenPolicy: text(wedding, "childrenPolicy"),
+            additionalAdultPolicy: text(wedding, "additionalAdultPolicy"),
             guestId: text(guest, "id") ?? "",
             guestName: text(guest, "name") ?? "",
             email: text(guest, "email"),
@@ -471,9 +475,12 @@ public actor GuestSessionClient {
             let json = response.body.flatMap {
                 try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
             }
-            return json?["code"] as? String == "CHILDREN_NOT_ALLOWED"
-                ? .childrenNotAllowed
-                : .failed(status: 400)
+            switch json?["code"] as? String {
+            case "CHILDREN_NOT_ALLOWED": return .childrenNotAllowed
+            case "ADDITIONAL_GUESTS_NOT_ALLOWED": return .additionalGuestsNotAllowed
+            case "SERVICE_PROVIDER_HOUSEHOLD_NOT_ALLOWED": return .serviceProviderHouseholdNotAllowed
+            default: return .failed(status: 400)
+            }
         default:
             return .failed(status: response.status)
         }
