@@ -20,7 +20,7 @@ async function addGuest(
     response.url().endsWith('/api/planner/guests')
       && response.request().method() === 'POST',
   )
-  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await page.getByRole('button', { name: 'Add guest', exact: true }).click()
   expect((await createResponse).ok()).toBe(true)
   await expect(page.getByText(name, { exact: true })).toBeVisible()
 }
@@ -37,16 +37,16 @@ test('module, task filter, and full task edits survive refresh and navigation', 
   await expect(page.getByPlaceholder('Search tasks, descriptions, or assignees')).toHaveValue('Primary')
   await page.getByRole('button', { name: 'Reset' }).click()
 
-  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await page.getByRole('button', { name: 'Add guest', exact: true }).click()
   await expect(page.locator('#workspace-task-title-error')).toContainText('Enter a task title')
   await page.locator('#workspace-task-title').fill('--- !!!')
-  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await page.getByRole('button', { name: 'Add guest', exact: true }).click()
   await expect(page.locator('#workspace-task-title-error')).toContainText('letter or number')
 
   const original = 'Gap closure editable task'
   const updated = 'Gap closure edited task'
   await page.locator('#workspace-task-title').fill(original)
-  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await page.getByRole('button', { name: 'Add guest', exact: true }).click()
   await expect(page.getByText(original, { exact: true })).toBeVisible()
   await page.getByRole('button', { name: `Edit ${original}` }).click()
   await page.locator('[id^="task-edit-title-"]').fill(updated)
@@ -85,7 +85,7 @@ test('budget search covers item, vendor, category, notes, status, and persists',
   await page.locator('#workspace-budget-estimated-cost').fill('800')
   await page.locator('#workspace-budget-paid-amount').fill('200')
   await page.locator('#workspace-budget-notes').fill('Final quote includes table centrepieces')
-  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await page.getByRole('button', { name: 'Add guest', exact: true }).click()
   await expect(page.getByText(item, { exact: true })).toBeVisible()
 
   const search = page.getByPlaceholder('Search item, vendor, category, notes or document')
