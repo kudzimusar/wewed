@@ -48,6 +48,7 @@ sealed interface RsvpOutcome {
     data object ReopenRequired : RsvpOutcome
 
     data object ChildrenNotAllowed : RsvpOutcome
+    data object ServiceProviderHouseholdNotAllowed : RsvpOutcome
     data class Unavailable(val status: Int?) : RsvpOutcome
 }
 
@@ -217,6 +218,7 @@ class LiveGuestInvitationCoordinator(
                 is RsvpSaveResult.StaleGuestContext -> RsvpOutcome.ReopenRequired
                 is RsvpSaveResult.NotAuthorized -> RsvpOutcome.ReopenRequired
                 is RsvpSaveResult.ChildrenNotAllowed -> RsvpOutcome.ChildrenNotAllowed
+                is RsvpSaveResult.ServiceProviderHouseholdNotAllowed -> RsvpOutcome.ServiceProviderHouseholdNotAllowed
                 is RsvpSaveResult.Failed -> RsvpOutcome.Unavailable(result.status)
             }
         } catch (error: GuestSessionException) {
