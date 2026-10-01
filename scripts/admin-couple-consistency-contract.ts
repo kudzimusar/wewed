@@ -172,7 +172,7 @@ includesAll('src/lib/planner-invitation-operations.ts', [
 ])
 const invitationProjection = includesAll('src/lib/planner-invitation-projection.ts', [
   'db.guest.findMany',
-  'include: { rsvp: { select: { token: true, attending: true, checkedIn: true } } }',
+  'rsvp: { select: { token: true, attending: true, checkedIn: true } },',
   'id: guest.id',
   'token: guest.rsvp.token',
   'qrValue: invitationUrl',
