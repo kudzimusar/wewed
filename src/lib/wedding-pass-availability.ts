@@ -137,10 +137,12 @@ export function resolveWeddingPassCredentialAdminState(input: {
   attending: boolean | null
   weddingDate: Date
   latest: WeddingPassCredentialLifecycle | null
+  admissionApproved?: boolean
   now?: Date
 }): WeddingPassCredentialAdminState {
   if (input.attending === null) return 'pending_rsvp'
   if (input.attending === false) return 'declined'
+  if (input.admissionApproved === false) return 'not_yet_issuable'
 
   const now = (input.now ?? new Date()).getTime()
   const latest = input.latest
