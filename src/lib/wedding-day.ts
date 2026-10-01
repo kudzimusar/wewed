@@ -457,8 +457,18 @@ export async function ensureWeddingPassCredential(input: {
       // The Guest row is the serialization point for credential issuance/reissue. Locking a
       // possibly-absent credential row is insufficient because two first issuers can both see zero
       // rows. We also lock the RSVP row so attendance cannot flip between eligibility and insert.
-      const guestRows = await tx.$queryRawUnsafe<Array<{ id: string; weddingDate: Date }>>(
-        `SELECT g.id, w.date AS "weddingDate"
+      const guestRows = await tx.$queryRawUnsafe<Array<{ id: string; weddingDate: Date; role: string; serviceProviderApproved: boolean }>>(
+        `SELECT g.id, w.date AS "weddingDate", g.role,
+                CASE
+                  WHEN g.role <> 'service_provider' THEN TRUE
+                  ELSE EXISTS (
+                    SELECT 1
+                      FROM public."ServiceTeamMember" stm
+                     WHERE stm."guestId" = g.id
+                       AND stm."weddingId" = g."weddingId"
+                       AND stm."approvedAt" IS NOT NULL
+                  )
+                END AS "serviceProviderApproved"
            FROM public."Guest" g
            JOIN public."Wedding" w ON w.id = g."weddingId"
           WHERE g.id = $1 AND g."weddingId" = $2
@@ -482,6 +492,11 @@ export async function ensureWeddingPassCredential(input: {
       )
       if (rsvpRows[0]?.attending !== true) {
         throw new Error('ATTENDANCE_REQUIRED')
+      }
+      if (guest.role === 'service_provider' && !guest.serviceProviderApproved) {
+        throw new WeddingPassUnavailableError(
+          weddingPassAvailability('not_yet_issuable', guest.weddingDate),
+        )
       }
 
       const existing = await liveCredential(tx, input.weddingId, input.guestId, true)
@@ -736,6 +751,8 @@ export async function readWeddingDayGuestContext(request: NextRequest) {
     weddingSlug: string
     weddingTitle: string
     guestName: string
+    guestRole: string
+    serviceProviderApproved: boolean
     attending: boolean | null
     weddingDate: Date
     venue: string
@@ -743,7 +760,18 @@ export async function readWeddingDayGuestContext(request: NextRequest) {
     venueCountry: string
   }>>(
     `SELECT g.id AS "guestId", g."weddingId", w.slug AS "weddingSlug", w.title AS "weddingTitle",
-            g.name AS "guestName", r.attending, w.date AS "weddingDate",
+            g.name AS "guestName", g.role AS "guestRole",
+            CASE
+              WHEN g.role <> 'service_provider' THEN TRUE
+              ELSE EXISTS (
+                SELECT 1
+                  FROM public."ServiceTeamMember" stm
+                 WHERE stm."guestId" = g.id
+                   AND stm."weddingId" = g."weddingId"
+                   AND stm."approvedAt" IS NOT NULL
+              )
+            END AS "serviceProviderApproved",
+            r.attending, w.date AS "weddingDate",
             w.venue, w."venueCity", w."venueCountry"
        FROM public."Guest" g
        JOIN public."Wedding" w ON w.id = g."weddingId"
@@ -762,6 +790,8 @@ export async function readWeddingDayGuestContext(request: NextRequest) {
     weddingTitle: row.weddingTitle,
     guestId: row.guestId,
     guestName: row.guestName,
+    guestRole: row.guestRole,
+    serviceProviderApproved: row.serviceProviderApproved,
     attending: row.attending,
     weddingDate: row.weddingDate,
     venue: row.venue,
@@ -781,6 +811,9 @@ export async function guestPassForRequest(request: NextRequest) {
   }
   if (context.attending !== true) {
     throw new WeddingPassUnavailableError(weddingPassAvailability('rsvp_required', context.weddingDate))
+  }
+  if (context.guestRole === 'service_provider' && !context.serviceProviderApproved) {
+    throw new WeddingPassUnavailableError(weddingPassAvailability('not_yet_issuable', context.weddingDate))
   }
   const credential = await ensureWeddingPassCredential({
     weddingId: context.weddingId,
@@ -838,13 +871,25 @@ export async function checkInWeddingGuest(input: {
       guestId: string
       name: string
       role: string
+      serviceProviderApproved: boolean
       attending: boolean | null
       plusOne: boolean | null
       plusOneName: string | null
       kidsAttending: boolean | null
       kidsCount: number | null
     }>>(
-      `SELECT g.id AS "guestId", g.name, g.role, r.attending, r."plusOne", r."plusOneName",
+      `SELECT g.id AS "guestId", g.name, g.role,
+              CASE
+                WHEN g.role <> 'service_provider' THEN TRUE
+                ELSE EXISTS (
+                  SELECT 1
+                    FROM public."ServiceTeamMember" stm
+                   WHERE stm."guestId" = g.id
+                     AND stm."weddingId" = g."weddingId"
+                     AND stm."approvedAt" IS NOT NULL
+                )
+              END AS "serviceProviderApproved",
+              r.attending, r."plusOne", r."plusOneName",
               r."kidsAttending", r."kidsCount"
          FROM public."Guest" g
          JOIN public."RSVP" r ON r."guestId" = g.id
@@ -856,6 +901,9 @@ export async function checkInWeddingGuest(input: {
     )
     const guest = guestRows[0]
     if (!guest || guest.attending !== true) throw new Error('GUEST_INELIGIBLE')
+    if (guest.role === 'service_provider' && !guest.serviceProviderApproved) {
+      throw new Error('SERVICE_PROVIDER_NOT_APPROVED')
+    }
 
     const credentialRows = await tx.$queryRawUnsafe<CredentialRow[]>(
       `SELECT *
