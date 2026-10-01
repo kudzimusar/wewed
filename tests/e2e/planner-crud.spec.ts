@@ -13,13 +13,13 @@ test('real browser CRUD persists for tasks, budget, and vendors', async ({ plann
   await page.locator('#workspace-task-title').fill(taskName)
   await page.locator('#workspace-task-assignee').fill('Day-of coordinator')
   await page.locator('#workspace-task-priority').selectOption('high')
-  await page.getByRole('button', { name: 'Add guest', exact: true }).click()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(page.getByText(taskName, { exact: true })).toBeVisible()
 
   const lowPriorityTask = 'Browser low-priority task'
   await page.locator('#workspace-task-title').fill(lowPriorityTask)
   await page.locator('#workspace-task-priority').selectOption('low')
-  await page.getByRole('button', { name: 'Add guest', exact: true }).click()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(page.getByText(lowPriorityTask, { exact: true })).toBeVisible()
 
   await page.getByLabel('Filter tasks by priority').selectOption('high')
@@ -54,7 +54,7 @@ test('real browser CRUD persists for tasks, budget, and vendors', async ({ plann
   await page.locator('#workspace-budget-actual-cost').fill('1150')
   await page.locator('#workspace-budget-paid-amount').fill('300')
   await page.locator('#workspace-budget-due-date').fill('2027-03-10')
-  await page.getByRole('button', { name: 'Add guest', exact: true }).click()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(page.getByText(budgetName, { exact: true })).toBeVisible()
 
   let budgetRow = page
@@ -167,7 +167,7 @@ test('real browser CRUD covers guests, seating, timeline, and printing', async (
   const timelineCreateResponse = page.waitForResponse(
     (response) => response.url().endsWith('/api/planner/timeline') && response.request().method() === 'POST',
   )
-  await page.getByRole('button', { name: 'Add guest', exact: true }).click()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   expect((await timelineCreateResponse).ok()).toBe(true)
   await expect(page.getByText(timelineName, { exact: true })).toBeVisible()
 
