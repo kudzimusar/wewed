@@ -36,6 +36,7 @@ data class GuestInvitationSnapshot(
     val childrenPolicy: String?,
     val guestId: String,
     val guestName: String,
+    val participantType: String?,
     val email: String?,
     val tableNumber: Int?,
     /** e.g. "Table 1 — Family". Server-projected; never another guest's record. */
@@ -113,6 +114,7 @@ sealed interface RsvpSaveResult {
      */
     data object StaleGuestContext : RsvpSaveResult
     data object ChildrenNotAllowed : RsvpSaveResult
+    data object ServiceProviderHouseholdNotAllowed : RsvpSaveResult
     data object NotAuthorized : RsvpSaveResult
     data class Failed(val status: Int) : RsvpSaveResult
 }
@@ -351,6 +353,7 @@ class GuestSessionClient(
             childrenPolicy = wedding.optStringOrNull("childrenPolicy"),
             guestId = guest.optStringOrNull("id").orEmpty(),
             guestName = guest.optStringOrNull("name").orEmpty(),
+            participantType = guest.optStringOrNull("role"),
             email = guest.optStringOrNull("email"),
             tableNumber = if (guest.isNull("tableNumber")) null else guest.optInt("tableNumber"),
             tableName = guest.optStringOrNull("tableName"),
@@ -418,6 +421,9 @@ class GuestSessionClient(
             status == 400 &&
                 payload?.let { JSONObject(it).optString("code") } == "CHILDREN_NOT_ALLOWED" ->
                 RsvpSaveResult.ChildrenNotAllowed
+            status == 400 &&
+                payload?.let { JSONObject(it).optString("code") } == "SERVICE_PROVIDER_HOUSEHOLD_NOT_ALLOWED" ->
+                RsvpSaveResult.ServiceProviderHouseholdNotAllowed
             else -> RsvpSaveResult.Failed(status)
         }
     }
