@@ -174,6 +174,7 @@ describe('Planner production blocker PostgreSQL integration', () => {
         email: 'updated@example.com',
         phone: '+263700000002',
         group: "Bride's Family",
+        attendanceAllocation: 'shared',
         invitationStatus: 'sent',
         rsvpStatus: 'attending',
         numberAttending: '2',
