@@ -59,7 +59,8 @@ describe('Additional adults RSVP policy settings', () => {
 
     expect(legacy).toContain("additionalAdultPolicy === 'named_guests_only'")
     expect(legacy).toContain('legacy-rsvp-named-guests-only')
-    expect(legacy).toContain("plusOne: data.wedding.additionalAdultPolicy === 'named_guests_only'")
+    expect(legacy).toContain("data.guest.role === 'service_provider' || data.wedding.additionalAdultPolicy === 'named_guests_only'")
+    expect(legacy).toContain("form.get('plusOne') === 'on'")
   })
 
   test('Android and iOS consume the server policy and hide plus-one controls', () => {
