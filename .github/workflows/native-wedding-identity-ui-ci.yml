@@ -237,9 +237,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          metadata='apps/android/app/build/outputs/apk/release/output-metadata.json'
-          test -f "$metadata"
-          actual="$(sed -n 's/.*"applicationId"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$metadata" | head -n 1)"
+          # compileReleaseKotlin runs processReleaseManifestForPackage without requiring the
+          # production signing key. Inspect that generated release manifest rather than expecting
+          # an APK output-metadata file that only release packaging can create.
+          manifest="$(find apps/android/app/build/intermediates/packaged_manifests/release -type f -name AndroidManifest.xml -print -quit)"
+          test -n "$manifest" && test -f "$manifest" || {
+            echo "::error::Release packaged manifest was not generated."
+            exit 1
+          }
+          actual="$(sed -n 's/.*package="\([^"]*\)".*/\1/p' "$manifest" | head -n 1)"
           test "$actual" = 'pro.wewed.app' || {
             echo "::error::Release package is '$actual'; expected pro.wewed.app"
             exit 1
