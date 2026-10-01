@@ -80,6 +80,8 @@ public struct LiveGuestInvitationView: View {
     @State private var reopenRequired = false
     @State private var staleOrReplacedGuest = false
     @State private var childrenNotAllowed = false
+    @State private var additionalGuestsNotAllowed = false
+    @State private var serviceProviderHouseholdNotAllowed = false
     @State private var showNote = false
     @State private var browserHandoffFailed = false
     @State private var calendarStart: Date?
@@ -158,6 +160,10 @@ public struct LiveGuestInvitationView: View {
             // session — a "reopen your invitation" message would be actively misleading here.
             case .childrenNotAllowed:
                 childrenNotAllowed = true
+            case .additionalGuestsNotAllowed:
+                additionalGuestsNotAllowed = true
+            case .serviceProviderHouseholdNotAllowed:
+                serviceProviderHouseholdNotAllowed = true
             }
             submitting = false
         }
@@ -189,11 +195,17 @@ public struct LiveGuestInvitationView: View {
             if rsvpPrompt, let editorPresentation = rsvpEditorPresentation {
                 LiveRsvpFormView(
                     guestName: editorPresentation.guestName,
+                    participantType: editorPresentation.participantType,
                     childrenPolicy: editorPresentation.childrenPolicy,
+                    additionalAdultPolicy: editorPresentation.additionalAdultPolicy,
                     initial: editorPresentation,
                     isSubmitting: submitting,
                     childrenNotAllowed: childrenNotAllowed,
+                    additionalGuestsNotAllowed: additionalGuestsNotAllowed,
+                    serviceProviderHouseholdNotAllowed: serviceProviderHouseholdNotAllowed,
                     onDismissChildrenNotice: { childrenNotAllowed = false },
+                    onDismissAdditionalGuestsNotice: { additionalGuestsNotAllowed = false },
+                    onDismissServiceProviderHouseholdNotice: { serviceProviderHouseholdNotAllowed = false },
                     onSubmit: { answer($0) },
                     onDismiss: {
                         if !submitting {
@@ -548,11 +560,17 @@ private let liveRsvpMealOptions: [(value: String, label: String)] = [
 /// two clients converge on the same server contract rather than inventing a mobile-only one.
 private struct LiveRsvpFormView: View {
     let guestName: String
+    let participantType: String?
     let childrenPolicy: String?
+    let additionalAdultPolicy: String?
     let initial: LiveInvitationPresentation
     let isSubmitting: Bool
     let childrenNotAllowed: Bool
+    let additionalGuestsNotAllowed: Bool
+    let serviceProviderHouseholdNotAllowed: Bool
     let onDismissChildrenNotice: () -> Void
+    let onDismissAdditionalGuestsNotice: () -> Void
+    let onDismissServiceProviderHouseholdNotice: () -> Void
     let onSubmit: (GuestRsvpUpdate) -> Void
     let onDismiss: () -> Void
 
@@ -567,34 +585,50 @@ private struct LiveRsvpFormView: View {
     @State private var message: String
 
     private var adultsOnly: Bool { childrenPolicy == "adults_only" }
+    private var namedGuestsOnly: Bool { additionalAdultPolicy == "named_guests_only" }
+    private var serviceProvider: Bool { participantType == "service_provider" }
 
     init(
         guestName: String,
+        participantType: String?,
         childrenPolicy: String?,
+        additionalAdultPolicy: String?,
         initial: LiveInvitationPresentation,
         isSubmitting: Bool,
         childrenNotAllowed: Bool,
+        additionalGuestsNotAllowed: Bool,
+        serviceProviderHouseholdNotAllowed: Bool,
         onDismissChildrenNotice: @escaping () -> Void,
+        onDismissAdditionalGuestsNotice: @escaping () -> Void,
+        onDismissServiceProviderHouseholdNotice: @escaping () -> Void,
         onSubmit: @escaping (GuestRsvpUpdate) -> Void,
         onDismiss: @escaping () -> Void
     ) {
         self.guestName = guestName
+        self.participantType = participantType
         self.childrenPolicy = childrenPolicy
+        self.additionalAdultPolicy = additionalAdultPolicy
         self.initial = initial
         self.isSubmitting = isSubmitting
         self.childrenNotAllowed = childrenNotAllowed
+        self.additionalGuestsNotAllowed = additionalGuestsNotAllowed
+        self.serviceProviderHouseholdNotAllowed = serviceProviderHouseholdNotAllowed
         self.onDismissChildrenNotice = onDismissChildrenNotice
+        self.onDismissAdditionalGuestsNotice = onDismissAdditionalGuestsNotice
+        self.onDismissServiceProviderHouseholdNotice = onDismissServiceProviderHouseholdNotice
         self.onSubmit = onSubmit
         self.onDismiss = onDismiss
         // Never let a stale client pre-select children attendance on an adults-only wedding — the
         // server remains final enforcement authority regardless, but the form must not encourage it.
         let adultsOnlyPolicy = childrenPolicy == "adults_only"
+        let namedGuestsOnlyPolicy = additionalAdultPolicy == "named_guests_only"
+        let serviceProviderPolicy = participantType == "service_provider"
         _accepting = State(initialValue: initial.attending != false)
         _mealChoice = State(initialValue: initial.mealChoice ?? "")
-        _plusOne = State(initialValue: initial.plusOne)
+        _plusOne = State(initialValue: (namedGuestsOnlyPolicy || serviceProviderPolicy) ? false : initial.plusOne)
         _plusOneName = State(initialValue: initial.plusOneName ?? "")
         _plusOneMeal = State(initialValue: initial.plusOneMeal ?? "")
-        _kidsAttending = State(initialValue: adultsOnlyPolicy ? false : initial.kidsAttending)
+        _kidsAttending = State(initialValue: (adultsOnlyPolicy || serviceProviderPolicy) ? false : initial.kidsAttending)
         _kidsCount = State(initialValue: initial.kidsCount ?? 0)
         _dietaryNotes = State(initialValue: initial.dietaryNotes ?? "")
         _message = State(initialValue: initial.message ?? "")
@@ -608,13 +642,13 @@ private struct LiveRsvpFormView: View {
             // omitted entirely while declining, so a decline never disturbs a meal choice saved
             // from a prior acceptance.
             mealChoice: accepting ? mealChoice.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
-            plusOne: accepting ? plusOne : false,
-            plusOneName: (accepting && plusOne)
+            plusOne: (accepting && !namedGuestsOnly && !serviceProvider) ? plusOne : false,
+            plusOneName: (accepting && !namedGuestsOnly && !serviceProvider && plusOne)
                 ? plusOneName.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
-            plusOneMeal: (accepting && plusOne)
+            plusOneMeal: (accepting && !namedGuestsOnly && !serviceProvider && plusOne)
                 ? plusOneMeal.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
-            kidsAttending: (accepting && !adultsOnly) ? kidsAttending : false,
-            kidsCount: (accepting && !adultsOnly && kidsAttending) ? kidsCount : nil,
+            kidsAttending: (accepting && !adultsOnly && !serviceProvider) ? kidsAttending : false,
+            kidsCount: (accepting && !adultsOnly && !serviceProvider && kidsAttending) ? kidsCount : nil,
             dietaryNotes: accepting ? dietaryNotes.trimmingCharacters(in: .whitespacesAndNewlines) : nil,
             // Always sent: a message to the couple is meaningful whether or not the guest is
             // attending.
@@ -712,31 +746,49 @@ private struct LiveRsvpFormView: View {
 
                                     Divider().padding(.vertical, 4)
 
-                                    toggleRow(
-                                        "Bringing a plus one",
-                                        isOn: $plusOne,
-                                        identifier: "invitation-rsvp-plus-one-toggle"
-                                    )
-                                    .frame(width: contentWidth)
-
-                                    if plusOne {
-                                        VStack(spacing: 8) {
-                                            TextField("Plus one's name", text: $plusOneName)
-                                                .textFieldStyle(.roundedBorder)
-                                                .frame(width: contentWidth)
-                                                .accessibilityIdentifier("invitation-rsvp-plus-one-name")
-                                            TextField("Their meal preference", text: $plusOneMeal)
-                                                .textFieldStyle(.roundedBorder)
-                                                .frame(width: contentWidth)
-                                                .accessibilityIdentifier("invitation-rsvp-plus-one-meal")
-                                        }
+                                    if serviceProvider {
+                                        Text("Service team members are admitted individually. Plus-ones and children are not part of service attendance.")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(WeddingIdentityPalette.muted)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .frame(width: contentWidth, alignment: .leading)
+                                            .accessibilityIdentifier("invitation-rsvp-service-provider-note")
+                                    } else if namedGuestsOnly {
+                                        Text("Every attending adult receives their own named invitation.")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(WeddingIdentityPalette.muted)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .frame(width: contentWidth, alignment: .leading)
+                                            .accessibilityIdentifier("invitation-rsvp-named-guests-only-note")
+                                    } else {
+                                        toggleRow(
+                                            "Bringing a plus one",
+                                            isOn: $plusOne,
+                                            identifier: "invitation-rsvp-plus-one-toggle"
+                                        )
                                         .frame(width: contentWidth)
-                                        .accessibilityIdentifier("invitation-rsvp-plus-one-details")
+
+                                        if plusOne {
+                                            VStack(spacing: 8) {
+                                                TextField("Plus one's name", text: $plusOneName)
+                                                    .textFieldStyle(.roundedBorder)
+                                                    .frame(width: contentWidth)
+                                                    .accessibilityIdentifier("invitation-rsvp-plus-one-name")
+                                                TextField("Their meal preference", text: $plusOneMeal)
+                                                    .textFieldStyle(.roundedBorder)
+                                                    .frame(width: contentWidth)
+                                                    .accessibilityIdentifier("invitation-rsvp-plus-one-meal")
+                                            }
+                                            .frame(width: contentWidth)
+                                            .accessibilityIdentifier("invitation-rsvp-plus-one-details")
+                                        }
                                     }
 
                                     Divider().padding(.vertical, 4)
 
-                                    if adultsOnly {
+                                    if serviceProvider {
+                                        // Professional attendance has no household controls.
+                                    } else if adultsOnly {
                                         Text("With love, we kindly ask that this be an adults-only celebration.")
                                             .font(.system(size: 12))
                                             .foregroundStyle(WeddingIdentityPalette.muted)
@@ -795,6 +847,26 @@ private struct LiveRsvpFormView: View {
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: contentWidth)
                                 .accessibilityIdentifier("invitation-rsvp-message")
+
+                            if additionalGuestsNotAllowed {
+                                Text("Additional adults must have their own named invitation.")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(WewedColors.error)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(width: contentWidth, alignment: .leading)
+                                    .onTapGesture(perform: onDismissAdditionalGuestsNotice)
+                                    .accessibilityIdentifier("invitation-rsvp-additional-guests-not-allowed")
+                            }
+
+                            if serviceProviderHouseholdNotAllowed {
+                                Text("Service team attendance is individual; plus-ones and children cannot be added.")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(WewedColors.error)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .frame(width: contentWidth, alignment: .leading)
+                                    .onTapGesture(perform: onDismissServiceProviderHouseholdNotice)
+                                    .accessibilityIdentifier("invitation-rsvp-service-provider-household-not-allowed")
+                            }
 
                             if childrenNotAllowed {
                                 Text("This celebration is adults only, so children can't be added to your RSVP.")
