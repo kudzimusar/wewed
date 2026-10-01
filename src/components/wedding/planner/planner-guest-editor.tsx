@@ -9,6 +9,7 @@ export const PLANNER_GUEST_ROLE_OPTIONS = [
   { value: 'family', label: 'Family' },
   { value: 'officiant', label: 'Officiant' },
   { value: 'vip', label: 'VIP' },
+  { value: 'service_provider', label: 'Service provider' },
 ] as const
 
 export const PLANNER_GUEST_ALLOCATION_OPTIONS = [

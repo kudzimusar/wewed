@@ -109,6 +109,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         id: guest.id,
         name: guest.name,
         email: guest.email,
+        role: guest.role,
         tableNumber: guest.tableNumber,
         tableName: guest.tableName,
         seatingTableId: guest.seatingTableId,

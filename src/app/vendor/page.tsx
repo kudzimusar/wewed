@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, BarChart3, CalendarCheck2, CalendarRange, FolderLock, MessageCircle, PackageOpen, Store, UserRoundCog } from 'lucide-react'
+import { ArrowRight, BarChart3, CalendarCheck2, CalendarRange, FolderLock, MessageCircle, PackageOpen, Store, UserRoundCog, UsersRound } from 'lucide-react'
 import { DashboardAuthGate } from '@/components/wedding/dashboard-auth-gate'
 
 export default function VendorWorkspacePage() {
@@ -73,6 +73,13 @@ export default function VendorWorkspacePage() {
               <h2 className="mt-5 font-serif text-3xl">Messages</h2>
               <p className="mt-3 text-sm leading-6 text-espresso/60">Open your inbox, receive Planner ↔ Vendor enquiries and keep commercial conversations inside Wewed.</p>
               <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-gold-muted">Open Messages <ArrowRight className="size-4" /></span>
+            </Link>
+
+            <Link href="/vendor/service-teams" className="group rounded-3xl border border-gold/20 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+              <UsersRound className="size-6 text-gold-muted" />
+              <h2 className="mt-5 font-serif text-3xl">Service team roster</h2>
+              <p className="mt-3 text-sm leading-6 text-espresso/60">If you are the designated team leader, register only your own named event-day crew and submit the roster for Planner approval.</p>
+              <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-gold-muted">Manage my roster <ArrowRight className="size-4" /></span>
             </Link>
 
             <Link href="/vendor/documents" className="group rounded-3xl border border-gold/20 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg">

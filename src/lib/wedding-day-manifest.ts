@@ -23,6 +23,8 @@ interface ManifestKeyRow {
 interface ManifestCredentialRow {
   guestId: string
   guestName: string
+  guestRole: string
+  serviceProviderApproved: boolean
   tableNumber: number | null
   passSerial: string
   nonce: string
@@ -85,7 +87,7 @@ function householdMembers(row: ManifestCredentialRow): HouseholdMember[] {
     },
   ]
 
-  if (row.plusOne) {
+  if (row.guestRole !== 'service_provider' && row.plusOne) {
     members.push({
       attendeeKey: 'plus-one',
       attendeeKind: 'plus_one',
@@ -93,7 +95,7 @@ function householdMembers(row: ManifestCredentialRow): HouseholdMember[] {
     })
   }
 
-  if (row.kidsAttending && row.kidsCount > 0) {
+  if (row.guestRole !== 'service_provider' && row.kidsAttending && row.kidsCount > 0) {
     for (let index = 1; index <= row.kidsCount; index += 1) {
       members.push({
         attendeeKey: `child-${index}`,
@@ -140,6 +142,17 @@ export async function signedNativeWeddingDayManifest(weddingId: string) {
     db.$queryRawUnsafe<ManifestCredentialRow[]>(
       `SELECT c."guestId",
               g.name AS "guestName",
+              g.role AS "guestRole",
+              CASE
+                WHEN g.role <> 'service_provider' THEN TRUE
+                ELSE EXISTS (
+                  SELECT 1
+                    FROM public."ServiceTeamMember" stm
+                   WHERE stm."guestId" = g.id
+                     AND stm."weddingId" = g."weddingId"
+                     AND stm."approvedAt" IS NOT NULL
+                )
+              END AS "serviceProviderApproved",
               g."tableNumber",
               c."passSerial",
               c.nonce,
@@ -210,7 +223,8 @@ export async function signedNativeWeddingDayManifest(weddingId: string) {
         nonce: credential.nonce,
         eventBitmask: credential.eventBitmask,
         keyId: credential.keyId,
-        eligible: credential.attending === true,
+        eligible: credential.attending === true
+          && (credential.guestRole !== 'service_provider' || credential.serviceProviderApproved),
         household,
         partySize: household.length,
         checkedInAttendeeKeys: checkedInByGuest.get(credential.guestId) ?? [],

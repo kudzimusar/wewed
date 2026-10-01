@@ -36,7 +36,7 @@ interface InvitationData {
     rsvpDeadline: string | null
     childrenPolicy: 'welcome' | 'adults_only'
   }
-  guest: { id: string; name: string; email: string | null; tableNumber: number | null }
+  guest: { id: string; name: string; email: string | null; role: string; tableNumber: number | null }
   rsvp: {
     attending: boolean | null
     mealChoice: string | null
@@ -131,13 +131,12 @@ export function InvitationRsvpDialog() {
           originGuestId: data.guest.id,
           attending: form.get('attendance') === 'accept',
           mealChoice: form.get('mealChoice') || null,
-          plusOne: form.get('plusOne') === 'on',
-          plusOneName: form.get('plusOneName') || null,
-          plusOneMeal: form.get('plusOneMeal') || null,
-          kidsAttending: data.wedding.childrenPolicy === 'adults_only'
+          plusOne: data.guest.role === 'service_provider' ? false : form.get('plusOne') === 'on',
+          ...(data.guest.role === 'service_provider' ? {} : { plusOneName: form.get('plusOneName') || null, plusOneMeal: form.get('plusOneMeal') || null }),
+          kidsAttending: data.guest.role === 'service_provider' || data.wedding.childrenPolicy === 'adults_only'
             ? false
             : form.get('kidsAttending') === 'on',
-          kidsCount: data.wedding.childrenPolicy === 'adults_only'
+          kidsCount: data.guest.role === 'service_provider' || data.wedding.childrenPolicy === 'adults_only'
             ? 0
             : Number(form.get('kidsCount') || 0),
           dietaryNotes: form.get('dietaryNotes') || null,
@@ -182,8 +181,8 @@ export function InvitationRsvpDialog() {
             <div className="rounded-md border border-gold/20 bg-white/60 p-3"><p className="font-medium">{data.guest.name}</p>{data.guest.email && <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground"><Mail className="size-3" />{data.guest.email}</p>}{data.guest.tableNumber && <p className="mt-1 text-xs text-muted-foreground">Table {data.guest.tableNumber}</p>}</div>
             <div className="space-y-2"><Label>Will you attend?</Label><RadioGroup name="attendance" defaultValue={data.rsvp.attending === false ? 'decline' : 'accept'} required><div className="flex items-center gap-2"><RadioGroupItem value="accept" id="invite-accept" /><Label htmlFor="invite-accept">Joyfully accept</Label></div><div className="flex items-center gap-2"><RadioGroupItem value="decline" id="invite-decline" /><Label htmlFor="invite-decline">Regretfully decline</Label></div></RadioGroup></div>
             <div className="space-y-2"><Label htmlFor="invite-meal">Meal preference</Label><Select name="mealChoice" defaultValue={data.rsvp.mealChoice || undefined}><SelectTrigger id="invite-meal"><SelectValue placeholder="Choose a meal" /></SelectTrigger><SelectContent><SelectItem value="beef">Beef</SelectItem><SelectItem value="chicken">Chicken</SelectItem><SelectItem value="vegetarian">Vegetarian</SelectItem><SelectItem value="vegan">Vegan</SelectItem><SelectItem value="traditional">Traditional</SelectItem></SelectContent></Select></div>
-            <div className="space-y-3 rounded-md border border-gold/20 p-3"><div className="flex items-center gap-2"><Checkbox name="plusOne" id="invite-plus-one" defaultChecked={data.rsvp.plusOne} /><Label htmlFor="invite-plus-one">I am bringing a plus-one</Label></div><Input name="plusOneName" defaultValue={data.rsvp.plusOneName || ''} placeholder="Plus-one name" /><Input name="plusOneMeal" defaultValue={data.rsvp.plusOneMeal || ''} placeholder="Plus-one meal preference" /></div>
-            {data.wedding.childrenPolicy === 'adults_only' ? (
+            {data.guest.role === 'service_provider' ? <div data-testid="legacy-rsvp-service-provider-note" className="rounded-md border border-gold/20 bg-gold/5 p-3 text-sm leading-6 text-espresso/65">Service providers attend as individually registered team members. Plus-ones and children are not part of this service RSVP.</div> : <div className="space-y-3 rounded-md border border-gold/20 p-3"><div className="flex items-center gap-2"><Checkbox name="plusOne" id="invite-plus-one" defaultChecked={data.rsvp.plusOne} /><Label htmlFor="invite-plus-one">I am bringing a plus-one</Label></div><Input name="plusOneName" defaultValue={data.rsvp.plusOneName || ''} placeholder="Plus-one name" /><Input name="plusOneMeal" defaultValue={data.rsvp.plusOneMeal || ''} placeholder="Plus-one meal preference" /></div>}
+            {data.guest.role !== 'service_provider' && (data.wedding.childrenPolicy === 'adults_only' ? (
               <div data-testid="legacy-rsvp-adults-only" className="rounded-md border border-gold/20 bg-gold/5 p-3 text-sm leading-6 text-espresso/65">
                 With love, we kindly ask that this be an adults-only celebration. Children are not included in this RSVP.
               </div>
@@ -195,7 +194,7 @@ export function InvitationRsvpDialog() {
                 </div>
                 <Input name="kidsCount" type="number" min={0} max={20} defaultValue={data.rsvp.kidsCount} placeholder="Number of children" />
               </div>
-            )}
+            ))}
             <div className="space-y-2"><Label htmlFor="invite-dietary">Dietary notes</Label><Textarea id="invite-dietary" name="dietaryNotes" defaultValue={data.rsvp.dietaryNotes || ''} /></div>
             <div className="space-y-2"><Label htmlFor="invite-message">Message to the couple</Label><Textarea id="invite-message" name="message" defaultValue={data.rsvp.message || ''} /></div>
             <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="outline" onClick={close}>Close</Button><Button disabled={saving} className="bg-gold text-espresso hover:bg-gold-light">{saving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}Save RSVP</Button></div>
