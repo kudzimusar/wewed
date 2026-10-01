@@ -18,6 +18,7 @@ import {
   type PaidVendorRescueRow,
 } from '@/components/wedding/planner/modules/planner-vendor-engagement-panel'
 import { useToast } from '@/hooks/use-toast'
+import { PlannerServiceTeamsPanel } from '@/components/wedding/planner/planner-service-teams-panel'
 
 export interface VendorRow {
   id: string
@@ -243,6 +244,8 @@ export function PlannerVendorsModule({ vendors, vendorForm, setVendorForm, savin
           {missingRecords} paid vendor{missingRecords === 1 ? '' : 's'} still need a truthful historical service record. Open that vendor’s Service engagement record below; no past contract acceptance will be invented.
         </div>
       )}
+
+      <PlannerServiceTeamsPanel />
 
       <div className="grid gap-3 lg:grid-cols-2">
         {vendors.length === 0 ? <div className="lg:col-span-2"><EmptyState title="No vendors yet" detail="Add suppliers as you source them. Procurement status is kept with the selected wedding." /></div> : vendors.map((vendor) => {
