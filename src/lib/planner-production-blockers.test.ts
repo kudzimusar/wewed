@@ -186,7 +186,8 @@ describe('Planner production blocker repair', () => {
 
     expect(read).toContain('where: { weddingId }')
     expect(read).not.toContain("role: 'guest'")
-    expect(apply).toContain('return db.$transaction')
+    expect(apply).toContain('return runSerializableSeatingTransaction(async (tx)')
+    expect(apply).toContain('Prisma.TransactionIsolationLevel.Serializable')
     expect(apply).toContain('where: { id: existingId, weddingId }')
     expect(apply).toContain('occupied >= table.capacity')
     expect(apply).toContain('tx.rSVP.update')
