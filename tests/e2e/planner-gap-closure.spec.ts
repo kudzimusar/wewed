@@ -118,7 +118,7 @@ test('guest core fields edit directly with duplicate-email feedback and wedding-
   await addGuest(page, second, 'gap.two@example.test')
 
   await page.getByRole('button', { name: `Edit ${first}` }).click()
-  await page.locator('[data-testid="canonical-planner-guest-editor"] input[type="email"]').fill('gap.two@example.test')
+  await page.locator('[id^="guest-edit-"][id$="-email"]').fill('gap.two@example.test')
   await page.getByRole('button', { name: 'Save guest' }).click()
   await expect(page.locator('[id^="guest-edit-error-"]')).toContainText('already exists')
 
