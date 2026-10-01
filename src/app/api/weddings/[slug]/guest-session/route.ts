@@ -8,6 +8,7 @@ import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import {
   applyGuestRsvpUpdate,
   GUEST_RSVP_FIELDS,
+  loadWeddingAdditionalAdultPolicy,
   loadWeddingChildrenPolicy,
   type GuestRsvpField,
 } from '@/lib/guest-rsvp-mutation'
@@ -70,7 +71,10 @@ export async function GET(request: NextRequest, { params }: Params) {
     return noStore(response)
   }
 
-  const childrenPolicy = await loadWeddingChildrenPolicy(wedding.id)
+  const [childrenPolicy, additionalAdultPolicy] = await Promise.all([
+    loadWeddingChildrenPolicy(wedding.id),
+    loadWeddingAdditionalAdultPolicy(wedding.id),
+  ])
 
   // Confirmed Native Activation is recorded only after this request has resolved a real Guest
   // session. Telemetry is deliberately non-blocking for the invitation experience.
@@ -104,6 +108,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         invitationCardMessage: wedding.invitationCardMessage,
         rsvpDeadline: wedding.rsvpDeadline,
         childrenPolicy,
+        additionalAdultPolicy,
       },
       guest: {
         id: guest.id,
@@ -117,17 +122,20 @@ export async function GET(request: NextRequest, { params }: Params) {
       rsvp: {
         attending: guest.attending,
         mealChoice: guest.mealChoice,
-        plusOne: guest.plusOne,
+        plusOne: additionalAdultPolicy === 'named_guests_only' ? false : guest.plusOne,
         plusOneName: guest.plusOneName,
         plusOneMeal: guest.plusOneMeal,
         kidsAttending: childrenPolicy === 'adults_only' ? false : guest.kidsAttending,
         kidsCount: guest.kidsCount,
         // The canonical Gate household (shared guestPartySize); clients display it, never derive it.
-        partySize: guestPartySize({
-          plusOne: guest.plusOne,
-          kidsAttending: childrenPolicy === 'adults_only' ? false : guest.kidsAttending,
-          kidsCount: guest.kidsCount,
-        }),
+        partySize: guestPartySize(
+          {
+            plusOne: guest.plusOne,
+            kidsAttending: guest.kidsAttending,
+            kidsCount: guest.kidsCount,
+          },
+          { additionalAdultPolicy, childrenPolicy },
+        ),
         dietaryNotes: guest.dietaryNotes,
         message: guest.message,
         checkedIn: guest.checkedIn,
@@ -287,7 +295,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   if (!result.ok) {
     return noStore(
       NextResponse.json(
-        { success: false, error: result.error, code: 'CHILDREN_NOT_ALLOWED' },
+        { success: false, error: result.error, code: result.code },
         { status: 400 },
       ),
     )
