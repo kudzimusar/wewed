@@ -144,7 +144,8 @@ describe('Stage 5 Vendors and Guests parity', () => {
     for (const marker of [
       'idPrefix="workspace-guest"',
       'Participant type / role',
-      'Attendance allocation',
+      'Relationship side',
+      'Capacity allocation',
       'Seating table',
       "usePlannerFilterState('wewed:planner:guests:filters'",
       'filters.search',
