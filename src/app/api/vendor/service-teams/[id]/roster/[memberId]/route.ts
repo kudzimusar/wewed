@@ -24,8 +24,12 @@ export async function PATCH(
   const { id, memberId } = await params
   try {
     const access = await requireServiceTeamLeader(request, id)
-    if (access.team.rosterStatus === 'approved') {
-      throw new ServiceTeamRosterError('SERVICE_TEAM_ROSTER_APPROVED', 'Approved rosters must be reopened by the Planner before editing.', 409)
+    if (access.team.rosterStatus !== 'draft') {
+      throw new ServiceTeamRosterError(
+        'SERVICE_TEAM_ROSTER_APPROVED',
+        'Submitted or approved rosters must be reopened by the Planner before editing.',
+        409,
+      )
     }
     const member = await memberForTeam(id, memberId, access.team.weddingId)
     if (!member) return response({ success: false, error: 'Crew member not found.' }, 404)
@@ -73,8 +77,12 @@ export async function DELETE(
   const { id, memberId } = await params
   try {
     const access = await requireServiceTeamLeader(request, id)
-    if (access.team.rosterStatus === 'approved') {
-      throw new ServiceTeamRosterError('SERVICE_TEAM_ROSTER_APPROVED', 'Approved rosters must be reopened by the Planner before editing.', 409)
+    if (access.team.rosterStatus !== 'draft') {
+      throw new ServiceTeamRosterError(
+        'SERVICE_TEAM_ROSTER_APPROVED',
+        'Submitted or approved rosters must be reopened by the Planner before editing.',
+        409,
+      )
     }
     const member = await memberForTeam(id, memberId, access.team.weddingId)
     if (!member) return response({ success: false, error: 'Crew member not found.' }, 404)
