@@ -43,13 +43,13 @@ jobs:
             apps/ios/Wewed/Views/Home/WeddingReferenceHomeView.swift
             apps/ios/Wewed/Views/Planner/WeddingReferencePlannerView.swift
             apps/ios/Wewed/Views/Guests/WeddingReferenceGuestsView.swift
-            apps/ios/Wewed/Views/Invitation/IvoryInvitationView.swift
+            apps/ios/Wewed/Views/Invitation/Ivory/IvoryFloralGoldNative.swift
             apps/ios/Wewed/Views/Pass/WeddingReferencePassView.swift
             apps/ios/Wewed/Views/Shared/WeddingReferenceMoreView.swift
             apps/android/app/src/main/java/pro/wewed/app/ui/home/WeddingReferenceHomeScreen.kt
             apps/android/app/src/main/java/pro/wewed/app/ui/planner/WeddingReferencePlannerScreen.kt
             apps/android/app/src/main/java/pro/wewed/app/ui/guests/WeddingReferenceGuestsScreen.kt
-            apps/android/app/src/main/java/pro/wewed/app/ui/invitation/IvoryInvitationScreen.kt
+            apps/android/app/src/main/java/pro/wewed/app/ui/invitation/ivory/IvoryFloralGoldNative.kt
             apps/android/app/src/main/java/pro/wewed/app/ui/pass/WeddingReferencePassScreen.kt
             apps/android/app/src/main/java/pro/wewed/app/ui/more/WeddingReferenceMoreScreen.kt
           )
