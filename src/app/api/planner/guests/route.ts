@@ -322,8 +322,14 @@ export async function PATCH(request: NextRequest) {
           },
           include: { rsvp: true },
         })
-        const occupied = otherGuests.reduce((sum, guest) => sum + guest.role === 'service_provider' ? 1 : plannedSeatsForGuest(guest, attendancePolicies), 0)
-        const moving = guests.reduce((sum, guest) => sum + guest.role === 'service_provider' ? 1 : plannedSeatsForGuest(guest, attendancePolicies), 0)
+        const occupied = otherGuests.reduce(
+          (sum, guest) => sum + (guest.role === 'service_provider' ? 1 : plannedSeatsForGuest(guest, attendancePolicies)),
+          0,
+        )
+        const moving = guests.reduce(
+          (sum, guest) => sum + (guest.role === 'service_provider' ? 1 : plannedSeatsForGuest(guest, attendancePolicies)),
+          0,
+        )
         if (occupied + moving > table.capacity) {
           throw new SeatingCapacityError(
             `${table.name} has ${Math.max(0, table.capacity - occupied)} available seat${table.capacity - occupied === 1 ? '' : 's'}; the selected parties require ${moving}.`,
