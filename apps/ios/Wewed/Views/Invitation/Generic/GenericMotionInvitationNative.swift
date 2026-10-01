@@ -260,8 +260,8 @@ private struct CentreInvitationFace: View {
                 .multilineTextAlignment(.center)
                 .accessibilityIdentifier("invitation-couple-names")
 
-            if !data.message.isEmpty {
-                Text(data.message)
+            if !data.compactLine.isEmpty {
+                Text(data.compactLine)
                     .font(.system(size: compact ? 11 : 13))
                     .foregroundStyle(palette.ink.opacity(0.85))
                     .multilineTextAlignment(.center)
