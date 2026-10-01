@@ -652,33 +652,124 @@ extension LiveGuestShellView {
 }
 
 private struct LiveIssuedGuestPassView: View {
+    @Environment(\.scenePhase) private var scenePhase
     let profile: LiveInvitationPresentation
     let coordinator: LiveGuestInvitationCoordinator
     @State private var pass: WeddingPass?
     @State private var availability: WeddingPassAvailability?
     @State private var failed = false
+    @State private var refreshNonce = 0
+
     var body: some View {
         Group {
-            if let pass { WeddingReferencePassView(pass: pass, showScanner: false) }
-            else if let availability, let copy = LiveGuestShellView.passAvailabilityCopy(availability) {
-                VStack(spacing: 8) {
-                    Text(copy)
-                    if let from = LiveGuestShellView.passAvailableFromLabel(availability) {
-                        Text(from).font(.footnote)
-                    }
-                }
-                .multilineTextAlignment(.center)
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("live-guest-pass-state-\(availability.state.rawValue)")
+            if let pass {
+                WeddingReferencePassView(pass: pass, showScanner: false)
+            } else if let availability {
+                lockedPassCard(availability)
+            } else if failed {
+                Text("Your Wedding Pass is unavailable. Please try again later.")
+                    .accessibilityIdentifier("live-guest-pass-unavailable")
+            } else {
+                ProgressView("Loading Wedding Pass…")
             }
-            else if failed { Text("Your Wedding Pass is unavailable. Please try again later.").accessibilityIdentifier("live-guest-pass-unavailable") }
-            else { ProgressView("Loading Wedding Pass…") }
-        }.task {
-            do { pass = try await coordinator.weddingPass(guestId: profile.guestId) }
-            catch is CancellationError { }
-            // `failed` too, so a state without distinct copy still falls back to the generic text.
-            catch let GuestSessionError.passUnavailable(value) { availability = value; failed = true }
-            catch { failed = true }
+        }
+        .task(id: refreshNonce) { await refreshPass() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { refreshNonce += 1 }
+        }
+        .task(id: availability?.opensAt) {
+            guard let opensAt = availability?.opensAtDate else { return }
+            let seconds = opensAt.timeIntervalSinceNow + 0.25
+            if seconds > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            }
+            if !Task.isCancelled { refreshNonce += 1 }
+        }
+    }
+
+    @MainActor
+    private func refreshPass() async {
+        pass = nil
+        failed = false
+        availability = nil
+        do {
+            pass = try await coordinator.weddingPass(guestId: profile.guestId)
+        } catch is CancellationError {
+        } catch let GuestSessionError.passUnavailable(value) {
+            availability = value
+            failed = true
+        } catch {
+            failed = true
+        }
+    }
+
+    @ViewBuilder
+    private func lockedPassCard(_ availability: WeddingPassAvailability) -> some View {
+        ScrollView {
+            WeddingSectionCard {
+                VStack(spacing: 14) {
+                    Image(systemName: "lock.shield.fill")
+                        .font(.system(size: 34, weight: .semibold))
+                        .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                    Text(profile.coupleNames)
+                        .font(.system(size: 19, weight: .semibold, design: .serif))
+                        .foregroundStyle(WeddingIdentityPalette.ink)
+                    Text(profile.guestName)
+                        .font(.system(size: 28, weight: .medium, design: .serif))
+                        .foregroundStyle(WeddingIdentityPalette.ink)
+                        .accessibilityIdentifier("wedding-pass-locked-guest-name")
+
+                    if let copy = LiveGuestShellView.passAvailabilityCopy(availability) {
+                        Text(copy)
+                            .font(.subheadline)
+                            .foregroundStyle(WeddingIdentityPalette.muted)
+                            .multilineTextAlignment(.center)
+                    }
+                    if let from = LiveGuestShellView.passAvailableFromLabel(availability) {
+                        Text(from)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(WeddingIdentityPalette.champagneDeep)
+                    }
+
+                    Divider()
+                    lockedJourneyRow("Invitation verified", complete: true)
+                    lockedJourneyRow(profile.attending == true ? "RSVP confirmed" : "RSVP required", complete: profile.attending == true)
+                    lockedJourneyRow("Secure admission QR is not issued yet", complete: false)
+
+                    Divider()
+                    Label(LiveGuestShellView.formatWeddingDate(profile.weddingDate), systemImage: "calendar")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .foregroundStyle(WeddingIdentityPalette.muted)
+                    Label(
+                        [profile.venue, profile.venueCityCountry.isEmpty ? nil : profile.venueCityCountry]
+                            .compactMap { $0 }
+                            .filter { !$0.isEmpty }
+                            .joined(separator: " · "),
+                        systemImage: "mappin.and.ellipse"
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .foregroundStyle(WeddingIdentityPalette.muted)
+
+                    Text("Your signed WW2 admission QR appears here only when Wedding Pass authority makes it available.")
+                        .font(.footnote)
+                        .foregroundStyle(WeddingIdentityPalette.muted)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("live-guest-pass-state-\(availability.state.rawValue)")
+                }
+            }
+            .padding(20)
+            .accessibilityIdentifier("wedding-pass-locked-card")
+        }
+    }
+
+    @ViewBuilder
+    private func lockedJourneyRow(_ title: String, complete: Bool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: complete ? "checkmark.circle.fill" : "lock.fill")
+                .foregroundStyle(complete ? WeddingIdentityPalette.forest : WeddingIdentityPalette.champagneDeep)
+            Text(title)
+                .foregroundStyle(WeddingIdentityPalette.ink)
+            Spacer()
         }
     }
 }
