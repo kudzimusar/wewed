@@ -28,6 +28,7 @@ import {
   type PlannerGuestEditorValue,
 } from '@/components/wedding/planner/planner-guest-editor'
 import { PlannerGuestInvitationActions } from '@/components/wedding/planner/planner-guest-invitation-actions'
+import { PlannerGuest360Dialog } from '@/components/wedding/planner/planner-guest-360-dialog'
 import {
   normalizeInvitationCardStyle,
   type InvitationCardStyle,
@@ -879,6 +880,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                             onDeliveryChanged={load}
                           />
                           <div className="mt-2 flex flex-wrap gap-2">
+                            <PlannerGuest360Dialog guestId={row.id} guestName={row.name} compact />
                             <Button type="button" size="sm" variant="outline" onClick={() => startEdit(row)} disabled={busy !== null}>
                               <Pencil className="size-4" />Edit guest
                             </Button>
