@@ -179,8 +179,24 @@ export function resolveUnissuedPassAvailabilityState(input: {
   return 'active'
 }
 
+export interface WeddingPassGuestContext {
+  weddingId: string
+  weddingSlug: string
+  weddingTitle: string
+  guestId: string
+  guestName: string
+  attending: boolean | null
+  weddingDate: Date
+  venue: string
+  venueCity: string
+  venueCountry: string
+}
+
 export class WeddingPassUnavailableError extends Error {
-  constructor(readonly availability: WeddingPassAvailability) {
+  constructor(
+    readonly availability: WeddingPassAvailability,
+    readonly context?: WeddingPassGuestContext,
+  ) {
     super(availability.code)
     this.name = 'WeddingPassUnavailableError'
   }
@@ -738,9 +754,13 @@ export async function readWeddingDayGuestContext(request: NextRequest) {
     guestName: string
     attending: boolean | null
     weddingDate: Date
+    venue: string
+    venueCity: string
+    venueCountry: string
   }>>(
     `SELECT g.id AS "guestId", g."weddingId", w.slug AS "weddingSlug", w.title AS "weddingTitle",
-            g.name AS "guestName", r.attending, w.date AS "weddingDate"
+            g.name AS "guestName", r.attending, w.date AS "weddingDate",
+            w.venue, w."venueCity", w."venueCountry"
        FROM public."Guest" g
        JOIN public."Wedding" w ON w.id = g."weddingId"
        LEFT JOIN public."RSVP" r ON r."guestId" = g.id
@@ -760,6 +780,9 @@ export async function readWeddingDayGuestContext(request: NextRequest) {
     guestName: row.guestName,
     attending: row.attending,
     weddingDate: row.weddingDate,
+    venue: row.venue,
+    venueCity: row.venueCity,
+    venueCountry: row.venueCountry,
   }
 }
 
@@ -770,15 +793,23 @@ export async function guestPassForRequest(request: NextRequest) {
   const context = await readWeddingDayGuestContext(request)
   if (!context) return null
   if (context.attending === false) {
-    throw new WeddingPassUnavailableError(weddingPassAvailability('declined', context.weddingDate))
+    throw new WeddingPassUnavailableError(weddingPassAvailability('declined', context.weddingDate), context)
   }
   if (context.attending !== true) {
-    throw new WeddingPassUnavailableError(weddingPassAvailability('rsvp_required', context.weddingDate))
+    throw new WeddingPassUnavailableError(weddingPassAvailability('rsvp_required', context.weddingDate), context)
   }
-  const credential = await ensureWeddingPassCredential({
-    weddingId: context.weddingId,
-    guestId: context.guestId,
-  })
+  let credential
+  try {
+    credential = await ensureWeddingPassCredential({
+      weddingId: context.weddingId,
+      guestId: context.guestId,
+    })
+  } catch (error) {
+    if (error instanceof WeddingPassUnavailableError) {
+      throw new WeddingPassUnavailableError(error.availability, context)
+    }
+    throw error
+  }
   const passKey = await passKeyForCredential(db, credential)
   return {
     context,
