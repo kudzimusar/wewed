@@ -76,6 +76,39 @@ describe('canonical Planner invitation / RSVP / attendance summary', () => {
     })
   })
 
+  test('native activation counts platform presence without double-counting Any App Active', () => {
+    const rows = [
+      {
+        status: 'attending' as const,
+        deliveryStatus: 'sent' as const,
+        openedAt: null,
+        checkedIn: false,
+        email: 'both@example.com',
+        phone: null,
+        passState: 'not_yet_issued' as const,
+        nativeActivated: true,
+        nativePlatforms: ['android', 'ios'],
+      },
+      {
+        status: 'attending' as const,
+        deliveryStatus: 'sent' as const,
+        openedAt: null,
+        checkedIn: false,
+        email: 'browser@example.com',
+        phone: null,
+        passState: 'not_yet_issued' as const,
+        nativeActivated: false,
+        nativePlatforms: [],
+      },
+    ]
+
+    const summary = buildPlannerAttendanceSummary(rows)
+    expect(summary.nativeActivated).toBe(1)
+    expect(summary.nativeAndroid).toBe(1)
+    expect(summary.nativeIos).toBe(1)
+    expect(summary.nativeActivationRate).toBe(0.5)
+  })
+
   test('empty weddings have a zero response rate rather than NaN', () => {
     expect(buildPlannerAttendanceSummary([]).responseRate).toBe(0)
   })
