@@ -27,6 +27,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params
   try {
     const access = await requireServiceTeamLeader(request, id)
+    if (access.team.rosterStatus !== 'draft') {
+      throw new ServiceTeamRosterError(
+        'SERVICE_TEAM_ROSTER_APPROVED',
+        'A submitted roster is locked for Planner review. The Planner must reopen it before the leader can change crew.',
+        409,
+      )
+    }
     const body = (await request.json().catch(() => null)) as {
       name?: unknown
       email?: unknown
