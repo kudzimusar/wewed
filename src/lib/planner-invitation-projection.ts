@@ -183,6 +183,7 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       include: {
         rsvp: { select: { token: true, attending: true, checkedIn: true } },
         seatingTable: { select: { id: true, name: true, capacity: true } },
+        serviceTeamMemberships: { select: { approvedAt: true } },
       },
       orderBy: { name: 'asc' },
     }),
@@ -305,6 +306,9 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       attending: guest.rsvp?.attending ?? null,
       weddingDate: wedding.date,
       latest: latestPassByGuest.get(guest.id) ?? null,
+      admissionApproved: guest.role === 'service_provider'
+        ? guest.serviceTeamMemberships.some((membership) => Boolean(membership.approvedAt))
+        : true,
     })
     const nativeClients = (nativePresenceByGuest.get(guest.id) ?? []).map((presence) => ({
       platform: presence.platform,
