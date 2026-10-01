@@ -457,7 +457,7 @@ model ServiceTeamMember {
   guest       Guest       @relation(fields: [guestId, weddingId], references: [id, weddingId], onDelete: Cascade)
 
   @@unique([serviceTeamId, guestId])
-  @@index([weddingId, guestId])
+  @@unique([weddingId, guestId])
   @@index([serviceTeamId, approvedAt])
 }
 
