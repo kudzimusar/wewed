@@ -61,8 +61,8 @@ describe.skipIf(!isLocal)('Guest native activation against disposable PostgreSQL
     await db.couple.delete({ where: { id: coupleId } })
   })
 
-  test('browser-only activity never creates native presence', async () => {
-    const result = await recordGuestNativePresence({
+  test('browser activity stays inactive while Android+iOS persist and dedupe by Guest/platform', async () => {
+    const browserResult = await recordGuestNativePresence({
       weddingId,
       guestId,
       headers: new Headers({
@@ -70,11 +70,9 @@ describe.skipIf(!isLocal)('Guest native activation against disposable PostgreSQL
         'x-wewed-native-platform': 'android',
       }),
     })
-    expect(result).toBeNull()
+    expect(browserResult).toBeNull()
     expect(await db.guestNativePresence.count({ where: { weddingId, guestId } })).toBe(0)
-  })
 
-  test('Android and iOS persist independently while Any App Active counts the Guest once', async () => {
     await recordGuestNativePresence({
       weddingId,
       guestId,
@@ -97,7 +95,7 @@ describe.skipIf(!isLocal)('Guest native activation against disposable PostgreSQL
       }),
     })
 
-    const rows = await db.guestNativePresence.findMany({
+    let rows = await db.guestNativePresence.findMany({
       where: { weddingId, guestId },
       orderBy: { platform: 'asc' },
     })
@@ -111,9 +109,7 @@ describe.skipIf(!isLocal)('Guest native activation against disposable PostgreSQL
     expect(projection?.summary.nativeIos).toBe(1)
     expect(projection?.data[0]?.nativeActivated).toBe(true)
     expect(new Set(projection?.data[0]?.nativePlatforms)).toEqual(new Set(['android', 'ios']))
-  })
 
-  test('repeat native activity upserts rather than inventing a second activation identity', async () => {
     const later = new Date(Date.now() + 60_000)
     await recordGuestNativePresence({
       weddingId,
@@ -127,11 +123,14 @@ describe.skipIf(!isLocal)('Guest native activation against disposable PostgreSQL
       now: later,
     })
 
-    const androidRows = await db.guestNativePresence.findMany({
-      where: { weddingId, guestId, platform: 'android' },
+    rows = await db.guestNativePresence.findMany({
+      where: { weddingId, guestId },
+      orderBy: { platform: 'asc' },
     })
-    expect(androidRows).toHaveLength(1)
-    expect(androidRows[0].appVersion).toBe('2.0.1')
-    expect(androidRows[0].lastSeenAt.getTime()).toBe(later.getTime())
+    expect(rows).toHaveLength(2)
+    const android = rows.find((row) => row.platform === 'android')
+    expect(android?.appVersion).toBe('2.0.1')
+    expect(android?.lastSeenAt.getTime()).toBe(later.getTime())
   })
+
 })
