@@ -36,6 +36,7 @@ mock.module('server-only', () => ({}))
 type Db = typeof import('@/lib/db')['db']
 let db: Db
 let applyGuestRsvpUpdate: typeof import('@/lib/guest-rsvp-mutation')['applyGuestRsvpUpdate']
+let applyGuestWorksheetRow: typeof import('@/lib/import-engine/guest-worksheet-apply')['applyGuestWorksheetRow']
 let createWeddingGuestSessionToken: typeof import('@/lib/wedding-guest-session')['createWeddingGuestSessionToken']
 let WEDDING_GUEST_SESSION_COOKIE: typeof import('@/lib/wedding-guest-session')['WEDDING_GUEST_SESSION_COOKIE']
 let GET_GUEST_SESSION: typeof import('@/app/api/weddings/[slug]/guest-session/route')['GET']
@@ -124,6 +125,7 @@ describe.skipIf(!isLocal)('Phase 9 — guest RSVP mutation convergence against a
   beforeAll(async () => {
     ;({ db } = await import('@/lib/db'))
     ;({ applyGuestRsvpUpdate } = await import('@/lib/guest-rsvp-mutation'))
+    ;({ applyGuestWorksheetRow } = await import('@/lib/import-engine/guest-worksheet-apply'))
     ;({ createWeddingGuestSessionToken, WEDDING_GUEST_SESSION_COOKIE } = await import('@/lib/wedding-guest-session'))
     ;({ GET: GET_GUEST_SESSION, PUT: PUT_GUEST_SESSION } = await import('@/app/api/weddings/[slug]/guest-session/route'))
     ;({ POST: POST_RSVP } = await import('@/app/api/rsvp/route'))
@@ -308,6 +310,34 @@ describe.skipIf(!isLocal)('Phase 9 — guest RSVP mutation convergence against a
     expect(stored?.plusOne).toBe(false)
     expect(stored?.plusOneName).toBe('Historical Partner')
     expect(stored?.plusOneMeal).toBe('Vegan')
+  })
+
+  test('Planner worksheet import cannot bypass named-adult or adults-only RSVP policy', async () => {
+    const namedOnly = await wedding('worksheet-named-only', {
+      additionalAdultPolicy: 'named_guests_only',
+    })
+    await expect(
+      applyGuestWorksheetRow(namedOnly.id, {
+        displayName: 'Worksheet Anonymous Adult',
+        rsvpStatus: 'attending',
+        numberAttending: '2',
+        plusOneName: 'Anonymous Adult',
+      }),
+    ).rejects.toThrow('Every additional adult must be registered as their own named guest.')
+    expect(await db.guest.count({ where: { weddingId: namedOnly.id } })).toBe(0)
+
+    const adultsOnly = await wedding('worksheet-adults-only', {
+      childrenPolicy: 'adults_only',
+    })
+    await expect(
+      applyGuestWorksheetRow(adultsOnly.id, {
+        displayName: 'Worksheet Child Bypass',
+        rsvpStatus: 'attending',
+        numberAttending: '2',
+        numberOfChildren: '1',
+      }),
+    ).rejects.toThrow('Children are not permitted for this adults-only wedding.')
+    expect(await db.guest.count({ where: { weddingId: adultsOnly.id } })).toBe(0)
   })
 
   // -----------------------------------------------------------------------------------
