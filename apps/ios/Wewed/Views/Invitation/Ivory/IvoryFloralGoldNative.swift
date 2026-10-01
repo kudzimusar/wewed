@@ -108,11 +108,18 @@ enum IvoryViewportGeometry {
     }
 }
 
+public enum IvoryInvitationContent {
+    public static let compactLine = "We’d be honoured to celebrate with you."
+}
+
 /// Everything the invitation renders. Resolved from the wedding graph, never hard-coded.
 public struct IvoryInvitationData: Equatable {
     public let coupleNames: String
     public let monogram: String
-    public let message: String
+    /// Short presentation copy safe for the authored stationery region.
+    public let compactLine: String
+    /// Complete couple-authored note. Never truncate this to fit artwork.
+    public let coupleNote: String?
     public let weekdayLabel: String?
     public let dayLabel: String?
     public let monthLabel: String?
@@ -125,13 +132,14 @@ public struct IvoryInvitationData: Equatable {
     public let guestName: String?
     public let rsvpDeadlineLabel: String?
 
-    public init(coupleNames: String, monogram: String, message: String, weekdayLabel: String?,
-                dayLabel: String?, monthLabel: String?, yearLabel: String?, venue: String,
+    public init(coupleNames: String, monogram: String, compactLine: String, coupleNote: String?,
+                weekdayLabel: String?, dayLabel: String?, monthLabel: String?, yearLabel: String?, venue: String,
                 venueAddress: String?, venueCityCountry: String, tagline: String?,
                 guestName: String?, rsvpDeadlineLabel: String?) {
         self.coupleNames = coupleNames
         self.monogram = monogram
-        self.message = message
+        self.compactLine = compactLine
+        self.coupleNote = coupleNote
         self.weekdayLabel = weekdayLabel
         self.dayLabel = dayLabel
         self.monthLabel = monthLabel
@@ -322,7 +330,7 @@ public struct IvoryFloralGoldNative: View {
             region(IvoryGeometry.message, w, h) {
                 // `.ivory-message { text-transform: uppercase; letter-spacing: .13em }`
                 fittedBodyText(
-                    data.message.uppercased(),
+                    data.compactLine.uppercased(),
                     size: w * 0.030,
                     color: IvoryPalette.ink,
                     tracking: w * 0.030 * 0.13,
@@ -441,11 +449,11 @@ public struct IvoryFloralGoldNative: View {
             }
             // The artwork's own sample copy is erased in these regions; leaving them empty showed
             // the erasure as a smudge where the couple's words belong.
-            if let tagline = data.tagline, !tagline.isEmpty {
+            if let coupleNote = data.coupleNote, !coupleNote.isEmpty {
                 region(IvoryGeometry.detailNoteIntro, w, h) {
-                    fittedScriptText(
-                        tagline,
-                        size: w * 0.052,
+                    fittedBodyText(
+                        data.compactLine,
+                        size: w * 0.030,
                         color: IvoryPalette.gold
                     )
                 }
