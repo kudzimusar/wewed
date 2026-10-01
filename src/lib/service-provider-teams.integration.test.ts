@@ -104,7 +104,7 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
     await db.couple.delete({ where: { id: coupleId } })
   })
 
-  test('two allowed crew become two named canonical Guests and a third cannot be added', async () => {
+  test('named crew are capacity-bounded, approved individually, and projected for event-day roll-call', async () => {
     const lead = await addServiceTeamMember({
       weddingId,
       actorId,
@@ -146,33 +146,28 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
     expect(guests).toHaveLength(2)
     expect(guests.every((guest) => guest.attendanceAllocation === 'operational')).toBe(true)
 
-    const memberships = await db.serviceTeamMember.findMany({ where: { weddingId, serviceTeamId: teamId } })
-    expect(memberships).toHaveLength(2)
-    expect(new Set(memberships.map((member) => member.guestId)).size).toBe(2)
-  })
-
-  test('submitted + approved roster projects confirmed/app-active/arrived per named member', async () => {
-    await submitServiceTeam({ weddingId, serviceTeamId: teamId, actorId })
-    await approveServiceTeam({ weddingId, serviceTeamId: teamId, actorId })
-
-    const members = await db.serviceTeamMember.findMany({
+    const memberships = await db.serviceTeamMember.findMany({
       where: { weddingId, serviceTeamId: teamId },
       orderBy: { createdAt: 'asc' },
     })
-    expect(members).toHaveLength(2)
+    expect(memberships).toHaveLength(2)
+    expect(new Set(memberships.map((member) => member.guestId)).size).toBe(2)
+
+    await submitServiceTeam({ weddingId, serviceTeamId: teamId, actorId })
+    await approveServiceTeam({ weddingId, serviceTeamId: teamId, actorId })
 
     await db.rSVP.update({
-      where: { guestId: members[0].guestId },
+      where: { guestId: memberships[0].guestId },
       data: { attending: true, checkedIn: true, checkedInAt: new Date() },
     })
     await db.rSVP.update({
-      where: { guestId: members[1].guestId },
+      where: { guestId: memberships[1].guestId },
       data: { attending: true },
     })
 
     await recordGuestNativePresence({
       weddingId,
-      guestId: members[0].guestId,
+      guestId: memberships[0].guestId,
       headers: new Headers({
         'x-wewed-client': 'native',
         'x-wewed-native-platform': 'android',
@@ -199,4 +194,5 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
     expect(team?.members.map((member) => member.guestId)).toHaveLength(2)
     expect(team?.members.filter((member) => member.appActive).map((member) => member.nativePlatforms)).toEqual([['android']])
   })
+
 })
