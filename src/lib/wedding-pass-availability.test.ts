@@ -114,9 +114,21 @@ describe('Couple/Planner administrative state', () => {
     for (const key of Object.keys(WEDDING_PASS_CREDENTIAL_STATE_LABEL)) expect(keys).not.toContain(key)
   })
 
-  test('household expansion matches the Gate attendee keys', () => {
+  test('household expansion matches the Gate attendee keys and attendance policies', () => {
     expect(weddingHouseholdAttendeeKeys({ plusOne: false, kidsAttending: false, kidsCount: 3 })).toEqual(['primary'])
     expect(weddingHouseholdAttendeeKeys({ plusOne: true, kidsAttending: true, kidsCount: 2 })).toEqual(['primary', 'plus-one', 'child-1', 'child-2'])
+    expect(
+      weddingHouseholdAttendeeKeys(
+        { plusOne: true, kidsAttending: true, kidsCount: 2 },
+        { additionalAdultPolicy: 'named_guests_only' },
+      ),
+    ).toEqual(['primary', 'child-1', 'child-2'])
+    expect(
+      weddingHouseholdAttendeeKeys(
+        { plusOne: true, kidsAttending: true, kidsCount: 2 },
+        { additionalAdultPolicy: 'named_guests_only', childrenPolicy: 'adults_only' },
+      ),
+    ).toEqual(['primary'])
   })
 })
 
