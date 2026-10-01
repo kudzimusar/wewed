@@ -122,20 +122,22 @@ export async function GET(request: NextRequest, { params }: Params) {
       rsvp: {
         attending: guest.attending,
         mealChoice: guest.mealChoice,
-        plusOne: additionalAdultPolicy === 'named_guests_only' ? false : guest.plusOne,
+        plusOne: guest.role === 'service_provider' || additionalAdultPolicy === 'named_guests_only' ? false : guest.plusOne,
         plusOneName: guest.plusOneName,
         plusOneMeal: guest.plusOneMeal,
-        kidsAttending: childrenPolicy === 'adults_only' ? false : guest.kidsAttending,
+        kidsAttending: guest.role === 'service_provider' || childrenPolicy === 'adults_only' ? false : guest.kidsAttending,
         kidsCount: guest.kidsCount,
         // The canonical Gate household (shared guestPartySize); clients display it, never derive it.
-        partySize: guestPartySize(
-          {
-            plusOne: guest.plusOne,
-            kidsAttending: guest.kidsAttending,
-            kidsCount: guest.kidsCount,
-          },
-          { additionalAdultPolicy, childrenPolicy },
-        ),
+        partySize: guest.role === 'service_provider'
+          ? 1
+          : guestPartySize(
+              {
+                plusOne: guest.plusOne,
+                kidsAttending: guest.kidsAttending,
+                kidsCount: guest.kidsCount,
+              },
+              { additionalAdultPolicy, childrenPolicy },
+            ),
         dietaryNotes: guest.dietaryNotes,
         message: guest.message,
         checkedIn: guest.checkedIn,
