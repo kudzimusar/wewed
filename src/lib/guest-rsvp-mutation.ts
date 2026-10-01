@@ -2,6 +2,7 @@ import 'server-only'
 import { db } from '@/lib/db'
 import { withdrawWeddingPassesForAttendance } from '@/lib/wedding-day'
 import { PREVIEW_WRITE_BLOCK_MESSAGE, previewWeddingMutationBlocked } from '@/lib/preview-write-safety'
+import type { AdditionalAdultPolicy, ChildrenPolicy } from '@/lib/invitation-content-contract'
 
 /**
  * Master plan WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01, Phase 9 — Digital Invitation + RSVP
@@ -29,7 +30,7 @@ import { PREVIEW_WRITE_BLOCK_MESSAGE, previewWeddingMutationBlocked } from '@/li
  * through this operation.
  */
 
-export type ChildrenPolicy = 'welcome' | 'adults_only'
+export type { AdditionalAdultPolicy, ChildrenPolicy } from '@/lib/invitation-content-contract'
 
 export async function loadWeddingChildrenPolicy(weddingId: string): Promise<ChildrenPolicy> {
   const row = await db.weddingContent.findUnique({
@@ -43,6 +44,24 @@ export async function loadWeddingChildrenPolicy(weddingId: string): Promise<Chil
     select: { value: true },
   })
   return row?.value.trim().toLowerCase() === 'adults_only' ? 'adults_only' : 'welcome'
+}
+
+export async function loadWeddingAdditionalAdultPolicy(
+  weddingId: string,
+): Promise<AdditionalAdultPolicy> {
+  const row = await db.weddingContent.findUnique({
+    where: {
+      weddingId_section_field: {
+        weddingId,
+        section: 'rsvp',
+        field: 'additionalAdultPolicy',
+      },
+    },
+    select: { value: true },
+  })
+  return row?.value.trim().toLowerCase() === 'named_guests_only'
+    ? 'named_guests_only'
+    : 'plus_ones_allowed'
 }
 
 /** The converged Phase-9 guest-editable RSVP field set. Order matches the shared native DTOs. */
@@ -77,6 +96,7 @@ export interface GuestRsvpRecord {
 export type GuestRsvpUpdateResult =
   | { ok: true; rsvp: GuestRsvpRecord }
   | { ok: false; code: 'CHILDREN_NOT_ALLOWED'; status: 400; error: string }
+  | { ok: false; code: 'ADDITIONAL_GUESTS_NOT_ALLOWED'; status: 400; error: string }
   | { ok: false; code: 'SERVICE_PROVIDER_HOUSEHOLD_NOT_ALLOWED'; status: 400; error: string }
   | { ok: false; code: 'PREVIEW_WRITE_BLOCKED'; status: 423; error: string }
 
@@ -150,7 +170,19 @@ export async function applyGuestRsvpUpdate(params: {
   if (previewWeddingMutationBlocked(weddingId)) {
     return { ok: false, code: 'PREVIEW_WRITE_BLOCKED', status: 423, error: PREVIEW_WRITE_BLOCK_MESSAGE }
   }
-  const childrenPolicy = await loadWeddingChildrenPolicy(weddingId)
+  const [childrenPolicy, additionalAdultPolicy] = await Promise.all([
+    loadWeddingChildrenPolicy(weddingId),
+    loadWeddingAdditionalAdultPolicy(weddingId),
+  ])
+
+  if (additionalAdultPolicy === 'named_guests_only' && requestedFields.plusOne === true) {
+    return {
+      ok: false,
+      code: 'ADDITIONAL_GUESTS_NOT_ALLOWED',
+      status: 400,
+      error: 'Every additional adult must be registered as their own named guest.',
+    }
+  }
 
   if (childrenPolicy === 'adults_only' && requestedFields.kidsAttending === true) {
     return {
@@ -167,6 +199,12 @@ export async function applyGuestRsvpUpdate(params: {
     // current attendance false, but never destroys that history.
     data.kidsAttending = false
     delete data.kidsCount
+  }
+  if (additionalAdultPolicy === 'named_guests_only') {
+    // Historical +1 detail remains stored for audit/history; only live attendance is forced off.
+    data.plusOne = false
+    delete data.plusOneName
+    delete data.plusOneMeal
   }
 
   // RSVP ↔ Wedding Pass lifecycle. The write takes the same Guest → RSVP → credential lock order
