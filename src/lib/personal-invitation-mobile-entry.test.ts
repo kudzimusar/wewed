@@ -101,7 +101,23 @@ describe('personal invitation mobile entry', () => {
 
     expect(resume).toContain('invitation-resume-${encodeURIComponent(safeReason)}')
     expect(help).toContain('Your invitation is still valid')
-    expect(help).toContain('you do not need the Planner to create a new link')
+    expect(help).toContain('You normally do not need the Planner to create another one.')
+  })
+
+  test('Android install clicks are recorded separately from authenticated app activation', () => {
+    const helper = source('src/lib/invitation-mobile-entry.ts')
+    const projection = source('src/lib/planner-invitation-projection.ts')
+    const manager = source('src/components/wedding/invitation-manager.tsx')
+
+    expect(helper).toContain("action: 'guest.native_install_clicked'")
+    expect(helper).toContain("resourceType: 'guest_invitation'")
+    expect(helper).toContain("source === 'android-install-click'")
+    expect(projection).toContain('nativeInstallClicked')
+    expect(projection).toContain('nativeInstallNotActivated')
+    expect(projection).toContain('nativeInstallToActivationRate')
+    expect(manager).toContain('Install clicked')
+    expect(manager).toContain('Install clicked · not active')
+    expect(manager).toContain('Install → active')
   })
 
   test('browser continuation revalidates the pending invitation and enters invitation mode without a raw RSVP credential', () => {
