@@ -130,7 +130,7 @@ function handoffFromIntent(intentUrl) {
   return handoff
 }
 
-async function prepareFromActualGate(page, fixture, token, expectedPostCount) {
+async function prepareFromActualGate(page, fixture, token) {
   await page.goto(
     `${BASE_URL}/invite/${encodeURIComponent(fixture.weddingSlug)}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`,
     { waitUntil: 'domcontentloaded' },
@@ -139,27 +139,30 @@ async function prepareFromActualGate(page, fixture, token, expectedPostCount) {
     `${BASE_URL}/invite/${encodeURIComponent(fixture.weddingSlug)}/open`,
   )
 
-  const open = page.getByTestId('android-open-installed-wewed')
-  // CI runs this gate on `next dev`; the first render of a route can include an on-demand compile.
-  // The assertion is unchanged — only the wait is sized for dev-mode compilation.
+  const open = page.getByTestId('android-open-existing-wewed')
   await expect(open).toBeVisible({ timeout: 45_000 })
   const href = await open.getAttribute('href')
-  expect(href).toBeTruthy()
+  expect(href).toBe(`/invite/${fixture.weddingSlug}/app`)
 
-  // The final user click must already have the intent URL. No async fetch is
-  // permitted between user activation and the Android external-app launch.
-  await page.evaluate(() => {
-    document
-      .querySelector('[data-testid="android-open-installed-wewed"]')
-      ?.addEventListener('click', (event) => event.preventDefault(), { once: true })
-  })
-  await open.click()
-  await expect.poll(() => page.evaluate(() => window.location.pathname)).toBe(
-    `/invite/${fixture.weddingSlug}/open`,
-  )
+  const before = await prisma.$queryRaw`
+    SELECT COUNT(*)::bigint AS count
+    FROM private."InvitationInstallHandoff"
+    WHERE "weddingId" = ${fixture.weddingId}
+  `
 
-  expect(expectedPostCount()).toBeGreaterThan(0)
-  return handoffFromIntent(href)
+  const response = await page.request.get(`${BASE_URL}${href}`, { maxRedirects: 0 })
+  expect(response.status()).toBe(303)
+  const intentUrl = response.headers().location
+  expect(intentUrl).toBeTruthy()
+
+  const after = await prisma.$queryRaw`
+    SELECT COUNT(*)::bigint AS count
+    FROM private."InvitationInstallHandoff"
+    WHERE "weddingId" = ${fixture.weddingId}
+  `
+  expect(Number(after[0]?.count ?? 0)).toBe(Number(before[0]?.count ?? 0) + 1)
+
+  return handoffFromIntent(intentUrl)
 }
 
 async function expectActiveGuest(context, fixture, expected) {
@@ -226,10 +229,8 @@ test('same Chrome profile switches A→B→A atomically with a pre-created Andro
     const handoffA = await prepareFromActualGate(
       browserPage,
       fixture,
-      fixture.tokenA,
-      () => handoffPosts,
+      fixture.tokenA
     )
-    expect(handoffPosts).toBe(1)
 
     console.log('checkpoint=resume_requested guest=A')
     await appPage.goto(
@@ -256,10 +257,8 @@ test('same Chrome profile switches A→B→A atomically with a pre-created Andro
     const handoffB = await prepareFromActualGate(
       browserPage,
       fixture,
-      fixture.tokenB,
-      () => handoffPosts,
+      fixture.tokenB
     )
-    expect(handoffPosts).toBe(2)
 
     // Merely opening B must not destroy the active A session. Replacement is
     // committed only after B successfully redeems its one-time handoff.
@@ -317,10 +316,8 @@ test('same Chrome profile switches A→B→A atomically with a pre-created Andro
     const handoffA2 = await prepareFromActualGate(
       browserPage,
       fixture,
-      fixture.tokenA,
-      () => handoffPosts,
+      fixture.tokenA
     )
-    expect(handoffPosts).toBe(3)
 
     await expectActiveGuest(context, fixture, {
       id: fixture.guestBId,
