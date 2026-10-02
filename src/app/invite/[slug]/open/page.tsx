@@ -6,6 +6,7 @@ import { configuredIosDistributionUrl } from '@/lib/ios-app-distribution'
 import { db } from '@/lib/db'
 import { WEWED_BRAND_PAYOFF, WEWED_INVITATION_PREVIEW_TITLE } from '@/lib/wewed-brand'
 import { invitationPreviewDescription } from '@/lib/invitation-link-preview'
+import { androidDeferredInvitationHandoffEnabled } from '@/lib/invitation-deferred-install'
 import {
   PENDING_INVITATION_COOKIE,
   verifyPendingInvitationToken,
@@ -78,20 +79,7 @@ export default async function InvitationOpenPage({ params }: Props) {
     redirect('/guest-access-help?reason=invalid-invitation')
   }
 
-  const dedicatedUat =
-    process.env.VERCEL_ENV === 'preview' &&
-    process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === wedding.id
-
-  // Android v14+ already contains the Play Install Referrer receiver, so production no longer
-  // needs an opt-in flag to expose the install continuity path. Keep an explicit "0" kill switch
-  // for emergency rollback, and retain the dedicated writable-preview gate for UAT.
-  const productionDeferredInstallEnabled =
-    process.env.VERCEL_ENV === 'production' &&
-    process.env.ANDROID_DEFERRED_INVITATION_HANDOFF !== '0'
-  const deferredInstallEnabled =
-    dedicatedUat ||
-    productionDeferredInstallEnabled ||
-    process.env.ANDROID_DEFERRED_INVITATION_HANDOFF === '1'
+  const deferredInstallEnabled = androidDeferredInvitationHandoffEnabled(wedding.id)
 
   return (
     <InvitationAppHandoff
