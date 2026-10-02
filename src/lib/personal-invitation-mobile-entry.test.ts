@@ -28,6 +28,14 @@ describe('personal invitation mobile entry', () => {
     expect(page).toContain('productionDeferredInstallEnabled')
   })
 
+  test('non-installed Android guests do not mint a handoff until they press Google Play', () => {
+    const handoff = source('src/components/wedding/invitation-app-handoff.tsx')
+
+    expect(handoff).not.toContain('void prepareSecureHandoff()\n    // prepareSecureHandoff intentionally runs only when the Android gate becomes eligible.')
+    expect(handoff).toContain('onClick={() => { void startAndroidPlayInstall() }}')
+    expect(handoff).toContain('data-testid="android-google-play-install-direct-recovery"')
+  })
+
   test('Android keeps browser continuation as a secondary option when native handoff is enabled', () => {
     const handoff = source('src/components/wedding/invitation-app-handoff.tsx')
 
@@ -110,15 +118,18 @@ describe('personal invitation mobile entry', () => {
   })
 
 
-  test('QRO06: the shared printed invitation also continues in the browser on Android', () => {
+  test('QRO06: the shared printed invitation keeps Google Play primary on Android', () => {
     const entry = source('src/components/wedding/physical-invitation-entry.tsx')
+    const page = source('src/app/w/[slug]/page.tsx')
+    const handoff = source('src/lib/physical-invitation-install-handoff.ts')
 
-    // No deferred transport: straight to the verified browser claim, never a locked dead end.
-    expect(entry).toContain("if (!deferredInstallEnabled) {\n        setMode('web')")
-    expect(entry).not.toContain('Your private invitation remains locked')
-    // With the transport: Open/Get Wewed stays primary, browser continuation stays available.
+    expect(entry).not.toContain("if (!deferredInstallEnabled) {\n        setMode('web')")
+    expect(entry).toContain('data-testid="physical-android-google-play-install-fallback"')
+    expect(entry).toContain('No Planner action is required.')
     expect(entry).toContain('data-testid="physical-android-continue-in-browser"')
     expect(entry).toContain("onClick={() => setMode('web')}")
-    expect(entry).toContain('Continue in browser instead')
+    expect(page).toContain('productionDeferredInstallEnabled')
+    expect(page).toContain("process.env.ANDROID_DEFERRED_INVITATION_HANDOFF !== '0'")
+    expect(handoff).toContain('const HANDOFF_TTL_SECONDS = 30 * 24 * 60 * 60')
   })
 })
