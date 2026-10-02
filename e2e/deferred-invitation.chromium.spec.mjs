@@ -305,18 +305,19 @@ test('iPhone: personal invitation continues honestly in the browser (no App Stor
   await context.close()
 })
 
-test('iPhone: printed QR shows App Store coming soon and continues to browser claim', async ({ browser }) => {
+test('iPhone: printed QR stays truthful when no App Store destination is configured', async ({ browser }) => {
   const fixture = await createFixture('iPhone physical', { physical: true })
   const context = await browser.newContext({ viewport: MOBILE_VIEWPORT, userAgent: IOS_UA, locale: 'en-ZW' })
   const page = await context.newPage()
   await page.goto(`${BASE_URL}/i/${fixture.physicalCode}`, { waitUntil: 'domcontentloaded' })
 
   await expect(page.getByTestId('physical-invitation-ios-gate')).toBeVisible()
-  await expect(page.getByText('Coming Soon', { exact: true })).toBeVisible()
+  await expect(page.getByText('App Store link not configured', { exact: true })).toBeVisible()
   await expect(page.getByRole('img', { name: 'Download on the App Store' })).toBeVisible()
+  await expect(page.getByTestId('physical-ios-install-wewed')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Find my RSVP' })).toHaveCount(0)
 
-  await page.getByRole('button', { name: /App Store coming soon/i }).click()
+  await page.getByRole('button', { name: 'Continue in browser' }).click()
   await expect(page.getByRole('heading', { name: 'Find my RSVP' })).toBeVisible()
   await expect(page.getByTestId('physical-invitation-ios-gate')).toHaveCount(0)
   await context.close()
