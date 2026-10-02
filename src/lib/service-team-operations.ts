@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { createPlannerGuest, cleanGuestText } from '@/lib/planner-guest-operations'
 import {
@@ -47,36 +48,47 @@ export async function createServiceTeam(input: {
   }
 
   const name = cleanGuestText(input.name, 160) || `${engagement.vendor.name} · ${engagement.serviceCategory}`
-  return db.$transaction(async (tx) => {
-    const team = await tx.serviceTeam.create({
-      data: {
-        weddingId: input.weddingId,
-        serviceEngagementId: engagement.id,
-        name,
-        companyName: engagement.vendor.name,
-        serviceCategory: engagement.serviceCategory || engagement.vendor.category,
-        allowedCrew,
-        leaderUserId: leaderUser?.id ?? null,
-      },
+  try {
+    return await db.$transaction(async (tx) => {
+      const team = await tx.serviceTeam.create({
+        data: {
+          weddingId: input.weddingId,
+          serviceEngagementId: engagement.id,
+          name,
+          companyName: engagement.vendor.name,
+          serviceCategory: engagement.serviceCategory || engagement.vendor.category,
+          allowedCrew,
+          leaderUserId: leaderUser?.id ?? null,
+        },
+      })
+      await tx.auditEvent.create({
+        data: {
+          action: 'service_team.create',
+          resourceType: 'service_team',
+          resourceId: team.id,
+          afterValue: JSON.stringify({
+            serviceEngagementId: team.serviceEngagementId,
+            companyName: team.companyName,
+            serviceCategory: team.serviceCategory,
+            allowedCrew: team.allowedCrew,
+            leaderUserId: team.leaderUserId,
+          }),
+          weddingId: input.weddingId,
+          actorId: input.actorId,
+        },
+      })
+      return team
     })
-    await tx.auditEvent.create({
-      data: {
-        action: 'service_team.create',
-        resourceType: 'service_team',
-        resourceId: team.id,
-        afterValue: JSON.stringify({
-          serviceEngagementId: team.serviceEngagementId,
-          companyName: team.companyName,
-          serviceCategory: team.serviceCategory,
-          allowedCrew: team.allowedCrew,
-          leaderUserId: team.leaderUserId,
-        }),
-        weddingId: input.weddingId,
-        actorId: input.actorId,
-      },
-    })
-    return team
-  })
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new ServiceTeamRosterError(
+        'SERVICE_TEAM_ALREADY_EXISTS',
+        'A service team with this name already exists for the selected engagement.',
+        409,
+      )
+    }
+    throw error
+  }
 }
 
 export async function addServiceTeamMember(input: {
