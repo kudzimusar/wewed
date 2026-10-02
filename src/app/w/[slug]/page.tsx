@@ -169,8 +169,12 @@ export default async function WeddingPage({
     : null
 
   if (physicalInvitationClaim && physicalInvitationStyle) {
+    const productionDeferredInstallEnabled =
+      process.env.VERCEL_ENV === 'production' &&
+      process.env.ANDROID_DEFERRED_INVITATION_HANDOFF !== '0'
     const deferredInstallEnabled =
       isDedicatedPreviewWedding ||
+      productionDeferredInstallEnabled ||
       process.env.ANDROID_DEFERRED_INVITATION_HANDOFF === '1'
     const insideWewed =
       androidInvitationAppSession?.weddingId === wedding.id &&
