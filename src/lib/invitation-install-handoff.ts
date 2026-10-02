@@ -11,9 +11,13 @@ import {
   isValidInvitationHandoffSecret,
 } from '@/lib/invitation-links'
 
-const DEFAULT_HANDOFF_TTL_SECONDS = 24 * 60 * 60
+// A guest may tap an invitation in WhatsApp and install/open the app days or weeks later.
+// The handoff is 256-bit opaque, one-time, stored only as a hash, and remains bound to the
+// current RSVP credential, so a longer install window does not make the underlying invitation
+// durable beyond its existing authority. Reopening the original invitation mints a fresh handoff.
+const DEFAULT_HANDOFF_TTL_SECONDS = 30 * 24 * 60 * 60
 const MIN_HANDOFF_TTL_SECONDS = 5 * 60
-const MAX_HANDOFF_TTL_SECONDS = 48 * 60 * 60
+const MAX_HANDOFF_TTL_SECONDS = 90 * 24 * 60 * 60
 const CREATION_WINDOW_MS = 10 * 60 * 1000
 const MAX_CREATIONS_PER_WINDOW = 5
 const RESUME_FAILURE_WINDOW_MS = 10 * 60 * 1000
