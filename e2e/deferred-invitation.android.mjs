@@ -96,20 +96,6 @@ async function poll(label, callback, { attempts = 40, delay = 250 } = {}) {
   throw new Error(`Timed out waiting for ${label}: ${String(last ?? '')}`)
 }
 
-function handoffFromIntent(intentUrl) {
-  assert.match(intentUrl, /^intent:\/\/invite\/resume#Intent;/)
-  assert.ok(intentUrl.includes('scheme=wewed'))
-  assert.ok(intentUrl.includes(`package=${APP_PACKAGE};`))
-  assert.ok(!intentUrl.includes('rsvp='))
-  assert.ok(!intentUrl.includes('guest='))
-  assert.ok(!intentUrl.includes('email='))
-  const match = intentUrl.match(/(?:^|;)S\.wewed_handoff=([^;]+);/)
-  assert.ok(match, 'missing opaque handoff in Android intent')
-  const handoff = decodeURIComponent(match[1])
-  assert.match(handoff, /^[A-Za-z0-9_-]{43}$/)
-  return handoff
-}
-
 async function activeGuestFromChrome(page, fixture) {
   const result = await page.evaluate(async ({ baseUrl, slug }) => {
     const response = await fetch(
