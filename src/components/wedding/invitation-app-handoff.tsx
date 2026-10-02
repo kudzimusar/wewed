@@ -21,10 +21,12 @@ export function InvitationAppHandoff({
   weddingSlug,
   weddingTitle,
   deferredInstallEnabled,
+  iosDistributionUrl,
 }: {
   weddingSlug: string
   weddingTitle: string
   deferredInstallEnabled: boolean
+  iosDistributionUrl: string | null
 }) {
   const [platform, setPlatform] = useState<ClientPlatform>('checking')
   const continueInBrowser = buildInvitationContinuePath({ weddingSlug, source: 'browser' })
