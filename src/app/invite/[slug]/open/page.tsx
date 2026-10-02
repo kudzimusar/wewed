@@ -80,8 +80,17 @@ export default async function InvitationOpenPage({ params }: Props) {
   const dedicatedUat =
     process.env.VERCEL_ENV === 'preview' &&
     process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === wedding.id
+
+  // Android v14+ already contains the Play Install Referrer receiver, so production no longer
+  // needs an opt-in flag to expose the install continuity path. Keep an explicit "0" kill switch
+  // for emergency rollback, and retain the dedicated writable-preview gate for UAT.
+  const productionDeferredInstallEnabled =
+    process.env.VERCEL_ENV === 'production' &&
+    process.env.ANDROID_DEFERRED_INVITATION_HANDOFF !== '0'
   const deferredInstallEnabled =
-    dedicatedUat || process.env.ANDROID_DEFERRED_INVITATION_HANDOFF === '1'
+    dedicatedUat ||
+    productionDeferredInstallEnabled ||
+    process.env.ANDROID_DEFERRED_INVITATION_HANDOFF === '1'
 
   return (
     <InvitationAppHandoff
