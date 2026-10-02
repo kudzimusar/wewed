@@ -104,6 +104,21 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
     await db.couple.delete({ where: { id: coupleId } })
   })
 
+  test('duplicate team names return a deliberate 409 domain conflict', async () => {
+    await expect(
+      createServiceTeam({
+        weddingId,
+        actorId,
+        serviceEngagementId: engagementId,
+        name: 'Photography Crew',
+        allowedCrew: 2,
+      }),
+    ).rejects.toMatchObject({
+      code: 'SERVICE_TEAM_ALREADY_EXISTS',
+      status: 409,
+    })
+  })
+
   test('named crew are capacity-bounded, approved individually, and projected for event-day roll-call', async () => {
     const lead = await addServiceTeamMember({
       weddingId,
