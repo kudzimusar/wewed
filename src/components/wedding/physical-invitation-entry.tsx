@@ -41,6 +41,7 @@ export function PhysicalInvitationEntry({
   style,
   allowNameOnlyClaim = false,
   deferredInstallEnabled,
+  iosDistributionUrl,
   insideWewed = false,
 }: {
   slug: string
@@ -49,6 +50,7 @@ export function PhysicalInvitationEntry({
   style: InvitationCardStyle
   allowNameOnlyClaim?: boolean
   deferredInstallEnabled: boolean
+  iosDistributionUrl: string | null
   insideWewed?: boolean
 }) {
   const [mode, setMode] = useState<EntryMode>(insideWewed ? 'app' : 'checking')
@@ -179,18 +181,27 @@ export function PhysicalInvitationEntry({
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#c8a56b]">Wewed · Printed invitation</p>
           <h1 className="mt-3 font-serif text-3xl leading-tight">Your invitation is ready</h1>
           <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-[#d6cec5]">
-            Wewed for iPhone is coming soon. For now, continue {weddingTitle} securely in your browser.
+            {iosDistributionUrl
+              ? `Install Wewed for iPhone, then scan this same printed invitation QR again to continue ${weddingTitle}.`
+              : `Wewed for iPhone is not yet linked to an authoritative App Store destination. For now, continue ${weddingTitle} securely in your browser.`}
           </p>
 
-          <p className="mt-6 text-xs font-semibold uppercase tracking-[0.2em] text-[#d8b477]">Coming Soon</p>
-          <button
-            type="button"
-            onClick={() => setMode('web')}
-            aria-label="App Store coming soon — continue invitation in browser"
-            className="mx-auto mt-2 inline-flex items-center justify-center rounded-lg bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8b477]"
-          >
-            <img src={APP_STORE_BADGE} alt="Download on the App Store" width={196} height={66} className="h-12 w-auto max-w-full" />
-          </button>
+          {iosDistributionUrl ? (
+            <a
+              data-testid="physical-ios-install-wewed"
+              href={iosDistributionUrl}
+              className="mx-auto mt-5 inline-flex items-center justify-center rounded-lg bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8b477]"
+            >
+              <img src={APP_STORE_BADGE} alt="Download on the App Store" width={196} height={66} className="h-12 w-auto max-w-full" />
+            </a>
+          ) : (
+            <>
+              <p className="mt-6 text-xs font-semibold uppercase tracking-[0.2em] text-[#d8b477]">App Store link not configured</p>
+              <div className="mx-auto mt-2 inline-flex items-center justify-center rounded-lg opacity-60">
+                <img src={APP_STORE_BADGE} alt="Download on the App Store" width={196} height={66} className="h-12 w-auto max-w-full" />
+              </div>
+            </>
+          )}
           <button
             type="button"
             onClick={() => setMode('web')}
@@ -199,7 +210,9 @@ export function PhysicalInvitationEntry({
             Continue in browser
           </button>
           <p className="mt-4 text-xs leading-5 text-[#9f958a]">
-            Wewed keeps the printed invitation connected to this wedding while you continue in the browser.
+            {iosDistributionUrl
+              ? 'Keep this printed invitation QR and scan it again after installation; you do not need a replacement.'
+              : 'Wewed keeps the printed invitation connected to this wedding while you continue in the browser.'}
           </p>
         </section>
       </main>
