@@ -223,17 +223,20 @@ test('physical invitation access remains shared and never becomes a personal gue
   })
 })
 
-test('Android without a configured native handoff continues to the invitation in the browser @mobile', async ({ plannerPage: page }) => {
-  // QRO06: a disabled Android handoff must never strand the guest on a gate (the Android Chrome
-  // blocker). The browser continuation opens the personal invitation without leaking the token.
+test('Android with deferred handoff disabled keeps native installation primary @mobile', async ({ plannerPage: page }) => {
+  // The emergency switch may disable seamless identity transfer, but it must not disable the native
+  // install path or silently fall back to the PWA. Browser continuation remains explicitly secondary.
   await enablePersonalInvitationFixture()
   await page.context().clearCookies()
 
   const token = `${E2E_WEDDINGS.primary.slug}-rsvp-token`
   await page.goto(`/invite/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`)
-  await expect(page).toHaveURL(new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1`))
+  await expect(page).toHaveURL(`/invite/${E2E_WEDDINGS.primary.slug}/open`)
   expect(page.url()).not.toContain(token)
-  await expect(page.getByTestId('personal-invitation-android-gate')).toHaveCount(0)
-  await expect(page.getByTestId('premium-invitation-experience')).toBeVisible()
+  await expect(page.getByTestId('personal-invitation-android-gate')).toBeVisible()
+  await expect(page.getByTestId('android-google-play-install')).toBeVisible()
+  await expect(page.getByTestId('android-open-existing-wewed')).toHaveCount(0)
+  await expect(page.getByTestId('android-continue-in-browser')).toBeVisible()
+  await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
   await expectNoDocumentOverflow(page)
 })
