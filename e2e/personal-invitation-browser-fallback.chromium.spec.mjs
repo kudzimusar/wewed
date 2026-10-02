@@ -79,7 +79,7 @@ test.afterAll(async () => {
   await prisma.$disconnect()
 })
 
-test('Android guest link reveals the saved Ivory Floral Gold invitation when native handoff is unavailable', async ({ browser }) => {
+test('Android guest link keeps Google Play primary and browser continuation explicit when secure handoff is unavailable', async ({ browser }) => {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     userAgent: ANDROID_UA,
@@ -97,6 +97,17 @@ test('Android guest link reveals the saved Ivory Floral Gold invitation when nat
 
   await page.goto(sharedUrl, { waitUntil: 'domcontentloaded' })
 
+  await expect(page.getByTestId('personal-invitation-android-gate')).toBeVisible()
+  await expect(page.getByTestId('android-google-play-install-fallback')).toHaveAttribute(
+    'href',
+    'https://play.google.com/store/apps/details?id=pro.wewed.app',
+  )
+  await expect(page.getByText('You do not need a new link from the Planner.')).toBeVisible()
+  await expect(page.getByTestId('android-continue-in-browser')).toBeVisible()
+
+  // Browser invitation remains available, but only after the guest deliberately chooses it.
+  await page.getByTestId('android-continue-in-browser').click()
+
   await expect.poll(
     () => {
       const url = new URL(page.url())
@@ -109,8 +120,6 @@ test('Android guest link reveals the saved Ivory Floral Gold invitation when nat
   expect(finalUrl.searchParams.has('rsvp')).toBe(false)
   expect(finalUrl.searchParams.has('h')).toBe(false)
   expect(page.url()).not.toContain(fixture.rsvpToken)
-
-  await expect(page.getByText('Secure Android invitation handoff is not available yet.')).toHaveCount(0)
 
   const experience = page.getByTestId('premium-invitation-experience')
   await expect(experience).toBeVisible()
