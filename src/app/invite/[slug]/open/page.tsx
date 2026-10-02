@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { InvitationAppHandoff } from '@/components/wedding/invitation-app-handoff'
+import { configuredIosDistributionUrl } from '@/lib/ios-app-distribution'
 import { db } from '@/lib/db'
 import { WEWED_BRAND_PAYOFF, WEWED_INVITATION_PREVIEW_TITLE } from '@/lib/wewed-brand'
 import { invitationPreviewDescription } from '@/lib/invitation-link-preview'
@@ -97,6 +98,7 @@ export default async function InvitationOpenPage({ params }: Props) {
       weddingSlug={slug}
       weddingTitle={wedding.title}
       deferredInstallEnabled={deferredInstallEnabled}
+      iosDistributionUrl={configuredIosDistributionUrl()}
     />
   )
 }
