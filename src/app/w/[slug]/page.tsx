@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { androidDeferredInvitationHandoffEnabled } from '@/lib/invitation-deferred-install'
 import { cookies } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import { WeddingHome } from '@/components/wedding/wedding-home'
@@ -169,13 +170,7 @@ export default async function WeddingPage({
     : null
 
   if (physicalInvitationClaim && physicalInvitationStyle) {
-    const productionDeferredInstallEnabled =
-      process.env.VERCEL_ENV === 'production' &&
-      process.env.ANDROID_DEFERRED_INVITATION_HANDOFF !== '0'
-    const deferredInstallEnabled =
-      isDedicatedPreviewWedding ||
-      productionDeferredInstallEnabled ||
-      process.env.ANDROID_DEFERRED_INVITATION_HANDOFF === '1'
+    const deferredInstallEnabled = androidDeferredInvitationHandoffEnabled(wedding.id)
     const insideWewed =
       androidInvitationAppSession?.weddingId === wedding.id &&
       androidInvitationAppSession.destinationId === sharedInvitationSession?.destinationId
