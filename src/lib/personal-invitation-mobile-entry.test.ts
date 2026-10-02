@@ -54,6 +54,19 @@ describe('personal invitation mobile entry', () => {
     expect(handoff).not.toContain('apps.apple.com/')
   })
 
+  test('iOS distribution is configurable only through authoritative Apple hosts', () => {
+    const distribution = source('src/lib/ios-app-distribution.ts')
+    const personal = source('src/components/wedding/invitation-app-handoff.tsx')
+    const physical = source('src/components/wedding/physical-invitation-entry.tsx')
+
+    expect(distribution).toContain("'apps.apple.com'")
+    expect(distribution).toContain("'testflight.apple.com'")
+    expect(distribution).toContain("url.protocol !== 'https:'")
+    expect(personal).toContain('data-testid="ios-install-wewed"')
+    expect(personal).toContain('you do not need a replacement from the Planner.')
+    expect(physical).toContain('data-testid="physical-ios-install-wewed"')
+  })
+
   test('Play install handoffs use a wedding-realistic production lifetime while remaining one-time', () => {
     const handoff = source('src/lib/invitation-install-handoff.ts')
 
