@@ -92,7 +92,7 @@ describe('personal invitation mobile entry', () => {
     expect(handoff).toContain("process.env.VERCEL_ENV === 'production'")
     expect(handoff).toContain('? DEFAULT_HANDOFF_TTL_SECONDS')
     expect(handoff).toContain('if (handoff.usedAt)')
-    expect(handoff).toContain("reason: 'used'")
+    expect(handoff).toContain("failedResult('used'")
   })
 
   test('expired or reused install handoffs recover through the original invitation without Planner regeneration', () => {
