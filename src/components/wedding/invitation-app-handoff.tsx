@@ -8,6 +8,8 @@ type ClientPlatform = 'checking' | 'android' | 'ios' | 'web'
 
 const GOOGLE_PLAY_BADGE =
   'https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png'
+const APP_STORE_BADGE =
+  'https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg'
 const APPLE_MOBILE_RE = /iPad|iPhone|iPod/i
 
 function isAppleMobileClient() {
@@ -102,19 +104,42 @@ export function InvitationAppHandoff({
           </p>
           <h1 className="mt-3 font-serif text-3xl leading-tight">Your invitation is ready</h1>
           <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-[#d6cec5]">
-            Continue {weddingTitle} securely in your browser. A direct App Store handoff is not
-            configured for this invitation yet.
+            {iosDistributionUrl
+              ? `Install Wewed for iPhone to access your Guest profile, RSVP, wedding updates and Wedding Pass for ${weddingTitle}.`
+              : `Continue ${weddingTitle} securely in your browser. A direct App Store or TestFlight destination is not configured yet.`}
           </p>
+
+          {iosDistributionUrl ? (
+            <a
+              data-testid="ios-install-wewed"
+              href={iosDistributionUrl}
+              className="mx-auto mt-5 inline-flex items-center justify-center rounded-lg bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8b477]"
+            >
+              <img
+                src={APP_STORE_BADGE}
+                alt="Download on the App Store"
+                width={196}
+                height={66}
+                className="h-12 w-auto max-w-full"
+              />
+            </a>
+          ) : (
+            <p className="mt-5 text-xs font-semibold uppercase tracking-[0.18em] text-[#d8b477]">
+              App Store link not configured
+            </p>
+          )}
+
           <button
             type="button"
             onClick={() => window.location.assign(continueInBrowser)}
-            className="mt-5 min-h-12 w-full rounded-2xl bg-[#c6a061] px-5 py-3 font-semibold text-[#21170d]"
+            className="mt-3 min-h-12 w-full rounded-2xl bg-[#c6a061] px-5 py-3 font-semibold text-[#21170d]"
           >
             Continue in browser
           </button>
           <p className="mt-4 text-xs leading-5 text-[#9f958a]">
-            Your private invitation remains with Wewed. Browser continuation stays available until
-            an authoritative App Store destination is configured.
+            {iosDistributionUrl
+              ? 'After installation, return to this same invitation link if Wewed does not open automatically. You do not need a replacement invitation.'
+              : 'Your private invitation remains with Wewed and browser continuation stays available.'}
           </p>
         </section>
       </main>
