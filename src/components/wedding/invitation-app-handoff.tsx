@@ -112,15 +112,12 @@ export function InvitationAppHandoff({
     return () => { cancelled = true }
   }, [continueInApp, continueInBrowser, deferredInstallEnabled])
 
-  async function prepareSecureHandoff() {
-    if (
-      !deferredInstallEnabled ||
-      platform !== 'android' ||
-      preparationInFlightRef.current ||
-      preparedHandoff
-    ) {
-      return
+  async function prepareSecureHandoff(): Promise<PreparedHandoff | null> {
+    if (!deferredInstallEnabled || platform !== 'android') {
+      return null
     }
+    if (preparedHandoff) return preparedHandoff
+    if (preparationInFlightRef.current) return null
 
     preparationInFlightRef.current = true
     setPreparing(true)
@@ -164,7 +161,7 @@ export function InvitationAppHandoff({
       }
 
       const appResumePath = `${resumeUrl.pathname}${resumeUrl.search}`
-      setPreparedHandoff({
+      const prepared: PreparedHandoff = {
         playStoreUrl: data.playStoreUrl,
         appResumePath,
         androidIntentUrl: buildAndroidInvitationIntentUrl({
@@ -173,14 +170,17 @@ export function InvitationAppHandoff({
           fallbackUrl: window.location.href,
         }),
         expiresAt: typeof data.expiresAt === 'string' ? data.expiresAt : null,
-      })
+      }
+      setPreparedHandoff(prepared)
+      return prepared
     } catch (error) {
       const timedOut = error instanceof DOMException && error.name === 'AbortError'
       setHandoffError(
         timedOut
           ? 'The connection took too long. Check your internet connection and try again.'
-          : 'We could not securely prepare your invitation. Please try again.',
+          : 'We could not securely prepare your invitation. You can still install Wewed from Google Play and reopen this same invitation link.',
       )
+      return null
     } finally {
       window.clearTimeout(timeout)
       preparationInFlightRef.current = false
@@ -188,14 +188,12 @@ export function InvitationAppHandoff({
     }
   }
 
-  useEffect(() => {
-    if (platform !== 'android' || !deferredInstallEnabled || preparedHandoff || handoffError) {
-      return
-    }
-    void prepareSecureHandoff()
-    // prepareSecureHandoff intentionally runs only when the Android gate becomes eligible.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [platform, deferredInstallEnabled, preparedHandoff, handoffError])
+  async function startAndroidNativeJourney(destination: 'play' | 'app') {
+    setHandoffError(null)
+    const prepared = await prepareSecureHandoff()
+    if (!prepared) return
+    window.location.assign(destination === 'play' ? prepared.playStoreUrl : prepared.androidIntentUrl)
+  }
 
   if (platform === 'web' && !checking) {
     return (
@@ -236,8 +234,6 @@ export function InvitationAppHandoff({
     )
   }
 
-  const handoffReady = Boolean(preparedHandoff)
-
   return (
     <main data-testid="personal-invitation-android-gate" className="min-h-screen bg-[#17130f] px-4 py-7 text-[#f8f1e7] sm:px-6 sm:py-10">
       <section className="mx-auto max-w-md rounded-[1.75rem] border border-[#b89155]/45 bg-[#211b16] p-5 text-center shadow-2xl sm:p-8">
@@ -265,42 +261,42 @@ export function InvitationAppHandoff({
                 Install Wewed, then reopen this same personal invitation link. You do not need a new link from the Planner.
               </p>
             </>
-          ) : (checking || preparing) && !handoffReady ? (
+          ) : checking ? (
             <div
-              data-testid="android-handoff-preparing"
+              data-testid="android-install-checking"
               className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-[#b89155]/45 text-[#d6cec5]"
             >
-              <LoaderCircle className="size-5 animate-spin" /> Preparing secure handoff…
+              <LoaderCircle className="size-5 animate-spin" /> Checking Wewed…
             </div>
-          ) : preparedHandoff ? (
-            installed ? (
-              <a
-                data-testid="android-open-installed-wewed"
-                href={preparedHandoff.androidIntentUrl}
-                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 font-semibold text-[#21170d]"
-              >
-                <ExternalLink className="size-5" /> Open invitation in Wewed
-              </a>
-            ) : (
-              <>
-                <a
-                  data-testid="android-google-play-install"
-                  href={preparedHandoff.playStoreUrl}
-                  aria-label="Get Wewed on Google Play and reveal my invitation"
-                  className="mx-auto inline-flex min-h-16 items-center justify-center rounded-lg bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8b477]"
-                >
-                  <img src={GOOGLE_PLAY_BADGE} alt="Get it on Google Play" width={646} height={192} className="h-16 w-auto max-w-full object-contain" />
-                </a>
-                <a
-                  data-testid="android-open-existing-wewed"
-                  href={preparedHandoff.androidIntentUrl}
-                  className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#b89155]/55 px-5 py-3 font-semibold text-[#f8f1e7]"
-                >
-                  <ExternalLink className="size-5" /> Already downloaded? Open Wewed
-                </a>
-              </>
-            )
-          ) : null}
+          ) : installed ? (
+            <button
+              type="button"
+              data-testid="android-open-installed-wewed"
+              disabled={preparing}
+              onClick={() => { void startAndroidNativeJourney('app') }}
+              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 font-semibold text-[#21170d] disabled:cursor-wait disabled:opacity-70"
+            >
+              {preparing ? <LoaderCircle className="size-5 animate-spin" /> : <ExternalLink className="size-5" />}
+              {preparing ? 'Preparing invitation…' : 'Open invitation in Wewed'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              data-testid="android-google-play-install"
+              disabled={preparing}
+              onClick={() => { void startAndroidNativeJourney('play') }}
+              aria-label="Get Wewed on Google Play and reveal my invitation"
+              className="mx-auto inline-flex min-h-16 items-center justify-center rounded-lg bg-transparent p-0 disabled:cursor-wait disabled:opacity-70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8b477]"
+            >
+              {preparing ? (
+                <span className="flex min-h-16 items-center gap-2 rounded-2xl border border-[#b89155]/45 px-5 text-[#d6cec5]">
+                  <LoaderCircle className="size-5 animate-spin" /> Preparing Google Play…
+                </span>
+              ) : (
+                <img src={GOOGLE_PLAY_BADGE} alt="Get it on Google Play" width={646} height={192} className="h-16 w-auto max-w-full object-contain" />
+              )}
+            </button>
+          )}
 
           {handoffError && (
             <>
@@ -311,12 +307,21 @@ export function InvitationAppHandoff({
                 type="button"
                 onClick={() => {
                   setHandoffError(null)
-                  void prepareSecureHandoff()
+                  void startAndroidNativeJourney(installed ? 'app' : 'play')
                 }}
                 className="min-h-12 w-full rounded-2xl border border-[#b89155]/55 px-5 py-3 font-semibold text-[#f8f1e7]"
               >
                 Retry secure preparation
               </button>
+              {!installed && (
+                <a
+                  data-testid="android-google-play-install-direct-recovery"
+                  href={PLAY_STORE_URL}
+                  className="flex min-h-12 w-full items-center justify-center rounded-2xl border border-[#b89155]/35 px-5 py-3 text-sm font-semibold text-[#d6cec5]"
+                >
+                  Install from Google Play without automatic return
+                </a>
+              )}
             </>
           )}
 
