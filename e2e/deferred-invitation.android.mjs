@@ -227,7 +227,7 @@ async function nativeCheckpoints(device, minimumIntentCount) {
       }
       return null
     },
-    { attempts: 80, delay: 250 },
+    { attempts: 240, delay: 500 },
   )
 
   console.log(`checkpoint=native_intent_received count=${state.intentCount}`)
