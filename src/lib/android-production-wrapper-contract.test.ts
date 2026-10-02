@@ -76,16 +76,25 @@ describe('Google Play production authority (apps/android only)', () => {
     }
   })
 
-  test('does not falsely label a disabled production handoff as a UAT build', () => {
-    for (const path of [
-      'src/components/wedding/invitation-app-handoff.tsx',
-      'src/components/wedding/physical-invitation-entry.tsx',
-    ]) {
-      const component = source(path)
-      // QRO06/AT01: a disabled handoff never strands Android — both gates continue in the browser.
+  test('a disabled deferred handoff never strands Android or silently downgrades adoption to web', () => {
+    const personal = source('src/components/wedding/invitation-app-handoff.tsx')
+    const physical = source('src/components/wedding/physical-invitation-entry.tsx')
+
+    for (const component of [personal, physical]) {
       expect(component).not.toContain('Your private invitation remains locked')
-      expect(component).toContain('if (!deferredInstallEnabled)')
       expect(component).not.toContain('handoff is being prepared for this UAT build')
     }
+
+    // Personal links always keep Google Play primary; the deferred flag only controls whether
+    // seamless identity transfer/open-app continuity is available.
+    expect(personal).toContain('data-testid="android-google-play-install"')
+    expect(personal).toContain('href={installPath}')
+    expect(personal).toContain('data-testid="android-continue-in-browser"')
+    expect(personal).not.toContain('window.location.replace(continueInBrowser)')
+
+    // Printed invitations use the same install-first policy and keep browser claim secondary.
+    expect(physical).toContain('data-testid="physical-android-google-play-install-fallback"')
+    expect(physical).toContain('data-testid="physical-android-continue-in-browser"')
+    expect(physical).toContain('No Planner action is required.')
   })
 })
