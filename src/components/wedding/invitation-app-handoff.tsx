@@ -59,12 +59,16 @@ export function InvitationAppHandoff({
   const continueInApp = buildInvitationContinuePath({ weddingSlug, source: 'app' })
 
   useEffect(() => {
-    if (window.matchMedia('(display-mode: standalone)').matches) {
+    const androidClient = /Android/i.test(navigator.userAgent)
+
+    // A standalone PWA must not swallow an Android personal invitation before the native-app
+    // adoption gate has a chance to run. On Android, Verified App Links/native Play remain the
+    // preferred journey; non-Android standalone clients may continue inside their installed web app.
+    if (window.matchMedia('(display-mode: standalone)').matches && !androidClient) {
       window.location.replace(continueInApp)
       return
     }
 
-    const androidClient = /Android/i.test(navigator.userAgent)
     if (androidClient) {
       // If Android reaches the web at all, Wewed should still make installation the primary
       // journey. Verified App Links will normally intercept the personal invitation when the
