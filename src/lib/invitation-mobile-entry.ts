@@ -9,6 +9,7 @@ import { PLAY_STORE_URL } from '@/lib/invitation-links'
 import { readPendingInvitation } from '@/lib/pending-invitation'
 import { resolvePersonalInvitation } from '@/lib/personal-invitation-access'
 import { previewWeddingMutationBlocked } from '@/lib/preview-write-safety'
+import { androidDeferredInvitationHandoffEnabled } from '@/lib/invitation-deferred-install'
 
 export type PreparedInvitationMobileEntry =
   | {
@@ -51,11 +52,7 @@ export async function prepareInvitationMobileEntry(
   })
   if (!invitation) return { ok: false, reason: 'invalid' }
 
-  const dedicatedUat =
-    process.env.VERCEL_ENV === 'preview' &&
-    process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === invitation.weddingId
-  const deferredInstallEnabled =
-    dedicatedUat || process.env.ANDROID_DEFERRED_INVITATION_HANDOFF === '1'
+  const deferredInstallEnabled = androidDeferredInvitationHandoffEnabled(invitation.weddingId)
 
   // The install CTA is never gated. The feature flag controls seamless deferred
   // identity transfer only. If it is disabled, the guest still reaches Google Play.
