@@ -42,6 +42,11 @@ export async function PATCH(
     } | null
     if (!body) return response({ success: false, error: 'Invalid request.' }, 400)
 
+    const serviceFunction =
+      typeof body.function === 'string' && body.function.trim()
+        ? body.function.trim().slice(0, 160)
+        : null
+
     const guestResult = await updatePlannerGuest(
       { weddingId: access.team.weddingId, actorId: access.session.userId },
       member.guestId,
@@ -49,6 +54,7 @@ export async function PATCH(
         ...(typeof body.name === 'string' ? { name: body.name } : {}),
         ...('email' in body ? { email: typeof body.email === 'string' ? body.email : null } : {}),
         ...('phone' in body ? { phone: typeof body.phone === 'string' ? body.phone : null } : {}),
+        ...(serviceFunction ? { roleDetail: serviceFunction } : {}),
         role: 'service_provider',
         attendanceAllocation: 'operational',
       },
@@ -57,10 +63,10 @@ export async function PATCH(
       return response({ success: false, error: guestResult.error, ...('field' in guestResult && guestResult.field ? { field: guestResult.field } : {}) }, guestResult.status)
     }
 
-    if (typeof body.function === 'string' && body.function.trim()) {
+    if (serviceFunction) {
       await db.serviceTeamMember.update({
         where: { id: member.id },
-        data: { function: body.function.trim().slice(0, 160) },
+        data: { function: serviceFunction },
       })
     }
     return response({ success: true })
