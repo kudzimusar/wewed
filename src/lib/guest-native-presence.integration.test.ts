@@ -55,6 +55,7 @@ describe.skipIf(!isLocal)('Guest native activation against disposable PostgreSQL
   afterAll(async () => {
     if (!db || !weddingId) return
     await db.guestNativePresence.deleteMany({ where: { weddingId } })
+    await db.auditEvent.deleteMany({ where: { weddingId } })
     await db.rSVP.deleteMany({ where: { guest: { weddingId } } })
     await db.guest.deleteMany({ where: { weddingId } })
     await db.wedding.delete({ where: { id: weddingId } })
@@ -72,6 +73,23 @@ describe.skipIf(!isLocal)('Guest native activation against disposable PostgreSQL
     })
     expect(browserResult).toBeNull()
     expect(await db.guestNativePresence.count({ where: { weddingId, guestId } })).toBe(0)
+
+    await db.auditEvent.create({
+      data: {
+        action: 'guest.native_install_clicked',
+        resourceType: 'guest_invitation',
+        resourceId: guestId,
+        weddingId,
+        afterValue: JSON.stringify({ platform: 'android', source: 'android-install-click' }),
+      },
+    })
+
+    const beforeActivation = await loadPlannerInvitationProjection(weddingId, 'http://localhost:3000')
+    expect(beforeActivation?.summary.nativeInstallClicked).toBe(1)
+    expect(beforeActivation?.summary.nativeInstallNotActivated).toBe(1)
+    expect(beforeActivation?.summary.nativeInstallToActivationRate).toBe(0)
+    expect(beforeActivation?.data[0]?.nativeInstallClickedAt).not.toBeNull()
+    expect(beforeActivation?.data[0]?.nativeActivated).toBe(false)
 
     await recordGuestNativePresence({
       weddingId,
@@ -104,6 +122,9 @@ describe.skipIf(!isLocal)('Guest native activation against disposable PostgreSQL
 
     const projection = await loadPlannerInvitationProjection(weddingId, 'http://localhost:3000')
     expect(projection).not.toBeNull()
+    expect(projection?.summary.nativeInstallClicked).toBe(1)
+    expect(projection?.summary.nativeInstallNotActivated).toBe(0)
+    expect(projection?.summary.nativeInstallToActivationRate).toBe(1)
     expect(projection?.summary.nativeActivated).toBe(1)
     expect(projection?.summary.nativeAndroid).toBe(1)
     expect(projection?.summary.nativeIos).toBe(1)
