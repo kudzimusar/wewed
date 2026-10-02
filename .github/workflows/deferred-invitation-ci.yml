@@ -284,12 +284,12 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-anon-key
-      NEXT_PUBLIC_SITE_URL: http://10.0.2.2:3000
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
       NEXT_TELEMETRY_DISABLED: 1
       ANDROID_DEFERRED_INVITATION_HANDOFF: '1'
       WEWED_INVITATION_HANDOFF_TTL_SECONDS: '86400'
-      WEWED_ANDROID_UAT_RESUME_ORIGIN: http://10.0.2.2:3000
-      WEWED_ANDROID_E2E_BASE_URL: http://10.0.2.2:3000
+      WEWED_ANDROID_UAT_RESUME_ORIGIN: http://127.0.0.1:3000
+      WEWED_ANDROID_E2E_BASE_URL: http://127.0.0.1:3000
       WEWED_UAT_BASE_URL: http://127.0.0.1:3000
       # The emulator runs the local UAT wrapper, which installs as its own package so it
       # can never replace a Play-installed pro.wewed.app.
@@ -358,6 +358,7 @@ jobs:
           script: |
             set -eu
             adb install -r android/app/build/outputs/apk/uat/app-uat.apk
+            adb reverse tcp:3000 tcp:3000
             adb shell pm list packages com.android.chrome | grep -q 'package:com.android.chrome'
             # Fresh AVD: do not clear Chrome here. Playwright Android depends on
             # Chrome's command-line capability, and clearing app data can reset it.
