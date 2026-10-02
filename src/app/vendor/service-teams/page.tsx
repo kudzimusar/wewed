@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, Loader2, Pencil, Plus, RefreshCw, Send, Trash2, UsersRound } from 'lucide-react'
 import { DashboardAuthGate } from '@/components/wedding/dashboard-auth-gate'
+import { ADMIN_AUTH_EVENT } from '@/lib/admin-auth'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -70,9 +71,19 @@ export default function VendorServiceTeamsPage() {
 
   useEffect(() => { void load() }, [load])
 
+  useEffect(() => {
+    const handleAuthChange = (event: Event) => {
+      const authorized = (event as CustomEvent<{ authorized?: boolean }>).detail?.authorized
+      if (authorized) void load()
+    }
+    window.addEventListener(ADMIN_AUTH_EVENT, handleAuthChange)
+    return () => window.removeEventListener(ADMIN_AUTH_EVENT, handleAuthChange)
+  }, [load])
+
   async function addMember(teamId: string, event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     setBusy(`add-${teamId}`)
     try {
       await request(`/api/vendor/service-teams/${teamId}/roster`, {
@@ -85,7 +96,7 @@ export default function VendorServiceTeamsPage() {
           function: String(form.get('function') || ''),
         }),
       })
-      event.currentTarget.reset()
+      formElement.reset()
       await load()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to add crew member.')
