@@ -244,7 +244,7 @@ for (const client of MOBILE_CLIENTS) {
     await expect(page.getByRole('link', { name: /continue to invitation in browser/i })).toHaveCount(0)
     expect(page.url()).not.toContain(fixture.rsvpToken)
 
-    const beforeTap = await prisma.$queryRaw<Array<{ count: bigint }>>`
+    const beforeTap = await prisma.$queryRaw`
       SELECT COUNT(*)::bigint AS count
       FROM private."InvitationInstallHandoff"
       WHERE "weddingId" = ${fixture.weddingId}
@@ -259,7 +259,7 @@ for (const client of MOBILE_CLIENTS) {
     expect(decodeURIComponent(playStoreUrl)).not.toContain(fixture.rsvpToken)
     expect(decodeURIComponent(playStoreUrl)).not.toContain(fixture.guestEmail)
     expect(decodeURIComponent(playStoreUrl)).not.toContain(fixture.weddingSlug)
-    const afterTap = await prisma.$queryRaw<Array<{ count: bigint }>>`
+    const afterTap = await prisma.$queryRaw`
       SELECT COUNT(*)::bigint AS count
       FROM private."InvitationInstallHandoff"
       WHERE "weddingId" = ${fixture.weddingId}
