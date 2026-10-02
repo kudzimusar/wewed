@@ -55,6 +55,8 @@ describe('digital invitation card delivery', () => {
     expect(message).toContain('private Wewed digital invitation and RSVP here:')
     expect(message).toContain(url)
     expect(message.split(url)).toHaveLength(2)
+    expect(message).toContain('Android: use this same personal link and choose Get Wewed on Google Play.')
+    expect(message).toContain('you do not need a replacement unless the Planner deliberately rotates it.')
     expect(message).toContain('Wedding Pass available when venue admission opens closer to the wedding')
     expect(message).toContain('This link is personal to you.')
     expect(message).toContain('Please don’t forward or share it with anyone else.')
@@ -68,6 +70,10 @@ describe('digital invitation card delivery', () => {
       '',
       'Open your private Wewed digital invitation and RSVP here:',
       url,
+      '',
+      'Android: use this same personal link and choose Get Wewed on Google Play. After installing, Wewed can return you to this guest profile automatically.',
+      '',
+      'Keep this personal invitation link. You can reopen the same link after installing Wewed or on a new device; you do not need a replacement unless the Planner deliberately rotates it.',
       '',
       'If you’re attending, Wewed will keep your invitation connected to your guest profile and make your Wedding Pass available when venue admission opens closer to the wedding.',
       '',
