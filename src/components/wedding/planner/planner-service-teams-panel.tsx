@@ -92,7 +92,8 @@ export function PlannerServiceTeamsPanel() {
 
   async function createTeam(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     setBusy('create')
     try {
       await json('/api/planner/service-teams', {
@@ -105,7 +106,7 @@ export function PlannerServiceTeamsPanel() {
           leaderEmail: String(form.get('leaderEmail') || ''),
         }),
       })
-      event.currentTarget.reset()
+      formElement.reset()
       await load()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to create service team.')
@@ -116,7 +117,8 @@ export function PlannerServiceTeamsPanel() {
 
   async function addMember(teamId: string, event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const form = new FormData(event.currentTarget)
+    const formElement = event.currentTarget
+    const form = new FormData(formElement)
     setBusy(`member-${teamId}`)
     try {
       await json(`/api/planner/service-teams/${teamId}/members`, {
@@ -130,7 +132,7 @@ export function PlannerServiceTeamsPanel() {
           isLeader: form.get('isLeader') === 'on',
         }),
       })
-      event.currentTarget.reset()
+      formElement.reset()
       await load()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to add crew member.')
