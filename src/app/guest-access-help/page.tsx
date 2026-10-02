@@ -17,6 +17,9 @@ export default async function GuestAccessHelpPage({ searchParams }: PageProps) {
   const params = await searchParams
   const reason = Array.isArray(params.reason) ? params.reason[0] : params.reason
   const invalidInvitation = reason === 'invalid-invitation'
+  const installRecovery =
+    reason === 'install-invitation-missing' ||
+    Boolean(reason?.startsWith('invitation-resume-'))
 
   // Plain guest help stays inside the shared public information frame. Only a
   // failed invitation or resume redirect (?reason=...) gets the compact,
@@ -64,7 +67,11 @@ export default async function GuestAccessHelpPage({ searchParams }: PageProps) {
             Private invitation access
           </p>
           <h1 className="mt-2 font-serif text-2xl leading-tight sm:text-3xl">
-            {invalidInvitation ? 'This invitation link couldn’t be verified' : 'Need help opening your invitation?'}
+            {invalidInvitation
+              ? 'This invitation link couldn’t be verified'
+              : installRecovery
+                ? 'Your invitation is still valid'
+                : 'Need help opening your invitation?'}
           </h1>
           <p className="mt-3 text-sm leading-6 text-[#665b50]">
             {invalidInvitation
