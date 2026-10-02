@@ -4,14 +4,28 @@ import { readFileSync } from 'node:fs'
 const source = (path: string) => readFileSync(path, 'utf8')
 
 describe('personal invitation mobile entry', () => {
-  test('a valid Android invitation falls through to the secure browser card when native handoff is disabled', () => {
+  test('Android keeps Google Play primary even when secure deferred continuity is disabled', () => {
     const handoff = source('src/components/wedding/invitation-app-handoff.tsx')
 
-    expect(handoff).toContain('if (!deferredInstallEnabled) {')
-    expect(handoff).toContain('window.location.replace(continueInBrowser)')
-    expect(handoff).not.toContain(
-      'Secure Android invitation handoff is not available yet. Your private invitation remains locked until the production Wewed release is available.',
-    )
+    expect(handoff).toContain('data-testid="android-google-play-install-fallback"')
+    expect(handoff).toContain('href={PLAY_STORE_URL}')
+    expect(handoff).toContain('You do not need a new link from the Planner.')
+    expect(handoff).not.toContain('window.location.replace(continueInBrowser)')
+  })
+
+  test('Android standalone/PWA entry cannot swallow the native adoption gate', () => {
+    const handoff = source('src/components/wedding/invitation-app-handoff.tsx')
+
+    expect(handoff).toContain("window.matchMedia('(display-mode: standalone)').matches && !androidClient")
+    expect(handoff).toContain("const androidClient = /Android/i.test(navigator.userAgent)")
+  })
+
+  test('production enables secure Android install continuity by default with an emergency kill switch', () => {
+    const page = source('src/app/invite/[slug]/open/page.tsx')
+
+    expect(page).toContain("process.env.VERCEL_ENV === 'production'")
+    expect(page).toContain("process.env.ANDROID_DEFERRED_INVITATION_HANDOFF !== '0'")
+    expect(page).toContain('productionDeferredInstallEnabled')
   })
 
   test('Android keeps browser continuation as a secondary option when native handoff is enabled', () => {
@@ -30,6 +44,17 @@ describe('personal invitation mobile entry', () => {
     expect(handoff).not.toContain('Wewed for iPhone is coming soon')
     expect(handoff).not.toContain('APP_STORE_BADGE')
     expect(handoff).not.toContain('apps.apple.com/')
+  })
+
+  test('Play install handoffs use a wedding-realistic production lifetime while remaining one-time', () => {
+    const handoff = source('src/lib/invitation-install-handoff.ts')
+
+    expect(handoff).toContain('const DEFAULT_HANDOFF_TTL_SECONDS = 30 * 24 * 60 * 60')
+    expect(handoff).toContain('const MAX_HANDOFF_TTL_SECONDS = 90 * 24 * 60 * 60')
+    expect(handoff).toContain("process.env.VERCEL_ENV === 'production'")
+    expect(handoff).toContain('? DEFAULT_HANDOFF_TTL_SECONDS')
+    expect(handoff).toContain('if (handoff.usedAt)')
+    expect(handoff).toContain("reason: 'used'")
   })
 
   test('browser continuation revalidates the pending invitation and enters invitation mode without a raw RSVP credential', () => {
