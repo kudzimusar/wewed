@@ -145,32 +145,50 @@ async function foregroundAndroidChrome(device, page) {
   console.log('checkpoint=android_chrome_foreground')
 }
 
-async function prepareGate(browserPage, fixture, token, handoffPostCount) {
+async function handoffCreationCount(fixture) {
+  return prisma.auditEvent.count({
+    where: {
+      weddingId: fixture.weddingId,
+      action: 'invitation_handoff_created',
+    },
+  })
+}
+
+async function prepareGate(browserPage, fixture, token) {
+  const creationsBeforeOpen = await handoffCreationCount(fixture)
+
   await browserPage.goto(
     `${EMULATOR_BASE_URL}/invite/${encodeURIComponent(fixture.weddingSlug)}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`,
     { waitUntil: 'domcontentloaded' },
   )
 
-  const direct = browserPage.getByTestId('android-open-installed-wewed')
-  const link = await poll('prepared Android intent link', async () => {
-    if (await direct.isVisible().catch(() => false)) return direct
-    return null
-  })
+  const link = browserPage.getByTestId('android-open-existing-wewed')
+  await poll('installed Wewed entry link', async () =>
+    (await link.isVisible().catch(() => false)) ? link : null,
+  )
 
   const href = await link.getAttribute('href')
-  assert.ok(href)
-  const handoff = handoffFromIntent(href)
+  assert.equal(
+    href,
+    `/invite/${encodeURIComponent(fixture.weddingSlug)}/app`,
+    'installed-app CTA must route through the click-triggered server handoff endpoint',
+  )
+
+  assert.equal(
+    await handoffCreationCount(fixture),
+    creationsBeforeOpen,
+    'opening or refreshing the invitation must not create an install handoff',
+  )
 
   return {
     link,
-    handoff,
-    postsBeforeClick: handoffPostCount(),
+    creationsBeforeClick: creationsBeforeOpen,
   }
 }
 
-async function clickPreparedGate(prepared, handoffPostCount) {
-  // Preserve a genuine Chrome user gesture. The handoff was prepared only after installed-app
-  // detection, so this final click performs no async work before the package-targeted intent.
+async function clickPreparedGate(prepared, fixture) {
+  // The ordinary anchor preserves a real Chrome user gesture. Its server route creates exactly one
+  // opaque handoff and immediately 303s to the package-targeted Android intent.
   try {
     await prepared.link.click({ timeout: 5_000 })
   } catch (error) {
@@ -178,11 +196,15 @@ async function clickPreparedGate(prepared, handoffPostCount) {
     console.log('checkpoint=source_chrome_navigation_wait_released')
   }
 
-  await sleep(750)
+  await poll(
+    'one click-triggered handoff creation',
+    async () => (await handoffCreationCount(fixture)) === prepared.creationsBeforeClick + 1,
+    { attempts: 60, delay: 100 },
+  )
   assert.equal(
-    handoffPostCount(),
-    prepared.postsBeforeClick,
-    'final installed-app launch click must not perform another handoff POST',
+    await handoffCreationCount(fixture),
+    prepared.creationsBeforeClick + 1,
+    'one installed-app click must create exactly one handoff',
   )
 }
 
@@ -328,31 +350,14 @@ async function run() {
     const pages = browserContext.pages()
     const browserPage = pages[0] ?? await browserContext.newPage()
 
-    let handoffPosts = 0
-    browserPage.on('request', (request) => {
-      try {
-        if (
-          request.method() === 'POST' &&
-          new URL(request.url()).pathname === '/api/invitations/install-handoff'
-        ) {
-          handoffPosts += 1
-          console.log('checkpoint=handoff_created')
-        }
-      } catch {
-        // Ignore non-HTTP browser-internal requests.
-      }
-    })
-
     // A: real Android Chrome -> prepared intent -> Wewed wrapper -> local resume.
     await foregroundAndroidChrome(device, browserPage)
     const preparedA = await prepareGate(
       browserPage,
       fixture,
-      fixture.tokenA,
-      () => handoffPosts,
+      fixture.tokenA
     )
-    assert.equal(handoffPosts, 1)
-    await clickPreparedGate(preparedA, () => handoffPosts)
+    await clickPreparedGate(preparedA, fixture)
     await nativeCheckpoints(device, 1)
     await waitForRedemption(fixture, 1)
     console.log('checkpoint=resume_requested guest=A')
@@ -374,16 +379,13 @@ async function run() {
     const preparedB = await prepareGate(
       browserPage,
       fixture,
-      fixture.tokenB,
-      () => handoffPosts,
+      fixture.tokenB
     )
-    assert.equal(handoffPosts, 2)
-
     const beforeB = await activeGuestFromChrome(browserPage, fixture)
     assert.equal(beforeB.guest.id, fixture.guestAId)
     console.log('checkpoint=active_guest=A-before-B-resume')
 
-    await clickPreparedGate(preparedB, () => handoffPosts)
+    await clickPreparedGate(preparedB, fixture)
     await nativeCheckpoints(device, 2)
     await waitForRedemption(fixture, 2)
     console.log('checkpoint=resume_requested guest=B')
@@ -404,16 +406,13 @@ async function run() {
     const preparedA2 = await prepareGate(
       browserPage,
       fixture,
-      fixture.tokenA,
-      () => handoffPosts,
+      fixture.tokenA
     )
-    assert.equal(handoffPosts, 3)
-
     const beforeA2 = await activeGuestFromChrome(browserPage, fixture)
     assert.equal(beforeA2.guest.id, fixture.guestBId)
     console.log('checkpoint=active_guest=B-before-A-resume')
 
-    await clickPreparedGate(preparedA2, () => handoffPosts)
+    await clickPreparedGate(preparedA2, fixture)
     await nativeCheckpoints(device, 3)
     await waitForRedemption(fixture, 3)
     console.log('checkpoint=resume_requested guest=A2')
@@ -430,9 +429,9 @@ async function run() {
     )
 
     assert.equal(
-      handoffPosts,
+      await handoffCreationCount(fixture),
       3,
-      'one prepared handoff must be created per installed-app guest switch',
+      'A → B → A must create exactly one handoff per explicit installed-app click',
     )
   } finally {
     if (device) {
