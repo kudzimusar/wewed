@@ -146,47 +146,49 @@ async function foregroundAndroidChrome(device, page) {
 }
 
 async function prepareGate(browserPage, fixture, token, handoffPostCount) {
+  const postsBeforeOpen = handoffPostCount()
   await browserPage.goto(
     `${EMULATOR_BASE_URL}/invite/${encodeURIComponent(fixture.weddingSlug)}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`,
     { waitUntil: 'domcontentloaded' },
   )
 
-  const direct = browserPage.getByTestId('android-open-installed-wewed')
-  const fallback = browserPage.getByTestId('android-open-existing-wewed')
-  const link = await poll('prepared Android intent link', async () => {
-    if (await direct.isVisible().catch(() => false)) return direct
-    if (await fallback.isVisible().catch(() => false)) return fallback
-    return null
-  })
+  const button = browserPage.getByTestId('android-open-installed-wewed')
+  await poll('Android native invitation button', async () =>
+    (await button.isVisible().catch(() => false)) ? button : null,
+  )
 
-  const href = await link.getAttribute('href')
-  assert.ok(href)
-  const handoff = handoffFromIntent(href)
+  assert.equal(
+    handoffPostCount(),
+    postsBeforeOpen,
+    'opening or refreshing an invitation must not mint a Play handoff before the guest acts',
+  )
 
   return {
-    link,
-    handoff,
+    button,
     postsBeforeClick: handoffPostCount(),
   }
 }
 
 async function clickPreparedGate(prepared, handoffPostCount) {
-  // Preserve a genuine Chrome user gesture. Playwright may keep waiting for
-  // the source page's scheduled navigation after Android has already handed
-  // the intent to Wewed, so a short navigation timeout is expected here. The
-  // authoritative success criteria are the native + server checkpoints below.
+  // The guest gesture now creates exactly one opaque handoff and immediately dispatches the
+  // package-targeted Android intent. This avoids consuming/rate-limiting handoffs merely by
+  // opening or refreshing an invitation page.
   try {
-    await prepared.link.click({ timeout: 5_000 })
+    await prepared.button.click({ timeout: 5_000 })
   } catch (error) {
     if (!(error instanceof Error) || error.name !== 'TimeoutError') throw error
     console.log('checkpoint=source_chrome_navigation_wait_released')
   }
 
-  await sleep(750)
+  await poll(
+    'single handoff POST after explicit native-open gesture',
+    () => handoffPostCount() === prepared.postsBeforeClick + 1,
+    { attempts: 40, delay: 100 },
+  )
   assert.equal(
     handoffPostCount(),
-    prepared.postsBeforeClick,
-    'final Android launch click must not perform an async handoff POST',
+    prepared.postsBeforeClick + 1,
+    'one explicit native-open gesture must mint exactly one Play handoff',
   )
 }
 
@@ -355,8 +357,9 @@ async function run() {
       fixture.tokenA,
       () => handoffPosts,
     )
-    assert.equal(handoffPosts, 1)
+    assert.equal(handoffPosts, 0)
     await clickPreparedGate(preparedA, () => handoffPosts)
+    assert.equal(handoffPosts, 1)
     await nativeCheckpoints(device, 1)
     await waitForRedemption(fixture, 1)
     console.log('checkpoint=resume_requested guest=A')
@@ -381,13 +384,14 @@ async function run() {
       fixture.tokenB,
       () => handoffPosts,
     )
-    assert.equal(handoffPosts, 2)
+    assert.equal(handoffPosts, 1)
 
     const beforeB = await activeGuestFromChrome(browserPage, fixture)
     assert.equal(beforeB.guest.id, fixture.guestAId)
     console.log('checkpoint=active_guest=A-before-B-resume')
 
     await clickPreparedGate(preparedB, () => handoffPosts)
+    assert.equal(handoffPosts, 2)
     await nativeCheckpoints(device, 2)
     await waitForRedemption(fixture, 2)
     console.log('checkpoint=resume_requested guest=B')
@@ -411,13 +415,14 @@ async function run() {
       fixture.tokenA,
       () => handoffPosts,
     )
-    assert.equal(handoffPosts, 3)
+    assert.equal(handoffPosts, 2)
 
     const beforeA2 = await activeGuestFromChrome(browserPage, fixture)
     assert.equal(beforeA2.guest.id, fixture.guestBId)
     console.log('checkpoint=active_guest=B-before-A-resume')
 
     await clickPreparedGate(preparedA2, () => handoffPosts)
+    assert.equal(handoffPosts, 3)
     await nativeCheckpoints(device, 3)
     await waitForRedemption(fixture, 3)
     console.log('checkpoint=resume_requested guest=A2')
@@ -436,7 +441,7 @@ async function run() {
     assert.equal(
       handoffPosts,
       3,
-      'one prepared handoff must be created per explicit guest switch',
+      'one handoff must be created per explicit native-open gesture, never on page load',
     )
   } finally {
     if (device) {
