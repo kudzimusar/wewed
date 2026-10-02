@@ -244,6 +244,13 @@ for (const client of MOBILE_CLIENTS) {
     await expect(page.getByRole('link', { name: /continue to invitation in browser/i })).toHaveCount(0)
     expect(page.url()).not.toContain(fixture.rsvpToken)
 
+    const beforeTap = await prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*)::bigint AS count
+      FROM private."InvitationInstallHandoff"
+      WHERE "weddingId" = ${fixture.weddingId}
+    `
+    expect(Number(beforeTap[0]?.count ?? 0)).toBe(0)
+
     const playStoreUrl = await capturePlayNavigation(
       page,
       'Get Wewed on Google Play and reveal my invitation',
@@ -252,6 +259,12 @@ for (const client of MOBILE_CLIENTS) {
     expect(decodeURIComponent(playStoreUrl)).not.toContain(fixture.rsvpToken)
     expect(decodeURIComponent(playStoreUrl)).not.toContain(fixture.guestEmail)
     expect(decodeURIComponent(playStoreUrl)).not.toContain(fixture.weddingSlug)
+    const afterTap = await prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(*)::bigint AS count
+      FROM private."InvitationInstallHandoff"
+      WHERE "weddingId" = ${fixture.weddingId}
+    `
+    expect(Number(afterTap[0]?.count ?? 0)).toBe(1)
     await context.close()
 
     const appContext = await androidContext(browser, client.userAgent, { standalone: true })
