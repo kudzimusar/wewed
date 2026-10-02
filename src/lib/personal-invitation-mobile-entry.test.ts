@@ -4,12 +4,13 @@ import { readFileSync } from 'node:fs'
 const source = (path: string) => readFileSync(path, 'utf8')
 
 describe('personal invitation mobile entry', () => {
-  test('Android keeps Google Play primary even when secure deferred continuity is disabled', () => {
+  test('Android keeps Google Play primary instead of silently falling through to the web app', () => {
     const handoff = source('src/components/wedding/invitation-app-handoff.tsx')
 
-    expect(handoff).toContain('data-testid="android-google-play-install-fallback"')
-    expect(handoff).toContain('href={PLAY_STORE_URL}')
-    expect(handoff).toContain('You do not need a new link from the Planner.')
+    expect(handoff).toContain('data-testid="android-google-play-install"')
+    expect(handoff).toContain('href={installPath}')
+    expect(handoff).toContain('You do not need a new invitation after installing.')
+    expect(handoff).toContain('The personal invitation does not expire on a timer.')
     expect(handoff).not.toContain('window.location.replace(continueInBrowser)')
   })
 
@@ -20,20 +21,33 @@ describe('personal invitation mobile entry', () => {
     expect(handoff).toContain("const androidClient = /Android/i.test(navigator.userAgent)")
   })
 
-  test('production enables secure Android install continuity by default with an emergency kill switch', () => {
-    const page = source('src/app/invite/[slug]/open/page.tsx')
+  test('one shared production authority controls deferred Android continuity with an emergency kill switch', () => {
+    const gate = source('src/lib/invitation-deferred-install.ts')
+    const personal = source('src/app/invite/[slug]/open/page.tsx')
+    const wedding = source('src/app/w/[slug]/page.tsx')
+    const helper = source('src/lib/invitation-mobile-entry.ts')
 
-    expect(page).toContain("process.env.VERCEL_ENV === 'production'")
-    expect(page).toContain("process.env.ANDROID_DEFERRED_INVITATION_HANDOFF !== '0'")
-    expect(page).toContain('productionDeferredInstallEnabled')
+    expect(gate).toContain("if (vercelEnv === 'production') return configuredFlag !== '0'")
+    expect(gate).toContain("return configuredFlag === '1'")
+    expect(personal).toContain('androidDeferredInvitationHandoffEnabled(wedding.id)')
+    expect(wedding).toContain('androidDeferredInvitationHandoffEnabled(wedding.id)')
+    expect(helper).toContain('androidDeferredInvitationHandoffEnabled(invitation.weddingId)')
   })
 
-  test('non-installed Android guests do not mint a handoff until they press Google Play', () => {
-    const handoff = source('src/components/wedding/invitation-app-handoff.tsx')
+  test('non-installed Android guests do not mint a handoff until they press an install/open route', () => {
+    const component = source('src/components/wedding/invitation-app-handoff.tsx')
+    const helper = source('src/lib/invitation-mobile-entry.ts')
+    const installRoute = source('src/app/invite/[slug]/install/route.ts')
+    const appRoute = source('src/app/invite/[slug]/app/route.ts')
 
-    expect(handoff).not.toContain('void prepareSecureHandoff()\n    // prepareSecureHandoff intentionally runs only when the Android gate becomes eligible.')
-    expect(handoff).toContain('onClick={() => { void startAndroidPlayInstall() }}')
-    expect(handoff).toContain('data-testid="android-google-play-install-direct-recovery"')
+    expect(component).not.toContain('/api/invitations/install-handoff')
+    expect(component).not.toContain('prepareSecureHandoff')
+    expect(component).toContain('const installPath = `/invite/${encodedSlug}/install`')
+    expect(component).toContain('const openAppPath = `/invite/${encodedSlug}/app`')
+    expect(helper).toContain('createInvitationInstallHandoff({')
+    expect(helper).toContain('Falling back to direct Google Play invitation install')
+    expect(installRoute).toContain("'android-install-click'")
+    expect(appRoute).toContain("'android-open-app-click'")
   })
 
   test('Android keeps browser continuation as a secondary option when native handoff is enabled', () => {
@@ -44,14 +58,17 @@ describe('personal invitation mobile entry', () => {
     expect(handoff).toContain('href={continueInBrowser}')
   })
 
-  test('iOS fallback does not invent an App Store destination or claim the app is coming soon', () => {
+  test('iOS uses only an authoritative configured distribution destination and keeps browser fallback', () => {
     const handoff = source('src/components/wedding/invitation-app-handoff.tsx')
+    const distribution = source('src/lib/ios-app-distribution.ts')
 
-    expect(handoff).toContain('A direct App Store handoff is not configured for this invitation yet.')
+    expect(handoff).toContain('data-testid="ios-install-wewed"')
+    expect(handoff).toContain('href={iosDistributionUrl}')
+    expect(handoff).toContain('App Store link not configured')
     expect(handoff).toContain('Continue in browser')
-    expect(handoff).not.toContain('Wewed for iPhone is coming soon')
-    expect(handoff).not.toContain('APP_STORE_BADGE')
-    expect(handoff).not.toContain('apps.apple.com/')
+    expect(distribution).toContain("'apps.apple.com'")
+    expect(distribution).toContain("'testflight.apple.com'")
+    expect(distribution).toContain("url.protocol !== 'https:'")
   })
 
   test('iOS distribution is configurable only through authoritative Apple hosts', () => {
@@ -76,6 +93,15 @@ describe('personal invitation mobile entry', () => {
     expect(handoff).toContain('? DEFAULT_HANDOFF_TTL_SECONDS')
     expect(handoff).toContain('if (handoff.usedAt)')
     expect(handoff).toContain("reason: 'used'")
+  })
+
+  test('expired or reused install handoffs recover through the original invitation without Planner regeneration', () => {
+    const resume = source('src/app/invite/resume/route.ts')
+    const help = source('src/app/guest-access-help/page.tsx')
+
+    expect(resume).toContain('invitation-resume-${encodeURIComponent(safeReason)}')
+    expect(help).toContain('Your invitation is still valid')
+    expect(help).toContain('you do not need the Planner to create a new link')
   })
 
   test('browser continuation revalidates the pending invitation and enters invitation mode without a raw RSVP credential', () => {
@@ -141,8 +167,7 @@ describe('personal invitation mobile entry', () => {
     expect(entry).toContain('No Planner action is required.')
     expect(entry).toContain('data-testid="physical-android-continue-in-browser"')
     expect(entry).toContain("onClick={() => setMode('web')}")
-    expect(page).toContain('productionDeferredInstallEnabled')
-    expect(page).toContain("process.env.ANDROID_DEFERRED_INVITATION_HANDOFF !== '0'")
+    expect(page).toContain('androidDeferredInvitationHandoffEnabled(wedding.id)')
     expect(handoff).toContain('const HANDOFF_TTL_SECONDS = 30 * 24 * 60 * 60')
   })
 })
