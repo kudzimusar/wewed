@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ExternalLink, LoaderCircle, Smartphone } from 'lucide-react'
 import {
   ANDROID_PACKAGE,
+  PLAY_STORE_URL,
   buildAndroidInvitationIntentUrl,
   buildInvitationContinuePath,
   isValidInvitationHandoffSecret,
@@ -65,18 +66,11 @@ export function InvitationAppHandoff({
 
     const androidClient = /Android/i.test(navigator.userAgent)
     if (androidClient) {
-      // A valid personal invitation must never dead-end merely because the native
-      // deferred-install transport is not enabled yet. The token has already been
-      // exchanged into the short-lived pending-invitation cookie by /invite/[slug],
-      // so continuing here revalidates that cookie server-side, issues the normal
-      // Guest Session and reveals the wedding's saved digital invitation without
-      // putting the RSVP credential back in a URL.
-      //
-      // When native handoff IS enabled, preserve the Play/native path below.
-      if (!deferredInstallEnabled) {
-        window.location.replace(continueInBrowser)
-        return
-      }
+      // If Android reaches the web at all, Wewed should still make installation the primary
+      // journey. Verified App Links will normally intercept the personal invitation when the
+      // Play app is already installed. If secure deferred continuity has been emergency-disabled,
+      // keep Google Play primary and browser continuation secondary instead of silently pushing
+      // the guest into the PWA.
       setPlatform('android')
     } else if (isAppleMobileClient()) {
       setPlatform('ios')
@@ -253,7 +247,21 @@ export function InvitationAppHandoff({
         </p>
 
         <div className="mt-6 space-y-3">
-          {(checking || preparing) && !handoffReady ? (
+          {!deferredInstallEnabled ? (
+            <>
+              <a
+                data-testid="android-google-play-install-fallback"
+                href={PLAY_STORE_URL}
+                aria-label="Get Wewed on Google Play"
+                className="mx-auto inline-flex min-h-16 items-center justify-center rounded-lg bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8b477]"
+              >
+                <img src={GOOGLE_PLAY_BADGE} alt="Get it on Google Play" width={646} height={192} className="h-16 w-auto max-w-full object-contain" />
+              </a>
+              <p className="rounded-2xl border border-[#b89155]/25 bg-[#2a2119] px-4 py-3 text-xs leading-5 text-[#cfc4b7]">
+                Install Wewed, then reopen this same personal invitation link. You do not need a new link from the Planner.
+              </p>
+            </>
+          ) : (checking || preparing) && !handoffReady ? (
             <div
               data-testid="android-handoff-preparing"
               className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-[#b89155]/45 text-[#d6cec5]"
@@ -318,7 +326,7 @@ export function InvitationAppHandoff({
         </div>
 
         <p className="mt-5 text-center text-xs leading-5 text-[#9f958a]">
-          Wewed is preferred on Android. Google Play receives only a temporary one-time handoff, never the RSVP token or guest details; secure browser continuation remains available as a secondary option.
+          Wewed is preferred on Android. Your personal invitation link remains reusable unless the Planner explicitly rotates it. When secure handoff is available, Google Play receives only a temporary opaque handoff — never the RSVP token or guest details — and browser continuation remains secondary.
         </p>
       </section>
     </main>
