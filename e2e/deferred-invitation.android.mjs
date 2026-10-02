@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto'
 
 const prisma = new PrismaClient()
 const EMULATOR_BASE_URL = process.env.WEWED_ANDROID_E2E_BASE_URL ?? 'http://10.0.2.2:3000'
+const EXPECTED_RESUME_HOST = new URL(EMULATOR_BASE_URL).hostname
 // The emulator runs the local UAT wrapper, which never installs as the Play package.
 const APP_PACKAGE = process.env.NEXT_PUBLIC_WEWED_ANDROID_INTENT_PACKAGE ?? 'pro.wewed.app.uatdev'
 
@@ -215,7 +216,7 @@ async function nativeCheckpoints(device, minimumIntentCount) {
       const intentCount = Number.parseInt(countMatch?.[1] ?? '0', 10)
       if (
         intentCount >= minimumIntentCount &&
-        hostMatch?.[1] === '10.0.2.2' &&
+        hostMatch?.[1] === EXPECTED_RESUME_HOST &&
         pathMatch?.[1] === '/invite/resume'
       ) {
         return {
