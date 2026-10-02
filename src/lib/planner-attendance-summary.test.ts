@@ -69,11 +69,49 @@ describe('canonical Planner invitation / RSVP / attendance summary', () => {
       passRevoked: 0,
       passSuperseded: 0,
       passIssuanceClosed: 0,
+      nativeInstallClicked: 0,
+      nativeInstallNotActivated: 0,
+      nativeInstallToActivationRate: 0,
       nativeActivated: 2,
       nativeActivationRate: 0.5,
       nativeAndroid: 1,
       nativeIos: 1,
     })
+  })
+
+  test('install-click funnel distinguishes adoption intent from authenticated native activation', () => {
+    const rows = [
+      {
+        status: 'attending' as const,
+        deliveryStatus: 'sent' as const,
+        openedAt: '2026-10-02T00:00:00.000Z',
+        checkedIn: false,
+        email: 'clicked@example.test',
+        phone: null,
+        passState: 'not_yet_issuable' as const,
+        nativeInstallClickedAt: '2026-10-02T01:00:00.000Z',
+        nativeActivated: false,
+        nativePlatforms: [] as string[],
+      },
+      {
+        status: 'attending' as const,
+        deliveryStatus: 'sent' as const,
+        openedAt: '2026-10-02T00:00:00.000Z',
+        checkedIn: false,
+        email: 'active@example.test',
+        phone: null,
+        passState: 'not_yet_issuable' as const,
+        nativeInstallClickedAt: '2026-10-02T01:05:00.000Z',
+        nativeActivated: true,
+        nativePlatforms: ['android'],
+      },
+    ]
+
+    const summary = buildPlannerAttendanceSummary(rows)
+    expect(summary.nativeInstallClicked).toBe(2)
+    expect(summary.nativeInstallNotActivated).toBe(1)
+    expect(summary.nativeInstallToActivationRate).toBe(0.5)
+    expect(summary.nativeActivated).toBe(1)
   })
 
   test('native activation counts platform presence without double-counting Any App Active', () => {
