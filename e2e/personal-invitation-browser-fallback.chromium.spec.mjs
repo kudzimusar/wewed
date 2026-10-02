@@ -98,11 +98,11 @@ test('Android guest link keeps Google Play primary and browser continuation expl
   await page.goto(sharedUrl, { waitUntil: 'domcontentloaded' })
 
   await expect(page.getByTestId('personal-invitation-android-gate')).toBeVisible()
-  await expect(page.getByTestId('android-google-play-install-fallback')).toHaveAttribute(
+  await expect(page.getByTestId('android-google-play-install')).toHaveAttribute(
     'href',
-    'https://play.google.com/store/apps/details?id=pro.wewed.app',
+    `/invite/${fixture.weddingSlug}/install`,
   )
-  await expect(page.getByText('You do not need a new link from the Planner.')).toBeVisible()
+  await expect(page.getByText('You do not need a new invitation after installing.')).toBeVisible()
   await expect(page.getByTestId('android-continue-in-browser')).toBeVisible()
 
   // Browser invitation remains available, but only after the guest deliberately chooses it.
