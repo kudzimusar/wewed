@@ -68,7 +68,7 @@ export default async function GuestAccessHelpPage({ searchParams }: PageProps) {
           </h1>
           <p className="mt-3 text-sm leading-6 text-[#665b50]">
             {invalidInvitation
-              ? 'Open the original invitation again or scan its QR code. Wewed verifies the invitation before showing private wedding details.'
+              ? 'Open the original personal invitation again or scan its QR code. The same invitation link remains your recovery path unless the Planner deliberately rotates it.'
               : 'Use the original invitation link or printed QR so Wewed can securely identify the correct wedding and guest access.'}
           </p>
 
@@ -77,11 +77,11 @@ export default async function GuestAccessHelpPage({ searchParams }: PageProps) {
             <ol className="mt-3 space-y-3 text-sm leading-5 text-[#554b42]">
               <li className="flex gap-3">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-[#8b6a3d]">1</span>
-                <span>If the invitation arrived by message, email or social media, reopen the original message and tap its Wewed invitation link.</span>
+                <span>If the invitation arrived by message, email or social media, reopen the original message and tap the same Wewed invitation link. You normally do not need the Planner to create another one.</span>
               </li>
               <li className="flex gap-3">
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-[#8b6a3d]">2</span>
-                <span>If you have a printed invitation, scan its QR code again with your phone camera.</span>
+                <span>If you have a printed invitation, scan its QR code again with your phone camera. On Android, choose Google Play when Wewed offers installation.</span>
               </li>
             </ol>
           </div>
