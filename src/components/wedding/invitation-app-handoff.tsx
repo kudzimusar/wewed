@@ -188,12 +188,31 @@ export function InvitationAppHandoff({
     }
   }
 
-  async function startAndroidNativeJourney(destination: 'play' | 'app') {
+  async function startAndroidPlayInstall() {
     setHandoffError(null)
     const prepared = await prepareSecureHandoff()
     if (!prepared) return
-    window.location.assign(destination === 'play' ? prepared.playStoreUrl : prepared.androidIntentUrl)
+    window.location.assign(prepared.playStoreUrl)
   }
+
+  useEffect(() => {
+    // For an already-installed app, prepare the opaque handoff only after Android confirms the
+    // Play app is present. The final intent remains a literal href so the external-app launch
+    // happens from a genuine user gesture in Chrome/WhatsApp rather than after an async fetch.
+    if (
+      platform !== 'android' ||
+      !deferredInstallEnabled ||
+      !installed ||
+      preparedHandoff ||
+      handoffError ||
+      preparationInFlightRef.current
+    ) {
+      return
+    }
+    void prepareSecureHandoff()
+    // prepareSecureHandoff is intentionally gated by the stable state above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [platform, deferredInstallEnabled, installed, preparedHandoff, handoffError])
 
   if (platform === 'web' && !checking) {
     return (
@@ -269,22 +288,28 @@ export function InvitationAppHandoff({
               <LoaderCircle className="size-5 animate-spin" /> Checking Wewed…
             </div>
           ) : installed ? (
-            <button
-              type="button"
-              data-testid="android-open-installed-wewed"
-              disabled={preparing}
-              onClick={() => { void startAndroidNativeJourney('app') }}
-              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 font-semibold text-[#21170d] disabled:cursor-wait disabled:opacity-70"
-            >
-              {preparing ? <LoaderCircle className="size-5 animate-spin" /> : <ExternalLink className="size-5" />}
-              {preparing ? 'Preparing invitation…' : 'Open invitation in Wewed'}
-            </button>
+            preparedHandoff ? (
+              <a
+                data-testid="android-open-installed-wewed"
+                href={preparedHandoff.androidIntentUrl}
+                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#c6a061] px-5 py-4 font-semibold text-[#21170d]"
+              >
+                <ExternalLink className="size-5" /> Open invitation in Wewed
+              </a>
+            ) : (
+              <div
+                data-testid="android-installed-handoff-preparing"
+                className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-[#b89155]/45 text-[#d6cec5]"
+              >
+                <LoaderCircle className="size-5 animate-spin" /> Preparing invitation…
+              </div>
+            )
           ) : (
             <button
               type="button"
               data-testid="android-google-play-install"
               disabled={preparing}
-              onClick={() => { void startAndroidNativeJourney('play') }}
+              onClick={() => { void startAndroidPlayInstall() }}
               aria-label="Get Wewed on Google Play and reveal my invitation"
               className="mx-auto inline-flex min-h-16 items-center justify-center rounded-lg bg-transparent p-0 disabled:cursor-wait disabled:opacity-70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8b477]"
             >
@@ -307,7 +332,8 @@ export function InvitationAppHandoff({
                 type="button"
                 onClick={() => {
                   setHandoffError(null)
-                  void startAndroidNativeJourney(installed ? 'app' : 'play')
+                  if (installed) void prepareSecureHandoff()
+                  else void startAndroidPlayInstall()
                 }}
                 className="min-h-12 w-full rounded-2xl border border-[#b89155]/55 px-5 py-3 font-semibold text-[#f8f1e7]"
               >
