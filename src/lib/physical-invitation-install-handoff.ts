@@ -17,7 +17,9 @@ import {
   isValidPhysicalInvitationHandoff,
 } from '@/lib/invitation-links'
 
-const HANDOFF_TTL_SECONDS = 24 * 60 * 60
+// Printed invitations are durable wedding artefacts. Their encrypted Play handoff may be
+// redeemed days after the scan, while the destination itself remains revocable server-side.
+const HANDOFF_TTL_SECONDS = 30 * 24 * 60 * 60
 const TOKEN_PREFIX = 'p1.'
 const IV_BYTES = 12
 const TAG_BYTES = 16
