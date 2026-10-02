@@ -85,9 +85,18 @@ function configuredTtlSeconds(): number {
     10,
   )
   if (!Number.isFinite(configured)) return DEFAULT_HANDOFF_TTL_SECONDS
+
+  // Some older deployments used a 24-hour override. Never let that stale rollout setting
+  // reintroduce the guest-facing expiry problem in production; local/CI may still shorten TTLs
+  // for deterministic expiry tests.
+  const minimum =
+    process.env.VERCEL_ENV === 'production'
+      ? DEFAULT_HANDOFF_TTL_SECONDS
+      : MIN_HANDOFF_TTL_SECONDS
+
   return Math.min(
     MAX_HANDOFF_TTL_SECONDS,
-    Math.max(MIN_HANDOFF_TTL_SECONDS, configured),
+    Math.max(minimum, configured),
   )
 }
 
