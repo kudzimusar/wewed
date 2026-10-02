@@ -80,7 +80,7 @@ describe('personal invitation mobile entry', () => {
     expect(distribution).toContain("'testflight.apple.com'")
     expect(distribution).toContain("url.protocol !== 'https:'")
     expect(personal).toContain('data-testid="ios-install-wewed"')
-    expect(personal).toContain('you do not need a replacement from the Planner.')
+    expect(personal).toContain('You do not need a replacement invitation.')
     expect(physical).toContain('data-testid="physical-ios-install-wewed"')
   })
 
