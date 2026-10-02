@@ -36,12 +36,16 @@ export function InvitationAppHandoff({
   const openAppPath = `/invite/${encodedSlug}/app`
 
   useEffect(() => {
-    if (window.matchMedia('(display-mode: standalone)').matches) {
+    const androidClient = /Android/i.test(navigator.userAgent)
+
+    // An old installed PWA must not swallow Android guests back into the web shell. Native app
+    // adoption stays primary on Android even when the browser is currently running standalone.
+    if (window.matchMedia('(display-mode: standalone)').matches && !androidClient) {
       window.location.replace(continueInApp)
       return
     }
 
-    if (/Android/i.test(navigator.userAgent)) {
+    if (androidClient) {
       setPlatform('android')
       return
     }
