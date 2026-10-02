@@ -14,6 +14,7 @@ import {
   verifyAppSessionToken,
 } from '@/lib/app-session'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
+import { configuredIosDistributionUrl } from '@/lib/ios-app-distribution'
 import { loadWeddingDataBySlug } from '@/lib/wedding-data-server'
 import { WEDDING_GUEST_SESSION_COOKIE } from '@/lib/wedding-guest-session'
 import {
@@ -182,6 +183,7 @@ export default async function WeddingPage({
         style={physicalInvitationStyle}
         allowNameOnlyClaim={isDedicatedPreviewWedding}
         deferredInstallEnabled={deferredInstallEnabled}
+        iosDistributionUrl={configuredIosDistributionUrl()}
         insideWewed={insideWewed}
         invitation={{
           title: `${wedding.partner1} & ${wedding.partner2}`,
