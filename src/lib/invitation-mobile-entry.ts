@@ -35,6 +35,32 @@ function clientIp(request: NextRequest): string | null {
   return first || request.headers.get('x-real-ip')?.trim() || null
 }
 
+async function recordAndroidInstallClick(input: {
+  weddingId: string
+  guestId: string
+  source: 'android-install-click'
+}): Promise<void> {
+  if (previewWeddingMutationBlocked(input.weddingId)) return
+  try {
+    const { db } = await import('@/lib/db')
+    await db.auditEvent.create({
+      data: {
+        action: 'guest.native_install_clicked',
+        resourceType: 'guest_invitation',
+        resourceId: input.guestId,
+        weddingId: input.weddingId,
+        afterValue: JSON.stringify({ platform: 'android', source: input.source }),
+      },
+    })
+  } catch (error) {
+    // Adoption telemetry must never become an installation blocker.
+    console.warn('[wewed] Unable to record Android install click', {
+      weddingId: input.weddingId,
+      reason: error instanceof Error ? error.name : 'unknown',
+    })
+  }
+}
+
 export async function prepareInvitationMobileEntry(
   request: NextRequest,
   weddingSlug: string,
@@ -51,6 +77,14 @@ export async function prepareInvitationMobileEntry(
     requestedCard: pending.card,
   })
   if (!invitation) return { ok: false, reason: 'invalid' }
+
+  if (source === 'android-install-click') {
+    await recordAndroidInstallClick({
+      weddingId: invitation.weddingId,
+      guestId: invitation.guestId,
+      source,
+    })
+  }
 
   const deferredInstallEnabled = androidDeferredInvitationHandoffEnabled(invitation.weddingId)
 
