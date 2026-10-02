@@ -108,6 +108,22 @@ describe('service-provider team admission authority', () => {
     }
   })
 
+  test('service-team forms survive async saves and refresh after vendor inline sign-in', () => {
+    expect(plannerPanel.match(/const formElement = event\.currentTarget/g)?.length).toBeGreaterThanOrEqual(2)
+    expect(plannerPanel).not.toContain('event.currentTarget.reset()')
+    expect(vendorPage).toContain('const formElement = event.currentTarget')
+    expect(vendorPage).not.toContain('event.currentTarget.reset()')
+    expect(vendorPage).toContain('ADMIN_AUTH_EVENT')
+    expect(vendorPage).toContain('if (authorized) void load()')
+  })
+
+  test('duplicate teams are a conflict and crew function edits keep canonical Guest roleDetail aligned', () => {
+    expect(operations).toContain('SERVICE_TEAM_ALREADY_EXISTS')
+    expect(operations).toContain("error.code === 'P2002'")
+    expect(vendorMember).toContain('roleDetail: serviceFunction')
+    expect(vendorMember).toContain('data: { function: serviceFunction }')
+  })
+
   test('service-provider Pass remains the existing WW2 credential, not a second pass system', () => {
     expect(schema.match(/model WeddingPassCredential/g)?.length).toBe(1)
     expect(operations).toContain('resolveWeddingPassCredentialAdminState')
