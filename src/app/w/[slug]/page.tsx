@@ -103,9 +103,13 @@ export default async function WeddingPage({
 
   const invitationToken = query.rsvp?.trim()
   if (invitationToken) {
-    const exchangeQuery = new URLSearchParams({ token: invitationToken })
+    // Backward compatibility for personal invitation links issued before the install-aware
+    // /invite gateway became canonical. Never exchange the credential directly into a browser
+    // Guest session here: that bypasses the Android native-install gate and recreates the exact
+    // user-reported failure where an invited Guest falls straight into the web/Ivory experience.
+    const inviteQuery = new URLSearchParams({ rsvp: invitationToken })
     redirect(
-      `/api/weddings/${encodeURIComponent(slug)}/guest-session/exchange?${exchangeQuery.toString()}`,
+      `/invite/${encodeURIComponent(slug)}?${inviteQuery.toString()}`,
     )
   }
 
