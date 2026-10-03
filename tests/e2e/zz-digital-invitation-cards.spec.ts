@@ -224,9 +224,460 @@ test('QR card and RSVP remain contained on mobile @mobile', async ({ page }) => 
     `/w/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(E2E_GUEST_INVITATION.token)}&card=botanical`,
   )
   await expect(page).toHaveURL(
-    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=midnight$`),
+    new RegExp(`/invite/${E2E_WEDDINGS.primary.slug}/openimport { createHmac } from 'node:crypto'
+import { mkdirSync } from 'node:fs'
+import { expect, test } from '@playwright/test'
+import { PrismaClient } from '@prisma/client'
+import { E2E_COUPLE } from './support/marketplace-fixture'
+import { E2E_WEDDINGS } from './support/planner-fixture'
+import {
+  E2E_GUEST_INVITATION,
+  resetUnifiedNavigationFixture,
+} from './support/unified-navigation-fixture'
+
+const SECRET = process.env.WEWED_SESSION_SECRET ?? ''
+const SAMPLE_DIR = 'artifacts/invitation-card-samples'
+const SAMPLE_MESSAGE =
+  'Join us for a joyful ceremony, dinner and dancing as we begin our next chapter.'
+
+function coupleToken() {
+  const payload = {
+    version: 2,
+    userId: E2E_COUPLE.id,
+    authUserId: E2E_COUPLE.authUserId,
+    email: E2E_COUPLE.email,
+    role: 'couple',
+    coupleId: E2E_WEDDINGS.primary.coupleId,
+    activeWeddingId: E2E_WEDDINGS.primary.id,
+    expiresAt: Date.now() + 3_600_000,
+  }
+  const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url')
+  return `${encoded}.${createHmac('sha256', SECRET).update(encoded).digest('base64url')}`
+}
+
+async function signInCouple(page: import('@playwright/test').Page) {
+  await page.context().clearCookies()
+  await page.context().addCookies([
+    {
+      name: 'wewed_admin_auth',
+      value: coupleToken(),
+      url: 'http://127.0.0.1:3000',
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+  ])
+}
+
+async function removeSampleOverlays(page: import('@playwright/test').Page) {
+  await page.getByText('Available offline', { exact: true }).evaluateAll((nodes) => {
+    for (const node of nodes) {
+      const target =
+        node.closest('[role="status"], [data-sonner-toast], [data-radix-portal]') ??
+        node.parentElement
+      target?.remove()
+    }
+  })
+}
+
+function runtimeErrors(page: import('@playwright/test').Page) {
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  page.on('response', (response) => {
+    if (response.status() >= 500) errors.push(`${response.status()} ${response.url()}`)
+  })
+  return errors
+}
+
+test('couples design, save, export and deliver guest-specific digital invitation cards', async ({ page }) => {
+  mkdirSync(SAMPLE_DIR, { recursive: true })
+  await resetUnifiedNavigationFixture()
+  const errors = runtimeErrors(page)
+  await signInCouple(page)
+
+  await page.goto('/couple/invitations')
+  await expect(page.getByRole('heading', { name: 'Private invitation access' })).toBeVisible()
+  await page.getByLabel('Invitation message').fill(SAMPLE_MESSAGE)
+  await page.getByLabel('RSVP deadline').fill('2027-05-20')
+
+  for (const style of ['botanical', 'editorial', 'midnight'] as const) {
+    const selector = page.getByTestId(`invitation-style-${style}`)
+    await expect(selector).toBeVisible()
+    await selector.click()
+    await expect(selector).toHaveAttribute('aria-pressed', 'true')
+    await removeSampleOverlays(page)
+    await page.getByTestId(`digital-invitation-card-${style}`).screenshot({
+      path: `${SAMPLE_DIR}/${style}.png`,
+      animations: 'disabled',
+    })
+  }
+
+  await page.getByTestId('invitation-style-editorial').click()
+  await page.getByRole('button', { name: 'Save invitation settings' }).click()
+  await expect(page.getByText('Invitation settings saved to this wedding.', { exact: false })).toBeVisible()
+
+  const invitations = await page.request.get('/api/planner/guests/invitations')
+  expect(invitations.status()).toBe(200)
+  const invitationPayload = await invitations.json()
+  expect(invitationPayload.wedding).toMatchObject({
+    invitationCardStyle: 'editorial',
+    invitationCardMessage: SAMPLE_MESSAGE,
+  })
+  const guestInvitation = invitationPayload.data.find(
+    (row: { id: string }) => row.id === E2E_GUEST_INVITATION.guestId,
+  )
+  expect(guestInvitation.invitationUrl).toContain(
+    `/invite/${E2E_WEDDINGS.primary.slug}?`,
+  )
+  expect(guestInvitation.invitationUrl).not.toContain(
+    `/w/${E2E_WEDDINGS.primary.slug}?rsvp=`,
+  )
+  // The wedding's saved style is authoritative; new personal links carry no card id.
+  expect(guestInvitation.invitationUrl).not.toContain('card=')
+  expect(guestInvitation.qrValue).toBe(guestInvitation.invitationUrl)
+  expect(guestInvitation.shareMessage).toContain('Open your private Wewed digital invitation and RSVP here:')
+  expect(guestInvitation.shareMessage.split(guestInvitation.invitationUrl)).toHaveLength(2)
+  expect(guestInvitation.shareMessage).toContain(guestInvitation.invitationUrl)
+
+  const csv = await page.request.get('/api/planner/guests/invitations?format=csv')
+  expect(csv.status()).toBe(200)
+  const csvText = await csv.text()
+  expect(csvText).toContain('Card Style,Digital Invitation URL,Share Message')
+  expect(csvText).toContain('editorial')
+
+  const reminder = await page.request.post('/api/planner/reminders', {
+    data: {
+      name: 'Digital invitation delivery',
+      subject: 'Your invitation to {{wedding_title}}',
+      body: 'Dear {{guest_name}}, open your card and RSVP: {{digital_invitation_url}}',
+      audience: 'all',
+      status: 'draft',
+    },
+  })
+  expect(reminder.status()).toBe(201)
+  const reminderPayload = await reminder.json()
+  const delivery = await page.request.post('/api/planner/reminders/send', {
+    data: { id: reminderPayload.data.id, dryRun: true },
+  })
+  expect(delivery.status()).toBe(200)
+  const deliveryPayload = await delivery.json()
+  const deliveredPreview = deliveryPayload.recipients.find(
+    (row: { guestId: string }) => row.guestId === E2E_GUEST_INVITATION.guestId,
+  )
+  expect(deliveredPreview.invitationUrl).toContain(
+    `/invite/${E2E_WEDDINGS.primary.slug}?`,
+  )
+  expect(deliveredPreview.invitationUrl).not.toContain(
+    `/w/${E2E_WEDDINGS.primary.slug}?rsvp=`,
+  )
+  expect(deliveredPreview.invitationUrl).not.toContain('card=')
+  expect(deliveredPreview.body).toContain(deliveredPreview.invitationUrl)
+  expect(deliveredPreview.html).toContain('Open card &amp; RSVP')
+  expect(deliveredPreview.html).toContain(deliveredPreview.invitationUrl.replaceAll('&', '&amp;'))
+
+  await page.context().clearCookies()
+  await page.goto(guestInvitation.invitationUrl)
+  await expect(page).toHaveURL(
+    new RegExp(`/invite/${E2E_WEDDINGS.primary.slug}/open$`),
   )
   expect(page.url()).not.toContain(E2E_GUEST_INVITATION.token)
+  expect(page.url()).not.toContain('rsvp=')
+  await expect(
+    page.getByRole('heading', { name: 'Your invitation is ready' }),
+  ).toBeVisible()
+  await page.getByRole('link', { name: 'Open wedding invitation' }).click()
+  await expect(page).toHaveURL(
+    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=editorial$`),
+  )
+  expect(page.url()).not.toContain(E2E_GUEST_INVITATION.token)
+  const deliveredExperience = page.getByTestId('premium-invitation-experience')
+  await expect(deliveredExperience).toBeVisible()
+  await expect(deliveredExperience).toHaveAttribute('data-invitation-style', 'editorial')
+  await expect(deliveredExperience).toContainText('Aurora & Blake')
+  await expect(deliveredExperience).toContainText('Primary Test Estate')
+  await expect(page.locator('main#main-content')).toHaveCount(0)
+  await expect(page.locator('footer')).toHaveCount(0)
+  await removeSampleOverlays(page)
+  await deliveredExperience.screenshot({
+    path: `${SAMPLE_DIR}/delivered-editorial-guest-card.png`,
+    animations: 'disabled',
+  })
+
+  await deliveredExperience.getByTestId('invitation-open-button').click()
+  await expect(deliveredExperience).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
+  await deliveredExperience.getByTestId('invitation-continue-button').click()
+  await expect(page.locator('main#main-content')).toBeVisible()
+  await page.locator('#rsvp').scrollIntoViewIfNeeded()
+  await page.getByRole('button', { name: 'Review my RSVP' }).click()
+  await expect(page.getByRole('heading', { name: 'Your private RSVP' })).toBeVisible()
+  await page.getByLabel('Regretfully decline').click()
+  await page.getByLabel('Message to the couple').fill('Thank you for including me in your celebration.')
+  await page.getByRole('button', { name: 'Save RSVP' }).click()
+  await expect(page.getByText('Your RSVP has been saved.')).toBeVisible()
+
+  const guestSession = await page.request.get(
+    new URL(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`, page.url()).toString(),
+  )
+  expect(guestSession.status()).toBe(200)
+  const guestSessionPayload = await guestSession.json()
+  expect(guestSessionPayload).toMatchObject({
+    wedding: { invitationCardStyle: 'editorial' },
+    guest: { id: E2E_GUEST_INVITATION.guestId },
+    rsvp: { attending: false },
+  })
+  expect(errors).toEqual([])
+})
+
+async function saveWeddingInvitationStyle(invitationCardStyle: string) {
+  const prisma = new PrismaClient()
+  try {
+    await prisma.wedding.update({
+      where: { id: E2E_WEDDINGS.primary.id },
+      data: { invitationCardStyle },
+    })
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
+test('QR card and RSVP remain contained on mobile @mobile', async ({ page }) => {
+  await resetUnifiedNavigationFixture()
+  // The couple's saved design is authoritative: a stale card= query on a
+  // long-lived personal link must not override it.
+  await saveWeddingInvitationStyle('midnight')
+  const errors = runtimeErrors(page)
+
+),
+  )
+  expect(page.url()).not.toContain(E2E_GUEST_INVITATION.token)
+  await expect(page.getByTestId('personal-invitation-android-gate')).toBeVisible()
+  await expect(page.getByTestId('android-google-play-install')).toBeVisible()
+  // Browser invitation remains supported, but only after the Android Guest explicitly chooses it.
+  await page.getByTestId('android-continue-in-browser').click()
+  await expect(page).toHaveURL(
+    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=midnightimport { createHmac } from 'node:crypto'
+import { mkdirSync } from 'node:fs'
+import { expect, test } from '@playwright/test'
+import { PrismaClient } from '@prisma/client'
+import { E2E_COUPLE } from './support/marketplace-fixture'
+import { E2E_WEDDINGS } from './support/planner-fixture'
+import {
+  E2E_GUEST_INVITATION,
+  resetUnifiedNavigationFixture,
+} from './support/unified-navigation-fixture'
+
+const SECRET = process.env.WEWED_SESSION_SECRET ?? ''
+const SAMPLE_DIR = 'artifacts/invitation-card-samples'
+const SAMPLE_MESSAGE =
+  'Join us for a joyful ceremony, dinner and dancing as we begin our next chapter.'
+
+function coupleToken() {
+  const payload = {
+    version: 2,
+    userId: E2E_COUPLE.id,
+    authUserId: E2E_COUPLE.authUserId,
+    email: E2E_COUPLE.email,
+    role: 'couple',
+    coupleId: E2E_WEDDINGS.primary.coupleId,
+    activeWeddingId: E2E_WEDDINGS.primary.id,
+    expiresAt: Date.now() + 3_600_000,
+  }
+  const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url')
+  return `${encoded}.${createHmac('sha256', SECRET).update(encoded).digest('base64url')}`
+}
+
+async function signInCouple(page: import('@playwright/test').Page) {
+  await page.context().clearCookies()
+  await page.context().addCookies([
+    {
+      name: 'wewed_admin_auth',
+      value: coupleToken(),
+      url: 'http://127.0.0.1:3000',
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+  ])
+}
+
+async function removeSampleOverlays(page: import('@playwright/test').Page) {
+  await page.getByText('Available offline', { exact: true }).evaluateAll((nodes) => {
+    for (const node of nodes) {
+      const target =
+        node.closest('[role="status"], [data-sonner-toast], [data-radix-portal]') ??
+        node.parentElement
+      target?.remove()
+    }
+  })
+}
+
+function runtimeErrors(page: import('@playwright/test').Page) {
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  page.on('response', (response) => {
+    if (response.status() >= 500) errors.push(`${response.status()} ${response.url()}`)
+  })
+  return errors
+}
+
+test('couples design, save, export and deliver guest-specific digital invitation cards', async ({ page }) => {
+  mkdirSync(SAMPLE_DIR, { recursive: true })
+  await resetUnifiedNavigationFixture()
+  const errors = runtimeErrors(page)
+  await signInCouple(page)
+
+  await page.goto('/couple/invitations')
+  await expect(page.getByRole('heading', { name: 'Private invitation access' })).toBeVisible()
+  await page.getByLabel('Invitation message').fill(SAMPLE_MESSAGE)
+  await page.getByLabel('RSVP deadline').fill('2027-05-20')
+
+  for (const style of ['botanical', 'editorial', 'midnight'] as const) {
+    const selector = page.getByTestId(`invitation-style-${style}`)
+    await expect(selector).toBeVisible()
+    await selector.click()
+    await expect(selector).toHaveAttribute('aria-pressed', 'true')
+    await removeSampleOverlays(page)
+    await page.getByTestId(`digital-invitation-card-${style}`).screenshot({
+      path: `${SAMPLE_DIR}/${style}.png`,
+      animations: 'disabled',
+    })
+  }
+
+  await page.getByTestId('invitation-style-editorial').click()
+  await page.getByRole('button', { name: 'Save invitation settings' }).click()
+  await expect(page.getByText('Invitation settings saved to this wedding.', { exact: false })).toBeVisible()
+
+  const invitations = await page.request.get('/api/planner/guests/invitations')
+  expect(invitations.status()).toBe(200)
+  const invitationPayload = await invitations.json()
+  expect(invitationPayload.wedding).toMatchObject({
+    invitationCardStyle: 'editorial',
+    invitationCardMessage: SAMPLE_MESSAGE,
+  })
+  const guestInvitation = invitationPayload.data.find(
+    (row: { id: string }) => row.id === E2E_GUEST_INVITATION.guestId,
+  )
+  expect(guestInvitation.invitationUrl).toContain(
+    `/invite/${E2E_WEDDINGS.primary.slug}?`,
+  )
+  expect(guestInvitation.invitationUrl).not.toContain(
+    `/w/${E2E_WEDDINGS.primary.slug}?rsvp=`,
+  )
+  // The wedding's saved style is authoritative; new personal links carry no card id.
+  expect(guestInvitation.invitationUrl).not.toContain('card=')
+  expect(guestInvitation.qrValue).toBe(guestInvitation.invitationUrl)
+  expect(guestInvitation.shareMessage).toContain('Open your private Wewed digital invitation and RSVP here:')
+  expect(guestInvitation.shareMessage.split(guestInvitation.invitationUrl)).toHaveLength(2)
+  expect(guestInvitation.shareMessage).toContain(guestInvitation.invitationUrl)
+
+  const csv = await page.request.get('/api/planner/guests/invitations?format=csv')
+  expect(csv.status()).toBe(200)
+  const csvText = await csv.text()
+  expect(csvText).toContain('Card Style,Digital Invitation URL,Share Message')
+  expect(csvText).toContain('editorial')
+
+  const reminder = await page.request.post('/api/planner/reminders', {
+    data: {
+      name: 'Digital invitation delivery',
+      subject: 'Your invitation to {{wedding_title}}',
+      body: 'Dear {{guest_name}}, open your card and RSVP: {{digital_invitation_url}}',
+      audience: 'all',
+      status: 'draft',
+    },
+  })
+  expect(reminder.status()).toBe(201)
+  const reminderPayload = await reminder.json()
+  const delivery = await page.request.post('/api/planner/reminders/send', {
+    data: { id: reminderPayload.data.id, dryRun: true },
+  })
+  expect(delivery.status()).toBe(200)
+  const deliveryPayload = await delivery.json()
+  const deliveredPreview = deliveryPayload.recipients.find(
+    (row: { guestId: string }) => row.guestId === E2E_GUEST_INVITATION.guestId,
+  )
+  expect(deliveredPreview.invitationUrl).toContain(
+    `/invite/${E2E_WEDDINGS.primary.slug}?`,
+  )
+  expect(deliveredPreview.invitationUrl).not.toContain(
+    `/w/${E2E_WEDDINGS.primary.slug}?rsvp=`,
+  )
+  expect(deliveredPreview.invitationUrl).not.toContain('card=')
+  expect(deliveredPreview.body).toContain(deliveredPreview.invitationUrl)
+  expect(deliveredPreview.html).toContain('Open card &amp; RSVP')
+  expect(deliveredPreview.html).toContain(deliveredPreview.invitationUrl.replaceAll('&', '&amp;'))
+
+  await page.context().clearCookies()
+  await page.goto(guestInvitation.invitationUrl)
+  await expect(page).toHaveURL(
+    new RegExp(`/invite/${E2E_WEDDINGS.primary.slug}/open$`),
+  )
+  expect(page.url()).not.toContain(E2E_GUEST_INVITATION.token)
+  expect(page.url()).not.toContain('rsvp=')
+  await expect(
+    page.getByRole('heading', { name: 'Your invitation is ready' }),
+  ).toBeVisible()
+  await page.getByRole('link', { name: 'Open wedding invitation' }).click()
+  await expect(page).toHaveURL(
+    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=editorial$`),
+  )
+  expect(page.url()).not.toContain(E2E_GUEST_INVITATION.token)
+  const deliveredExperience = page.getByTestId('premium-invitation-experience')
+  await expect(deliveredExperience).toBeVisible()
+  await expect(deliveredExperience).toHaveAttribute('data-invitation-style', 'editorial')
+  await expect(deliveredExperience).toContainText('Aurora & Blake')
+  await expect(deliveredExperience).toContainText('Primary Test Estate')
+  await expect(page.locator('main#main-content')).toHaveCount(0)
+  await expect(page.locator('footer')).toHaveCount(0)
+  await removeSampleOverlays(page)
+  await deliveredExperience.screenshot({
+    path: `${SAMPLE_DIR}/delivered-editorial-guest-card.png`,
+    animations: 'disabled',
+  })
+
+  await deliveredExperience.getByTestId('invitation-open-button').click()
+  await expect(deliveredExperience).toHaveAttribute('data-motion-state', 'open', { timeout: 4_000 })
+  await deliveredExperience.getByTestId('invitation-continue-button').click()
+  await expect(page.locator('main#main-content')).toBeVisible()
+  await page.locator('#rsvp').scrollIntoViewIfNeeded()
+  await page.getByRole('button', { name: 'Review my RSVP' }).click()
+  await expect(page.getByRole('heading', { name: 'Your private RSVP' })).toBeVisible()
+  await page.getByLabel('Regretfully decline').click()
+  await page.getByLabel('Message to the couple').fill('Thank you for including me in your celebration.')
+  await page.getByRole('button', { name: 'Save RSVP' }).click()
+  await expect(page.getByText('Your RSVP has been saved.')).toBeVisible()
+
+  const guestSession = await page.request.get(
+    new URL(`/api/weddings/${E2E_WEDDINGS.primary.slug}/guest-session`, page.url()).toString(),
+  )
+  expect(guestSession.status()).toBe(200)
+  const guestSessionPayload = await guestSession.json()
+  expect(guestSessionPayload).toMatchObject({
+    wedding: { invitationCardStyle: 'editorial' },
+    guest: { id: E2E_GUEST_INVITATION.guestId },
+    rsvp: { attending: false },
+  })
+  expect(errors).toEqual([])
+})
+
+async function saveWeddingInvitationStyle(invitationCardStyle: string) {
+  const prisma = new PrismaClient()
+  try {
+    await prisma.wedding.update({
+      where: { id: E2E_WEDDINGS.primary.id },
+      data: { invitationCardStyle },
+    })
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
+test('QR card and RSVP remain contained on mobile @mobile', async ({ page }) => {
+  await resetUnifiedNavigationFixture()
+  // The couple's saved design is authoritative: a stale card= query on a
+  // long-lived personal link must not override it.
+  await saveWeddingInvitationStyle('midnight')
+  const errors = runtimeErrors(page)
+
+),
+  )
   const experience = page.getByTestId('premium-invitation-experience')
   await expect(experience).toBeVisible()
   await expect(experience).toHaveAttribute('data-invitation-style', 'midnight')
