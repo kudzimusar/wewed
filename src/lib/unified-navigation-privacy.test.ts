@@ -18,7 +18,11 @@ describe('unified Wewed navigation and wedding privacy', () => {
     expect(rootLayout).not.toContain('Imba Manor')
     expect(weddingPage).toContain('resolveWeddingAccessFromTokens')
     expect(weddingPage).toContain('GuestAccessGateway')
-    expect(weddingPage).toContain('guest-session/exchange')
+    // Legacy personal /w?...rsvp= links must be upgraded into the install-aware
+    // personal invitation gateway instead of silently creating a browser Guest session.
+    expect(weddingPage).toContain('const inviteQuery = new URLSearchParams({ rsvp: invitationToken })')
+    expect(weddingPage).toContain('/invite/${encodeURIComponent(slug)}?')
+    expect(weddingPage).not.toContain('/api/weddings/${encodeURIComponent(slug)}/guest-session/exchange?')
     expect(weddingPage).toContain("dynamic = 'force-dynamic'")
   })
 
