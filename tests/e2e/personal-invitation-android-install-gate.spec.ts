@@ -150,3 +150,47 @@ test('Android personal invitation holds native install gate until explicit guest
 
   await context.close()
 })
+
+
+test('legacy /w personal invitation is upgraded to the Android native install gate', async ({ browser }) => {
+  if (!fixture) throw new Error('Fixture was not created.')
+
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    userAgent: ANDROID_UA,
+    locale: 'en-ZW',
+  })
+  const page = await context.newPage()
+
+  // This is the historical URL shape already present in previously shared messages.
+  // It must remain usable, but it must no longer bypass native adoption by exchanging
+  // directly into a browser Guest session.
+  const legacyUrl =
+    `${BASE_URL}/w/${encodeURIComponent(fixture.weddingSlug)}?` +
+    new URLSearchParams({
+      rsvp: fixture.rsvpToken,
+      card: 'midnight',
+    }).toString()
+
+  await page.goto(legacyUrl, { waitUntil: 'domcontentloaded' })
+
+  await expect(page.getByTestId('personal-invitation-android-gate')).toBeVisible()
+  await expect(page.getByTestId('android-google-play-install')).toHaveAttribute(
+    'href',
+    `/invite/${fixture.weddingSlug}/install`,
+  )
+
+  const upgraded = new URL(page.url())
+  expect(upgraded.pathname).toBe(`/invite/${fixture.weddingSlug}/open`)
+  expect(upgraded.searchParams.has('rsvp')).toBe(false)
+  expect(upgraded.searchParams.has('card')).toBe(false)
+  expect(page.url()).not.toContain(fixture.rsvpToken)
+
+  // The exact field failure was an automatic fallthrough into /w/{slug}. Hold the gate long
+  // enough to prove no client effect or delayed handoff preparation performs that redirect.
+  await page.waitForTimeout(3_000)
+  await expect(page.getByTestId('personal-invitation-android-gate')).toBeVisible()
+  expect(new URL(page.url()).pathname).toBe(`/invite/${fixture.weddingSlug}/open`)
+
+  await context.close()
+})
