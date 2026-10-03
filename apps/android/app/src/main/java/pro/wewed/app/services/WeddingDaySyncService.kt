@@ -35,6 +35,14 @@ interface WeddingDayHttpTransport {
      */
     suspend fun patch(path: String, headers: Map<String, String>, body: String): WeddingDayHttpResponse =
         throw UnsupportedOperationException("patch is not implemented by this transport")
+
+    /**
+     * NATIVE-MOBILE-QRO08 — the Planner invitation/guest write twins (`DELETE` with an optional JSON
+     * body, mirroring the desktop delivery reset). Defaulted like [patch] so read-only fakes need no
+     * change.
+     */
+    suspend fun delete(path: String, headers: Map<String, String>, body: String?): WeddingDayHttpResponse =
+        throw UnsupportedOperationException("delete is not implemented by this transport")
 }
 
 class UrlConnectionWeddingDayTransport(private val baseUrl: String) : WeddingDayHttpTransport {
@@ -46,6 +54,9 @@ class UrlConnectionWeddingDayTransport(private val baseUrl: String) : WeddingDay
 
     override suspend fun patch(path: String, headers: Map<String, String>, body: String): WeddingDayHttpResponse =
         execute("PATCH", path, headers, body)
+
+    override suspend fun delete(path: String, headers: Map<String, String>, body: String?): WeddingDayHttpResponse =
+        execute("DELETE", path, headers, body)
 
     private suspend fun execute(
         method: String,

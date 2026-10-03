@@ -140,8 +140,8 @@ fun ivoryDataFrom(
     monogram: String?,
     tagline: String?,
     rsvpDeadlineLabel: String? = null,
-    /** The couple's own invitation line, where they wrote one. */
-    message: String? = null
+    /** The complete couple-authored invitation note, where they wrote one. */
+    coupleNote: String? = null
 ): IvoryInvitationData {
     val parts = invitation.weddingDate.trim().take(10).split("-")
     val months = listOf(
@@ -160,8 +160,8 @@ fun ivoryDataFrom(
             .split(Regex("\\s*&\\s*"))
             .mapNotNull { it.trim().firstOrNull()?.uppercase() }
             .joinToString("&"),
-        message = message?.takeIf { it.isNotBlank() }
-            ?: "Request the pleasure of your company as we celebrate our marriage.",
+        compactLine = pro.wewed.app.ui.invitation.ivory.IvoryInvitationContent.COMPACT_LINE,
+        coupleNote = coupleNote?.takeIf { it.isNotBlank() },
         weddingDateLabel = invitation.weddingDate,
         weekdayLabel = weekday,
         dayLabel = parts.getOrNull(2)?.toIntOrNull()?.toString(),

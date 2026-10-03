@@ -18,7 +18,11 @@ describe('unified Wewed navigation and wedding privacy', () => {
     expect(rootLayout).not.toContain('Imba Manor')
     expect(weddingPage).toContain('resolveWeddingAccessFromTokens')
     expect(weddingPage).toContain('GuestAccessGateway')
-    expect(weddingPage).toContain('guest-session/exchange')
+    // Legacy personal /w?...rsvp= links must be upgraded into the install-aware
+    // personal invitation gateway instead of silently creating a browser Guest session.
+    expect(weddingPage).toContain('const inviteQuery = new URLSearchParams({ rsvp: invitationToken })')
+    expect(weddingPage).toContain('/invite/${encodeURIComponent(slug)}?')
+    expect(weddingPage).not.toContain('/api/weddings/${encodeURIComponent(slug)}/guest-session/exchange?')
     expect(weddingPage).toContain("dynamic = 'force-dynamic'")
   })
 
@@ -40,8 +44,10 @@ describe('unified Wewed navigation and wedding privacy', () => {
       'src/app/api/weddings/[slug]/guest-session/exchange/route.ts',
     )
     // QRO05-PIQR01: link building lives in the projection both desktop and native routes read.
+    // QRO08: repair/rotate live in the shared operations both desktop and native routes call.
     const invitations = (await source('src/app/api/planner/guests/invitations/route.ts'))
       + (await source('src/lib/planner-invitation-projection.ts'))
+      + (await source('src/lib/planner-invitation-operations.ts'))
     const smartLinks = await source('src/lib/invitation-links.ts')
     const legacySharedToken = await source('src/app/api/privacy/verify-token/route.ts')
 
@@ -150,11 +156,13 @@ describe('unified Wewed navigation and wedding privacy', () => {
 
   test('QR management is visible to authorized couple and planner stakeholders', async () => {
     const manager = await source('src/components/wedding/invitation-manager.tsx')
+    const individualActions = await source('src/components/wedding/planner/planner-guest-invitation-actions.tsx')
     const plannerTool = await source('src/components/wedding/planner-invitation-tools.tsx')
     const coupleRoute = await source('src/app/couple/invitations/page.tsx')
 
     expect(manager).toContain('QRCode.toDataURL')
-    expect(manager).toContain('Copy link')
+    expect(manager).toContain('<PlannerGuestInvitationActions')
+    expect(individualActions).toContain('Copy link')
     expect(manager).toContain('Rotate')
     expect(manager).toContain('CSV')
     expect(plannerTool).toContain('Invitations & QR')

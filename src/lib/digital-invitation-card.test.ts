@@ -45,7 +45,7 @@ describe('digital invitation card delivery', () => {
       style: 'midnight',
     })
     expect(url).toBe(
-      'https://wewed.example/w/aurora-and-blake?rsvp=guest+token&card=midnight',
+      'https://wewed.example/invite/aurora-and-blake?rsvp=guest+token',
     )
     const message = buildDigitalInvitationMessage({
       guestName: 'Taylor',
@@ -55,6 +55,8 @@ describe('digital invitation card delivery', () => {
     expect(message).toContain('private Wewed digital invitation and RSVP here:')
     expect(message).toContain(url)
     expect(message.split(url)).toHaveLength(2)
+    expect(message).toContain('Android: use this same personal link and choose Get Wewed on Google Play.')
+    expect(message).toContain('you do not need a replacement unless the Planner deliberately rotates it.')
     expect(message).toContain('Wedding Pass available when venue admission opens closer to the wedding')
     expect(message).toContain('This link is personal to you.')
     expect(message).toContain('Please don’t forward or share it with anyone else.')
@@ -68,6 +70,10 @@ describe('digital invitation card delivery', () => {
       '',
       'Open your private Wewed digital invitation and RSVP here:',
       url,
+      '',
+      'Android: use this same personal link and choose Get Wewed on Google Play. After installing, Wewed can return you to this guest profile automatically.',
+      '',
+      'Keep this personal invitation link. You can reopen the same link after installing Wewed or on a new device; you do not need a replacement unless the Planner deliberately rotates it.',
       '',
       'If you’re attending, Wewed will keep your invitation connected to your guest profile and make your Wedding Pass available when venue admission opens closer to the wedding.',
       '',
@@ -145,6 +151,17 @@ describe('digital invitation card delivery', () => {
     expect(delivery).toContain('weddingSlug: wedding.slug')
     expect(delivery).toContain('token: recipient.token')
     expect(delivery).not.toContain('`${siteUrl}/?rsvp=')
+  })
+
+  test('legacy /w personal links are upgraded through the install-aware invitation gateway', () => {
+    const page = source('src/app/w/[slug]/page.tsx')
+    const builder = source('src/lib/digital-invitation-card.ts')
+
+    expect(page).toContain('const inviteQuery = new URLSearchParams({ rsvp: invitationToken })')
+    expect(page).toContain('/invite/${encodeURIComponent(slug)}?')
+    expect(page).not.toContain('/api/weddings/${encodeURIComponent(slug)}/guest-session/exchange?')
+    expect(builder).toContain('return `${origin}/invite/${encodeURIComponent(weddingSlug)}?${query.toString()}`')
+    expect(builder).not.toContain('return `${origin}/w/${encodeURIComponent(weddingSlug)}?')
   })
 
   test('guest exchange strips the RSVP credential and ignores stale card overrides', () => {

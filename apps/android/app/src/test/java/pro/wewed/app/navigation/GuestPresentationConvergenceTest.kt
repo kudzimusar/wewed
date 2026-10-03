@@ -89,11 +89,11 @@ class GuestPresentationConvergenceTest {
         listOf(
             "attending = accepting",
             "mealChoice = if (accepting)",
-            "plusOne = if (accepting)",
-            "plusOneName = if (accepting && plusOne)",
-            "plusOneMeal = if (accepting && plusOne)",
-            "kidsAttending = if (accepting && !adultsOnly)",
-            "kidsCount = if (accepting && !adultsOnly && kidsAttending)",
+            "plusOne = if (accepting && !namedGuestsOnly && !serviceProvider)",
+            "plusOneName = if (accepting && !namedGuestsOnly && !serviceProvider && plusOne)",
+            "plusOneMeal = if (accepting && !namedGuestsOnly && !serviceProvider && plusOne)",
+            "kidsAttending = if (accepting && !adultsOnly && !serviceProvider)",
+            "kidsCount = if (accepting && !adultsOnly && !serviceProvider && kidsAttending)",
             "dietaryNotes = if (accepting)",
             "message = message.trim()"
         ).forEach { field ->

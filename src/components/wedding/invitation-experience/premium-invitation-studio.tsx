@@ -14,6 +14,7 @@ import {
 } from '@/lib/digital-invitation-card'
 
 type ChildrenPolicy = 'welcome' | 'adults_only'
+type AdditionalAdultPolicy = 'plus_ones_allowed' | 'named_guests_only'
 
 /**
  * The approved Wewed digital invitation (INV-CANON01). Its catalogue tile is the approved CLOSED
@@ -51,12 +52,14 @@ export function PremiumInvitationStudio({
   message,
   deadline,
   childrenPolicy,
+  additionalAdultPolicy,
   saved,
   busy,
   onStyleChange,
   onMessageChange,
   onDeadlineChange,
   onChildrenPolicyChange,
+  onAdditionalAdultPolicyChange,
   onSave,
 }: {
   data: DigitalInvitationCardData
@@ -64,12 +67,14 @@ export function PremiumInvitationStudio({
   message: string
   deadline: string
   childrenPolicy: ChildrenPolicy
+  additionalAdultPolicy: AdditionalAdultPolicy
   saved: boolean
   busy: boolean
   onStyleChange: (style: InvitationCardStyle) => void
   onMessageChange: (message: string) => void
   onDeadlineChange: (deadline: string) => void
   onChildrenPolicyChange: (policy: ChildrenPolicy) => void
+  onAdditionalAdultPolicyChange: (policy: AdditionalAdultPolicy) => void
   onSave: () => void
 }) {
   const [device, setDevice] = useState<'mobile' | 'desktop'>('mobile')
@@ -97,7 +102,7 @@ export function PremiumInvitationStudio({
 
       {saved && (
         <p className="mx-4 mt-4 flex items-center gap-2 rounded-xl border border-sage/30 bg-sage/10 p-3 text-sm sm:mx-6">
-          <Check className="size-4" /> Invitation settings saved to this wedding. Web guest RSVP and current native guest-session clients read the same message, deadline and children policy.
+          <Check className="size-4" /> Invitation settings saved to this wedding. Web and native Guest RSVP read the same message, deadline, children policy and Additional adults policy.
         </p>
       )}
 
@@ -178,11 +183,25 @@ export function PremiumInvitationStudio({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <div className="space-y-2">
               <Label htmlFor="invitation-rsvp-deadline">RSVP deadline</Label>
               <Input id="invitation-rsvp-deadline" type="date" value={deadline} max={String(data.date).slice(0, 10)} onChange={(event) => onDeadlineChange(event.target.value)} />
               <p className="text-[10px] leading-4 text-espresso/45">Optional. It cannot be later than the wedding date.</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invitation-additional-adult-policy">Additional adults</Label>
+              <select
+                id="invitation-additional-adult-policy"
+                data-testid="invitation-additional-adult-policy"
+                value={additionalAdultPolicy}
+                onChange={(event) => onAdditionalAdultPolicyChange(event.target.value as AdditionalAdultPolicy)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                <option value="plus_ones_allowed">Plus-ones allowed</option>
+                <option value="named_guests_only">Named guests only</option>
+              </select>
+              <p className="text-[10px] leading-4 text-espresso/45">Named guests only requires every attending adult to have their own Guest record and invitation.</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="invitation-children-policy">Children policy</Label>

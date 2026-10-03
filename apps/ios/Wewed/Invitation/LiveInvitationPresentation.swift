@@ -13,6 +13,7 @@ public struct LiveInvitationPresentation: Equatable, Sendable {
     public let weddingSlug: String
     public let guestId: String
     public let guestName: String
+    public var participantType: String? = nil
 
     public let coupleNames: String
     public let monogram: String?
@@ -45,6 +46,7 @@ public struct LiveInvitationPresentation: Equatable, Sendable {
     public let message: String?
     public let checkedIn: Bool
     public let checkedInAt: String?
+    public var additionalAdultPolicy: String? = nil
 
     /// Three states, because "not attending" is not "not answered".
     public var rsvpStatus: RSVPStatus {
@@ -71,6 +73,7 @@ public struct LiveInvitationPresentation: Equatable, Sendable {
             weddingSlug: snapshot.weddingSlug,
             guestId: snapshot.guestId,
             guestName: snapshot.guestName,
+            participantType: snapshot.participantType,
             coupleNames: snapshot.title,
             monogram: snapshot.monogram,
             tagline: snapshot.tagline,
@@ -96,7 +99,8 @@ public struct LiveInvitationPresentation: Equatable, Sendable {
             dietaryNotes: snapshot.dietaryNotes,
             message: snapshot.message,
             checkedIn: snapshot.checkedIn,
-            checkedInAt: snapshot.checkedInAt
+            checkedInAt: snapshot.checkedInAt,
+            additionalAdultPolicy: snapshot.additionalAdultPolicy
         )
     }
 }

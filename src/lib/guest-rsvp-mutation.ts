@@ -2,6 +2,7 @@ import 'server-only'
 import { db } from '@/lib/db'
 import { withdrawWeddingPassesForAttendance } from '@/lib/wedding-day'
 import { PREVIEW_WRITE_BLOCK_MESSAGE, previewWeddingMutationBlocked } from '@/lib/preview-write-safety'
+import type { AdditionalAdultPolicy, ChildrenPolicy } from '@/lib/invitation-content-contract'
 
 /**
  * Master plan WW-NATIVE-PWA-CONVERGENCE-2026-09-22-01, Phase 9 — Digital Invitation + RSVP
@@ -29,7 +30,7 @@ import { PREVIEW_WRITE_BLOCK_MESSAGE, previewWeddingMutationBlocked } from '@/li
  * through this operation.
  */
 
-export type ChildrenPolicy = 'welcome' | 'adults_only'
+export type { AdditionalAdultPolicy, ChildrenPolicy } from '@/lib/invitation-content-contract'
 
 export async function loadWeddingChildrenPolicy(weddingId: string): Promise<ChildrenPolicy> {
   const row = await db.weddingContent.findUnique({
@@ -43,6 +44,24 @@ export async function loadWeddingChildrenPolicy(weddingId: string): Promise<Chil
     select: { value: true },
   })
   return row?.value.trim().toLowerCase() === 'adults_only' ? 'adults_only' : 'welcome'
+}
+
+export async function loadWeddingAdditionalAdultPolicy(
+  weddingId: string,
+): Promise<AdditionalAdultPolicy> {
+  const row = await db.weddingContent.findUnique({
+    where: {
+      weddingId_section_field: {
+        weddingId,
+        section: 'rsvp',
+        field: 'additionalAdultPolicy',
+      },
+    },
+    select: { value: true },
+  })
+  return row?.value.trim().toLowerCase() === 'named_guests_only'
+    ? 'named_guests_only'
+    : 'plus_ones_allowed'
 }
 
 /** The converged Phase-9 guest-editable RSVP field set. Order matches the shared native DTOs. */
@@ -77,6 +96,8 @@ export interface GuestRsvpRecord {
 export type GuestRsvpUpdateResult =
   | { ok: true; rsvp: GuestRsvpRecord }
   | { ok: false; code: 'CHILDREN_NOT_ALLOWED'; status: 400; error: string }
+  | { ok: false; code: 'ADDITIONAL_GUESTS_NOT_ALLOWED'; status: 400; error: string }
+  | { ok: false; code: 'SERVICE_PROVIDER_HOUSEHOLD_NOT_ALLOWED'; status: 400; error: string }
   | { ok: false; code: 'PREVIEW_WRITE_BLOCKED'; status: 423; error: string }
 
 const GUEST_RSVP_SELECT = {
@@ -134,6 +155,10 @@ function buildGuestRsvpPatch(requestedFields: Partial<Record<GuestRsvpField, unk
  * `mealPreference`, `childrenAttending`, `numberOfChildren`, `messageToCouple`, ...) before calling
  * this, so this function itself carries no transport-specific vocabulary.
  */
+class ServiceProviderHouseholdError extends Error {
+  readonly code = 'SERVICE_PROVIDER_HOUSEHOLD_NOT_ALLOWED' as const
+}
+
 export async function applyGuestRsvpUpdate(params: {
   weddingId: string
   rsvpToken: string
@@ -145,7 +170,19 @@ export async function applyGuestRsvpUpdate(params: {
   if (previewWeddingMutationBlocked(weddingId)) {
     return { ok: false, code: 'PREVIEW_WRITE_BLOCKED', status: 423, error: PREVIEW_WRITE_BLOCK_MESSAGE }
   }
-  const childrenPolicy = await loadWeddingChildrenPolicy(weddingId)
+  const [childrenPolicy, additionalAdultPolicy] = await Promise.all([
+    loadWeddingChildrenPolicy(weddingId),
+    loadWeddingAdditionalAdultPolicy(weddingId),
+  ])
+
+  if (additionalAdultPolicy === 'named_guests_only' && requestedFields.plusOne === true) {
+    return {
+      ok: false,
+      code: 'ADDITIONAL_GUESTS_NOT_ALLOWED',
+      status: 400,
+      error: 'Every additional adult must be registered as their own named guest.',
+    }
+  }
 
   if (childrenPolicy === 'adults_only' && requestedFields.kidsAttending === true) {
     return {
@@ -163,6 +200,12 @@ export async function applyGuestRsvpUpdate(params: {
     data.kidsAttending = false
     delete data.kidsCount
   }
+  if (additionalAdultPolicy === 'named_guests_only') {
+    // Historical +1 detail remains stored for audit/history; only live attendance is forced off.
+    data.plusOne = false
+    delete data.plusOneName
+    delete data.plusOneMeal
+  }
 
   // RSVP ↔ Wedding Pass lifecycle. The write takes the same Guest → RSVP → credential lock order
   // as Pass issuance and Gate check-in (`@/lib/wedding-day`), so an attendance change and a
@@ -170,9 +213,11 @@ export async function applyGuestRsvpUpdate(params: {
   // every live credential is revoked/superseded in the same transaction; re-accepting later never
   // revives it — the next authorized Pass retrieval issues a fresh credential. Edits that keep
   // attendance unchanged (meal, message, party details, ...) never touch the Pass.
-  const updated = await db.$transaction(async (tx) => {
-    const guestRows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-      `SELECT g.id
+  let updated: GuestRsvpRecord
+  try {
+    updated = await db.$transaction(async (tx) => {
+    const guestRows = await tx.$queryRawUnsafe<Array<{ id: string; role: string }>>(
+      `SELECT g.id, g.role
          FROM public."Guest" g
          JOIN public."RSVP" r ON r."guestId" = g.id
         WHERE r.token = $1 AND g."weddingId" = $2
@@ -181,8 +226,26 @@ export async function applyGuestRsvpUpdate(params: {
       rsvpToken,
       weddingId,
     )
-    const guestId = guestRows[0]?.id
+    const guest = guestRows[0]
+    const guestId = guest?.id
     if (!guestId) throw new Error('RSVP_NOT_FOUND')
+
+    if (
+      guest.role === 'service_provider'
+      && (requestedFields.plusOne === true || requestedFields.kidsAttending === true)
+    ) {
+      throw new ServiceProviderHouseholdError(
+        'Service providers are admitted as individually named crew members; plus-ones and children are not part of service attendance.',
+      )
+    }
+    if (guest.role === 'service_provider') {
+      data.plusOne = false
+      data.kidsAttending = false
+      // Keep historical labels/counts for audit; only current attendance semantics are forced off.
+      delete data.plusOneName
+      delete data.plusOneMeal
+      delete data.kidsCount
+    }
 
     const previousRows = await tx.$queryRawUnsafe<Array<{ attending: boolean | null }>>(
       `SELECT attending FROM public."RSVP" WHERE "guestId" = $1 LIMIT 1 FOR UPDATE`,
@@ -200,7 +263,18 @@ export async function applyGuestRsvpUpdate(params: {
       await withdrawWeddingPassesForAttendance(tx, { weddingId, guestId })
     }
     return record
-  })
+    })
+  } catch (error) {
+    if (error instanceof ServiceProviderHouseholdError) {
+      return {
+        ok: false,
+        code: error.code,
+        status: 400,
+        error: error.message,
+      }
+    }
+    throw error
+  }
 
   return { ok: true, rsvp: updated }
 }

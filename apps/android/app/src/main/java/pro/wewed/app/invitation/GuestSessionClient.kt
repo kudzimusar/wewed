@@ -6,6 +6,7 @@ import org.json.JSONObject
 import pro.wewed.app.models.WeddingPassAvailability
 import pro.wewed.app.models.WeddingPassAvailabilityState
 import pro.wewed.app.services.SecureStorage
+import pro.wewed.app.BuildConfig
 import pro.wewed.app.state.NativeServerOrigin
 import java.io.BufferedReader
 import java.net.HttpURLConnection
@@ -35,6 +36,7 @@ data class GuestInvitationSnapshot(
     val childrenPolicy: String?,
     val guestId: String,
     val guestName: String,
+    val participantType: String? = null,
     val email: String?,
     val tableNumber: Int?,
     /** e.g. "Table 1 — Family". Server-projected; never another guest's record. */
@@ -56,7 +58,8 @@ data class GuestInvitationSnapshot(
      */
     val weddingId: String? = null,
     val seatingTableId: String? = null,
-    val partySize: Int? = null
+    val partySize: Int? = null,
+    val additionalAdultPolicy: String? = null
 )
 
 /**
@@ -112,6 +115,8 @@ sealed interface RsvpSaveResult {
      */
     data object StaleGuestContext : RsvpSaveResult
     data object ChildrenNotAllowed : RsvpSaveResult
+    data object AdditionalGuestsNotAllowed : RsvpSaveResult
+    data object ServiceProviderHouseholdNotAllowed : RsvpSaveResult
     data object NotAuthorized : RsvpSaveResult
     data class Failed(val status: Int) : RsvpSaveResult
 }
@@ -350,6 +355,7 @@ class GuestSessionClient(
             childrenPolicy = wedding.optStringOrNull("childrenPolicy"),
             guestId = guest.optStringOrNull("id").orEmpty(),
             guestName = guest.optStringOrNull("name").orEmpty(),
+            participantType = guest.optStringOrNull("role"),
             email = guest.optStringOrNull("email"),
             tableNumber = if (guest.isNull("tableNumber")) null else guest.optInt("tableNumber"),
             tableName = guest.optStringOrNull("tableName"),
@@ -366,7 +372,8 @@ class GuestSessionClient(
             checkedInAt = rsvp.optStringOrNull("checkedInAt"),
             weddingId = wedding.optStringOrNull("id"),
             seatingTableId = guest.optStringOrNull("seatingTableId"),
-            partySize = if (rsvp.has("partySize") && !rsvp.isNull("partySize")) rsvp.optInt("partySize") else null
+            partySize = if (rsvp.has("partySize") && !rsvp.isNull("partySize")) rsvp.optInt("partySize") else null,
+            additionalAdultPolicy = wedding.optStringOrNull("additionalAdultPolicy")
         )
     }
 
@@ -417,6 +424,11 @@ class GuestSessionClient(
             status == 400 &&
                 payload?.let { JSONObject(it).optString("code") } == "CHILDREN_NOT_ALLOWED" ->
                 RsvpSaveResult.ChildrenNotAllowed
+            status == 400 && payload?.let { JSONObject(it).optString("code") } == "ADDITIONAL_GUESTS_NOT_ALLOWED" ->
+                RsvpSaveResult.AdditionalGuestsNotAllowed
+            status == 400 &&
+                payload?.let { JSONObject(it).optString("code") } == "SERVICE_PROVIDER_HOUSEHOLD_NOT_ALLOWED" ->
+                RsvpSaveResult.ServiceProviderHouseholdNotAllowed
             else -> RsvpSaveResult.Failed(status)
         }
     }
@@ -567,6 +579,9 @@ class GuestSessionClient(
             connection.readTimeout = 20_000
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("x-wewed-client", "native")
+            connection.setRequestProperty("x-wewed-native-platform", "android")
+            connection.setRequestProperty("x-wewed-app-version", BuildConfig.VERSION_NAME)
+            connection.setRequestProperty("x-wewed-build-version", BuildConfig.VERSION_CODE.toString())
             val sentSession = synchronized(sessionLock) { if (withSession) secureStorage.get(STORED_SESSION) else null }
             if (withSession) {
                 sentSession?.let {

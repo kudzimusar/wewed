@@ -147,7 +147,8 @@ describe('bulk physical invitation access', () => {
     expect(privateRoute).toContain('clearWeddingSharedInvitationCookie(response)')
     expect(continueRoute).toContain('clearWeddingSharedInvitationCookie(response)')
     expect(resumeRoute).toContain('clearWeddingSharedInvitationCookie(response)')
-    expect(resumeRoute).toContain('function recoveryRedirect(): NextResponse')
+    expect(resumeRoute).toContain('function recoveryRedirect(reason: string): NextResponse')
+    expect(resumeRoute).toContain('invitation-resume-${encodeURIComponent(safeReason)}')
   })
 
   test('shared-card access stays read-only instead of impersonating a guest', () => {

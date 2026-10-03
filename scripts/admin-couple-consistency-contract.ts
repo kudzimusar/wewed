@@ -149,21 +149,30 @@ const plannerGuests = includesAll('src/app/api/planner/guests/route.ts', [
   'db.guest.findMany',
   'include: {',
   'rsvp: true',
+  'createPlannerGuest(',
+  'data: guests.map((guest) => formatGuest(guest, attendancePolicies))',
+])
+// QRO08: guest creation (and its personal-link RSVP) lives in the operations the desktop and native
+// Planner routes share.
+includesAll('src/lib/planner-guest-operations.ts', [
   'await tx.rSVP.create({ data: { token: randomUUID(), guestId: created.id } })',
-  'data: guests.map(formatGuest)',
 ])
 assert.ok(plannerGuests.includes('where: { weddingId: access.context.weddingId }'), 'Planner guests must remain scoped to the active wedding.')
 
 // The desktop and native Planner invitation routes share one projection (planner-invitation-projection).
 const invitations = includesAll('src/app/api/planner/guests/invitations/route.ts', [
   "requireWeddingPermission(request, 'guests.view')",
+  'repairMissingInvitationLinks(',
+  'access.context.weddingId',
+])
+// QRO08: missing-link repair lives in the operations the desktop and native Planner routes share.
+includesAll('src/lib/planner-invitation-operations.ts', [
   'db.rSVP.createMany',
   'guestId: guest.id',
-  'access.context.weddingId',
 ])
 const invitationProjection = includesAll('src/lib/planner-invitation-projection.ts', [
   'db.guest.findMany',
-  'include: { rsvp: { select: { token: true, attending: true, checkedIn: true } } }',
+  'rsvp: { select: { token: true, attending: true, checkedIn: true } },',
   'id: guest.id',
   'token: guest.rsvp.token',
   'qrValue: invitationUrl',

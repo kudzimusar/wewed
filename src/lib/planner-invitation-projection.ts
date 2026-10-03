@@ -4,6 +4,11 @@ import {
   normalizeInvitationCardStyle,
 } from '@/lib/digital-invitation-card'
 import { buildSmartInvitationUrl } from '@/lib/invitation-links'
+import { normalizeAdditionalAdultPolicy } from '@/lib/invitation-content-contract'
+import {
+  resolveWeddingPassCredentialAdminState,
+  type WeddingPassCredentialAdminState,
+} from '@/lib/wedding-pass-availability'
 import {
   formatPhysicalInvitationCode,
   physicalInvitationCodeFromDestinationId,
@@ -88,20 +93,118 @@ export function invitationWeddingSelect() {
 
 export type PlannerInvitationStatus = 'attending' | 'declined' | 'pending'
 
+export interface PlannerAttendanceSummary {
+  registered: number
+  sent: number
+  notSent: number
+  opened: number
+  responded: number
+  responseRate: number
+  attending: number
+  declined: number
+  awaiting: number
+  expectedNamedAttendees: number
+  checkedIn: number
+  notYetArrived: number
+  missingContact: number
+  passPendingRsvp: number
+  passDeclined: number
+  passNotYetIssuable: number
+  passNotYetIssued: number
+  passActive: number
+  passRevoked: number
+  passSuperseded: number
+  passIssuanceClosed: number
+  nativeInstallClicked: number
+  nativeInstallNotActivated: number
+  nativeInstallToActivationRate: number
+  nativeActivated: number
+  nativeActivationRate: number
+  nativeAndroid: number
+  nativeIos: number
+}
+
+export function buildPlannerAttendanceSummary(rows: Array<{
+  status: PlannerInvitationStatus
+  deliveryStatus: 'sent' | 'not_sent'
+  openedAt: string | null
+  checkedIn: boolean
+  email: string | null
+  phone: string | null
+  passState: WeddingPassCredentialAdminState
+  nativeInstallClickedAt?: string | null
+  nativeActivated?: boolean
+  nativePlatforms?: string[]
+}>): PlannerAttendanceSummary {
+  const registered = rows.length
+  const attending = rows.filter((row) => row.status === 'attending').length
+  const declined = rows.filter((row) => row.status === 'declined').length
+  const responded = attending + declined
+  const checkedIn = rows.filter((row) => row.checkedIn).length
+  const nativeInstallClicked = rows.filter((row) => Boolean(row.nativeInstallClickedAt)).length
+  const nativeInstallActivated = rows.filter(
+    (row) => Boolean(row.nativeInstallClickedAt) && row.nativeActivated,
+  ).length
+  const nativeActivated = rows.filter((row) => row.nativeActivated).length
+  return {
+    registered,
+    sent: rows.filter((row) => row.deliveryStatus === 'sent').length,
+    notSent: rows.filter((row) => row.deliveryStatus === 'not_sent').length,
+    opened: rows.filter((row) => Boolean(row.openedAt)).length,
+    responded,
+    responseRate: registered > 0 ? responded / registered : 0,
+    attending,
+    declined,
+    awaiting: rows.filter((row) => row.status === 'pending').length,
+    // Named-person attendance counts canonical Guest identities only; never anonymous household extras.
+    expectedNamedAttendees: attending,
+    checkedIn,
+    notYetArrived: Math.max(0, attending - checkedIn),
+    missingContact: rows.filter((row) => !row.email && !row.phone).length,
+    passPendingRsvp: rows.filter((row) => row.passState === 'pending_rsvp').length,
+    passDeclined: rows.filter((row) => row.passState === 'declined').length,
+    passNotYetIssuable: rows.filter((row) => row.passState === 'not_yet_issuable').length,
+    passNotYetIssued: rows.filter((row) => row.passState === 'not_yet_issued').length,
+    passActive: rows.filter((row) => row.passState === 'active').length,
+    passRevoked: rows.filter((row) => row.passState === 'revoked').length,
+    passSuperseded: rows.filter((row) => row.passState === 'superseded').length,
+    passIssuanceClosed: rows.filter((row) => row.passState === 'issuance_closed').length,
+    nativeInstallClicked,
+    nativeInstallNotActivated: rows.filter(
+      (row) => Boolean(row.nativeInstallClickedAt) && !row.nativeActivated,
+    ).length,
+    nativeInstallToActivationRate:
+      nativeInstallClicked > 0 ? nativeInstallActivated / nativeInstallClicked : 0,
+    nativeActivated,
+    nativeActivationRate: registered > 0 ? nativeActivated / registered : 0,
+    nativeAndroid: rows.filter((row) => row.nativePlatforms?.includes('android')).length,
+    nativeIos: rows.filter((row) => row.nativePlatforms?.includes('ios')).length,
+  }
+}
+
 /**
  * The wedding's invitation design plus one row per Guest (name-ordered). `siteUrl` is the origin
  * the caller was reached on — the desktop route and the native route both pass their own request
  * origin, exactly as the desktop Planner has always done.
  */
 export async function loadPlannerInvitationProjection(weddingId: string, siteUrl: string) {
-  const [wedding, guests, childrenPolicyRow, deliveryEvents] = await Promise.all([
+  const [wedding, guests, tables, childrenPolicyRow, additionalAdultPolicyRow, deliveryEvents, passCredentials, nativePresences] = await Promise.all([
     db.wedding.findUnique({
       where: { id: weddingId },
       select: invitationWeddingSelect(),
     }),
     db.guest.findMany({
       where: { weddingId },
-      include: { rsvp: { select: { token: true, attending: true, checkedIn: true } } },
+      include: {
+        rsvp: { select: { token: true, attending: true, checkedIn: true } },
+        seatingTable: { select: { id: true, name: true, capacity: true } },
+        serviceTeamMemberships: { select: { approvedAt: true } },
+      },
+      orderBy: { name: 'asc' },
+    }),
+    db.seatingTable.findMany({
+      where: { weddingId },
+      select: { id: true, name: true, capacity: true },
       orderBy: { name: 'asc' },
     }),
     db.weddingContent.findUnique({
@@ -110,6 +213,16 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
           weddingId,
           section: 'rsvp',
           field: 'childrenPolicy',
+        },
+      },
+      select: { value: true },
+    }),
+    db.weddingContent.findUnique({
+      where: {
+        weddingId_section_field: {
+          weddingId,
+          section: 'rsvp',
+          field: 'additionalAdultPolicy',
         },
       },
       select: { value: true },
@@ -123,6 +236,7 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
             'guest.invitation_delivery_marked',
             'guest.invitation_delivery_unmarked',
             'guest.invitation_opened',
+            'guest.native_install_clicked',
           ],
         },
       },
@@ -135,21 +249,64 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
         actor: { select: { name: true, email: true } },
       },
     }),
+    db.weddingPassCredential.findMany({
+      where: { weddingId },
+      select: {
+        guestId: true,
+        issueSeq: true,
+        revokedAt: true,
+        revocationReason: true,
+        supersededAt: true,
+        expiresAt: true,
+      },
+      orderBy: [{ guestId: 'asc' }, { issueSeq: 'desc' }],
+    }),
+    db.guestNativePresence.findMany({
+      where: { weddingId },
+      select: {
+        guestId: true,
+        platform: true,
+        appVersion: true,
+        buildVersion: true,
+        firstActivatedAt: true,
+        lastSeenAt: true,
+        lastInvitationOpenAt: true,
+      },
+      orderBy: { lastSeenAt: 'desc' },
+    }),
   ])
 
   if (!wedding) return null
 
   const style = normalizeInvitationCardStyle(wedding.invitationCardStyle)
   const childrenPolicy = normalizeChildrenPolicy(childrenPolicyRow?.value)
+  const additionalAdultPolicy = normalizeAdditionalAdultPolicy(additionalAdultPolicyRow?.value)
   const origin = siteUrl.replace(/\/$/, '')
   const missingTokens = guests.filter((guest) => !guest.rsvp?.token).length
   const deliveryByGuest = new Map<string, InvitationDeliveryState>()
   const openedAtByGuest = new Map<string, string>()
+  const nativeInstallClickedAtByGuest = new Map<string, string>()
+  const latestPassByGuest = new Map<string, (typeof passCredentials)[number]>()
+  for (const credential of passCredentials) {
+    if (!latestPassByGuest.has(credential.guestId)) latestPassByGuest.set(credential.guestId, credential)
+  }
+  const nativePresenceByGuest = new Map<string, typeof nativePresences>()
+  for (const presence of nativePresences) {
+    const current = nativePresenceByGuest.get(presence.guestId) ?? []
+    current.push(presence)
+    nativePresenceByGuest.set(presence.guestId, current)
+  }
   for (const event of deliveryEvents) {
     if (!event.resourceId) continue
     if (event.action === 'guest.invitation_opened') {
       if (!openedAtByGuest.has(event.resourceId)) {
         openedAtByGuest.set(event.resourceId, event.createdAt.toISOString())
+      }
+      continue
+    }
+    if (event.action === 'guest.native_install_clicked') {
+      if (!nativeInstallClickedAtByGuest.has(event.resourceId)) {
+        nativeInstallClickedAtByGuest.set(event.resourceId, event.createdAt.toISOString())
       }
       continue
     }
@@ -179,14 +336,42 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       sentAt: null,
       sentBy: null,
     }
+    const passState = resolveWeddingPassCredentialAdminState({
+      attending: guest.rsvp?.attending ?? null,
+      weddingDate: wedding.date,
+      latest: latestPassByGuest.get(guest.id) ?? null,
+      admissionApproved: guest.role === 'service_provider'
+        ? guest.serviceTeamMemberships.some((membership) => Boolean(membership.approvedAt))
+        : true,
+    })
+    const nativeClients = (nativePresenceByGuest.get(guest.id) ?? []).map((presence) => ({
+      platform: presence.platform,
+      appVersion: presence.appVersion,
+      buildVersion: presence.buildVersion,
+      firstActivatedAt: presence.firstActivatedAt.toISOString(),
+      lastSeenAt: presence.lastSeenAt.toISOString(),
+      lastInvitationOpenAt: presence.lastInvitationOpenAt?.toISOString() ?? null,
+    }))
     return {
       id: guest.id,
       name: guest.name,
       email: guest.email,
       phone: guest.phone,
+      role: guest.role,
+      roleDetail: guest.roleDetail,
+      side: guest.side,
+      attendanceAllocation: guest.attendanceAllocation,
+      seatingTableId: guest.seatingTableId,
+      seatingTableName: guest.seatingTable?.name ?? null,
       tableNumber: guest.tableNumber,
       status,
       checkedIn: guest.rsvp?.checkedIn ?? false,
+      passState,
+      nativeInstallClickedAt: nativeInstallClickedAtByGuest.get(guest.id) ?? null,
+      nativeActivated: nativeClients.length > 0,
+      nativePlatforms: nativeClients.map((client) => client.platform),
+      nativeLastSeenAt: nativeClients[0]?.lastSeenAt ?? null,
+      nativeClients,
       invitationUrl,
       qrValue: invitationUrl,
       shareMessage: invitationUrl
@@ -204,10 +389,14 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
     }
   })
 
+  const summary = buildPlannerAttendanceSummary(data)
+
   return {
-    wedding: { ...wedding, invitationCardStyle: style, childrenPolicy },
+    wedding: { ...wedding, invitationCardStyle: style, childrenPolicy, additionalAdultPolicy },
     count: data.length,
     missingTokens,
+    tables,
+    summary,
     data,
   }
 }

@@ -134,15 +134,19 @@ describe('Stage 5 Vendors and Guests parity', () => {
   })
 
   test('guest module restores complete create, filters, seating, readiness and deletion', async () => {
-    const guests = await source(
-      'src/components/wedding/planner/modules/planner-guests-module.tsx',
-    )
+    const guests = (
+      await Promise.all([
+        source('src/components/wedding/planner/modules/planner-guests-module.tsx'),
+        source('src/components/wedding/planner/planner-guest-editor.tsx'),
+      ])
+    ).join('\n')
 
     for (const marker of [
-      'workspace-guest-phone',
-      'workspace-guest-role',
-      'workspace-guest-side',
-      'workspace-guest-table',
+      'idPrefix="workspace-guest"',
+      'Participant type / role',
+      'Relationship side',
+      'Capacity allocation',
+      'Seating table',
       "usePlannerFilterState('wewed:planner:guests:filters'",
       'filters.search',
       'filters.side',
@@ -164,8 +168,9 @@ describe('Stage 5 Vendors and Guests parity', () => {
   test('workspace and guest APIs keep all guest mutations wedding scoped', async () => {
     const [workspace, collectionRoute, itemRoute] = await Promise.all([
       source('src/components/wedding/planner-workspace.tsx'),
-      source('src/app/api/planner/guests/route.ts'),
-      source('src/app/api/planner/guests/[id]/route.ts'),
+      // QRO08: guest-mode writes live in the shared operations both desktop and native routes call.
+      Promise.all([source('src/app/api/planner/guests/route.ts'), source('src/lib/planner-guest-operations.ts')]).then((parts) => parts.join('')),
+      Promise.all([source('src/app/api/planner/guests/[id]/route.ts'), source('src/lib/planner-guest-operations.ts')]).then((parts) => parts.join('')),
     ])
 
     for (const marker of [

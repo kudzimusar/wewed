@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import {
@@ -14,12 +13,20 @@ import {
   SeatingTargetError,
 } from '@/lib/planner-seating-transaction'
 import { requireWeddingPermission } from '@/lib/wedding-access'
+import { createPlannerGuest } from '@/lib/planner-guest-operations'
 import { guestPartySize, guestRsvpStatus } from '@/lib/guest-record-authority'
+import {
+  loadWeddingAdditionalAdultPolicy,
+  loadWeddingChildrenPolicy,
+} from '@/lib/guest-rsvp-mutation'
 
-const GUEST_ROLES = ['guest', 'bridal_party', 'family', 'officiant', 'vip'] as const
-const GUEST_SIDES = ['bride', 'groom', 'family', 'neutral'] as const
 const MAX_TABLE_CAPACITY = 50
 const MAX_BULK_GUESTS = 500
+
+type AttendancePolicies = {
+  additionalAdultPolicy: 'plus_ones_allowed' | 'named_guests_only'
+  childrenPolicy: 'welcome' | 'adults_only'
+}
 
 function formatGuest(g: {
   id: string
@@ -29,6 +36,7 @@ function formatGuest(g: {
   role: string
   roleDetail: string | null
   side: string | null
+  attendanceAllocation: string
   tableNumber: number | null
   seatingTableId: string | null
   seatingTable: { id: string; name: string; capacity: number } | null
@@ -52,6 +60,9 @@ function formatGuest(g: {
     createdAt: Date
     updatedAt: Date
   } | null
+}, attendancePolicies: AttendancePolicies = {
+  additionalAdultPolicy: 'plus_ones_allowed',
+  childrenPolicy: 'welcome',
 }) {
   return {
     id: g.id,
@@ -61,13 +72,14 @@ function formatGuest(g: {
     role: g.role,
     roleDetail: g.roleDetail,
     side: g.side,
+    attendanceAllocation: g.attendanceAllocation,
     tableNumber: g.tableNumber,
     seatingTableId: g.seatingTableId,
     seatingTableName: g.seatingTable?.name ?? null,
     weddingId: g.weddingId,
     // Shared Guest-record projection: identical to the native guest list and the Guest session.
     rsvpStatus: guestRsvpStatus(g.rsvp?.attending),
-    partySize: guestPartySize(g.rsvp),
+    partySize: g.role === 'service_provider' ? 1 : guestPartySize(g.rsvp, attendancePolicies),
     createdAt: g.createdAt.toISOString(),
     updatedAt: g.updatedAt.toISOString(),
     rsvp: g.rsvp
@@ -119,7 +131,7 @@ export async function GET(request: NextRequest) {
   if (access.error) return access.error
 
   try {
-    const [guests, tables] = await Promise.all([
+    const [guests, tables, additionalAdultPolicy, childrenPolicy] = await Promise.all([
       db.guest.findMany({
         where: { weddingId: access.context.weddingId },
         include: {
@@ -132,12 +144,15 @@ export async function GET(request: NextRequest) {
         where: { weddingId: access.context.weddingId },
         orderBy: { name: 'asc' },
       }),
+      loadWeddingAdditionalAdultPolicy(access.context.weddingId),
+      loadWeddingChildrenPolicy(access.context.weddingId),
     ])
+    const attendancePolicies = { additionalAdultPolicy, childrenPolicy }
 
     return NextResponse.json({
       success: true,
       count: guests.length,
-      data: guests.map(formatGuest),
+      data: guests.map((guest) => formatGuest(guest, attendancePolicies)),
       tables: tables.map(formatTable),
     })
   } catch (error) {
@@ -154,6 +169,7 @@ interface CreateGuestPayload {
   role?: string
   roleDetail?: string
   side?: string
+  attendanceAllocation?: string
   seatingTableId?: string
   tableName?: string
   capacity?: number
@@ -172,6 +188,11 @@ export async function POST(request: NextRequest) {
     )
     if (access.error) return access.error
     const weddingId = access.context.weddingId
+    const [additionalAdultPolicy, childrenPolicy] = await Promise.all([
+      loadWeddingAdditionalAdultPolicy(weddingId),
+      loadWeddingChildrenPolicy(weddingId),
+    ])
+    const attendancePolicies = { additionalAdultPolicy, childrenPolicy }
 
     if (body.kind === 'table') {
       const tableName = clean(body.tableName, 120) ?? ''
@@ -223,74 +244,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, data: formatTable(table) }, { status: 201 })
     }
 
-    const name = clean(body.name, 160) ?? ''
-    if (!name) return NextResponse.json({ success: false, error: 'Name is required.' }, { status: 400 })
-    const email = body.email?.trim().toLowerCase() || null
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const result = await createPlannerGuest({ weddingId, actorId: access.context.session.userId }, body)
+    if (!result.ok) {
       return NextResponse.json(
-        { success: false, error: 'Enter a valid email address.', field: 'email' },
-        { status: 400 },
+        { success: false, error: result.error, ...('field' in result && result.field ? { field: result.field } : {}) },
+        { status: result.status },
       )
     }
-    if (email) {
-      const duplicate = await db.guest.findFirst({ where: { weddingId, email: { equals: email, mode: 'insensitive' } } })
-      if (duplicate) {
-        return NextResponse.json(
-          { success: false, error: 'A guest with this email already exists for this wedding.', field: 'email' },
-          { status: 409 },
-        )
-      }
-    }
-
-    const role = GUEST_ROLES.includes(body.role as (typeof GUEST_ROLES)[number]) ? body.role! : 'guest'
-    const side = GUEST_SIDES.includes(body.side as (typeof GUEST_SIDES)[number]) ? body.side! : 'neutral'
-
-    const guest = await runSerializableSeatingTransaction(async (tx) => {
-      if (body.seatingTableId) {
-        const table = await tx.seatingTable.findFirst({
-          where: { id: body.seatingTableId, weddingId },
-          include: { guests: { include: { rsvp: true } } },
-        })
-        if (!table) throw new SeatingTargetError('Invalid seatingTableId.')
-        const occupied = table.guests.reduce((sum, guest) => sum + plannedSeatsForGuest(guest), 0)
-        if (occupied + 1 > table.capacity) {
-          throw new SeatingCapacityError(`${table.name} has no available seat for ${name}.`)
-        }
-      }
-
-      const created = await tx.guest.create({
-        data: {
-          name,
-          email,
-          phone: clean(body.phone, 80),
-          role,
-          roleDetail: clean(body.roleDetail, 160),
-          side,
-          seatingTableId: body.seatingTableId || null,
-          weddingId,
-        },
-      })
-      await tx.rSVP.create({ data: { token: randomUUID(), guestId: created.id } })
-      await tx.auditEvent.create({
-        data: {
-          action: 'guest.create',
-          resourceType: 'guest',
-          resourceId: created.id,
-          afterValue: JSON.stringify({ name: created.name, email: created.email, role: created.role }),
-          weddingId,
-          actorId: access.context.session.userId,
-        },
-      })
-      return tx.guest.findUniqueOrThrow({
-        where: { id: created.id },
-        include: {
-          rsvp: true,
-          seatingTable: { select: { id: true, name: true, capacity: true } },
-        },
-      })
-    })
-
-    return NextResponse.json({ success: true, data: formatGuest(guest) }, { status: 201 })
+    return NextResponse.json({
+      success: true,
+      data: formatGuest(result.data, attendancePolicies),
+      capacity: result.capacity ?? null,
+      capacityWarning: result.capacity?.warning
+        ? `${result.capacity.allocation} allocation has reached its warning threshold (${result.capacity.registered}${result.capacity.hardLimit == null ? '' : `/${result.capacity.hardLimit}`} registered).`
+        : null,
+    }, { status: 201 })
   } catch (error) {
     if (error instanceof SeatingCapacityError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 409 })
@@ -326,6 +294,11 @@ export async function PATCH(request: NextRequest) {
       )
     }
     const weddingId = access.context.weddingId
+    const [additionalAdultPolicy, childrenPolicy] = await Promise.all([
+      loadWeddingAdditionalAdultPolicy(weddingId),
+      loadWeddingChildrenPolicy(weddingId),
+    ])
+    const attendancePolicies = { additionalAdultPolicy, childrenPolicy }
 
     const updatedGuests = await runSerializableSeatingTransaction(async (tx) => {
       const guests = await tx.guest.findMany({
@@ -349,8 +322,14 @@ export async function PATCH(request: NextRequest) {
           },
           include: { rsvp: true },
         })
-        const occupied = otherGuests.reduce((sum, guest) => sum + plannedSeatsForGuest(guest), 0)
-        const moving = guests.reduce((sum, guest) => sum + plannedSeatsForGuest(guest), 0)
+        const occupied = otherGuests.reduce(
+          (sum, guest) => sum + (guest.role === 'service_provider' ? 1 : plannedSeatsForGuest(guest, attendancePolicies)),
+          0,
+        )
+        const moving = guests.reduce(
+          (sum, guest) => sum + (guest.role === 'service_provider' ? 1 : plannedSeatsForGuest(guest, attendancePolicies)),
+          0,
+        )
         if (occupied + moving > table.capacity) {
           throw new SeatingCapacityError(
             `${table.name} has ${Math.max(0, table.capacity - occupied)} available seat${table.capacity - occupied === 1 ? '' : 's'}; the selected parties require ${moving}.`,
@@ -383,7 +362,7 @@ export async function PATCH(request: NextRequest) {
       })
     })
 
-    return NextResponse.json({ success: true, count: updatedGuests.length, data: updatedGuests.map(formatGuest) })
+    return NextResponse.json({ success: true, count: updatedGuests.length, data: updatedGuests.map((guest) => formatGuest(guest, attendancePolicies)) })
   } catch (error) {
     if (error instanceof SeatingCapacityError) {
       return NextResponse.json({ success: false, error: error.message }, { status: 409 })

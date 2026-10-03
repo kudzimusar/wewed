@@ -2,9 +2,11 @@ import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { InvitationAppHandoff } from '@/components/wedding/invitation-app-handoff'
+import { configuredIosDistributionUrl } from '@/lib/ios-app-distribution'
 import { db } from '@/lib/db'
 import { WEWED_BRAND_PAYOFF, WEWED_INVITATION_PREVIEW_TITLE } from '@/lib/wewed-brand'
 import { invitationPreviewDescription } from '@/lib/invitation-link-preview'
+import { androidDeferredInvitationHandoffEnabled } from '@/lib/invitation-deferred-install'
 import {
   PENDING_INVITATION_COOKIE,
   verifyPendingInvitationToken,
@@ -77,17 +79,14 @@ export default async function InvitationOpenPage({ params }: Props) {
     redirect('/guest-access-help?reason=invalid-invitation')
   }
 
-  const dedicatedUat =
-    process.env.VERCEL_ENV === 'preview' &&
-    process.env.WEWED_PREVIEW_WRITABLE_WEDDING_ID === wedding.id
-  const deferredInstallEnabled =
-    dedicatedUat || process.env.ANDROID_DEFERRED_INVITATION_HANDOFF === '1'
+  const deferredInstallEnabled = androidDeferredInvitationHandoffEnabled(wedding.id)
 
   return (
     <InvitationAppHandoff
       weddingSlug={slug}
       weddingTitle={wedding.title}
       deferredInstallEnabled={deferredInstallEnabled}
+      iosDistributionUrl={configuredIosDistributionUrl()}
     />
   )
 }

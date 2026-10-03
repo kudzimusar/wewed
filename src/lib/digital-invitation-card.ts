@@ -76,8 +76,11 @@ export function getInvitationCardStyleDefinition(
 
 export function buildDigitalInvitationUrl({ siteUrl, weddingSlug, token, style }: { siteUrl: string; weddingSlug: string; token: string; style: InvitationCardStyle }): string {
   const origin = siteUrl.replace(/\/$/, '')
-  const query = new URLSearchParams({ rsvp: token, card: style })
-  return `${origin}/w/${encodeURIComponent(weddingSlug)}?${query.toString()}`
+  // Keep this legacy helper source-compatible, but converge every newly generated personal
+  // invitation on the install-aware gateway. The saved Wedding style is server-authoritative.
+  void style
+  const query = new URLSearchParams({ rsvp: token })
+  return `${origin}/invite/${encodeURIComponent(weddingSlug)}?${query.toString()}`
 }
 
 export function buildDigitalInvitationMessage({ guestName, weddingTitle, invitationUrl }: { guestName: string; weddingTitle: string; invitationUrl: string }): string {
@@ -88,6 +91,10 @@ export function buildDigitalInvitationMessage({ guestName, weddingTitle, invitat
     '',
     'Open your private Wewed digital invitation and RSVP here:',
     invitationUrl,
+    '',
+    'Android: use this same personal link and choose Get Wewed on Google Play. After installing, Wewed can return you to this guest profile automatically.',
+    '',
+    'Keep this personal invitation link. You can reopen the same link after installing Wewed or on a new device; you do not need a replacement unless the Planner deliberately rotates it.',
     '',
     'If you’re attending, Wewed will keep your invitation connected to your guest profile and make your Wedding Pass available when venue admission opens closer to the wedding.',
     '',

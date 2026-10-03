@@ -102,7 +102,8 @@ describe('complete planner gap closure', () => {
       source('src/components/wedding/planner/modules/planner-budget-module.tsx'),
       source('src/components/wedding/planner/modules/planner-guests-module.tsx'),
       source('src/components/wedding/planner/modules/planner-seating-operations-module.tsx'),
-      source('src/app/api/planner/guests/[id]/route.ts'),
+      // QRO08: guest-mode writes live in the shared operations both desktop and native routes call.
+      Promise.all([source('src/app/api/planner/guests/[id]/route.ts'), source('src/lib/planner-guest-operations.ts')]).then((parts) => parts.join('')),
       source('tests/e2e/planner-task-priority-filter.spec.ts'),
     ])
     for (const marker of ['Save task', 'Description', 'Priority', 'Due date', 'Assignee', 'role="alert"', 'usePlannerFilterState']) expect(tasks).toContain(marker)
@@ -116,7 +117,7 @@ describe('complete planner gap closure', () => {
     expect(priorityGate).toContain('expect(after.data).toEqual(before.data)')
     for (const marker of ['Search item, vendor, category, notes or document', 'All payment states', 'Vendor:', 'border-champagne bg-champagne']) expect(budget).toContain(marker)
     expect(budget).toContain('...(item.documents ?? []).map((document) => document.displayName)')
-    for (const marker of ['Save guest', 'Filter guests by side', 'Filter guests by RSVP', 'onUpdateGuest']) expect(guests).toContain(marker)
+    for (const marker of ['Save guest', 'Filter guests by relationship side', 'Filter guests by capacity allocation', 'Filter guests by RSVP', 'Filter guests by delivery', 'onUpdateGuest']) expect(guests).toContain(marker)
     for (const marker of ['Search table, zone, note, or Guest', 'Filter seating by table type', 'Filter seating by assignment', 'Filter seating by capacity', 'Filter seating by occupancy', 'Move selected', 'Print plan']) expect(seating).toContain(marker)
     expect(guestApi).toContain("NOT: { id: existing.id }")
     expect(guestApi).toContain("field: 'email'")

@@ -36,6 +36,7 @@ mock.module('server-only', () => ({}))
 type Db = typeof import('@/lib/db')['db']
 let db: Db
 let applyGuestRsvpUpdate: typeof import('@/lib/guest-rsvp-mutation')['applyGuestRsvpUpdate']
+let applyGuestWorksheetRow: typeof import('@/lib/import-engine/guest-worksheet-apply')['applyGuestWorksheetRow']
 let createWeddingGuestSessionToken: typeof import('@/lib/wedding-guest-session')['createWeddingGuestSessionToken']
 let WEDDING_GUEST_SESSION_COOKIE: typeof import('@/lib/wedding-guest-session')['WEDDING_GUEST_SESSION_COOKIE']
 let GET_GUEST_SESSION: typeof import('@/app/api/weddings/[slug]/guest-session/route')['GET']
@@ -52,6 +53,7 @@ async function wedding(
   name: string,
   opts: {
     childrenPolicy?: 'welcome' | 'adults_only'
+    additionalAdultPolicy?: 'plus_ones_allowed' | 'named_guests_only'
     privacy?: 'public' | 'link_only' | 'private'
     invitationCardStyle?: string
   } = {},
@@ -80,6 +82,16 @@ async function wedding(
   if (opts.childrenPolicy) {
     await db.weddingContent.create({
       data: { weddingId: w.id, section: 'rsvp', field: 'childrenPolicy', value: opts.childrenPolicy },
+    })
+  }
+  if (opts.additionalAdultPolicy) {
+    await db.weddingContent.create({
+      data: {
+        weddingId: w.id,
+        section: 'rsvp',
+        field: 'additionalAdultPolicy',
+        value: opts.additionalAdultPolicy,
+      },
     })
   }
   return w
@@ -113,6 +125,7 @@ describe.skipIf(!isLocal)('Phase 9 — guest RSVP mutation convergence against a
   beforeAll(async () => {
     ;({ db } = await import('@/lib/db'))
     ;({ applyGuestRsvpUpdate } = await import('@/lib/guest-rsvp-mutation'))
+    ;({ applyGuestWorksheetRow } = await import('@/lib/import-engine/guest-worksheet-apply'))
     ;({ createWeddingGuestSessionToken, WEDDING_GUEST_SESSION_COOKIE } = await import('@/lib/wedding-guest-session'))
     ;({ GET: GET_GUEST_SESSION, PUT: PUT_GUEST_SESSION } = await import('@/app/api/weddings/[slug]/guest-session/route'))
     ;({ POST: POST_RSVP } = await import('@/app/api/rsvp/route'))
@@ -255,6 +268,78 @@ describe.skipIf(!isLocal)('Phase 9 — guest RSVP mutation convergence against a
     expect(result.rsvp.kidsCount).toBe(3)
   })
 
+  test('named-guests-only: direct authority rejects plusOne=true with stable domain error and no write', async () => {
+    const w = await wedding('named-only-refuse', { additionalAdultPolicy: 'named_guests_only' })
+    const { rsvpToken } = await guestWithRsvp(w.id, 'Guest Named Only')
+
+    const result = await applyGuestRsvpUpdate({
+      weddingId: w.id,
+      rsvpToken,
+      requestedFields: { attending: true, plusOne: true, plusOneName: 'Anonymous Extra' },
+    })
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.code).toBe('ADDITIONAL_GUESTS_NOT_ALLOWED')
+    expect(result.status).toBe(400)
+
+    const row = await db.rSVP.findUnique({ where: { token: rsvpToken } })
+    expect(row?.attending).toBeNull()
+    expect(row?.plusOne).toBe(false)
+  })
+
+  test('named-guests-only: stale historical +1 detail is preserved but cannot remain live attendance', async () => {
+    const w = await wedding('named-only-history', { additionalAdultPolicy: 'named_guests_only' })
+    const { rsvpToken } = await guestWithRsvp(w.id, 'Guest Historical Plus One')
+    await db.rSVP.update({
+      where: { token: rsvpToken },
+      data: { plusOne: true, plusOneName: 'Historical Partner', plusOneMeal: 'Vegan' },
+    })
+
+    const result = await applyGuestRsvpUpdate({
+      weddingId: w.id,
+      rsvpToken,
+      requestedFields: { attending: true, mealChoice: 'Chicken' },
+    })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.rsvp.plusOne).toBe(false)
+    expect(result.rsvp.plusOneName).toBe('Historical Partner')
+    expect(result.rsvp.plusOneMeal).toBe('Vegan')
+
+    const stored = await db.rSVP.findUnique({ where: { token: rsvpToken } })
+    expect(stored?.plusOne).toBe(false)
+    expect(stored?.plusOneName).toBe('Historical Partner')
+    expect(stored?.plusOneMeal).toBe('Vegan')
+  })
+
+  test('Planner worksheet import cannot bypass named-adult or adults-only RSVP policy', async () => {
+    const namedOnly = await wedding('worksheet-named-only', {
+      additionalAdultPolicy: 'named_guests_only',
+    })
+    await expect(
+      applyGuestWorksheetRow(namedOnly.id, {
+        displayName: 'Worksheet Anonymous Adult',
+        rsvpStatus: 'attending',
+        numberAttending: '2',
+        plusOneName: 'Anonymous Adult',
+      }),
+    ).rejects.toThrow('Every additional adult must be registered as their own named guest.')
+    expect(await db.guest.count({ where: { weddingId: namedOnly.id } })).toBe(0)
+
+    const adultsOnly = await wedding('worksheet-adults-only', {
+      childrenPolicy: 'adults_only',
+    })
+    await expect(
+      applyGuestWorksheetRow(adultsOnly.id, {
+        displayName: 'Worksheet Child Bypass',
+        rsvpStatus: 'attending',
+        numberAttending: '2',
+        numberOfChildren: '1',
+      }),
+    ).rejects.toThrow('Children are not permitted for this adults-only wedding.')
+    expect(await db.guest.count({ where: { weddingId: adultsOnly.id } })).toBe(0)
+  })
+
   // -----------------------------------------------------------------------------------
   // §15 stale-context matrix — PUT /api/weddings/[slug]/guest-session
   // -----------------------------------------------------------------------------------
@@ -323,6 +408,26 @@ describe.skipIf(!isLocal)('Phase 9 — guest RSVP mutation convergence against a
     expect(getBody.rsvp.mealChoice).toBe('Vegetarian')
   })
 
+  test('guest-session projects named-only policy and excludes historical +1 from partySize', async () => {
+    const w = await wedding('named-only-projection', { additionalAdultPolicy: 'named_guests_only' })
+    const { guestId, rsvpToken } = await guestWithRsvp(w.id, 'Guest Projection')
+    await db.rSVP.update({
+      where: { token: rsvpToken },
+      data: { attending: true, plusOne: true, plusOneName: 'Historical Extra' },
+    })
+    const cookie = sessionCookie({ weddingId: w.id, guestId, rsvpToken, weddingDate: w.date })
+
+    const res = await GET_GUEST_SESSION(guestSessionRequest(w.slug, cookie), {
+      params: Promise.resolve({ slug: w.slug }),
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.wedding.additionalAdultPolicy).toBe('named_guests_only')
+    expect(body.rsvp.plusOne).toBe(false)
+    expect(body.rsvp.plusOneName).toBe('Historical Extra')
+    expect(body.rsvp.partySize).toBe(1)
+  })
+
   test('an invalid/garbage session cookie is treated as unauthenticated: 401, no write', async () => {
     const w = await wedding('invalid-session')
     const { rsvpToken } = await guestWithRsvp(w.id, 'Guest Invalid Session')
@@ -372,6 +477,24 @@ describe.skipIf(!isLocal)('Phase 9 — guest RSVP mutation convergence against a
     expect((await res.json()).code).toBe('CHILDREN_NOT_ALLOWED')
     const row = await db.rSVP.findUnique({ where: { token: rsvpToken } })
     expect(row?.attending).toBeNull()
+  })
+
+  test('POST /api/rsvp rejects stale clients that try to authorize an anonymous plus-one', async () => {
+    const w = await wedding('legacy-named-only', {
+      additionalAdultPolicy: 'named_guests_only',
+      privacy: 'public',
+    })
+    const { guestId, rsvpToken } = await guestWithRsvp(w.id, 'Guest Legacy Named Only')
+    const cookie = sessionCookie({ weddingId: w.id, guestId, rsvpToken, weddingDate: w.date })
+
+    const res = await POST_RSVP(
+      rsvpRequest(cookie, { slug: w.slug, attending: true, plusOne: true, plusOneName: 'Extra Adult' }),
+    )
+    expect(res.status).toBe(400)
+    expect((await res.json()).code).toBe('ADDITIONAL_GUESTS_NOT_ALLOWED')
+    const row = await db.rSVP.findUnique({ where: { token: rsvpToken } })
+    expect(row?.attending).toBeNull()
+    expect(row?.plusOne).toBe(false)
   })
 
   test('POST /api/rsvp no longer erases unrelated fields on a partial edit (the fixed destructive-partial-update bug)', async () => {

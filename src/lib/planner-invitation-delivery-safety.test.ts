@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
 const source = readFileSync('src/components/wedding/invitation-manager.tsx', 'utf8')
+const actions = readFileSync('src/components/wedding/planner/planner-guest-invitation-actions.tsx', 'utf8')
 
 describe('Planner invitation delivery safety', () => {
   test('loading the invitation manager is read-only', () => {
@@ -20,12 +21,12 @@ describe('Planner invitation delivery safety', () => {
   })
 
   test('share sheet receives the server message exactly once', () => {
-    const start = source.indexOf('async function share(row: InvitationRow)')
-    const end = source.indexOf('async function generateMissingLinks()')
-    const shareBlock = source.slice(start, end)
+    const start = actions.indexOf('async function invite()')
+    const end = actions.indexOf('async function recordDelivery')
+    const shareBlock = actions.slice(start, end)
 
-    expect(shareBlock).toContain('text: row.shareMessage')
+    expect(shareBlock).toContain('text: guest.shareMessage')
     expect(shareBlock).toContain('Wewed ·')
-    expect(shareBlock).not.toContain('url: row.invitationUrl')
+    expect(shareBlock).not.toContain('url: guest.invitationUrl')
   })
 })

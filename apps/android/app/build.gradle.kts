@@ -135,6 +135,11 @@ tasks.matching {
 androidComponents {
     onVariants { variant ->
         val resolvedApplicationId = variant.applicationId.get()
+        if (variant.buildType == "release" && resolvedApplicationId != "pro.wewed.app") {
+            throw GradleException(
+                "Refusing to build ${variant.name}: release must keep the Google Play identity pro.wewed.app."
+            )
+        }
         if (resolvedApplicationId == "pro.wewed.app" && variant.buildType != "release") {
             throw GradleException(
                 "Refusing to build ${variant.name}: pro.wewed.app is reserved for signed release distribution."

@@ -667,7 +667,48 @@ describeDb('Phase 11A Wedding Day / WW2 converged authority & schema', () => {
     )
     expect(betaRows.map((row) => row.attendeeKey)).toEqual(['plus-one', 'primary'])
 
-    // 7. Signed Native Wedding Day Manifest v2
+    // 7. Named-person authority overrides historical +1 data at the live Gate and offline manifest.
+    // The original credential was deliberately revoked above; issue a fresh valid credential so
+    // this assertion proves attendance policy rather than merely proving revocation handling.
+    const namedPolicyCredential = await wd.ensureWeddingPassCredential({
+      weddingId: WEDDING_A,
+      guestId: GUEST_A,
+    })
+    await db.weddingContent.upsert({
+      where: {
+        weddingId_section_field: {
+          weddingId: WEDDING_A,
+          section: 'rsvp',
+          field: 'additionalAdultPolicy',
+        },
+      },
+      update: { value: 'named_guests_only' },
+      create: {
+        weddingId: WEDDING_A,
+        section: 'rsvp',
+        field: 'additionalAdultPolicy',
+        value: 'named_guests_only',
+      },
+    })
+    await expect(
+      wd.checkInWeddingGuest({
+        weddingId: WEDDING_A,
+        gateId: GATE_A,
+        operatorUserId: OPERATOR_USER,
+        token: namedPolicyCredential.token,
+        attendeeKeys: ['plus-one'],
+        source: 'qr',
+      }),
+    ).rejects.toThrow('INVALID_ATTENDEE_KEY: plus-one')
+
+    const namedOnlyManifest = await wdm.signedNativeWeddingDayManifest(WEDDING_A)
+    const namedOnlyCredential = namedOnlyManifest.payload.credentials.find(
+      (row) => row.guestId === GUEST_A,
+    )
+    expect(namedOnlyCredential?.household.map((member) => member.attendeeKey)).not.toContain('plus-one')
+    expect(namedOnlyCredential?.partySize).toBe(2)
+
+    // 8. Signed Native Wedding Day Manifest v2
     const manifest = await wdm.signedNativeWeddingDayManifest(WEDDING_A)
     expect(manifest.rootKeyId).toBe('root-key-test-v1')
     expect(manifest.algorithm).toBe('ECDSA_P256_SHA256')

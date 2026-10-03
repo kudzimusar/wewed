@@ -22,8 +22,10 @@ public struct GuestInvitationSnapshot: Equatable, Sendable {
     public let invitationCardMessage: String?
     public let rsvpDeadline: String?
     public let childrenPolicy: String?
+    public var additionalAdultPolicy: String? = nil
     public let guestId: String
     public let guestName: String
+    public var participantType: String? = nil
     public let email: String?
     public let tableNumber: Int?
     /// e.g. "Table 1 — Family". Server-projected; never another guest's record.
@@ -141,6 +143,8 @@ public enum RsvpSaveResult: Equatable, Sendable {
     /// expired. The server refuses rather than writing the answer to whoever is active now.
     case staleGuestContext
     case childrenNotAllowed
+    case additionalGuestsNotAllowed
+    case serviceProviderHouseholdNotAllowed
     case notAuthorized
     case failed(status: Int)
 }
@@ -402,8 +406,10 @@ public actor GuestSessionClient {
             invitationCardMessage: text(wedding, "invitationCardMessage"),
             rsvpDeadline: text(wedding, "rsvpDeadline"),
             childrenPolicy: text(wedding, "childrenPolicy"),
+            additionalAdultPolicy: text(wedding, "additionalAdultPolicy"),
             guestId: text(guest, "id") ?? "",
             guestName: text(guest, "name") ?? "",
+            participantType: text(guest, "role"),
             email: text(guest, "email"),
             tableNumber: guest["tableNumber"] as? Int,
             tableName: text(guest, "tableName"),
@@ -471,9 +477,12 @@ public actor GuestSessionClient {
             let json = response.body.flatMap {
                 try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
             }
-            return json?["code"] as? String == "CHILDREN_NOT_ALLOWED"
-                ? .childrenNotAllowed
-                : .failed(status: 400)
+            switch json?["code"] as? String {
+            case "CHILDREN_NOT_ALLOWED": return .childrenNotAllowed
+            case "ADDITIONAL_GUESTS_NOT_ALLOWED": return .additionalGuestsNotAllowed
+            case "SERVICE_PROVIDER_HOUSEHOLD_NOT_ALLOWED": return .serviceProviderHouseholdNotAllowed
+            default: return .failed(status: 400)
+            }
         default:
             return .failed(status: response.status)
         }
@@ -585,6 +594,13 @@ public actor GuestSessionClient {
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("native", forHTTPHeaderField: "x-wewed-client")
+        request.setValue("ios", forHTTPHeaderField: "x-wewed-native-platform")
+        if let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
+            request.setValue(appVersion, forHTTPHeaderField: "x-wewed-app-version")
+        }
+        if let buildVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String {
+            request.setValue(buildVersion, forHTTPHeaderField: "x-wewed-build-version")
+        }
         let sentSession = withSession ? storage.get(key: Self.storedSession) : nil
         if let stored = sentSession {
             request.setValue("\(Self.sessionCookie)=\(stored)", forHTTPHeaderField: "Cookie")

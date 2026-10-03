@@ -9,6 +9,12 @@ on:
       - 'apps/android/**'
       - '.github/workflows/native-wedding-identity-ui-ci.yml'
       - '.github/scripts/verify-android-local-package.sh'
+  pull_request:
+    paths:
+      - 'apps/ios/**'
+      - 'apps/android/**'
+      - '.github/workflows/native-wedding-identity-ui-ci.yml'
+      - '.github/scripts/verify-android-local-package.sh'
   workflow_dispatch:
 
 permissions:
@@ -37,13 +43,13 @@ jobs:
             apps/ios/Wewed/Views/Home/WeddingReferenceHomeView.swift
             apps/ios/Wewed/Views/Planner/WeddingReferencePlannerView.swift
             apps/ios/Wewed/Views/Guests/WeddingReferenceGuestsView.swift
-            apps/ios/Wewed/Views/Invitation/IvoryInvitationView.swift
+            apps/ios/Wewed/Views/Invitation/Ivory/IvoryFloralGoldNative.swift
             apps/ios/Wewed/Views/Pass/WeddingReferencePassView.swift
             apps/ios/Wewed/Views/Shared/WeddingReferenceMoreView.swift
             apps/android/app/src/main/java/pro/wewed/app/ui/home/WeddingReferenceHomeScreen.kt
             apps/android/app/src/main/java/pro/wewed/app/ui/planner/WeddingReferencePlannerScreen.kt
             apps/android/app/src/main/java/pro/wewed/app/ui/guests/WeddingReferenceGuestsScreen.kt
-            apps/android/app/src/main/java/pro/wewed/app/ui/invitation/IvoryInvitationScreen.kt
+            apps/android/app/src/main/java/pro/wewed/app/ui/invitation/ivory/IvoryFloralGoldNative.kt
             apps/android/app/src/main/java/pro/wewed/app/ui/pass/WeddingReferencePassScreen.kt
             apps/android/app/src/main/java/pro/wewed/app/ui/more/WeddingReferenceMoreScreen.kt
           )
@@ -76,7 +82,7 @@ jobs:
           grep -R --fixed-strings 'home-root' apps/ios/Wewed/Views/Home apps/android/app/src/main/java/pro/wewed/app/ui/home
           grep -R --fixed-strings 'planner-root' apps/ios/Wewed/Views/Planner apps/android/app/src/main/java/pro/wewed/app/ui/planner
           grep -R --fixed-strings 'guests-root' apps/ios/Wewed/Views/Guests apps/android/app/src/main/java/pro/wewed/app/ui/guests
-          grep -R --fixed-strings 'ivory-invitation-root' apps/ios/Wewed/Views/Invitation apps/android/app/src/main/java/pro/wewed/app/ui/invitation
+          grep -R --fixed-strings 'invitation-trifold' apps/ios/Wewed/Views/Invitation apps/android/app/src/main/java/pro/wewed/app/ui/invitation
           grep -R --fixed-strings 'wedding-pass-qr' apps/ios/Wewed/Theme apps/android/app/src/main/java/pro/wewed/app/ui/pass
           grep -R --fixed-strings 'more-root' apps/ios/Wewed/Views/Shared apps/android/app/src/main/java/pro/wewed/app/ui/more
 
@@ -180,6 +186,18 @@ jobs:
           CODE_SIGNING_ALLOWED=NO
           build
 
+      - name: Build iOS application for testing
+        working-directory: apps/ios
+        run: >-
+          xcodebuild
+          -project Wewed.xcodeproj
+          -scheme Wewed
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          build-for-testing
+
       - name: Build unsigned iOS release target for generic device
         working-directory: apps/ios
         run: >-
@@ -210,7 +228,7 @@ jobs:
         working-directory: apps/android
         run: |
           chmod +x gradlew
-          ./gradlew testDebugUnitTest assembleDebug assembleRelease --no-daemon --stacktrace
+          ./gradlew testDebugUnitTest assembleDebug compileReleaseKotlin assembleDebugAndroidTest --no-daemon --stacktrace
 
       - name: Verify local Android identity cannot replace Play
         run: bash .github/scripts/verify-android-local-package.sh apps/android/app/build/outputs/apk/debug pro.wewed.app.dev
@@ -219,9 +237,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          metadata='apps/android/app/build/outputs/apk/release/output-metadata.json'
-          test -f "$metadata"
-          actual="$(sed -n 's/.*"applicationId"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$metadata" | head -n 1)"
+          # compileReleaseKotlin runs processReleaseManifestForPackage without requiring the
+          # production signing key. Inspect that generated release manifest rather than expecting
+          # an APK output-metadata file that only release packaging can create.
+          manifest="$(find apps/android/app/build/intermediates/packaged_manifests/release -type f -name AndroidManifest.xml -print -quit)"
+          test -n "$manifest" && test -f "$manifest" || {
+            echo "::error::Release packaged manifest was not generated."
+            exit 1
+          }
+          actual="$(sed -n 's/.*package="\([^"]*\)".*/\1/p' "$manifest" | head -n 1)"
           test "$actual" = 'pro.wewed.app' || {
             echo "::error::Release package is '$actual'; expected pro.wewed.app"
             exit 1

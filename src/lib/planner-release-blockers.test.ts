@@ -23,14 +23,16 @@ describe('final worksheet and Seating release blockers', () => {
   })
 
   test('keeps Guest creation and live seating edits inside retrying serializable transactions', async () => {
-    const createRoute = await source('src/app/api/planner/guests/route.ts')
-    const updateRoute = await source('src/app/api/planner/guests/[id]/route.ts')
+    // QRO08: guest-mode writes live in the shared operations both desktop and native routes call.
+    const guestOperations = await source('src/lib/planner-guest-operations.ts')
+    const createRoute = (await source('src/app/api/planner/guests/route.ts')) + guestOperations
+    const updateRoute = (await source('src/app/api/planner/guests/[id]/route.ts')) + guestOperations
     const transaction = await source('src/lib/planner-seating-transaction.ts')
 
-    expect(createRoute).toContain('const guest = await runSerializableSeatingTransaction(async (tx) =>')
+    expect(createRoute).toContain('const createdResult = await runSerializableSeatingTransaction(async (tx) =>')
     expect(createRoute).toContain('occupied + 1 > table.capacity')
     expect(createRoute).toContain('const updatedGuests = await runSerializableSeatingTransaction(async (tx) =>')
-    expect(updateRoute).toContain('const updated = await runSerializableSeatingTransaction(async (tx) =>')
+    expect(updateRoute).toContain('const updateResult = await runSerializableSeatingTransaction(async (tx) =>')
     expect(updateRoute).toContain('const current = await tx.guest.findFirst')
     expect(updateRoute).toContain('occupied + required > table.capacity')
     expect(updateRoute).toContain('updates.capacity < occupied')

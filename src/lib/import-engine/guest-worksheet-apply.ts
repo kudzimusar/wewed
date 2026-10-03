@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { withdrawWeddingPassesForAttendance } from '@/lib/wedding-pass-attendance'
+import { runSerializableSeatingTransaction } from '@/lib/planner-seating-transaction'
+import {
+  assertAttendanceAllocationCapacity,
+  normalizeAttendanceAllocation,
+} from '@/lib/guest-capacity-allocation'
 import {
   INVITATION_STATUSES,
   RESPONSE_STATUSES,
@@ -54,6 +59,7 @@ export async function snapshotGuestWorksheetState(
       name: guest.name,
       email: guest.email,
       phone: guest.phone,
+      attendanceAllocation: guest.attendanceAllocation,
       seatingTableId: guest.seatingTableId,
       tableNumber: guest.tableNumber,
     },
@@ -143,11 +149,30 @@ export async function applyGuestWorksheetRow(
   existingId?: string,
 ): Promise<{ id: string; created: boolean }> {
   const input = toGuestWorksheetInput(row)
-  return db.$transaction(async (tx) => {
+  return runSerializableSeatingTransaction(async (tx) => {
     const existingGuest = existingId
       ? await tx.guest.findFirst({ where: { id: existingId, weddingId }, include: { rsvp: true } })
       : null
     if (existingId && !existingGuest) throw new Error('Matched guest no longer exists in the selected wedding.')
+
+    // Worksheet imports are another Planner RSVP writer. They must obey the same wedding-scoped
+    // attendance policies as the web/native RSVP endpoints instead of reintroducing anonymous
+    // adults or children through a bulk-data side door.
+    const policyRows = await tx.weddingContent.findMany({
+      where: {
+        weddingId,
+        section: 'rsvp',
+        field: { in: ['additionalAdultPolicy', 'childrenPolicy'] },
+      },
+      select: { field: true, value: true },
+    })
+    const policy = new Map(policyRows.map((row) => [row.field, row.value.trim().toLowerCase()]))
+    const additionalAdultPolicy =
+      policy.get('additionalAdultPolicy') === 'named_guests_only'
+        ? 'named_guests_only'
+        : 'plus_ones_allowed'
+    const childrenPolicy =
+      policy.get('childrenPolicy') === 'adults_only' ? 'adults_only' : 'welcome'
 
     const existingWorksheet = existingGuest
       ? await fetchGuestWorksheetDataRow(tx, weddingId, existingGuest.id)
@@ -165,6 +190,35 @@ export async function applyGuestWorksheetRow(
       : createName
     if (!mergedName) throw new Error('Guest name is required.')
 
+    const effectiveKidsCount = input.numberOfChildren ?? existingGuest?.rsvp?.kidsCount ?? 0
+    const requestsAnonymousAdult =
+      Boolean(input.plusOneName)
+      || (
+        input.numberAttending !== null
+        && input.numberAttending > 1 + effectiveKidsCount
+      )
+    if (additionalAdultPolicy === 'named_guests_only' && requestsAnonymousAdult) {
+      throw new Error('Every additional adult must be registered as their own named guest.')
+    }
+    if (
+      childrenPolicy === 'adults_only'
+      && input.numberOfChildren !== null
+      && input.numberOfChildren > 0
+    ) {
+      throw new Error('Children are not permitted for this adults-only wedding.')
+    }
+
+    const attendanceAllocation = input.attendanceAllocation
+      ? normalizeAttendanceAllocation(input.attendanceAllocation)
+      : normalizeAttendanceAllocation(existingGuest?.attendanceAllocation)
+    if (!existingGuest || attendanceAllocation !== existingGuest.attendanceAllocation) {
+      await assertAttendanceAllocationCapacity(tx, {
+        weddingId,
+        allocation: attendanceAllocation,
+        excludeGuestId: existingGuest?.id ?? null,
+      })
+    }
+
     const guest = existingGuest
       ? await tx.guest.update({
           where: { id: existingGuest.id },
@@ -172,6 +226,7 @@ export async function applyGuestWorksheetRow(
             ...(requestedUpdateName ? { name: mergedName } : {}),
             ...(input.email ? { email: input.email } : {}),
             ...(input.phone ? { phone: input.phone } : {}),
+            ...(input.attendanceAllocation ? { attendanceAllocation } : {}),
           },
         })
       : await tx.guest.create({
@@ -182,6 +237,7 @@ export async function applyGuestWorksheetRow(
             phone: input.phone || null,
             role: 'guest',
             side: 'neutral',
+            attendanceAllocation,
           },
         })
 
@@ -211,7 +267,11 @@ export async function applyGuestWorksheetRow(
       const data = {
         ...(input.rsvpStatus ? { attending: attendingFromStatus(responseStatus) } : {}),
         ...(input.numberAttending != null || input.plusOneName
-          ? { plusOne: partySize > 1 || Boolean(input.plusOneName) }
+          ? {
+              plusOne: additionalAdultPolicy === 'named_guests_only'
+                ? false
+                : partySize > 1 || Boolean(input.plusOneName),
+            }
           : {}),
         ...(input.plusOneName ? { plusOneName: input.plusOneName } : {}),
         ...(input.numberOfChildren != null ? { kidsCount, kidsAttending: kidsCount > 0 } : {}),
@@ -224,10 +284,12 @@ export async function applyGuestWorksheetRow(
               guestId: guest.id,
               token: `rsvp_${randomUUID().replace(/-/g, '')}`,
               attending: input.rsvpStatus ? attendingFromStatus(responseStatus) : null,
-              plusOne: partySize > 1 || Boolean(input.plusOneName),
+              plusOne: additionalAdultPolicy === 'named_guests_only'
+                ? false
+                : partySize > 1 || Boolean(input.plusOneName),
               plusOneName: input.plusOneName || null,
               kidsCount,
-              kidsAttending: kidsCount > 0,
+              kidsAttending: childrenPolicy === 'adults_only' ? false : kidsCount > 0,
               dietaryNotes: input.dietary || null,
             },
           })
@@ -249,5 +311,5 @@ export async function applyGuestWorksheetRow(
     }))
 
     return { id: guest.id, created: !existingGuest }
-  })
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
 }

@@ -109,7 +109,7 @@ test('real browser CRUD covers guests, seating, timeline, and printing', async (
   await page.locator('#workspace-guest-phone').fill('+263700000002')
   await page.locator('#workspace-guest-role').selectOption('family')
   await page.locator('#workspace-guest-side').selectOption('neutral')
-  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await page.getByRole('button', { name: 'Add guest', exact: true }).click()
   await expect(page.getByText(guestName, { exact: true })).toBeVisible()
   await expect(page.getByLabel(`Assign table for ${guestName}`)).toHaveValue('')
 

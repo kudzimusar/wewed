@@ -11,9 +11,13 @@ import {
   isValidInvitationHandoffSecret,
 } from '@/lib/invitation-links'
 
-const DEFAULT_HANDOFF_TTL_SECONDS = 24 * 60 * 60
+// A guest may tap an invitation in WhatsApp and install/open the app days or weeks later.
+// The handoff is 256-bit opaque, one-time, stored only as a hash, and remains bound to the
+// current RSVP credential, so a longer install window does not make the underlying invitation
+// durable beyond its existing authority. Reopening the original invitation mints a fresh handoff.
+const DEFAULT_HANDOFF_TTL_SECONDS = 30 * 24 * 60 * 60
 const MIN_HANDOFF_TTL_SECONDS = 5 * 60
-const MAX_HANDOFF_TTL_SECONDS = 48 * 60 * 60
+const MAX_HANDOFF_TTL_SECONDS = 90 * 24 * 60 * 60
 const CREATION_WINDOW_MS = 10 * 60 * 1000
 const MAX_CREATIONS_PER_WINDOW = 5
 const RESUME_FAILURE_WINDOW_MS = 10 * 60 * 1000
@@ -81,9 +85,18 @@ function configuredTtlSeconds(): number {
     10,
   )
   if (!Number.isFinite(configured)) return DEFAULT_HANDOFF_TTL_SECONDS
+
+  // Some older deployments used a 24-hour override. Never let that stale rollout setting
+  // reintroduce the guest-facing expiry problem in production; local/CI may still shorten TTLs
+  // for deterministic expiry tests.
+  const minimum =
+    process.env.VERCEL_ENV === 'production'
+      ? DEFAULT_HANDOFF_TTL_SECONDS
+      : MIN_HANDOFF_TTL_SECONDS
+
   return Math.min(
     MAX_HANDOFF_TTL_SECONDS,
-    Math.max(MIN_HANDOFF_TTL_SECONDS, configured),
+    Math.max(minimum, configured),
   )
 }
 

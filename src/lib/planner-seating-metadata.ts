@@ -98,15 +98,24 @@ export function serializeSeatingTableMetadata(metadata: SeatingTableMetadata): s
   return JSON.stringify(payload)
 }
 
-export function plannedSeatsForGuest(guest: {
-  rsvp?: {
-    plusOne?: boolean
-    kidsAttending?: boolean
-    kidsCount?: number
-  } | null
-}): number {
-  const kids = guest.rsvp?.kidsAttending
-    ? Math.max(0, Math.floor(Number(guest.rsvp.kidsCount) || 0))
-    : 0
-  return 1 + (guest.rsvp?.plusOne ? 1 : 0) + kids
+export function plannedSeatsForGuest(
+  guest: {
+    rsvp?: {
+      plusOne?: boolean
+      kidsAttending?: boolean
+      kidsCount?: number
+    } | null
+  },
+  policies: {
+    additionalAdultPolicy?: 'plus_ones_allowed' | 'named_guests_only' | null
+    childrenPolicy?: 'welcome' | 'adults_only' | null
+  } = {},
+): number {
+  const kids =
+    policies.childrenPolicy !== 'adults_only' && guest.rsvp?.kidsAttending
+      ? Math.max(0, Math.floor(Number(guest.rsvp.kidsCount) || 0))
+      : 0
+  const additionalAdult =
+    policies.additionalAdultPolicy !== 'named_guests_only' && guest.rsvp?.plusOne ? 1 : 0
+  return 1 + additionalAdult + kids
 }

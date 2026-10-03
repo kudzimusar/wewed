@@ -224,9 +224,16 @@ test('QR card and RSVP remain contained on mobile @mobile', async ({ page }) => 
     `/w/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(E2E_GUEST_INVITATION.token)}&card=botanical`,
   )
   await expect(page).toHaveURL(
-    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=midnight$`),
+    new RegExp(`/invite/${E2E_WEDDINGS.primary.slug}/open$`),
   )
   expect(page.url()).not.toContain(E2E_GUEST_INVITATION.token)
+  await expect(page.getByTestId('personal-invitation-android-gate')).toBeVisible()
+  await expect(page.getByTestId('android-google-play-install')).toBeVisible()
+  // Browser invitation remains supported, but only after the Android Guest explicitly chooses it.
+  await page.getByTestId('android-continue-in-browser').click()
+  await expect(page).toHaveURL(
+    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=midnight$`),
+  )
   const experience = page.getByTestId('premium-invitation-experience')
   await expect(experience).toBeVisible()
   await expect(experience).toHaveAttribute('data-invitation-style', 'midnight')

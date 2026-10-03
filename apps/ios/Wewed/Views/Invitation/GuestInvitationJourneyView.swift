@@ -86,7 +86,7 @@ public struct GuestInvitationJourneyView: View {
     }
 
     public var body: some View {
-        Group {
+        ZStack {
             if showSplash {
                 splashStage
             } else if showPass {
@@ -111,7 +111,7 @@ public struct GuestInvitationJourneyView: View {
                             monogram: configuration?.monogram,
                             tagline: configuration?.tagline,
                             rsvpDeadlineLabel: configuration?.rsvpDeadline,
-                            message: note
+                            coupleNote: note
                         ),
                         rsvp: ivoryRsvpState(from: status),
                         actions: IvoryActions(

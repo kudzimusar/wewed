@@ -85,3 +85,41 @@ test('reduced motion bypasses opening', async ({ page }) => {
     { timeout: 500 },
   )
 })
+
+
+for (const viewport of [
+  { width: 390, height: 844, label: 'mobile' },
+  { width: 1440, height: 900, label: 'desktop' },
+] as const) {
+  test(`long couple note stays out of compact Ivory artwork @${viewport.label}`, async ({ page }) => {
+    await page.setViewportSize(viewport)
+    await page.goto('/uat/invitation/ivory-floral-gold')
+    await page.getByTestId('long-note-fixture-toggle').click()
+
+    const card = page.getByTestId('invitation-trifold')
+    await page.getByRole('button', { name: 'Tap to open', exact: true }).click()
+    await expect(card).toHaveAttribute('data-invitation-view', 'open', { timeout: 3000 })
+
+    await expect(card.getByTestId('invitation-compact-line')).toHaveText(
+      'We’d be honoured to celebrate with you.',
+    )
+
+    await card.getByRole('button', { name: 'View wedding details' }).click()
+    await expect(card).toHaveAttribute('data-invitation-view', 'details')
+    await expect(card.getByTestId('invitation-details-compact-line')).toHaveText(
+      'We’d be honoured to celebrate with you.',
+    )
+
+    await card.getByRole('button', { name: 'A Note from Us' }).click()
+    const dialog = page.getByRole('dialog', { name: 'A note from us' })
+    await expect(dialog).toBeVisible()
+    const fullNote = dialog.getByTestId('invitation-couple-note')
+    await expect(fullNote).toContainText('This intentionally long regression note')
+    expect((await fullNote.textContent())?.length ?? 0).toBeGreaterThan(200)
+
+    const hasHorizontalOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth + 1,
+    )
+    expect(hasHorizontalOverflow).toBe(false)
+  })
+}

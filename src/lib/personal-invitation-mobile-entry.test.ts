@@ -4,14 +4,50 @@ import { readFileSync } from 'node:fs'
 const source = (path: string) => readFileSync(path, 'utf8')
 
 describe('personal invitation mobile entry', () => {
-  test('a valid Android invitation falls through to the secure browser card when native handoff is disabled', () => {
+  test('Android keeps Google Play primary instead of silently falling through to the web app', () => {
     const handoff = source('src/components/wedding/invitation-app-handoff.tsx')
 
-    expect(handoff).toContain('if (!deferredInstallEnabled) {')
-    expect(handoff).toContain('window.location.replace(continueInBrowser)')
-    expect(handoff).not.toContain(
-      'Secure Android invitation handoff is not available yet. Your private invitation remains locked until the production Wewed release is available.',
-    )
+    expect(handoff).toContain('data-testid="android-google-play-install"')
+    expect(handoff).toContain('href={installPath}')
+    expect(handoff).toContain('You do not need a new invitation after installing.')
+    expect(handoff).toContain('The personal invitation does not expire on a timer.')
+    expect(handoff).not.toContain('window.location.replace(continueInBrowser)')
+  })
+
+  test('Android standalone/PWA entry cannot swallow the native adoption gate', () => {
+    const handoff = source('src/components/wedding/invitation-app-handoff.tsx')
+
+    expect(handoff).toContain("window.matchMedia('(display-mode: standalone)').matches && !androidClient")
+    expect(handoff).toContain("const androidClient = /Android/i.test(navigator.userAgent)")
+  })
+
+  test('one shared production authority controls deferred Android continuity with an emergency kill switch', () => {
+    const gate = source('src/lib/invitation-deferred-install.ts')
+    const personal = source('src/app/invite/[slug]/open/page.tsx')
+    const wedding = source('src/app/w/[slug]/page.tsx')
+    const helper = source('src/lib/invitation-mobile-entry.ts')
+
+    expect(gate).toContain("if (vercelEnv === 'production') return configuredFlag !== '0'")
+    expect(gate).toContain("return configuredFlag === '1'")
+    expect(personal).toContain('androidDeferredInvitationHandoffEnabled(wedding.id)')
+    expect(wedding).toContain('androidDeferredInvitationHandoffEnabled(wedding.id)')
+    expect(helper).toContain('androidDeferredInvitationHandoffEnabled(invitation.weddingId)')
+  })
+
+  test('non-installed Android guests do not mint a handoff until they press an install/open route', () => {
+    const component = source('src/components/wedding/invitation-app-handoff.tsx')
+    const helper = source('src/lib/invitation-mobile-entry.ts')
+    const installRoute = source('src/app/invite/[slug]/install/route.ts')
+    const appRoute = source('src/app/invite/[slug]/app/route.ts')
+
+    expect(component).not.toContain('/api/invitations/install-handoff')
+    expect(component).not.toContain('prepareSecureHandoff')
+    expect(component).toContain('const installPath = `/invite/${encodedSlug}/install`')
+    expect(component).toContain('const openAppPath = `/invite/${encodedSlug}/app`')
+    expect(helper).toContain('createInvitationInstallHandoff({')
+    expect(helper).toContain('Falling back to direct Google Play invitation install')
+    expect(installRoute).toContain("'android-install-click'")
+    expect(appRoute).toContain("'android-open-app-click'")
   })
 
   test('Android keeps browser continuation as a secondary option when native handoff is enabled', () => {
@@ -22,14 +58,66 @@ describe('personal invitation mobile entry', () => {
     expect(handoff).toContain('href={continueInBrowser}')
   })
 
-  test('iOS fallback does not invent an App Store destination or claim the app is coming soon', () => {
+  test('iOS uses only an authoritative configured distribution destination and keeps browser fallback', () => {
     const handoff = source('src/components/wedding/invitation-app-handoff.tsx')
+    const distribution = source('src/lib/ios-app-distribution.ts')
 
-    expect(handoff).toContain('A direct App Store handoff is not configured for this invitation yet.')
+    expect(handoff).toContain('data-testid="ios-install-wewed"')
+    expect(handoff).toContain('href={iosDistributionUrl}')
+    expect(handoff).toContain('App Store link not configured')
     expect(handoff).toContain('Continue in browser')
-    expect(handoff).not.toContain('Wewed for iPhone is coming soon')
-    expect(handoff).not.toContain('APP_STORE_BADGE')
-    expect(handoff).not.toContain('apps.apple.com/')
+    expect(distribution).toContain("'apps.apple.com'")
+    expect(distribution).toContain("'testflight.apple.com'")
+    expect(distribution).toContain("url.protocol !== 'https:'")
+  })
+
+  test('iOS distribution is configurable only through authoritative Apple hosts', () => {
+    const distribution = source('src/lib/ios-app-distribution.ts')
+    const personal = source('src/components/wedding/invitation-app-handoff.tsx')
+    const physical = source('src/components/wedding/physical-invitation-entry.tsx')
+
+    expect(distribution).toContain("'apps.apple.com'")
+    expect(distribution).toContain("'testflight.apple.com'")
+    expect(distribution).toContain("url.protocol !== 'https:'")
+    expect(personal).toContain('data-testid="ios-install-wewed"')
+    expect(personal).toContain('You do not need a replacement invitation.')
+    expect(physical).toContain('data-testid="physical-ios-install-wewed"')
+  })
+
+  test('Play install handoffs use a wedding-realistic production lifetime while remaining one-time', () => {
+    const handoff = source('src/lib/invitation-install-handoff.ts')
+
+    expect(handoff).toContain('const DEFAULT_HANDOFF_TTL_SECONDS = 30 * 24 * 60 * 60')
+    expect(handoff).toContain('const MAX_HANDOFF_TTL_SECONDS = 90 * 24 * 60 * 60')
+    expect(handoff).toContain("process.env.VERCEL_ENV === 'production'")
+    expect(handoff).toContain('? DEFAULT_HANDOFF_TTL_SECONDS')
+    expect(handoff).toContain('if (handoff.usedAt)')
+    expect(handoff).toContain("failedResult('used'")
+  })
+
+  test('expired or reused install handoffs recover through the original invitation without Planner regeneration', () => {
+    const resume = source('src/app/invite/resume/route.ts')
+    const help = source('src/app/guest-access-help/page.tsx')
+
+    expect(resume).toContain('invitation-resume-${encodeURIComponent(safeReason)}')
+    expect(help).toContain('Your invitation is still valid')
+    expect(help).toContain('You normally do not need the Planner to create another one.')
+  })
+
+  test('Android install clicks are recorded separately from authenticated app activation', () => {
+    const helper = source('src/lib/invitation-mobile-entry.ts')
+    const projection = source('src/lib/planner-invitation-projection.ts')
+    const manager = source('src/components/wedding/invitation-manager.tsx')
+
+    expect(helper).toContain("action: 'guest.native_install_clicked'")
+    expect(helper).toContain("resourceType: 'guest_invitation'")
+    expect(helper).toContain("source === 'android-install-click'")
+    expect(projection).toContain('nativeInstallClicked')
+    expect(projection).toContain('nativeInstallNotActivated')
+    expect(projection).toContain('nativeInstallToActivationRate')
+    expect(manager).toContain('Install clicked')
+    expect(manager).toContain('Install clicked · not active')
+    expect(manager).toContain('Install → active')
   })
 
   test('browser continuation revalidates the pending invitation and enters invitation mode without a raw RSVP credential', () => {
@@ -85,15 +173,17 @@ describe('personal invitation mobile entry', () => {
   })
 
 
-  test('QRO06: the shared printed invitation also continues in the browser on Android', () => {
+  test('QRO06: the shared printed invitation keeps Google Play primary on Android', () => {
     const entry = source('src/components/wedding/physical-invitation-entry.tsx')
+    const page = source('src/app/w/[slug]/page.tsx')
+    const handoff = source('src/lib/physical-invitation-install-handoff.ts')
 
-    // No deferred transport: straight to the verified browser claim, never a locked dead end.
-    expect(entry).toContain("if (!deferredInstallEnabled) {\n        setMode('web')")
-    expect(entry).not.toContain('Your private invitation remains locked')
-    // With the transport: Open/Get Wewed stays primary, browser continuation stays available.
+    expect(entry).not.toContain("if (!deferredInstallEnabled) {\n        setMode('web')")
+    expect(entry).toContain('data-testid="physical-android-google-play-install-fallback"')
+    expect(entry).toContain('No Planner action is required.')
     expect(entry).toContain('data-testid="physical-android-continue-in-browser"')
     expect(entry).toContain("onClick={() => setMode('web')}")
-    expect(entry).toContain('Continue in browser instead')
+    expect(page).toContain('androidDeferredInvitationHandoffEnabled(wedding.id)')
+    expect(handoff).toContain('const HANDOFF_TTL_SECONDS = 30 * 24 * 60 * 60')
   })
 })

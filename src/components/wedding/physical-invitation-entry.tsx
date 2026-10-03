@@ -8,6 +8,7 @@ import type { InvitationCardStyle } from '@/lib/digital-invitation-card'
 import {
   ANDROID_INTENT_PACKAGE,
   ANDROID_PACKAGE,
+  PLAY_STORE_URL,
   isValidPhysicalInvitationHandoff,
 } from '@/lib/invitation-links'
 
@@ -40,6 +41,7 @@ export function PhysicalInvitationEntry({
   style,
   allowNameOnlyClaim = false,
   deferredInstallEnabled,
+  iosDistributionUrl,
   insideWewed = false,
 }: {
   slug: string
@@ -48,6 +50,7 @@ export function PhysicalInvitationEntry({
   style: InvitationCardStyle
   allowNameOnlyClaim?: boolean
   deferredInstallEnabled: boolean
+  iosDistributionUrl: string | null
   insideWewed?: boolean
 }) {
   const [mode, setMode] = useState<EntryMode>(insideWewed ? 'app' : 'checking')
@@ -62,13 +65,8 @@ export function PhysicalInvitationEntry({
       return
     }
     if (/Android/i.test(navigator.userAgent)) {
-      // QRO06: a printed invitation must never dead-end on Android. Without the secure deferred
-      // install transport, the shared invitation continues straight to the browser claim — the
-      // same verified shared-invitation context, no credential in any URL.
-      if (!deferredInstallEnabled) {
-        setMode('web')
-        return
-      }
+      // Android always reaches the install gate first. If secure deferred continuity is
+      // emergency-disabled, Google Play remains primary and browser claim remains secondary.
       setMode('android-web')
     } else if (isAppleMobileClient()) {
       setMode('ios-web')
@@ -139,7 +137,7 @@ export function PhysicalInvitationEntry({
         appResumePath: `${resume.pathname}${resume.search}`,
       }
     } catch {
-      setError('We could not securely prepare this invitation. Please try again.')
+      setError('We could not securely prepare automatic return. You can still install Wewed from Google Play and scan this same invitation QR again.')
       return null
     } finally {
       preparingRef.current = false
@@ -183,18 +181,27 @@ export function PhysicalInvitationEntry({
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#c8a56b]">Wewed · Printed invitation</p>
           <h1 className="mt-3 font-serif text-3xl leading-tight">Your invitation is ready</h1>
           <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-[#d6cec5]">
-            Wewed for iPhone is coming soon. For now, continue {weddingTitle} securely in your browser.
+            {iosDistributionUrl
+              ? `Install Wewed for iPhone, then scan this same printed invitation QR again to continue ${weddingTitle}.`
+              : `Wewed for iPhone is not yet linked to an authoritative App Store destination. For now, continue ${weddingTitle} securely in your browser.`}
           </p>
 
-          <p className="mt-6 text-xs font-semibold uppercase tracking-[0.2em] text-[#d8b477]">Coming Soon</p>
-          <button
-            type="button"
-            onClick={() => setMode('web')}
-            aria-label="App Store coming soon — continue invitation in browser"
-            className="mx-auto mt-2 inline-flex items-center justify-center rounded-lg bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8b477]"
-          >
-            <img src={APP_STORE_BADGE} alt="Download on the App Store" width={196} height={66} className="h-12 w-auto max-w-full" />
-          </button>
+          {iosDistributionUrl ? (
+            <a
+              data-testid="physical-ios-install-wewed"
+              href={iosDistributionUrl}
+              className="mx-auto mt-5 inline-flex items-center justify-center rounded-lg bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8b477]"
+            >
+              <img src={APP_STORE_BADGE} alt="Download on the App Store" width={196} height={66} className="h-12 w-auto max-w-full" />
+            </a>
+          ) : (
+            <>
+              <p className="mt-6 text-xs font-semibold uppercase tracking-[0.2em] text-[#d8b477]">App Store link not configured</p>
+              <div className="mx-auto mt-2 inline-flex items-center justify-center rounded-lg opacity-60">
+                <img src={APP_STORE_BADGE} alt="Download on the App Store" width={196} height={66} className="h-12 w-auto max-w-full" />
+              </div>
+            </>
+          )}
           <button
             type="button"
             onClick={() => setMode('web')}
@@ -203,7 +210,9 @@ export function PhysicalInvitationEntry({
             Continue in browser
           </button>
           <p className="mt-4 text-xs leading-5 text-[#9f958a]">
-            Wewed keeps the printed invitation connected to this wedding while you continue in the browser.
+            {iosDistributionUrl
+              ? 'Keep this printed invitation QR and scan it again after installation; you do not need a replacement.'
+              : 'Wewed keeps the printed invitation connected to this wedding while you continue in the browser.'}
           </p>
         </section>
       </main>
@@ -234,6 +243,20 @@ export function PhysicalInvitationEntry({
             <div className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border border-[#b89155]/45 text-[#d6cec5]">
               <LoaderCircle className="size-5 animate-spin" /> Checking Wewed…
             </div>
+          ) : !deferredInstallEnabled ? (
+            <>
+              <a
+                data-testid="physical-android-google-play-install-fallback"
+                href={PLAY_STORE_URL}
+                aria-label="Get Wewed on Google Play"
+                className="mx-auto inline-flex min-h-16 items-center justify-center rounded-lg bg-transparent p-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#d8b477]"
+              >
+                <img src={GOOGLE_PLAY_BADGE} alt="Get it on Google Play" width={646} height={192} className="h-16 w-auto max-w-full object-contain" />
+              </a>
+              <p className="rounded-2xl border border-[#b89155]/25 bg-[#2a2119] px-4 py-3 text-xs leading-5 text-[#cfc4b7]">
+                Install Wewed, then scan this same invitation QR again. No Planner action is required.
+              </p>
+            </>
           ) : installed ? (
             <button
               type="button"
@@ -272,9 +295,17 @@ export function PhysicalInvitationEntry({
           )}
 
           {error && (
-            <p role="alert" className="rounded-2xl border border-[#c97866]/50 bg-[#3a201c] px-4 py-3 text-sm leading-6 text-[#f3d8d1]">
-              {error}
-            </p>
+            <>
+              <p role="alert" className="rounded-2xl border border-[#c97866]/50 bg-[#3a201c] px-4 py-3 text-sm leading-6 text-[#f3d8d1]">
+                {error}
+              </p>
+              <a
+                href={PLAY_STORE_URL}
+                className="flex min-h-12 w-full items-center justify-center rounded-2xl border border-[#b89155]/35 px-5 py-3 text-sm font-semibold text-[#d6cec5]"
+              >
+                Install from Google Play without automatic return
+              </a>
+            </>
           )}
 
           <button
@@ -288,7 +319,7 @@ export function PhysicalInvitationEntry({
         </div>
 
         <p className="mt-5 text-center text-xs leading-5 text-[#9f958a]">
-          Wewed is preferred on Android; the invitation also opens securely in this browser. Google Play receives only a short-lived encrypted handoff; no guest name or RSVP token is placed in the download referrer.
+          Wewed is preferred on Android; browser continuation remains available. Your printed QR stays reusable while its destination is active. Google Play receives only an encrypted handoff; no guest name or RSVP token is placed in the download referrer.
         </p>
       </section>
     </main>

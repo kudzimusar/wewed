@@ -54,8 +54,8 @@ fun InvitationRefusedScreen(
             Text(
                 // One message for every reason. Which check failed is not the guest's business,
                 // and telling them would help someone guessing at links.
-                "It may have expired, or already been used. Open the most recent invitation the " +
-                    "couple sent you, or ask them to send it again.",
+                "Reopen the same personal invitation link you received. If the Planner deliberately " +
+                    "rotated that invitation, use the newer link they sent you.",
                 fontSize = 14.sp,
                 color = WeddingIdentityPalette.Muted,
                 textAlign = TextAlign.Center,

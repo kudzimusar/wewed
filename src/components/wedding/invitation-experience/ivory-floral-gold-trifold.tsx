@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { DigitalInvitationCardData } from '@/components/wedding/digital-invitation-card'
+import { ivoryInvitationContent } from '@/lib/invitation-content-contract'
 import './ivory-floral-gold.css'
 
 export type IvoryInvitationView = 'closed' | 'opening' | 'open' | 'details'
@@ -149,8 +150,10 @@ export function IvoryFloralGoldTriFold({
   // Same "C&K" form as the Wedding Pass, the native envelope and the seeded monogram badge.
   const monogram = data.monogram || pair.map((p) => p[0]).join('&')
   // QRO06: 'A Note from Us' is the couple's own message only — never the tagline or a stock line.
-  const note = data.message?.trim() || ''
-  const detailsArt: DetailsArt = note ? 'details-surface' : 'details-surface-no-note'
+  // Keep the saved couple-authored note separate from compact artwork copy so long notes can never
+  // overflow the approved stationery regions. The complete note remains available in the dialog.
+  const { coupleNote, compactLine } = ivoryInvitationContent(data.message)
+  const detailsArt: DetailsArt = coupleNote ? 'details-surface' : 'details-surface-no-note'
 
   useEffect(() => {
     let cancelled = false
@@ -304,7 +307,7 @@ export function IvoryFloralGoldTriFold({
             )}
           </Region>
           <Region box={[24, 43, 52, 12]} className="ivory-message">
-            {data.message || 'Request the pleasure of your company as we celebrate our marriage.'}
+            <span data-testid="invitation-compact-line">{compactLine}</span>
           </Region>
           <Region box={[24, 57, 52, 8]} className="ivory-date">
             {weddingDate ? (
@@ -365,15 +368,17 @@ export function IvoryFloralGoldTriFold({
             <Region box={[25, 2, 55, 3]} className="ivory-couple">
               {data.title}
             </Region>
-            <Region box={[28, 26, 46, 5]} className="ivory-note-intro">
-              {note}
-            </Region>
+            {coupleNote ? (
+              <Region box={[28, 26, 46, 5]} className="ivory-note-intro">
+                <span data-testid="invitation-details-compact-line">{compactLine}</span>
+              </Region>
+            ) : null}
             <Region box={[35, 56, 44, 5]} className="ivory-detail-venue">
               <span>{data.venue}</span>
               <span>{data.venueAddress}</span>
               <span>{[data.venueCity, data.venueCountry].filter(Boolean).join(', ')}</span>
             </Region>
-            {note ? (
+            {coupleNote ? (
               <Region box={[36, 76, 44, 4]} className="ivory-detail-note">
                 A special message from us
               </Region>
@@ -386,7 +391,7 @@ export function IvoryFloralGoldTriFold({
             {hit('registry', 'Gift / Contributions', 63.4, 7.3, () =>
               visitCoupleWebsite('#registry'),
             )}
-            {note ? hit('note', 'A Note from Us', 72.4, 8, openNote) : null}
+            {coupleNote ? hit('note', 'A Note from Us', 72.4, 8, openNote) : null}
             <div data-testid="invitation-footer-actions" className="ivory-footer-actions">
               <button type="button" className="ivory-back" onClick={() => setView('open')}>
                 View invitation
@@ -471,7 +476,7 @@ export function IvoryFloralGoldTriFold({
         }
       >
         <h2>A note from us</h2>
-        <p>{note}</p>
+        <p data-testid="invitation-couple-note">{coupleNote}</p>
         <form method="dialog">
           <button autoFocus aria-label="Close note">
             Close

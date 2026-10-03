@@ -115,14 +115,20 @@ function time(value: Date | string | null): number | null {
 }
 
 /** Household attendee keys, identical to the Gate's `checkInWeddingGuest` expansion. */
-export function weddingHouseholdAttendeeKeys(rsvp: {
-  plusOne: boolean | null
-  kidsAttending: boolean | null
-  kidsCount: number | null
-}): string[] {
+export function weddingHouseholdAttendeeKeys(
+  rsvp: {
+    plusOne: boolean | null
+    kidsAttending: boolean | null
+    kidsCount: number | null
+  },
+  policies: {
+    additionalAdultPolicy?: 'plus_ones_allowed' | 'named_guests_only' | null
+    childrenPolicy?: 'welcome' | 'adults_only' | null
+  } = {},
+): string[] {
   const keys = ['primary']
-  if (rsvp.plusOne) keys.push('plus-one')
-  if (rsvp.kidsAttending && (rsvp.kidsCount ?? 0) > 0) {
+  if (policies.additionalAdultPolicy !== 'named_guests_only' && rsvp.plusOne) keys.push('plus-one')
+  if (policies.childrenPolicy !== 'adults_only' && rsvp.kidsAttending && (rsvp.kidsCount ?? 0) > 0) {
     for (let index = 1; index <= (rsvp.kidsCount ?? 0); index += 1) keys.push(`child-${index}`)
   }
   return keys
@@ -137,10 +143,12 @@ export function resolveWeddingPassCredentialAdminState(input: {
   attending: boolean | null
   weddingDate: Date
   latest: WeddingPassCredentialLifecycle | null
+  admissionApproved?: boolean
   now?: Date
 }): WeddingPassCredentialAdminState {
   if (input.attending === null) return 'pending_rsvp'
   if (input.attending === false) return 'declined'
+  if (input.admissionApproved === false) return 'not_yet_issuable'
 
   const now = (input.now ?? new Date()).getTime()
   const latest = input.latest

@@ -91,6 +91,9 @@ model Wedding {
   passKeys                WeddingPassKey[]
   passCredentials         WeddingPassCredential[]
   weddingCheckIns         WeddingCheckIn[]
+  attendanceAllocationLimits WeddingAttendanceAllocationLimit[]
+  serviceTeams              ServiceTeam[]
+  serviceTeamMembers        ServiceTeamMember[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -104,6 +107,7 @@ model Guest {
   role               String  @default("guest")
   roleDetail         String?
   side               String?
+  attendanceAllocation String @default("shared")
   tableNumber        Int?
   seatingTableId     String?
   seatingTable       SeatingTable? @relation(fields: [seatingTableId], references: [id])
@@ -117,11 +121,50 @@ model Guest {
   contribution    GuestContribution?
   passCredentials WeddingPassCredential[]
   weddingCheckIns WeddingCheckIn[]
+  nativePresences GuestNativePresence[]
+  serviceTeamMemberships ServiceTeamMember[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([id, weddingId])
+  @@index([weddingId, attendanceAllocation])
+}
+
+model WeddingAttendanceAllocationLimit {
+  id           String   @id @default(cuid())
+  weddingId    String
+  allocation   String
+  hardLimit    Int?
+  warningAt    Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+
+  wedding Wedding @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+
+  @@unique([weddingId, allocation])
+  @@index([weddingId])
+}
+
+model GuestNativePresence {
+  id                   String   @id @default(cuid())
+  weddingId            String
+  guestId              String
+  platform             String
+  appVersion           String?
+  buildVersion         String?
+  firstActivatedAt     DateTime @default(now())
+  lastSeenAt           DateTime @default(now())
+  lastInvitationOpenAt DateTime?
+  appInstanceHash      String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @default(now()) @updatedAt
+
+  guest Guest @relation(fields: [guestId, weddingId], references: [id, weddingId], onDelete: Cascade)
+
+  @@unique([weddingId, guestId, platform])
+  @@index([weddingId, platform, lastSeenAt])
+  @@index([guestId, lastSeenAt])
 }
 
 model RSVP {
@@ -359,6 +402,7 @@ model ServiceEngagement {
   payments    EngagementPayment[]
   parties     EngagementParty[]
   contracts   Contract[]
+  serviceTeams ServiceTeam[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -368,6 +412,53 @@ model ServiceEngagement {
   @@index([weddingId, lifecycleStatus])
   @@index([vendorId, weddingId])
   @@index([serviceDate])
+}
+
+model ServiceTeam {
+  id                  String   @id @default(cuid())
+  name                String
+  companyName         String
+  serviceCategory     String
+  allowedCrew         Int      @default(1)
+  rosterStatus        String   @default("draft")
+  submittedAt         DateTime?
+  approvedAt          DateTime?
+  leaderUserId        String?
+  serviceEngagementId String
+  weddingId           String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  wedding           Wedding           @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  serviceEngagement ServiceEngagement @relation(fields: [serviceEngagementId, weddingId], references: [id, weddingId], onDelete: Cascade)
+  leaderUser        User?             @relation("ServiceTeamLeaderUser", fields: [leaderUserId], references: [id], onDelete: SetNull)
+  members           ServiceTeamMember[]
+
+  @@unique([id, weddingId])
+  @@unique([serviceEngagementId, name])
+  @@index([weddingId, rosterStatus])
+  @@index([leaderUserId])
+}
+
+model ServiceTeamMember {
+  id            String   @id @default(cuid())
+  serviceTeamId String
+  weddingId     String
+  guestId       String
+  function      String
+  isLeader      Boolean  @default(false)
+  submittedAt   DateTime?
+  approvedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  serviceTeam ServiceTeam @relation(fields: [serviceTeamId, weddingId], references: [id, weddingId], onDelete: Cascade)
+  wedding     Wedding     @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  guest       Guest       @relation(fields: [guestId, weddingId], references: [id, weddingId], onDelete: Cascade)
+
+  @@unique([serviceTeamId, guestId])
+  @@unique([weddingId, guestId])
+  @@index([serviceTeamId, approvedAt])
 }
 
 model EngagementPayment {
@@ -677,6 +768,7 @@ model User {
   gateAssignmentsCreated  WeddingGateAssignment[] @relation("GateAssignmentCreator")
   gateAssignmentsRevoked  WeddingGateAssignment[] @relation("GateAssignmentRevoker")
   checkInsAdmitted        WeddingCheckIn[]        @relation("AdmittedCheckIns")
+  serviceTeamsLed         ServiceTeam[]           @relation("ServiceTeamLeaderUser")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -20,6 +20,7 @@ const weddingDayGuest = readFileSync('src/app/api/wedding-day/guest/route.ts', '
 const plannerPortal = readFileSync('src/components/wedding/planner-portal.tsx', 'utf8')
 const adaptiveNavigation = readFileSync('src/components/navigation/planner-adaptive-navigation.tsx', 'utf8')
 const invitationStudio = readFileSync('src/components/wedding/invitation-experience/premium-invitation-studio.tsx', 'utf8')
+const individualActions = readFileSync('src/components/wedding/planner/planner-guest-invitation-actions.tsx', 'utf8')
 
 describe('Planner invitation command center', () => {
   test('has a durable planner route instead of a modal-only workspace', () => {
@@ -41,10 +42,14 @@ describe('Planner invitation command center', () => {
 
   test('supports organizer-scale search, filters, selection and guest administration', () => {
     expect(manager).toContain('Invitation delivery command center')
-    expect(manager).toContain('Search guest, email, phone, table, sender')
+    expect(manager).toContain('Search guest, role, allocation, table, sender')
     expect(manager).toContain('All RSVP states')
     expect(manager).toContain('All delivery states')
     expect(manager).toContain('All open states')
+    expect(manager).toContain('All participant types')
+    expect(manager).toContain('All allocations')
+    expect(manager).toContain('All arrival states')
+    expect(manager).toContain('All Pass states')
     expect(manager).toContain('Select all')
     expect(manager).toContain('Mark selected sent')
     expect(manager).toContain('async function addGuest')
@@ -54,13 +59,28 @@ describe('Planner invitation command center', () => {
   })
 
   test('sent tracking is audit-only and cannot mutate RSVP or guest business state', () => {
-    expect(deliveryRoute).toContain("action: 'guest.invitation_delivery_marked'")
-    expect(deliveryRoute).toContain("action: 'guest.invitation_delivery_unmarked'")
-    expect(deliveryRoute).toContain('db.auditEvent.createMany')
-    expect(deliveryRoute).not.toContain('db.rSVP.update')
-    expect(deliveryRoute).not.toContain('db.rSVP.create')
-    expect(deliveryRoute).not.toContain('db.guest.update')
-    expect(deliveryRoute).not.toContain('db.guest.delete')
+    // QRO08: the one implementation lives in planner-invitation-operations; the desktop (cookie)
+    // and native (Bearer grant) delivery routes are both thin front doors to it.
+    const operations = readFileSync('src/lib/planner-invitation-operations.ts', 'utf8')
+    const delivery = operations.slice(
+      operations.indexOf('export async function recordInvitationDelivery'),
+      operations.indexOf('export async function repairMissingInvitationLinks'),
+    )
+    expect(delivery).toContain("action: 'guest.invitation_delivery_marked'")
+    expect(delivery).toContain("action: 'guest.invitation_delivery_unmarked'")
+    expect(delivery).toContain('db.auditEvent.createMany')
+    expect(delivery).not.toContain('db.rSVP.update')
+    expect(delivery).not.toContain('db.rSVP.create')
+    expect(delivery).not.toContain('db.guest.update')
+    expect(delivery).not.toContain('db.guest.delete')
+    expect(delivery).not.toContain('guest.invitation_opened')
+
+    const nativeDelivery = readFileSync('src/app/api/native/wedding/invitations/delivery/route.ts', 'utf8')
+    for (const route of [deliveryRoute, nativeDelivery]) {
+      expect(route).toContain('recordInvitationDelivery(')
+      expect(route).toContain('resetInvitationDelivery(')
+      expect(route).not.toMatch(/db\.(rSVP|guest|auditEvent)\./)
+    }
   })
 
   test('actual invitation redemption is tracked separately without storing credentials', () => {
@@ -74,7 +94,8 @@ describe('Planner invitation command center', () => {
     expect(inviteContinue).toContain('!pending.suppressOpenTracking')
     expect(inviteRoute).toContain("plannerPreview') === '1'")
     expect(pendingInvitation).toContain('suppressOpenTracking?: boolean')
-    expect(manager).toContain("url.searchParams.set('plannerPreview', '1')")
+    expect(individualActions).toContain("url.searchParams.set('plannerPreview', '1')")
+    expect(manager).toContain('<PlannerGuestInvitationActions')
   })
 
   test('planner programme and children policy converge into the guest wedding-day projection', () => {
@@ -90,10 +111,14 @@ describe('Planner invitation command center', () => {
     expect(plannerRoute).toContain('rsvpDeadline')
     expect(plannerRoute).toContain("section: 'rsvp'")
     expect(plannerRoute).toContain("field: 'childrenPolicy'")
-    expect(guestSession).toContain('const childrenPolicy = await loadWeddingChildrenPolicy(wedding.id)')
+    expect(plannerRoute).toContain("field: 'additionalAdultPolicy'")
+    expect(guestSession).toContain('const [childrenPolicy, additionalAdultPolicy] = await Promise.all([')
+    expect(guestSession).toContain('loadWeddingChildrenPolicy(wedding.id)')
+    expect(guestSession).toContain('loadWeddingAdditionalAdultPolicy(wedding.id)')
     expect(guestSession).toContain('invitationCardMessage: wedding.invitationCardMessage')
     expect(guestSession).toContain('rsvpDeadline: wedding.rsvpDeadline')
     expect(guestSession).toContain('childrenPolicy,')
+    expect(guestSession).toContain('additionalAdultPolicy,')
     expect(premiumRsvp).toContain("data?.wedding.childrenPolicy === 'adults_only'")
     expect(legacyRsvp).toContain("data.wedding.childrenPolicy === 'adults_only'")
     expect(legacyRsvp).toContain('Children are not included in this RSVP')

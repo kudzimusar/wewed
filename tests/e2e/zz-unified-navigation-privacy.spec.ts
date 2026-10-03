@@ -80,9 +80,14 @@ test('public platform, invitation card exchange, API privacy and token rotation 
     `/w/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(E2E_GUEST_INVITATION.token)}&card=botanical`,
   )
   await expect(page).toHaveURL(
-    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=botanical$`),
+    new RegExp(`/invite/${E2E_WEDDINGS.primary.slug}/open$`),
   )
   expect(page.url()).not.toContain(E2E_GUEST_INVITATION.token)
+  await expect(page.getByRole('heading', { name: 'Your invitation is ready' })).toBeVisible()
+  await page.getByRole('link', { name: 'Open wedding invitation' }).click()
+  await expect(page).toHaveURL(
+    new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=botanical$`),
+  )
   const invitationExperience = page.getByTestId('premium-invitation-experience')
   await expect(invitationExperience).toBeVisible()
   await expect(invitationExperience).toHaveAttribute('data-invitation-style', 'botanical')
@@ -133,6 +138,11 @@ test('public platform, invitation card exchange, API privacy and token rotation 
   await page.goto(
     `/w/${E2E_WEDDINGS.primary.slug}?rsvp=${encodeURIComponent(rotated)}`,
   )
+  await expect(page).toHaveURL(
+    new RegExp(`/invite/${E2E_WEDDINGS.primary.slug}/open$`),
+  )
+  expect(page.url()).not.toContain(rotated)
+  await page.getByRole('link', { name: 'Open wedding invitation' }).click()
   await expect(page).toHaveURL(
     new RegExp(`/w/${E2E_WEDDINGS.primary.slug}\\?invitation=1&card=botanical$`),
   )

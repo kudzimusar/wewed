@@ -239,19 +239,42 @@ for (const client of MOBILE_CLIENTS) {
     await page.goto(shareUrl, { waitUntil: 'domcontentloaded' })
 
     await expect(page).toHaveURL(`${BASE_URL}/invite/${encodeURIComponent(fixture.weddingSlug)}/open`)
-    await expect(page.getByRole('heading', { name: 'Your invitation is waiting in Wewed' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Open your invitation in Wewed' })).toBeVisible()
     await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
     await expect(page.getByRole('link', { name: /continue to invitation in browser/i })).toHaveCount(0)
     expect(page.url()).not.toContain(fixture.rsvpToken)
 
+    const beforeTap = await prisma.$queryRaw`
+      SELECT COUNT(*)::bigint AS count
+      FROM private."InvitationInstallHandoff"
+      WHERE "weddingId" = ${fixture.weddingId}
+    `
+    expect(Number(beforeTap[0]?.count ?? 0)).toBe(0)
+
     const playStoreUrl = await capturePlayNavigation(
       page,
-      'Get Wewed on Google Play and reveal my invitation',
+      'Get Wewed on Google Play and continue my invitation',
     )
     const handoff = personalHandoffFromPlayUrl(playStoreUrl)
     expect(decodeURIComponent(playStoreUrl)).not.toContain(fixture.rsvpToken)
     expect(decodeURIComponent(playStoreUrl)).not.toContain(fixture.guestEmail)
     expect(decodeURIComponent(playStoreUrl)).not.toContain(fixture.weddingSlug)
+    const afterTap = await prisma.$queryRaw`
+      SELECT COUNT(*)::bigint AS count
+      FROM private."InvitationInstallHandoff"
+      WHERE "weddingId" = ${fixture.weddingId}
+    `
+    expect(Number(afterTap[0]?.count ?? 0)).toBe(1)
+    expect(
+      await prisma.auditEvent.count({
+        where: {
+          weddingId: fixture.weddingId,
+          resourceId: fixture.guestId,
+          resourceType: 'guest_invitation',
+          action: 'guest.native_install_clicked',
+        },
+      }),
+    ).toBe(1)
     await context.close()
 
     const appContext = await androidContext(browser, client.userAgent, { standalone: true })
@@ -292,31 +315,36 @@ test('iPhone: personal invitation continues honestly in the browser (no App Stor
   await context.close()
 })
 
-test('iPhone: printed QR shows App Store coming soon and continues to browser claim', async ({ browser }) => {
+test('iPhone: printed QR stays truthful when no App Store destination is configured', async ({ browser }) => {
   const fixture = await createFixture('iPhone physical', { physical: true })
   const context = await browser.newContext({ viewport: MOBILE_VIEWPORT, userAgent: IOS_UA, locale: 'en-ZW' })
   const page = await context.newPage()
   await page.goto(`${BASE_URL}/i/${fixture.physicalCode}`, { waitUntil: 'domcontentloaded' })
 
   await expect(page.getByTestId('physical-invitation-ios-gate')).toBeVisible()
-  await expect(page.getByText('Coming Soon', { exact: true })).toBeVisible()
+  await expect(page.getByText('App Store link not configured', { exact: true })).toBeVisible()
   await expect(page.getByRole('img', { name: 'Download on the App Store' })).toBeVisible()
+  await expect(page.getByTestId('physical-ios-install-wewed')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Find my RSVP' })).toHaveCount(0)
 
-  await page.getByRole('button', { name: /App Store coming soon/i }).click()
+  await page.getByRole('button', { name: 'Continue in browser' }).click()
   await expect(page.getByRole('heading', { name: 'Find my RSVP' })).toBeVisible()
   await expect(page.getByTestId('physical-invitation-ios-gate')).toHaveCount(0)
   await context.close()
 })
 
-test('Chrome Android: installed Wewed is offered directly and Ivory remains hidden in browser', async ({ browser }) => {
+test('Chrome Android: an existing Wewed install has a direct native-open option without hiding Play recovery', async ({ browser }) => {
   const fixture = await createFixture('Installed Wewed')
   const context = await androidContext(browser, ANDROID_UA, { installed: true })
   const page = await context.newPage()
   await page.goto(`${BASE_URL}/invite/${fixture.weddingSlug}?rsvp=${fixture.rsvpToken}&card=ivory-floral-gold`)
-  await expect(page.getByTestId('android-open-installed-wewed')).toBeVisible()
+  await expect(page.getByTestId('android-open-existing-wewed')).toBeVisible()
+  await expect(page.getByTestId('android-open-existing-wewed')).toHaveAttribute(
+    'href',
+    `/invite/${fixture.weddingSlug}/app`,
+  )
+  await expect(page.getByTestId('android-google-play-install')).toBeVisible()
   await expect(page.getByTestId('premium-invitation-experience')).toHaveCount(0)
-  await expect(page.getByTestId('android-google-play-install')).toHaveCount(0)
   await context.close()
 })
 

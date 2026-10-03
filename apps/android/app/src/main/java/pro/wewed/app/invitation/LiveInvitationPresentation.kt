@@ -24,6 +24,7 @@ data class LiveInvitationPresentation(
     val weddingSlug: String,
     val guestId: String,
     val guestName: String,
+    val participantType: String? = null,
 
     val coupleNames: String,
     val monogram: String?,
@@ -55,7 +56,8 @@ data class LiveInvitationPresentation(
     val dietaryNotes: String?,
     val message: String?,
     val checkedIn: Boolean,
-    val checkedInAt: String?
+    val checkedInAt: String?,
+    val additionalAdultPolicy: String? = null
 ) {
     /** Three states, because "not attending" is not "not answered". */
     val rsvpStatus: RSVPStatus
@@ -84,6 +86,7 @@ data class LiveInvitationPresentation(
                 weddingSlug = snapshot.weddingSlug,
                 guestId = snapshot.guestId,
                 guestName = snapshot.guestName,
+                participantType = snapshot.participantType,
                 coupleNames = snapshot.title,
                 monogram = snapshot.monogram,
                 tagline = snapshot.tagline,
@@ -109,7 +112,8 @@ data class LiveInvitationPresentation(
                 dietaryNotes = snapshot.dietaryNotes,
                 message = snapshot.message,
                 checkedIn = snapshot.checkedIn,
-                checkedInAt = snapshot.checkedInAt
+                checkedInAt = snapshot.checkedInAt,
+                additionalAdultPolicy = snapshot.additionalAdultPolicy
             )
     }
 }

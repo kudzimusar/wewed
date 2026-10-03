@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import qrcode from 'qrcode'
-import { Loader2, QrCode, ShieldCheck } from 'lucide-react'
+import { CalendarDays, CheckCircle2, Loader2, LockKeyhole, MapPin, QrCode, ShieldCheck } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import {
   GUEST_PASS_AVAILABILITY_COPY,
@@ -15,6 +15,10 @@ interface WeddingPassData {
   weddingId: string
   weddingSlug: string
   weddingTitle: string
+  weddingDate: string
+  venue: string
+  venueCity: string
+  venueCountry: string
   guestId: string
   guestName: string
   passSerial: string
@@ -27,12 +31,26 @@ interface WeddingPassData {
   publicKeyDerBase64: string
 }
 
+interface LockedPassContext {
+  weddingId: string
+  weddingSlug: string
+  weddingTitle: string
+  weddingDate: string
+  venue: string
+  venueCity: string
+  venueCountry: string
+  guestId: string
+  guestName: string
+  attending: boolean | null
+}
+
 interface WeddingPassResponse {
   success?: boolean
   data?: WeddingPassData
   code?: string
   error?: string
   availability?: WeddingPassAvailability
+  context?: LockedPassContext
 }
 
 function availabilityState(payload: WeddingPassResponse): WeddingPassAvailabilityState | null {
@@ -76,6 +94,8 @@ export function WeddingGuestPassDialog({ slug }: { slug: string }) {
   const [error, setError] = useState<string | null>(null)
   const [passState, setPassState] = useState<WeddingPassAvailabilityState | 'error' | null>(null)
   const [pass, setPass] = useState<WeddingPassData | null>(null)
+  const [availability, setAvailability] = useState<WeddingPassAvailability | null>(null)
+  const [lockedContext, setLockedContext] = useState<LockedPassContext | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
 
   useEffect(() => {
@@ -103,46 +123,77 @@ export function WeddingGuestPassDialog({ slug }: { slug: string }) {
     }
   }, [pass?.token])
 
-  useEffect(() => {
-    const handler = () => {
-      setOpen(true)
-      setLoading(true)
-      setError(null)
-      setPassState(null)
-      setPass(null)
-      setQrDataUrl(null)
-
-      void fetch('/api/wedding-day/pass', {
+  const loadPass = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    setPass(null)
+    setQrDataUrl(null)
+    try {
+      const response = await fetch('/api/wedding-day/pass', {
         cache: 'no-store',
         headers: { Accept: 'application/json' },
       })
-        .then(async (response) => {
-          const payload = (await response.json()) as WeddingPassResponse
-          const data = payload.data
-          if (
-            !response.ok ||
-            !payload.success ||
-            !data ||
-            !data.token.startsWith('WW2.') ||
-            !data.publicKeyDerBase64
-          ) {
-            const state = availabilityState(payload)
-            setPassState(state && state !== 'active' ? state : 'error')
-            throw new Error(friendlyPassError(payload))
-          }
-          setPass(data)
-          setPassState('active')
-        })
-        .catch((caught) => {
-          setPass(null)
-          setError(caught instanceof Error ? caught.message : 'Your Wedding Pass is not available.')
-        })
-        .finally(() => setLoading(false))
+      const payload = (await response.json()) as WeddingPassResponse
+      const state = availabilityState(payload)
+      if (!response.ok || !payload.success || !payload.data) {
+        if (state && state !== 'active' && payload.context) {
+          setAvailability(payload.availability ?? null)
+          setLockedContext(payload.context)
+          setPassState(state)
+          return
+        }
+        setPassState(state && state !== 'active' ? state : 'error')
+        throw new Error(friendlyPassError(payload))
+      }
+      const data = payload.data
+      if (!data.token.startsWith('WW2.') || !data.publicKeyDerBase64) {
+        setPassState('error')
+        throw new Error('Wedding Pass credential is invalid.')
+      }
+      setAvailability(payload.availability ?? null)
+      setLockedContext(null)
+      setPass(data)
+      setPassState('active')
+    } catch (caught) {
+      setPass(null)
+      setError(caught instanceof Error ? caught.message : 'Your Wedding Pass is not available.')
+    } finally {
+      setLoading(false)
     }
+  }, [slug])
 
+  useEffect(() => {
+    const handler = () => {
+      setOpen(true)
+      setPassState(null)
+      setAvailability(null)
+      setLockedContext(null)
+      void loadPass()
+    }
     window.addEventListener('wewed:open-guest-pass', handler)
     return () => window.removeEventListener('wewed:open-guest-pass', handler)
-  }, [slug])
+  }, [loadPass])
+
+  // A locked Pass must transition without the Guest closing/reopening it. Re-check on resume/focus
+  // and once when the server-provided issuance window opens.
+  useEffect(() => {
+    if (!open) return
+    const refreshOnResume = () => {
+      if (document.visibilityState === 'visible') void loadPass()
+    }
+    window.addEventListener('focus', refreshOnResume)
+    document.addEventListener('visibilitychange', refreshOnResume)
+    const opensAt = availability?.opensAt ? new Date(availability.opensAt).getTime() : Number.NaN
+    const delay = Number.isFinite(opensAt) ? Math.max(0, opensAt - Date.now() + 250) : null
+    const timer = delay !== null && delay <= 2_147_000_000
+      ? window.setTimeout(() => void loadPass(), delay)
+      : null
+    return () => {
+      window.removeEventListener('focus', refreshOnResume)
+      document.removeEventListener('visibilitychange', refreshOnResume)
+      if (timer !== null) window.clearTimeout(timer)
+    }
+  }, [availability?.opensAt, loadPass, open])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -182,6 +233,44 @@ export function WeddingGuestPassDialog({ slug }: { slug: string }) {
             className="m-6 rounded-2xl border border-[#d7b98e] bg-[#fff5e5] px-4 py-4 text-sm leading-6 text-[#6b4a25]"
           >
             {error}
+          </div>
+        )}
+
+        {!loading && !error && !pass && lockedContext && passState && passState !== 'active' && passState !== 'error' && (
+          <div data-testid="wedding-pass-locked-card" className="p-6">
+            <div className="rounded-[1.5rem] border border-[#c89a55]/35 bg-white/80 p-5 shadow-sm">
+              <div className="text-center">
+                <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-[#f7ecdc] text-[#9b6b2f]">
+                  <LockKeyhole className="size-6" aria-hidden="true" />
+                </div>
+                <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#a97831]">{lockedContext.weddingTitle}</p>
+                <p data-testid="wedding-pass-locked-guest-name" className="mt-2 font-serif text-3xl">{lockedContext.guestName}</p>
+                <p className="mt-2 text-sm leading-6 text-[#6f5d4c]">{friendlyPassError({ availability: availability ?? undefined })}</p>
+              </div>
+
+              <div className="mt-5 grid gap-2 text-sm">
+                <div className="flex items-center gap-3 rounded-xl bg-[#f7ecdc] px-3 py-3">
+                  <CheckCircle2 className="size-4 text-[#49765b]" />
+                  <span>Invitation verified</span>
+                </div>
+                <div className="flex items-center gap-3 rounded-xl bg-[#f7ecdc] px-3 py-3">
+                  {lockedContext.attending === true ? <CheckCircle2 className="size-4 text-[#49765b]" /> : <LockKeyhole className="size-4 text-[#9b6b2f]" />}
+                  <span>{lockedContext.attending === true ? 'RSVP confirmed' : lockedContext.attending === false ? 'RSVP declined' : 'RSVP required'}</span>
+                </div>
+                <div className="flex items-center gap-3 rounded-xl bg-[#f7ecdc] px-3 py-3">
+                  <LockKeyhole className="size-4 text-[#9b6b2f]" />
+                  <span>
+                    Secure admission QR {availability?.opensAt ? `unlocks on ${formatPassOpensAt(new Date(availability.opensAt))}` : 'is not issued yet'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 border-t border-[#c89a55]/20 pt-4 text-sm text-[#6f5d4c]">
+                <p className="flex items-center gap-2"><CalendarDays className="size-4 text-[#9b6b2f]" />{formatPassOpensAt(new Date(lockedContext.weddingDate))}</p>
+                <p className="flex items-center gap-2"><MapPin className="size-4 text-[#9b6b2f]" />{[lockedContext.venue, lockedContext.venueCity, lockedContext.venueCountry].filter(Boolean).join(' · ')}</p>
+              </div>
+            </div>
+            <p className="mt-4 text-center text-xs leading-5 text-[#7d6a58]">Your secure WW2 admission QR will appear here only when the canonical Wedding Pass authority makes it available.</p>
           </div>
         )}
 

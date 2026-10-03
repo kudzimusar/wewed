@@ -8,6 +8,7 @@ import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
 import {
   applyGuestRsvpUpdate,
   GUEST_RSVP_FIELDS,
+  loadWeddingAdditionalAdultPolicy,
   loadWeddingChildrenPolicy,
   type GuestRsvpField,
 } from '@/lib/guest-rsvp-mutation'
@@ -27,6 +28,7 @@ import {
   resolveGuestSessionForWedding,
 } from '@/lib/wedding-public-access'
 import { guestPartySize } from '@/lib/guest-record-authority'
+import { recordGuestNativePresence } from '@/lib/guest-native-presence'
 
 interface Params {
   params: Promise<{ slug: string }>
@@ -69,7 +71,18 @@ export async function GET(request: NextRequest, { params }: Params) {
     return noStore(response)
   }
 
-  const childrenPolicy = await loadWeddingChildrenPolicy(wedding.id)
+  const [childrenPolicy, additionalAdultPolicy] = await Promise.all([
+    loadWeddingChildrenPolicy(wedding.id),
+    loadWeddingAdditionalAdultPolicy(wedding.id),
+  ])
+
+  // Confirmed Native Activation is recorded only after this request has resolved a real Guest
+  // session. Telemetry is deliberately non-blocking for the invitation experience.
+  await recordGuestNativePresence({
+    headers: request.headers,
+    weddingId: wedding.id,
+    guestId: guest.id,
+  }).catch(() => null)
 
   const response = NextResponse.json({
       success: true,
@@ -95,11 +108,13 @@ export async function GET(request: NextRequest, { params }: Params) {
         invitationCardMessage: wedding.invitationCardMessage,
         rsvpDeadline: wedding.rsvpDeadline,
         childrenPolicy,
+        additionalAdultPolicy,
       },
       guest: {
         id: guest.id,
         name: guest.name,
         email: guest.email,
+        role: guest.role,
         tableNumber: guest.tableNumber,
         tableName: guest.tableName,
         seatingTableId: guest.seatingTableId,
@@ -107,17 +122,22 @@ export async function GET(request: NextRequest, { params }: Params) {
       rsvp: {
         attending: guest.attending,
         mealChoice: guest.mealChoice,
-        plusOne: guest.plusOne,
+        plusOne: guest.role === 'service_provider' || additionalAdultPolicy === 'named_guests_only' ? false : guest.plusOne,
         plusOneName: guest.plusOneName,
         plusOneMeal: guest.plusOneMeal,
-        kidsAttending: childrenPolicy === 'adults_only' ? false : guest.kidsAttending,
+        kidsAttending: guest.role === 'service_provider' || childrenPolicy === 'adults_only' ? false : guest.kidsAttending,
         kidsCount: guest.kidsCount,
         // The canonical Gate household (shared guestPartySize); clients display it, never derive it.
-        partySize: guestPartySize({
-          plusOne: guest.plusOne,
-          kidsAttending: childrenPolicy === 'adults_only' ? false : guest.kidsAttending,
-          kidsCount: guest.kidsCount,
-        }),
+        partySize: guest.role === 'service_provider'
+          ? 1
+          : guestPartySize(
+              {
+                plusOne: guest.plusOne,
+                kidsAttending: guest.kidsAttending,
+                kidsCount: guest.kidsCount,
+              },
+              { additionalAdultPolicy, childrenPolicy },
+            ),
         dietaryNotes: guest.dietaryNotes,
         message: guest.message,
         checkedIn: guest.checkedIn,
@@ -176,6 +196,16 @@ export async function POST(request: NextRequest, { params }: Params) {
     guestId: rsvp.guest.id,
     source: 'guest_session_exchange',
   })
+
+  // The initial native invitation exchange is the activation boundary: a valid token has resolved
+  // to one canonical Guest, and the app has proven it can establish Guest identity. Web exchanges
+  // carry no native platform header and therefore create no native-presence record.
+  await recordGuestNativePresence({
+    headers: request.headers,
+    weddingId: rsvp.guest.wedding.id,
+    guestId: rsvp.guest.id,
+    invitationOpened: true,
+  }).catch(() => null)
 
   const card = normalizeInvitationCardStyle(rsvp.guest.wedding.invitationCardStyle)
   const response = NextResponse.json({
@@ -267,11 +297,17 @@ export async function PUT(request: NextRequest, { params }: Params) {
   if (!result.ok) {
     return noStore(
       NextResponse.json(
-        { success: false, error: result.error, code: 'CHILDREN_NOT_ALLOWED' },
+        { success: false, error: result.error, code: result.code },
         { status: 400 },
       ),
     )
   }
+
+  await recordGuestNativePresence({
+    headers: request.headers,
+    weddingId: wedding.id,
+    guestId: guest.id,
+  }).catch(() => null)
 
   const response = noStore(NextResponse.json({ success: true, rsvp: result.rsvp }))
   if (readWeddingGuestSession(request)?.version === 1) setWeddingGuestSessionCookie(response, {

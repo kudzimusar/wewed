@@ -31,6 +31,8 @@ public enum RsvpOutcome: Equatable, Sendable {
     /// the guest needs to know their answer did not save rather than believing it did.
     case reopenRequired
     case childrenNotAllowed
+    case additionalGuestsNotAllowed
+    case serviceProviderHouseholdNotAllowed
     case unavailable(status: Int?)
 }
 
@@ -196,6 +198,8 @@ public actor LiveGuestInvitationCoordinator {
             case let .saved(rsvp): return .saved(rsvp: rsvp)
             case .staleGuestContext, .notAuthorized: return .reopenRequired
             case .childrenNotAllowed: return .childrenNotAllowed
+            case .additionalGuestsNotAllowed: return .additionalGuestsNotAllowed
+            case .serviceProviderHouseholdNotAllowed: return .serviceProviderHouseholdNotAllowed
             case let .failed(status): return .unavailable(status: status)
             }
         } catch let error as GuestSessionError {

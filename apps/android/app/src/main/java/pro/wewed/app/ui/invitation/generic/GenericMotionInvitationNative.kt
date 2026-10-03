@@ -368,7 +368,7 @@ private fun CentreInvitationContent(
             modifier = Modifier.testTag("invitation-couple-names")
         )
 
-        data.message.takeIf { it.isNotBlank() }?.let { msg ->
+        data.compactLine.takeIf { it.isNotBlank() }?.let { msg ->
             Text(
                 text = msg,
                 fontSize = if (compact) 11.sp else 13.sp,

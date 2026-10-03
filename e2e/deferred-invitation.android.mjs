@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto'
 
 const prisma = new PrismaClient()
 const EMULATOR_BASE_URL = process.env.WEWED_ANDROID_E2E_BASE_URL ?? 'http://10.0.2.2:3000'
+const EXPECTED_RESUME_HOST = new URL(EMULATOR_BASE_URL).hostname
 // The emulator runs the local UAT wrapper, which never installs as the Play package.
 const APP_PACKAGE = process.env.NEXT_PUBLIC_WEWED_ANDROID_INTENT_PACKAGE ?? 'pro.wewed.app.uatdev'
 
@@ -96,20 +97,6 @@ async function poll(label, callback, { attempts = 40, delay = 250 } = {}) {
   throw new Error(`Timed out waiting for ${label}: ${String(last ?? '')}`)
 }
 
-function handoffFromIntent(intentUrl) {
-  assert.match(intentUrl, /^intent:\/\/invite\/resume#Intent;/)
-  assert.ok(intentUrl.includes('scheme=wewed'))
-  assert.ok(intentUrl.includes(`package=${APP_PACKAGE};`))
-  assert.ok(!intentUrl.includes('rsvp='))
-  assert.ok(!intentUrl.includes('guest='))
-  assert.ok(!intentUrl.includes('email='))
-  const match = intentUrl.match(/(?:^|;)S\.wewed_handoff=([^;]+);/)
-  assert.ok(match, 'missing opaque handoff in Android intent')
-  const handoff = decodeURIComponent(match[1])
-  assert.match(handoff, /^[A-Za-z0-9_-]{43}$/)
-  return handoff
-}
-
 async function activeGuestFromChrome(page, fixture) {
   const result = await page.evaluate(async ({ baseUrl, slug }) => {
     const response = await fetch(
@@ -145,36 +132,50 @@ async function foregroundAndroidChrome(device, page) {
   console.log('checkpoint=android_chrome_foreground')
 }
 
-async function prepareGate(browserPage, fixture, token, handoffPostCount) {
+async function handoffCreationCount(fixture) {
+  return prisma.auditEvent.count({
+    where: {
+      weddingId: fixture.weddingId,
+      action: 'invitation_handoff_created',
+    },
+  })
+}
+
+async function prepareGate(browserPage, fixture, token) {
+  const creationsBeforeOpen = await handoffCreationCount(fixture)
+
   await browserPage.goto(
     `${EMULATOR_BASE_URL}/invite/${encodeURIComponent(fixture.weddingSlug)}?rsvp=${encodeURIComponent(token)}&card=ivory-floral-gold`,
     { waitUntil: 'domcontentloaded' },
   )
 
-  const direct = browserPage.getByTestId('android-open-installed-wewed')
-  const fallback = browserPage.getByTestId('android-open-existing-wewed')
-  const link = await poll('prepared Android intent link', async () => {
-    if (await direct.isVisible().catch(() => false)) return direct
-    if (await fallback.isVisible().catch(() => false)) return fallback
-    return null
-  })
+  const link = browserPage.getByTestId('android-open-existing-wewed')
+  await poll('installed Wewed entry link', async () =>
+    (await link.isVisible().catch(() => false)) ? link : null,
+  )
 
   const href = await link.getAttribute('href')
-  assert.ok(href)
-  const handoff = handoffFromIntent(href)
+  assert.equal(
+    href,
+    `/invite/${encodeURIComponent(fixture.weddingSlug)}/app`,
+    'installed-app CTA must route through the click-triggered server handoff endpoint',
+  )
+
+  assert.equal(
+    await handoffCreationCount(fixture),
+    creationsBeforeOpen,
+    'opening or refreshing the invitation must not create an install handoff',
+  )
 
   return {
     link,
-    handoff,
-    postsBeforeClick: handoffPostCount(),
+    creationsBeforeClick: creationsBeforeOpen,
   }
 }
 
-async function clickPreparedGate(prepared, handoffPostCount) {
-  // Preserve a genuine Chrome user gesture. Playwright may keep waiting for
-  // the source page's scheduled navigation after Android has already handed
-  // the intent to Wewed, so a short navigation timeout is expected here. The
-  // authoritative success criteria are the native + server checkpoints below.
+async function clickPreparedGate(prepared, fixture) {
+  // The ordinary anchor preserves a real Chrome user gesture. Its server route creates exactly one
+  // opaque handoff and immediately 303s to the package-targeted Android intent.
   try {
     await prepared.link.click({ timeout: 5_000 })
   } catch (error) {
@@ -182,11 +183,15 @@ async function clickPreparedGate(prepared, handoffPostCount) {
     console.log('checkpoint=source_chrome_navigation_wait_released')
   }
 
-  await sleep(750)
+  await poll(
+    'one click-triggered handoff creation',
+    async () => (await handoffCreationCount(fixture)) === prepared.creationsBeforeClick + 1,
+    { attempts: 60, delay: 100 },
+  )
   assert.equal(
-    handoffPostCount(),
-    prepared.postsBeforeClick,
-    'final Android launch click must not perform an async handoff POST',
+    await handoffCreationCount(fixture),
+    prepared.creationsBeforeClick + 1,
+    'one installed-app click must create exactly one handoff',
   )
 }
 
@@ -211,7 +216,7 @@ async function nativeCheckpoints(device, minimumIntentCount) {
       const intentCount = Number.parseInt(countMatch?.[1] ?? '0', 10)
       if (
         intentCount >= minimumIntentCount &&
-        hostMatch?.[1] === '10.0.2.2' &&
+        hostMatch?.[1] === EXPECTED_RESUME_HOST &&
         pathMatch?.[1] === '/invite/resume'
       ) {
         return {
@@ -222,7 +227,7 @@ async function nativeCheckpoints(device, minimumIntentCount) {
       }
       return null
     },
-    { attempts: 80, delay: 250 },
+    { attempts: 240, delay: 500 },
   )
 
   console.log(`checkpoint=native_intent_received count=${state.intentCount}`)
@@ -332,31 +337,14 @@ async function run() {
     const pages = browserContext.pages()
     const browserPage = pages[0] ?? await browserContext.newPage()
 
-    let handoffPosts = 0
-    browserPage.on('request', (request) => {
-      try {
-        if (
-          request.method() === 'POST' &&
-          new URL(request.url()).pathname === '/api/invitations/install-handoff'
-        ) {
-          handoffPosts += 1
-          console.log('checkpoint=handoff_created')
-        }
-      } catch {
-        // Ignore non-HTTP browser-internal requests.
-      }
-    })
-
     // A: real Android Chrome -> prepared intent -> Wewed wrapper -> local resume.
     await foregroundAndroidChrome(device, browserPage)
     const preparedA = await prepareGate(
       browserPage,
       fixture,
-      fixture.tokenA,
-      () => handoffPosts,
+      fixture.tokenA
     )
-    assert.equal(handoffPosts, 1)
-    await clickPreparedGate(preparedA, () => handoffPosts)
+    await clickPreparedGate(preparedA, fixture)
     await nativeCheckpoints(device, 1)
     await waitForRedemption(fixture, 1)
     console.log('checkpoint=resume_requested guest=A')
@@ -378,16 +366,13 @@ async function run() {
     const preparedB = await prepareGate(
       browserPage,
       fixture,
-      fixture.tokenB,
-      () => handoffPosts,
+      fixture.tokenB
     )
-    assert.equal(handoffPosts, 2)
-
     const beforeB = await activeGuestFromChrome(browserPage, fixture)
     assert.equal(beforeB.guest.id, fixture.guestAId)
     console.log('checkpoint=active_guest=A-before-B-resume')
 
-    await clickPreparedGate(preparedB, () => handoffPosts)
+    await clickPreparedGate(preparedB, fixture)
     await nativeCheckpoints(device, 2)
     await waitForRedemption(fixture, 2)
     console.log('checkpoint=resume_requested guest=B')
@@ -408,16 +393,13 @@ async function run() {
     const preparedA2 = await prepareGate(
       browserPage,
       fixture,
-      fixture.tokenA,
-      () => handoffPosts,
+      fixture.tokenA
     )
-    assert.equal(handoffPosts, 3)
-
     const beforeA2 = await activeGuestFromChrome(browserPage, fixture)
     assert.equal(beforeA2.guest.id, fixture.guestBId)
     console.log('checkpoint=active_guest=B-before-A-resume')
 
-    await clickPreparedGate(preparedA2, () => handoffPosts)
+    await clickPreparedGate(preparedA2, fixture)
     await nativeCheckpoints(device, 3)
     await waitForRedemption(fixture, 3)
     console.log('checkpoint=resume_requested guest=A2')
@@ -434,9 +416,9 @@ async function run() {
     )
 
     assert.equal(
-      handoffPosts,
+      await handoffCreationCount(fixture),
       3,
-      'one prepared handoff must be created per explicit guest switch',
+      'A → B → A must create exactly one handoff per explicit installed-app click',
     )
   } finally {
     if (device) {

@@ -6,9 +6,7 @@ import QRCode from 'qrcode'
 import {
   Check,
   CheckSquare2,
-  Copy,
   Download,
-  ExternalLink,
   Loader2,
   Pencil,
   QrCode,
@@ -16,36 +14,58 @@ import {
   RotateCcw,
   Search,
   Send,
-  Share2,
   Trash2,
   UserPlus,
   X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { PremiumInvitationStudio } from '@/components/wedding/invitation-experience/premium-invitation-studio'
+import {
+  EMPTY_PLANNER_GUEST_EDITOR_VALUE,
+  PlannerGuestEditor,
+  type PlannerGuestEditorTable,
+  type PlannerGuestEditorValue,
+} from '@/components/wedding/planner/planner-guest-editor'
+import { PlannerGuestInvitationActions } from '@/components/wedding/planner/planner-guest-invitation-actions'
+import { PlannerGuest360Dialog } from '@/components/wedding/planner/planner-guest-360-dialog'
 import {
   normalizeInvitationCardStyle,
   type InvitationCardStyle,
 } from '@/lib/digital-invitation-card'
 
 type ChildrenPolicy = 'welcome' | 'adults_only'
+type AdditionalAdultPolicy = 'plus_ones_allowed' | 'named_guests_only'
 type DeliveryChannel = 'whatsapp' | 'email' | 'sms' | 'other'
 type DeliveryStatus = 'sent' | 'not_sent'
-type RsvpFilter = 'all' | 'attending' | 'declined' | 'pending'
+type RsvpFilter = 'all' | 'responded' | 'attending' | 'declined' | 'pending'
 type DeliveryFilter = 'all' | DeliveryStatus
 type ContactFilter = 'all' | 'with_contact' | 'missing_contact'
 type OpenFilter = 'all' | 'opened' | 'not_opened'
+type ArrivalFilter = 'all' | 'checked_in' | 'not_arrived'
+type PassState = 'pending_rsvp' | 'declined' | 'not_yet_issuable' | 'not_yet_issued' | 'active' | 'revoked' | 'superseded' | 'issuance_closed'
+type PassFilter = 'all' | PassState
+type NativeFilter = 'all' | 'install_clicked' | 'install_clicked_not_active' | 'active' | 'not_active' | 'android' | 'ios'
 
 interface InvitationRow {
   id: string
   name: string
   email: string | null
   phone: string | null
+  role: string
+  roleDetail: string | null
+  side: string | null
+  attendanceAllocation: string
+  seatingTableId: string | null
+  seatingTableName: string | null
   tableNumber: number | null
   status: 'attending' | 'declined' | 'pending'
   checkedIn: boolean
+  passState: PassState
+  nativeInstallClickedAt: string | null
+  nativeActivated: boolean
+  nativePlatforms: string[]
+  nativeLastSeenAt: string | null
   invitationUrl: string | null
   qrValue: string | null
   shareMessage: string | null
@@ -54,6 +74,37 @@ interface InvitationRow {
   deliveredAt: string | null
   deliveredBy: string | null
   openedAt: string | null
+}
+
+interface PlannerAttendanceSummary {
+  registered: number
+  sent: number
+  notSent: number
+  opened: number
+  responded: number
+  responseRate: number
+  attending: number
+  declined: number
+  awaiting: number
+  expectedNamedAttendees: number
+  checkedIn: number
+  notYetArrived: number
+  missingContact: number
+  passPendingRsvp: number
+  passDeclined: number
+  passNotYetIssuable: number
+  passNotYetIssued: number
+  passActive: number
+  passRevoked: number
+  passSuperseded: number
+  passIssuanceClosed: number
+  nativeInstallClicked: number
+  nativeInstallNotActivated: number
+  nativeInstallToActivationRate: number
+  nativeActivated: number
+  nativeActivationRate: number
+  nativeAndroid: number
+  nativeIos: number
 }
 
 interface InvitationWedding {
@@ -72,12 +123,7 @@ interface InvitationWedding {
   invitationCardMessage: string | null
   rsvpDeadline: string | null
   childrenPolicy: ChildrenPolicy
-}
-
-interface EditableGuest {
-  name: string
-  email: string
-  phone: string
+  additionalAdultPolicy: AdditionalAdultPolicy
 }
 
 const PAGE_SIZE = 40
@@ -137,29 +183,21 @@ function deliveryTime(value: string | null): string {
       })
 }
 
-function plannerPreviewLink(value: string): string {
-  try {
-    const url = new URL(value)
-    url.searchParams.set('plannerPreview', '1')
-    return url.toString()
-  } catch {
-    return value
-  }
-}
-
 function validEmail(value: string): boolean {
   return !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
 }
 
 export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const [rows, setRows] = useState<InvitationRow[]>([])
+  const [summary, setSummary] = useState<PlannerAttendanceSummary | null>(null)
+  const [tables, setTables] = useState<PlannerGuestEditorTable[]>([])
   const [wedding, setWedding] = useState<InvitationWedding | null>(null)
   const [draftStyle, setDraftStyle] = useState<InvitationCardStyle>('botanical')
   const [draftMessage, setDraftMessage] = useState('')
   const [draftDeadline, setDraftDeadline] = useState('')
   const [draftChildrenPolicy, setDraftChildrenPolicy] = useState<ChildrenPolicy>('welcome')
+  const [draftAdditionalAdultPolicy, setDraftAdditionalAdultPolicy] = useState<AdditionalAdultPolicy>('plus_ones_allowed')
   const [busy, setBusy] = useState<string | null>('load')
-  const [copied, setCopied] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [missingTokens, setMissingTokens] = useState(0)
   const [error, setError] = useState<string | null>(null)
@@ -169,14 +207,19 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const [deliveryFilter, setDeliveryFilter] = useState<DeliveryFilter>('all')
   const [contactFilter, setContactFilter] = useState<ContactFilter>('all')
   const [openFilter, setOpenFilter] = useState<OpenFilter>('all')
+  const [roleFilter, setRoleFilter] = useState('all')
+  const [allocationFilter, setAllocationFilter] = useState('all')
+  const [arrivalFilter, setArrivalFilter] = useState<ArrivalFilter>('all')
+  const [passFilter, setPassFilter] = useState<PassFilter>('all')
+  const [nativeFilter, setNativeFilter] = useState<NativeFilter>('all')
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [deliveryChannel, setDeliveryChannel] = useState<DeliveryChannel>('whatsapp')
 
   const [showAddGuest, setShowAddGuest] = useState(false)
-  const [newGuest, setNewGuest] = useState({ name: '', email: '', phone: '' })
+  const [newGuest, setNewGuest] = useState<PlannerGuestEditorValue>({ ...EMPTY_PLANNER_GUEST_EDITOR_VALUE })
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editGuest, setEditGuest] = useState<EditableGuest>({ name: '', email: '', phone: '' })
+  const [editGuest, setEditGuest] = useState<PlannerGuestEditorValue>({ ...EMPTY_PLANNER_GUEST_EDITOR_VALUE })
 
   const load = useCallback(async () => {
     setBusy('load')
@@ -189,12 +232,15 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
         ...payload.wedding,
         invitationCardStyle: normalizeInvitationCardStyle(payload.wedding.invitationCardStyle),
         childrenPolicy: payload.wedding.childrenPolicy === 'adults_only' ? 'adults_only' : 'welcome',
+        additionalAdultPolicy: payload.wedding.additionalAdultPolicy === 'named_guests_only' ? 'named_guests_only' : 'plus_ones_allowed',
       } as InvitationWedding
       const nextRows = (Array.isArray(payload.data) ? payload.data : []).map((row: InvitationRow) => ({
         ...row,
         deliveryStatus: row.deliveryStatus === 'sent' ? 'sent' : 'not_sent',
       }))
       setRows(nextRows)
+      setSummary(payload.summary ?? null)
+      setTables(Array.isArray(payload.tables) ? payload.tables : [])
       setSelectedIds((current) => new Set([...current].filter((id) => nextRows.some((row: InvitationRow) => row.id === id))))
       setMissingTokens(typeof payload.missingTokens === 'number' ? payload.missingTokens : 0)
       setWedding(nextWedding)
@@ -202,6 +248,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
       setDraftMessage(nextWedding.invitationCardMessage || '')
       setDraftDeadline(dateInputValue(nextWedding.rsvpDeadline))
       setDraftChildrenPolicy(nextWedding.childrenPolicy)
+      setDraftAdditionalAdultPolicy(nextWedding.additionalAdultPolicy)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to load invitations.')
     } finally {
@@ -213,7 +260,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE)
-  }, [search, rsvpFilter, deliveryFilter, contactFilter, openFilter])
+  }, [search, rsvpFilter, deliveryFilter, contactFilter, openFilter, roleFilter, allocationFilter, arrivalFilter, passFilter, nativeFilter])
 
   const previewData = useMemo(() => wedding ? {
     title: wedding.title,
@@ -234,67 +281,88 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase()
     return rows.filter((row) => {
-      if (rsvpFilter !== 'all' && row.status !== rsvpFilter) return false
+      if (rsvpFilter === 'responded' && row.status === 'pending') return false
+      if (rsvpFilter !== 'all' && rsvpFilter !== 'responded' && row.status !== rsvpFilter) return false
       if (deliveryFilter !== 'all' && row.deliveryStatus !== deliveryFilter) return false
+      if (roleFilter !== 'all' && row.role !== roleFilter) return false
+      if (allocationFilter !== 'all' && (row.side ?? 'neutral') !== allocationFilter) return false
       const hasContact = Boolean(row.email || row.phone)
       if (contactFilter === 'with_contact' && !hasContact) return false
       if (contactFilter === 'missing_contact' && hasContact) return false
       if (openFilter === 'opened' && !row.openedAt) return false
       if (openFilter === 'not_opened' && row.openedAt) return false
+      if (arrivalFilter === 'checked_in' && !row.checkedIn) return false
+      if (arrivalFilter === 'not_arrived' && (row.status !== 'attending' || row.checkedIn)) return false
+      if (passFilter !== 'all' && row.passState !== passFilter) return false
+      if (nativeFilter === 'install_clicked' && !row.nativeInstallClickedAt) return false
+      if (nativeFilter === 'install_clicked_not_active' && (!row.nativeInstallClickedAt || row.nativeActivated)) return false
+      if (nativeFilter === 'active' && !row.nativeActivated) return false
+      if (nativeFilter === 'not_active' && row.nativeActivated) return false
+      if (nativeFilter === 'android' && !row.nativePlatforms.includes('android')) return false
+      if (nativeFilter === 'ios' && !row.nativePlatforms.includes('ios')) return false
       if (!query) return true
       return [
         row.name,
         row.email ?? '',
         row.phone ?? '',
+        row.role,
+        row.roleDetail ?? '',
+        row.side ?? '',
+        row.seatingTableName ?? '',
         row.tableNumber?.toString() ?? '',
         channelLabel(row.deliveryChannel),
         row.deliveredBy ?? '',
       ].some((value) => value.toLowerCase().includes(query))
     })
-  }, [rows, search, rsvpFilter, deliveryFilter, contactFilter, openFilter])
+  }, [rows, search, rsvpFilter, deliveryFilter, contactFilter, openFilter, roleFilter, allocationFilter, arrivalFilter, passFilter, nativeFilter])
 
   const displayedRows = filteredRows.slice(0, visibleCount)
   const allFilteredSelected = filteredRows.length > 0 && filteredRows.every((row) => selectedIds.has(row.id))
   const selectedRows = rows.filter((row) => selectedIds.has(row.id))
+  const roleOptions = useMemo(() => Array.from(new Set(rows.map((row) => row.role))).sort(), [rows])
+  const allocationOptions = useMemo(
+    () => Array.from(new Set(rows.map((row) => row.side ?? 'neutral'))).sort(),
+    [rows],
+  )
 
-  const stats = useMemo(() => ({
-    total: rows.length,
-    sent: rows.filter((row) => row.deliveryStatus === 'sent').length,
-    notSent: rows.filter((row) => row.deliveryStatus !== 'sent').length,
-    attending: rows.filter((row) => row.status === 'attending').length,
-    pending: rows.filter((row) => row.status === 'pending').length,
-    missingContact: rows.filter((row) => !row.email && !row.phone).length,
-    opened: rows.filter((row) => Boolean(row.openedAt)).length,
-  }), [rows])
-
-  async function rememberCopied(key: string, value: string) {
-    await navigator.clipboard.writeText(value)
-    setCopied(key)
-    window.setTimeout(() => setCopied((current) => current === key ? null : current), 1800)
+  function resetOperationalFilters() {
+    setSearch('')
+    setRsvpFilter('all')
+    setDeliveryFilter('all')
+    setContactFilter('all')
+    setOpenFilter('all')
+    setRoleFilter('all')
+    setAllocationFilter('all')
+    setArrivalFilter('all')
+    setPassFilter('all')
+    setNativeFilter('all')
   }
 
-  async function copyLink(row: InvitationRow) {
-    if (row.invitationUrl) await rememberCopied(`link-${row.id}`, row.invitationUrl)
-  }
-
-  async function copyMessage(row: InvitationRow) {
-    if (row.shareMessage) await rememberCopied(`message-${row.id}`, row.shareMessage)
-  }
-
-  async function share(row: InvitationRow) {
-    if (!row.invitationUrl || !row.shareMessage) return
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: wedding?.title ? `Wewed · ${wedding.title}` : 'Wewed · Private wedding invitation',
-          text: row.shareMessage,
-        })
-        return
-      } catch (caught) {
-        if (caught instanceof DOMException && caught.name === 'AbortError') return
-      }
-    }
-    await rememberCopied(`share-${row.id}`, row.shareMessage)
+  function focusSummary(key: string) {
+    resetOperationalFilters()
+    if (key === 'sent') setDeliveryFilter('sent')
+    if (key === 'notSent') setDeliveryFilter('not_sent')
+    if (key === 'opened') setOpenFilter('opened')
+    if (key === 'responded') setRsvpFilter('responded')
+    if (key === 'attending' || key === 'expectedNamedAttendees') setRsvpFilter('attending')
+    if (key === 'declined') setRsvpFilter('declined')
+    if (key === 'awaiting') setRsvpFilter('pending')
+    if (key === 'checkedIn') setArrivalFilter('checked_in')
+    if (key === 'notYetArrived') setArrivalFilter('not_arrived')
+    if (key === 'missingContact') setContactFilter('missing_contact')
+    if (key === 'passPendingRsvp') setPassFilter('pending_rsvp')
+    if (key === 'passDeclined') setPassFilter('declined')
+    if (key === 'passNotYetIssuable') setPassFilter('not_yet_issuable')
+    if (key === 'passNotYetIssued') setPassFilter('not_yet_issued')
+    if (key === 'passActive') setPassFilter('active')
+    if (key === 'passRevoked') setPassFilter('revoked')
+    if (key === 'passSuperseded') setPassFilter('superseded')
+    if (key === 'passIssuanceClosed') setPassFilter('issuance_closed')
+    if (key === 'nativeInstallClicked') setNativeFilter('install_clicked')
+    if (key === 'nativeInstallNotActivated') setNativeFilter('install_clicked_not_active')
+    if (key === 'nativeActivated') setNativeFilter('active')
+    if (key === 'nativeAndroid') setNativeFilter('android')
+    if (key === 'nativeIos') setNativeFilter('ios')
   }
 
   async function generateMissingLinks() {
@@ -327,6 +395,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           message: draftMessage,
           rsvpDeadline: draftDeadline || null,
           childrenPolicy: draftChildrenPolicy,
+          additionalAdultPolicy: draftAdditionalAdultPolicy,
         }),
       })
       const payload = await response.json()
@@ -418,13 +487,16 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           name,
           email: email || undefined,
           phone: phone || undefined,
-          role: 'guest',
-          side: 'neutral',
+          role: newGuest.role,
+          roleDetail: newGuest.roleDetail.trim() || undefined,
+          side: newGuest.side,
+          attendanceAllocation: newGuest.attendanceAllocation,
+          seatingTableId: newGuest.seatingTableId || undefined,
         }),
       })
       const payload = await response.json()
       if (!response.ok || !payload.success) throw new Error(payload.error || 'Unable to add guest.')
-      setNewGuest({ name: '', email: '', phone: '' })
+      setNewGuest({ ...EMPTY_PLANNER_GUEST_EDITOR_VALUE })
       setShowAddGuest(false)
       await load()
     } catch (caught) {
@@ -450,6 +522,11 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           name,
           email: email || null,
           phone: phone || null,
+          role: editGuest.role,
+          roleDetail: editGuest.roleDetail.trim() || null,
+          side: editGuest.side,
+          attendanceAllocation: editGuest.attendanceAllocation,
+          seatingTableId: editGuest.seatingTableId || null,
         }),
       })
       const payload = await response.json()
@@ -510,6 +587,11 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
       name: row.name,
       email: row.email ?? '',
       phone: row.phone ?? '',
+      role: row.role,
+      roleDetail: row.roleDetail ?? '',
+      side: row.side ?? 'neutral',
+      attendanceAllocation: row.attendanceAllocation ?? 'shared',
+      seatingTableId: row.seatingTableId ?? '',
     })
   }
 
@@ -522,7 +604,7 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold-muted">Digital wedding cards & RSVP</p>
           <h2 className="mt-2 font-serif text-3xl">{wedding?.title || 'Active wedding'}</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-espresso/60">
-            Invitation settings are saved to the selected wedding. The web RSVP and current native guest-session contract read the same saved message, deadline and children policy.
+            Invitation settings are saved to the selected wedding. Web and native Guest RSVP read the same saved message, deadline, children policy and Additional adults policy.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -550,12 +632,14 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
           message={draftMessage}
           deadline={draftDeadline}
           childrenPolicy={draftChildrenPolicy}
+          additionalAdultPolicy={draftAdditionalAdultPolicy}
           saved={saved}
           busy={busy !== null}
           onStyleChange={(next) => { setDraftStyle(next); setSaved(false) }}
           onMessageChange={(next) => { setDraftMessage(next); setSaved(false) }}
           onDeadlineChange={(next) => { setDraftDeadline(next); setSaved(false) }}
           onChildrenPolicyChange={(next) => { setDraftChildrenPolicy(next); setSaved(false) }}
+          onAdditionalAdultPolicyChange={(next) => { setDraftAdditionalAdultPolicy(next); setSaved(false) }}
           onSave={() => void saveDesign()}
         />
       )}
@@ -581,87 +665,117 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
         </div>
 
         {showAddGuest && (
-          <form onSubmit={addGuest} className="mt-4 grid gap-3 rounded-xl border border-gold/15 bg-white/70 p-4 md:grid-cols-[1.4fr_1.3fr_1fr_auto]">
-            <div>
-              <Label htmlFor="invitation-add-name">Guest name</Label>
-              <Input id="invitation-add-name" value={newGuest.name} onChange={(event) => setNewGuest((current) => ({ ...current, name: event.target.value }))} className="mt-1 bg-white" />
+          <form onSubmit={addGuest} className="mt-4 space-y-3 rounded-xl border border-gold/15 bg-white/70 p-4">
+            <PlannerGuestEditor
+              value={newGuest}
+              tables={tables}
+              onChange={setNewGuest}
+              idPrefix="invitation-add-guest"
+              tone="light"
+              disabled={busy !== null}
+            />
+            <div className="flex justify-end">
+              <Button type="submit" disabled={busy !== null} className="bg-espresso text-champagne">
+                {busy === 'add-guest' ? <Loader2 className="size-4 animate-spin" /> : <UserPlus className="size-4" />}
+                Add guest
+              </Button>
             </div>
-            <div>
-              <Label htmlFor="invitation-add-email">Email</Label>
-              <Input id="invitation-add-email" type="email" value={newGuest.email} onChange={(event) => setNewGuest((current) => ({ ...current, email: event.target.value }))} className="mt-1 bg-white" />
-            </div>
-            <div>
-              <Label htmlFor="invitation-add-phone">Phone</Label>
-              <Input id="invitation-add-phone" value={newGuest.phone} onChange={(event) => setNewGuest((current) => ({ ...current, phone: event.target.value }))} className="mt-1 bg-white" />
-            </div>
-            <Button type="submit" disabled={busy !== null} className="self-end bg-espresso text-champagne">
-              {busy === 'add-guest' ? <Loader2 className="size-4 animate-spin" /> : <UserPlus className="size-4" />}
-              Add guest
-            </Button>
           </form>
         )}
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
-          {[
-            ['Guests', stats.total],
-            ['Sent', stats.sent],
-            ['Not sent', stats.notSent],
-            ['Attending', stats.attending],
-            ['Pending RSVP', stats.pending],
-            ['Missing contact', stats.missingContact],
-            ['Opened', stats.opened],
-          ].map(([label, value]) => (
-            <div key={String(label)} className="rounded-xl border border-gold/15 bg-white/75 px-3 py-3 text-center">
-              <p className="font-serif text-2xl">{value}</p>
-              <p className="text-[10px] uppercase tracking-[0.12em] text-espresso/45">{label}</p>
-            </div>
-          ))}
-        </div>
+        {summary && (
+          <div data-testid="canonical-attendance-summary" className="mt-4 grid gap-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+            {[
+              ['registered', 'Registered', summary.registered],
+              ['sent', 'Sent', summary.sent],
+              ['notSent', 'Not sent', summary.notSent],
+              ['opened', 'Opened', summary.opened],
+              ['responded', 'Responded', summary.responded],
+              ['responseRate', 'Response rate', `${Math.round(summary.responseRate * 100)}%`],
+              ['attending', 'Attending', summary.attending],
+              ['declined', 'Declined', summary.declined],
+              ['awaiting', 'Awaiting', summary.awaiting],
+              ['expectedNamedAttendees', 'Expected named', summary.expectedNamedAttendees],
+              ['checkedIn', 'Checked in', summary.checkedIn],
+              ['notYetArrived', 'Not arrived', summary.notYetArrived],
+              ['missingContact', 'Missing contact', summary.missingContact],
+              ['passPendingRsvp', 'Pass · RSVP required', summary.passPendingRsvp],
+              ['passDeclined', 'Pass · Declined', summary.passDeclined],
+              ['passNotYetIssuable', 'Pass · Not yet issuable', summary.passNotYetIssuable],
+              ['passNotYetIssued', 'Pass · Ready / not issued', summary.passNotYetIssued],
+              ['passActive', 'Pass · Active', summary.passActive],
+              ['passRevoked', 'Pass · Revoked', summary.passRevoked],
+              ['passSuperseded', 'Pass · Superseded', summary.passSuperseded],
+              ['passIssuanceClosed', 'Pass · Issuance closed', summary.passIssuanceClosed],
+              ['nativeInstallClicked', 'Install clicked', summary.nativeInstallClicked],
+              ['nativeInstallNotActivated', 'Install · not active', summary.nativeInstallNotActivated],
+              ['nativeInstallToActivationRate', 'Install → active', `${Math.round(summary.nativeInstallToActivationRate * 100)}%`],
+              ['nativeActivated', 'App active', summary.nativeActivated],
+              ['nativeActivationRate', 'App activation', `${Math.round(summary.nativeActivationRate * 100)}%`],
+              ['nativeAndroid', 'Android active', summary.nativeAndroid],
+              ['nativeIos', 'iOS active', summary.nativeIos],
+            ].map(([key, label, value]) => (
+              <button
+                key={String(key)}
+                type="button"
+                onClick={() => focusSummary(String(key))}
+                className="rounded-xl border border-gold/15 bg-white/75 px-3 py-3 text-center transition hover:border-gold/35 hover:bg-white"
+              >
+                <p className="font-serif text-2xl">{value}</p>
+                <p className="text-[10px] uppercase tracking-[0.12em] text-espresso/45">{label}</p>
+              </button>
+            ))}
+          </div>
+        )}
 
-        <div className="mt-4 grid gap-2 xl:grid-cols-[minmax(16rem,1fr)_11rem_11rem_11rem_11rem_auto]">
-          <div className="relative">
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="relative sm:col-span-2">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-espresso/35" />
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search guest, email, phone, table, sender…"
+              placeholder="Search guest, role, allocation, table, sender…"
               className="bg-white pl-9"
             />
           </div>
           <select value={rsvpFilter} onChange={(event) => setRsvpFilter(event.target.value as RsvpFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
             <option value="all">All RSVP states</option>
+            <option value="responded">Responded</option>
             <option value="attending">Attending</option>
             <option value="declined">Declined</option>
-            <option value="pending">Pending</option>
+            <option value="pending">Awaiting</option>
           </select>
           <select value={deliveryFilter} onChange={(event) => setDeliveryFilter(event.target.value as DeliveryFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
-            <option value="all">All delivery states</option>
-            <option value="sent">Sent</option>
-            <option value="not_sent">Not sent</option>
-          </select>
-          <select value={contactFilter} onChange={(event) => setContactFilter(event.target.value as ContactFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
-            <option value="all">All contacts</option>
-            <option value="with_contact">Has contact</option>
-            <option value="missing_contact">Missing contact</option>
+            <option value="all">All delivery states</option><option value="sent">Sent</option><option value="not_sent">Not sent</option>
           </select>
           <select value={openFilter} onChange={(event) => setOpenFilter(event.target.value as OpenFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
-            <option value="all">All open states</option>
-            <option value="opened">Opened invitation</option>
-            <option value="not_opened">Not opened yet</option>
+            <option value="all">All open states</option><option value="opened">Opened invitation</option><option value="not_opened">Not opened yet</option>
           </select>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setSearch('')
-              setRsvpFilter('all')
-              setDeliveryFilter('all')
-              setContactFilter('all')
-              setOpenFilter('all')
-            }}
-          >
-            Reset
-          </Button>
+          <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
+            <option value="all">All participant types</option>{roleOptions.map((role) => <option key={role} value={role}>{role.replaceAll('_', ' ')}</option>)}
+          </select>
+          <select value={allocationFilter} onChange={(event) => setAllocationFilter(event.target.value)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
+            <option value="all">All allocations</option>{allocationOptions.map((side) => <option key={side} value={side}>{side}</option>)}
+          </select>
+          <select value={contactFilter} onChange={(event) => setContactFilter(event.target.value as ContactFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
+            <option value="all">All contacts</option><option value="with_contact">Has contact</option><option value="missing_contact">Missing contact</option>
+          </select>
+          <select value={arrivalFilter} onChange={(event) => setArrivalFilter(event.target.value as ArrivalFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
+            <option value="all">All arrival states</option><option value="checked_in">Checked in</option><option value="not_arrived">Not arrived</option>
+          </select>
+          <select value={passFilter} onChange={(event) => setPassFilter(event.target.value as PassFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
+            <option value="all">All Pass states</option><option value="pending_rsvp">RSVP required</option><option value="declined">Declined</option><option value="not_yet_issuable">Not yet issuable</option><option value="not_yet_issued">Ready / not issued</option><option value="active">Active</option><option value="revoked">Revoked</option><option value="superseded">Superseded</option><option value="issuance_closed">Issuance closed</option>
+          </select>
+          <select value={nativeFilter} onChange={(event) => setNativeFilter(event.target.value as NativeFilter)} className="h-10 rounded-md border border-gold/20 bg-white px-3 text-sm">
+            <option value="all">All app states</option>
+            <option value="install_clicked">Install clicked</option>
+            <option value="install_clicked_not_active">Install clicked · not active</option>
+            <option value="active">App active</option>
+            <option value="not_active">App not active</option>
+            <option value="android">Android active</option>
+            <option value="ios">iOS active</option>
+          </select>
+          <Button type="button" variant="outline" onClick={resetOperationalFilters}>Reset</Button>
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-gold/15 bg-white/70 p-3">
@@ -735,20 +849,16 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                     </div>
                     <div className="min-w-0">
                       {editing ? (
-                        <div className="grid gap-3 rounded-xl border border-gold/15 bg-white/65 p-3 md:grid-cols-3">
-                          <div>
-                            <Label>Name</Label>
-                            <Input value={editGuest.name} onChange={(event) => setEditGuest((current) => ({ ...current, name: event.target.value }))} className="mt-1 bg-white" />
-                          </div>
-                          <div>
-                            <Label>Email</Label>
-                            <Input type="email" value={editGuest.email} onChange={(event) => setEditGuest((current) => ({ ...current, email: event.target.value }))} className="mt-1 bg-white" />
-                          </div>
-                          <div>
-                            <Label>Phone</Label>
-                            <Input value={editGuest.phone} onChange={(event) => setEditGuest((current) => ({ ...current, phone: event.target.value }))} className="mt-1 bg-white" />
-                          </div>
-                          <div className="flex gap-2 md:col-span-3">
+                        <div className="space-y-3 rounded-xl border border-gold/15 bg-white/65 p-3">
+                          <PlannerGuestEditor
+                            value={editGuest}
+                            tables={tables}
+                            onChange={setEditGuest}
+                            idPrefix={`invitation-edit-${row.id}`}
+                            tone="light"
+                            disabled={busy !== null}
+                          />
+                          <div className="flex gap-2">
                             <Button type="button" size="sm" disabled={busy !== null} onClick={() => void saveGuest(row)}>
                               {busy === `edit-${row.id}` ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
                               Save guest
@@ -765,6 +875,9 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                               <h4 className="font-serif text-2xl">{row.name}</h4>
                               <p className="mt-1 text-xs text-espresso/55">{row.email || row.phone || 'No contact saved'}</p>
                               {row.email && row.phone && <p className="mt-1 text-xs text-espresso/45">{row.phone}</p>}
+                              <p className="mt-1 text-[11px] text-espresso/45">
+                                {row.role.replaceAll('_', ' ')}{row.roleDetail ? ` · ${row.roleDetail}` : ''} · {row.side || 'neutral'} · {row.attendanceAllocation}
+                              </p>
                             </div>
                             <div className="flex flex-wrap gap-2">
                               <span className="rounded-full bg-white/75 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]">{row.status}</span>
@@ -775,40 +888,24 @@ export function InvitationManager({ compact = false }: { compact?: boolean }) {
                           </div>
 
                           <div className="mt-3 grid gap-2 text-xs text-espresso/55 sm:grid-cols-2 xl:grid-cols-5">
-                            <p>Table: <strong>{row.tableNumber ?? 'Not assigned'}</strong></p>
+                            <p>Table: <strong>{row.seatingTableName || row.tableNumber || 'Not assigned'}</strong></p>
                             <p>{row.checkedIn ? 'Checked in' : 'Not checked in'}</p>
+                            <p>Pass: <strong>{row.passState.replaceAll('_', ' ')}</strong></p>
+                            <p>App: <strong>{row.nativeActivated ? row.nativePlatforms.join(' + ') : row.nativeInstallClickedAt ? 'Install clicked · not active' : 'Not active'}</strong></p>
                             <p>Channel: <strong>{channelLabel(row.deliveryChannel)}</strong></p>
                             <p>Sent: <strong>{deliveryTime(row.deliveredAt)}</strong></p>
                             <p>Opened: <strong>{deliveryTime(row.openedAt)}</strong></p>
                           </div>
                           {row.deliveredBy && <p className="mt-1 text-[11px] text-espresso/45">Recorded by {row.deliveredBy}</p>}
 
-                          <div className="mt-4 flex flex-wrap gap-2">
-                            <Button type="button" size="sm" onClick={() => void copyMessage(row)} disabled={!row.shareMessage}>
-                              <Copy className="size-4" />{copied === `message-${row.id}` ? 'Message copied' : 'Copy message'}
-                            </Button>
-                            <Button type="button" size="sm" variant="outline" onClick={() => void share(row)} disabled={!row.invitationUrl}>
-                              <Share2 className="size-4" />{copied === `share-${row.id}` ? 'Copied' : 'Share card'}
-                            </Button>
-                            <Button type="button" size="sm" variant="outline" onClick={() => void copyLink(row)} disabled={!row.invitationUrl}>
-                              {copied === `link-${row.id}` ? <Check className="size-4" /> : <Copy className="size-4" />}
-                              {copied === `link-${row.id}` ? 'Link copied' : 'Copy link'}
-                            </Button>
-                            {row.invitationUrl && (
-                              <Button asChild size="sm" variant="outline">
-                                <a href={plannerPreviewLink(row.invitationUrl)} target="_blank" rel="noreferrer">
-                                  <ExternalLink className="size-4" />Preview
-                                </a>
-                              </Button>
-                            )}
-                            <Button type="button" size="sm" variant="outline" onClick={() => void recordDelivery([row.id])} disabled={busy !== null}>
-                              <Send className="size-4" />Mark sent
-                            </Button>
-                            {row.deliveryStatus === 'sent' && (
-                              <Button type="button" size="sm" variant="outline" onClick={() => void clearDelivery([row.id])} disabled={busy !== null}>
-                                Reset sent
-                              </Button>
-                            )}
+                          <PlannerGuestInvitationActions
+                            guest={row}
+                            disabled={busy !== null}
+                            initialChannel={deliveryChannel}
+                            onDeliveryChanged={load}
+                          />
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <PlannerGuest360Dialog guestId={row.id} guestName={row.name} compact />
                             <Button type="button" size="sm" variant="outline" onClick={() => startEdit(row)} disabled={busy !== null}>
                               <Pencil className="size-4" />Edit guest
                             </Button>

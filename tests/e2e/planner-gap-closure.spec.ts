@@ -20,7 +20,7 @@ async function addGuest(
     response.url().endsWith('/api/planner/guests')
       && response.request().method() === 'POST',
   )
-  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await page.getByRole('button', { name: 'Add guest', exact: true }).click()
   expect((await createResponse).ok()).toBe(true)
   await expect(page.getByText(name, { exact: true })).toBeVisible()
 }
@@ -118,15 +118,17 @@ test('guest core fields edit directly with duplicate-email feedback and wedding-
   await addGuest(page, second, 'gap.two@example.test')
 
   await page.getByRole('button', { name: `Edit ${first}` }).click()
-  await page.getByLabel(`Edit email for ${first}`).fill('gap.two@example.test')
+  await page.locator('[id^="guest-edit-"][id$="-email"]').fill('gap.two@example.test')
   await page.getByRole('button', { name: 'Save guest' }).click()
   await expect(page.locator('[id^="guest-edit-error-"]')).toContainText('already exists')
 
-  await page.getByLabel(`Edit name for ${first}`).fill('Gap Guest One Updated')
-  await page.getByLabel(`Edit email for ${first}`).fill('gap.one.updated@example.test')
-  await page.getByLabel(`Edit phone for ${first}`).fill('+263700001111')
-  await page.getByLabel(`Edit role for ${first}`).selectOption('vip')
-  await page.getByLabel(`Edit side for ${first}`).selectOption('groom')
+  // Scope the edit fields by their edit-form IDs. The canonical Add Guest editor remains mounted
+  // above the register, so unscoped labels/testids legitimately match both editors.
+  await page.locator('[id^="guest-edit-"][id$="-name"]').fill('Gap Guest One Updated')
+  await page.locator('[id^="guest-edit-"][id$="-email"]').fill('gap.one.updated@example.test')
+  await page.locator('[id^="guest-edit-"][id$="-phone"]').fill('+263700001111')
+  await page.locator('[id^="guest-edit-"][id$="-role"]').selectOption('vip')
+  await page.locator('[id^="guest-edit-"][id$="-side"]').selectOption('groom')
   await page.getByRole('button', { name: 'Save guest' }).click()
   await expect(page.getByText('Gap Guest One Updated', { exact: true })).toBeVisible()
   await page.reload()

@@ -2,6 +2,12 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { resolveNativeGrantContext, requireGrantPermission, requireWeddingScope, noStoreJson } from '@/lib/native-domain-context'
 import { guestPartySize, guestRsvpStatus, guestSeatingIdentity } from '@/lib/guest-record-authority'
+import {
+  loadWeddingAdditionalAdultPolicy,
+  loadWeddingChildrenPolicy,
+} from '@/lib/guest-rsvp-mutation'
+import { nativeGuestSummary, resolveNativeGuestWrite } from '@/lib/native-planner-guest-write'
+import { createPlannerGuest } from '@/lib/planner-guest-operations'
 
 /**
  * Master plan Phase 8 §9 — Guests (Planner/Couple account access to guest management, read-only in
@@ -20,21 +26,26 @@ export async function GET(request: NextRequest) {
 
   const query = request.nextUrl.searchParams.get('q')?.trim() ?? ''
 
-  const guests = await db.guest.findMany({
-    where: {
-      weddingId: scope.weddingId,
-      ...(query
-        ? {
-            OR: [
-              { name: { contains: query, mode: 'insensitive' } },
-              { seatingTable: { name: { contains: query, mode: 'insensitive' } } },
-            ],
-          }
-        : {}),
-    },
-    include: { seatingTable: { select: { id: true, name: true, weddingId: true } }, rsvp: true },
-    orderBy: [{ createdAt: 'asc' }],
-  })
+  const [guests, additionalAdultPolicy, childrenPolicy] = await Promise.all([
+    db.guest.findMany({
+      where: {
+        weddingId: scope.weddingId,
+        ...(query
+          ? {
+              OR: [
+                { name: { contains: query, mode: 'insensitive' } },
+                { seatingTable: { name: { contains: query, mode: 'insensitive' } } },
+              ],
+            }
+          : {}),
+      },
+      include: { seatingTable: { select: { id: true, name: true, weddingId: true } }, rsvp: true },
+      orderBy: [{ createdAt: 'asc' }],
+    }),
+    loadWeddingAdditionalAdultPolicy(scope.weddingId),
+    loadWeddingChildrenPolicy(scope.weddingId),
+  ])
+  const attendancePolicies = { additionalAdultPolicy, childrenPolicy }
 
   return noStoreJson({
     success: true,
@@ -44,15 +55,65 @@ export async function GET(request: NextRequest) {
       id: guest.id,
       name: guest.name,
       side: guest.side,
+      attendanceAllocation: guest.attendanceAllocation,
       role: guest.role,
       tableNumber: guest.tableNumber,
       ...guestSeatingIdentity(guest.seatingTable, scope.weddingId),
       rsvpStatus: guestRsvpStatus(guest.rsvp?.attending),
-      partySize: guestPartySize(guest.rsvp),
+      partySize: guest.role === 'service_provider' ? 1 : guestPartySize(guest.rsvp, attendancePolicies),
       rsvpMessage: guest.rsvp?.message ?? null,
       checkedIn: guest.rsvp?.checkedIn ?? false,
       createdAt: guest.createdAt.toISOString(),
       updatedAt: guest.updatedAt.toISOString(),
     })),
   })
+}
+
+/**
+ * NATIVE-MOBILE-QRO08 — native twin of the desktop "Add guest" (POST /api/planner/guests, guest
+ * mode). Same shared operation: validation, duplicate-email rule, personal-link RSVP row and audit.
+ * The response carries only non-credential fields; the client re-reads the invitations projection.
+ */
+export async function POST(request: NextRequest) {
+  const write = await resolveNativeGuestWrite(request)
+  if (!write.ok) return write.response
+  try {
+    const body = (await request.json().catch(() => null)) as {
+      name?: unknown
+      email?: unknown
+      phone?: unknown
+      role?: unknown
+      roleDetail?: unknown
+      side?: unknown
+      attendanceAllocation?: unknown
+      seatingTableId?: unknown
+    } | null
+    const result = await createPlannerGuest(write.actor, {
+      name: typeof body?.name === 'string' ? body.name : undefined,
+      email: typeof body?.email === 'string' ? body.email : undefined,
+      phone: typeof body?.phone === 'string' ? body.phone : undefined,
+      role: typeof body?.role === 'string' ? body.role : undefined,
+      roleDetail: typeof body?.roleDetail === 'string' ? body.roleDetail : undefined,
+      side: typeof body?.side === 'string' ? body.side : undefined,
+      attendanceAllocation: typeof body?.attendanceAllocation === 'string' ? body.attendanceAllocation : undefined,
+      seatingTableId: typeof body?.seatingTableId === 'string' ? body.seatingTableId : undefined,
+    })
+    if (!result.ok) {
+      return noStoreJson(
+        { success: false, error: result.error, ...('field' in result && result.field ? { field: result.field } : {}) },
+        result.status,
+      )
+    }
+    return noStoreJson({
+      success: true,
+      data: nativeGuestSummary(result.data),
+      capacity: result.capacity ?? null,
+      capacityWarning: result.capacity?.warning
+        ? `${result.capacity.allocation} allocation has reached its warning threshold (${result.capacity.registered}${result.capacity.hardLimit == null ? '' : `/${result.capacity.hardLimit}`} registered).`
+        : null,
+    }, 201)
+  } catch (error) {
+    console.error('[native wedding guests POST] failed', error instanceof Error ? error.name : 'unknown')
+    return noStoreJson({ success: false, error: 'Failed to create guest.' }, 500)
+  }
 }

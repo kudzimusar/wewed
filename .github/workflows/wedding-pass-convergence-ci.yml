@@ -15,6 +15,8 @@ on:
       - 'src/lib/import-engine/guest-worksheet-apply.ts'
       - 'src/lib/import-engine/guest-worksheet-rollback.ts'
       - 'src/lib/rsvp-pass-lifecycle-writers.integration.test.ts'
+      - 'src/lib/planner-guest-operations.ts'
+      - 'src/lib/planner-guest-delete-protection.integration.test.ts'
       - 'src/lib/preview-write-safety.ts'
       - 'src/lib/preview-live-data-safety.integration.test.ts'
       - 'src/lib/gate-authority.ts'
@@ -99,6 +101,20 @@ jobs:
       - name: Guest RSVP convergence
         run: bun test src/lib/guest-rsvp-convergence.integration.test.ts
 
+      - name: Guest / invitation / attendance increment contracts
+        run: >-
+          bun test
+          src/lib/additional-adult-policy-settings.test.ts
+          src/lib/planner-attendance-summary.test.ts
+          src/lib/guest-native-presence.test.ts
+          src/lib/guest-native-presence.integration.test.ts
+          src/lib/locked-prepass-experience.test.ts
+          src/lib/guest-capacity-allocation.test.ts
+          src/lib/guest-capacity-allocation.integration.test.ts
+          src/lib/service-provider-teams.test.ts
+          src/lib/service-provider-teams.integration.test.ts
+          src/lib/planner-guest-360.test.ts
+
       - name: Guest Session is not admission authority (source contract)
         run: bun test src/lib/unified-navigation-privacy.test.ts
 
@@ -107,3 +123,6 @@ jobs:
 
       - name: RSVP writers preserve the Wedding Pass lifecycle
         run: bun test src/lib/rsvp-pass-lifecycle-writers.integration.test.ts
+
+      - name: Protected Guest deletion (QRO08 P1 — pass / check-in / contribution history)
+        run: bun test src/lib/planner-guest-delete-protection.integration.test.ts

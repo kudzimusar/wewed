@@ -154,8 +154,8 @@ fun GuestInvitationJourneyScreen(
                 wedding = null,
                 monogram = configuration?.monogram,
                 tagline = configuration?.tagline,
-                rsvpDeadlineLabel = configuration?.rsvpDeadline,
-                message = note
+                rsvpDeadlineLabel = pro.wewed.app.invitation.InvitationDeadlineFormat.label(configuration?.rsvpDeadline),
+                coupleNote = note
             ),
             rsvp = ivoryRsvpStateFrom(status),
             actions = IvoryActions(

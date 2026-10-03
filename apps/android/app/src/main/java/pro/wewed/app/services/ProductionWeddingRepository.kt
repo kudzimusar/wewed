@@ -42,9 +42,9 @@ class ProductionWeddingRepository(
     override suspend fun resolveGuestIdentity(token: String): pro.wewed.app.services.GuestIdentity? = denied()
 
     /**
-     * QRO05-PIQR01 — Planner → More → Invitations & QR. Deliberately NOT part of [WeddingRepository]
+     * QRO05-PIQR01 — Planner → Workspace → Invitations. Deliberately NOT part of [WeddingRepository]
      * and never called by `rememberWeddingGraph`: the result carries private RSVP links, so it is
-     * read only when the Planner opens that screen and is held by that screen alone. Read-only.
+     * read only when the Planner opens that screen and is held by that screen alone.
      */
     suspend fun loadPlannerInvitations(): PlannerInvitationsLoad = coroutineScope {
         val invitationsFetch = async { client.plannerInvitations(sessionToken, grantId) }
@@ -59,6 +59,25 @@ class ProductionWeddingRepository(
         )
         snapshot?.let { PlannerInvitationsLoad.Loaded(it) }
             ?: PlannerInvitationsLoad.Unavailable("Invitations could not be read. Try again.")
+    }
+
+    /**
+     * NATIVE-MOBILE-QRO08 — the command center's explicit Planner operations. Each is a thin call to
+     * the native twin of the desktop route (same shared server function, same audit); the result is
+     * never cached here — the screen re-reads [loadPlannerInvitations] after a successful write.
+     */
+    val plannerInvitationOperations: PlannerInvitationOperations = object : PlannerInvitationOperations {
+        override suspend fun markSent(guestIds: List<String>, channel: InvitationDeliveryChannel) =
+            client.markInvitationsSent(sessionToken, grantId, guestIds, channel)
+        override suspend fun resetDelivery(guestIds: List<String>) =
+            client.resetInvitationDelivery(sessionToken, grantId, guestIds)
+        override suspend fun generateMissingLinks() = client.generateMissingInvitationLinks(sessionToken, grantId)
+        override suspend fun rotateLink(guestId: String) = client.rotateInvitationLink(sessionToken, grantId, guestId)
+        override suspend fun addGuest(name: String, email: String?, phone: String?) =
+            client.createGuest(sessionToken, grantId, name, email, phone)
+        override suspend fun editGuest(guestId: String, name: String, email: String?, phone: String?) =
+            client.updateGuest(sessionToken, grantId, guestId, name, email, phone)
+        override suspend fun deleteGuest(guestId: String) = client.deleteGuest(sessionToken, grantId, guestId)
     }
 
     override suspend fun getWedding(weddingId: String): Wedding {

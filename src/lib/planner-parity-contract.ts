@@ -22,6 +22,7 @@ export const ACTIVE_PLANNER_SOURCE_PATHS = [
   'src/components/wedding/planner-portal.tsx',
   'src/components/wedding/planner-workspace-stage7.tsx',
   'src/components/wedding/planner-workspace.tsx',
+  'src/components/wedding/planner/planner-guest-editor.tsx',
 ] as const
 
 function capability(
@@ -232,9 +233,9 @@ export const ORIGINAL_PLANNER_PARITY: readonly PlannerParityCapability[] = [
   capability(
     'guests.create-complete',
     'guests',
-    'Guest creation includes contact, role, side, and initial table.',
+    'Guest creation includes contact, role, relationship side, capacity allocation, and initial table.',
     ["phone: ''", "role: 'guest'", "side: 'neutral'", "seatingTableId: ''"],
-    ['workspace-guest-phone', 'workspace-guest-role', 'workspace-guest-side', 'workspace-guest-table'],
+    ["set('phone'", "set('role'", "set('side'", "set('attendanceAllocation'", "set('seatingTableId'"],
   ),
   capability(
     'guests.search-filter',

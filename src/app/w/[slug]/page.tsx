@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { androidDeferredInvitationHandoffEnabled } from '@/lib/invitation-deferred-install'
 import { cookies } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import { WeddingHome } from '@/components/wedding/wedding-home'
@@ -13,6 +14,7 @@ import {
   verifyAppSessionToken,
 } from '@/lib/app-session'
 import { normalizeInvitationCardStyle } from '@/lib/digital-invitation-card'
+import { configuredIosDistributionUrl } from '@/lib/ios-app-distribution'
 import { loadWeddingDataBySlug } from '@/lib/wedding-data-server'
 import { WEDDING_GUEST_SESSION_COOKIE } from '@/lib/wedding-guest-session'
 import {
@@ -101,9 +103,13 @@ export default async function WeddingPage({
 
   const invitationToken = query.rsvp?.trim()
   if (invitationToken) {
-    const exchangeQuery = new URLSearchParams({ token: invitationToken })
+    // Backward compatibility for personal invitation links issued before the install-aware
+    // /invite gateway became canonical. Never exchange the credential directly into a browser
+    // Guest session here: that bypasses the Android native-install gate and recreates the exact
+    // user-reported failure where an invited Guest falls straight into the web/Ivory experience.
+    const inviteQuery = new URLSearchParams({ rsvp: invitationToken })
     redirect(
-      `/api/weddings/${encodeURIComponent(slug)}/guest-session/exchange?${exchangeQuery.toString()}`,
+      `/invite/${encodeURIComponent(slug)}?${inviteQuery.toString()}`,
     )
   }
 
@@ -169,9 +175,7 @@ export default async function WeddingPage({
     : null
 
   if (physicalInvitationClaim && physicalInvitationStyle) {
-    const deferredInstallEnabled =
-      isDedicatedPreviewWedding ||
-      process.env.ANDROID_DEFERRED_INVITATION_HANDOFF === '1'
+    const deferredInstallEnabled = androidDeferredInvitationHandoffEnabled(wedding.id)
     const insideWewed =
       androidInvitationAppSession?.weddingId === wedding.id &&
       androidInvitationAppSession.destinationId === sharedInvitationSession?.destinationId
@@ -183,6 +187,7 @@ export default async function WeddingPage({
         style={physicalInvitationStyle}
         allowNameOnlyClaim={isDedicatedPreviewWedding}
         deferredInstallEnabled={deferredInstallEnabled}
+        iosDistributionUrl={configuredIosDistributionUrl()}
         insideWewed={insideWewed}
         invitation={{
           title: `${wedding.partner1} & ${wedding.partner2}`,

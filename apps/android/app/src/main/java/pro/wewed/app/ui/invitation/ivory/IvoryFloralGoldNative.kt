@@ -111,11 +111,18 @@ object IvoryGeometry {
     val HIT_NOTE = floatArrayOf(72.4f, 8f)
 }
 
+object IvoryInvitationContent {
+    const val COMPACT_LINE = "We’d be honoured to celebrate with you."
+}
+
 /** Everything the invitation renders. Resolved from the wedding graph, never hard-coded. */
 data class IvoryInvitationData(
     val coupleNames: String,
     val monogram: String,
-    val message: String,
+    /** Short presentation copy safe for the authored stationery region. */
+    val compactLine: String,
+    /** Complete couple-authored note. Never truncate this to fit artwork. */
+    val coupleNote: String?,
     val weddingDateLabel: String,
     val weekdayLabel: String?,
     val dayLabel: String?,
@@ -328,7 +335,7 @@ fun IvoryFloralGoldNative(
                     IvoryRegion(IvoryGeometry.MESSAGE, stageWidth, stageHeight) {
                         Text(
                             // `.ivory-message { text-transform: uppercase; letter-spacing: .13em }`
-                            data.message.uppercase(),
+                            data.compactLine.uppercase(),
                             color = IvoryPalette.Ink,
                             fontFamily = IvoryTypography.Body,
                             fontSize = (stageWidth.value * 0.030f).sp,
@@ -496,7 +503,7 @@ fun IvoryFloralGoldNative(
                     // note it would still read as a dead action, so the note-free surface drops it.
                     Image(
                         painter = painterResource(
-                            if (actions.onNote != null) R.drawable.ivory_details_surface
+                            if (!data.coupleNote.isNullOrBlank()) R.drawable.ivory_details_surface
                             else R.drawable.ivory_details_surface_no_note
                         ),
                         contentDescription = null,
@@ -514,13 +521,13 @@ fun IvoryFloralGoldNative(
                     }
                     // The artwork's own sample copy is erased in these regions; leaving them
                     // empty showed the erasure as a smudge where the couple's words belong.
-                    data.tagline?.takeIf { it.isNotBlank() }?.let {
+                    data.coupleNote?.takeIf { it.isNotBlank() }?.let {
                         IvoryRegion(IvoryGeometry.DETAIL_NOTE_INTRO, stageWidth, stageHeight) {
                             Text(
-                                it,
+                                data.compactLine,
                                 color = IvoryPalette.Gold,
-                                fontFamily = IvoryTypography.Script,
-                                fontSize = (stageWidth.value * 0.052f).sp,
+                                fontFamily = IvoryTypography.Body,
+                                fontSize = (stageWidth.value * 0.030f).sp,
                                 textAlign = TextAlign.Center
                             )
                         }

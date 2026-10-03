@@ -33,8 +33,13 @@ function hardenedRedirect(location: string, status = 303): NextResponse {
   })
 }
 
-function recoveryRedirect(): NextResponse {
-  const response = hardenedRedirect('/guest-access-help?reason=invitation-resume')
+function recoveryRedirect(reason: string): NextResponse {
+  const safeReason = ['invalid', 'expired', 'used', 'revoked', 'rate_limited'].includes(reason)
+    ? reason
+    : 'invalid'
+  const response = hardenedRedirect(
+    `/guest-access-help?reason=invitation-resume-${encodeURIComponent(safeReason)}`,
+  )
   // Do not erase an already-valid guest session when a new handoff is invalid,
   // expired, duplicated, or otherwise fails. The replacement is atomic: only a
   // successfully redeemed handoff is allowed to overwrite the active guest.
@@ -59,7 +64,7 @@ export async function GET(request: NextRequest) {
       checkpoint: 'resume_rejected',
       reason: result.reason,
     })
-    return recoveryRedirect()
+    return recoveryRedirect(result.reason)
   }
 
   console.info('[wewed][invitation-handoff]', {

@@ -1,14 +1,16 @@
-name: Android Invitation UAT APK
+name: Android Invitation Native UAT APK
 
 on:
   pull_request:
     paths:
-      - 'android/**'
-      - 'src/app/api/invitations/**'
+      - 'apps/android/**'
       - 'src/app/invite/**'
+      - 'src/app/api/invitations/**'
       - 'src/components/wedding/invitation-app-handoff.tsx'
       - 'src/components/wedding/physical-invitation-entry.tsx'
-      - 'src/lib/invitation-links.ts'
+      - 'src/lib/invitation-*.ts'
+      - 'src/lib/personal-invitation-mobile-entry.test.ts'
+      - '.github/scripts/verify-android-local-package.sh'
       - '.github/workflows/android-invitation-uat-apk.yml'
   workflow_dispatch:
 
@@ -16,46 +18,61 @@ permissions:
   contents: read
 
 concurrency:
-  group: android-invitation-uat-apk-${{ github.ref }}
+  group: android-invitation-native-uat-apk-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build-uat-apk:
-    name: Build Wewed UAT Android APK
+    name: Build installable Kotlin Guest UAT APK
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
-      - name: Check out repository
+      - name: Check out exact candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Verify exact candidate SHA
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_SHA"
+          echo "Native invitation UAT APK SHA=$actual"
+
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
-      - name: Build UAT APK
-        working-directory: android
+
+      - name: Build native Kotlin debug APK and run invitation unit tests
+        working-directory: apps/android
         run: |
+          set -euo pipefail
           chmod +x gradlew
-          ./gradlew :app:assembleUat --no-daemon --stacktrace
-      - name: Verify UAT binary contract
+          ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Verify UAT identity and deferred invitation support
+        shell: bash
         run: |
-          test -f android/app/build/outputs/apk/uat/app-uat.apk
-          grep -q 'buildConfigField "boolean", "UAT", "true"' android/app/build.gradle
-          grep -q 'BuildConfig.INVITATION_RESUME_ORIGIN + "/invite/resume"' android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
-          grep -q 'BuildConfig.INVITATION_RESUME_ORIGIN + "/invite/physical-resume"' android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
-          grep -q 'physical_handoff' android/app/src/main/java/pro/wewed/app/InstallReferrerHandoff.java
-          UAT_BUILD_CONFIG="$(find android/app/build/generated -type f -name BuildConfig.java -path '*uat*' | head -n 1)"
-          test -n "$UAT_BUILD_CONFIG"
-          grep -q 'INVITATION_RESUME_ORIGIN = "https://uat.wewed.pro"' "$UAT_BUILD_CONFIG"
-          # The installable UAT APK is debug-signed, so it must never carry the Play identity.
-          AAPT2="$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -n 1)"
-          "$AAPT2" dump badging android/app/build/outputs/apk/uat/app-uat.apk | grep -q "^package: name='pro.wewed.app.uatdev'"
-          "$AAPT2" dump resources android/app/build/outputs/apk/uat/app-uat.apk | grep -A1 'string/providerAuthority' | grep -q '"pro.wewed.app.uatdev.fileprovider"'
-      - name: Upload installable UAT APK
-        uses: actions/upload-artifact@v4
+          set -euo pipefail
+          APK='apps/android/app/build/outputs/apk/debug/app-debug.apk'
+          test -s "$APK"
+          bash .github/scripts/verify-android-local-package.sh             apps/android/app/build/outputs/apk/debug             pro.wewed.app.dev
+          grep -Fq 'com.android.installreferrer:installreferrer:2.2' apps/android/app/build.gradle.kts
+          grep -Fq 'PlayInstallReferrer.fetchOnce' apps/android/app/src/main/java/pro/wewed/app/MainActivity.kt
+          grep -Fq 'InvitationEntry.Handoff' apps/android/app/src/main/java/pro/wewed/app/invitation/PlayInstallReferrer.kt
+          grep -Fq 'production_preview' apps/android/app/src/main/java/pro/wewed/app/state/NativeLaunchConfiguration.kt
+          echo 'PASS: artifact is the Kotlin Wewed app, isolated from the Play identity, with deferred invitation support.'
+
+      - name: Upload installable native UAT APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: wewed-uat-invitation-apk
-          path: android/app/build/outputs/apk/uat/app-uat.apk
+          name: wewed-native-invitation-uat-apk
+          path: apps/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

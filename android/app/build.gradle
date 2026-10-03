@@ -38,7 +38,7 @@ if (productionVersionCode != null && productionVersionCode < 1) {
     throw new GradleException('WEWED_ANDROID_PRODUCTION_VERSION_CODE must be a positive integer')
 }
 def uatResumeOrigin = System.getenv('WEWED_ANDROID_UAT_RESUME_ORIGIN') ?: 'https://uat.wewed.pro'
-if (!(uatResumeOrigin in ['https://uat.wewed.pro', 'http://10.0.2.2:3000'])) {
+if (!(uatResumeOrigin in ['https://uat.wewed.pro', 'http://10.0.2.2:3000', 'http://127.0.0.1:3000'])) {
     throw new GradleException("Unsupported WEWED_ANDROID_UAT_RESUME_ORIGIN: " + uatResumeOrigin)
 }
 
