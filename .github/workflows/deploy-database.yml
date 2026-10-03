@@ -704,19 +704,144 @@ jobs:
             baseline-audit/reference-schema.normalized.sql \
             baseline-audit/production-schema.normalized.sql \
             > baseline-audit/raw-schema.diff
+          literal_status=$?
+          set -e
+
+          echo "literal_status=$literal_status" >> "$GITHUB_OUTPUT"
+
+          if [[ "$literal_status" == "1" ]]; then
+            echo "::warning::Literal raw PostgreSQL schema differs from the clean current-main reference."
+            echo "::group::Literal raw schema diff (first 500 lines)"
+            sed -n '1,500p' baseline-audit/raw-schema.diff
+            echo "::endgroup::"
+          elif [[ "$literal_status" != "0" ]]; then
+            echo "::error::Literal raw schema comparison failed."
+            echo "status=$literal_status" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # QRO07's reviewed ledger-repair plan explicitly permits two already-reviewed,
+          # semantically equivalent raw-schema differences:
+          #   1. preserve_planner_task_text_assignee(): formatting/comments plus explicit
+          #      public. qualification in production; executable logic is otherwise equal.
+          #   2. Wedding_invitationCardStyle_check: identical 12-value allow-set in a
+          #      different array order.
+          # Canonicalize ONLY those two objects, and only when their semantics match.
+          # Any other raw-schema difference remains visible and fails the audit.
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import pathlib
+          import re
+
+          audit = pathlib.Path("baseline-audit")
+          reference_path = audit / "reference-schema.normalized.sql"
+          production_path = audit / "production-schema.normalized.sql"
+
+          reference = reference_path.read_text()
+          production = production_path.read_text()
+
+          function_start = "CREATE FUNCTION public.preserve_planner_task_text_assignee()"
+
+          def extract_function(text: str) -> tuple[int, int, str]:
+              start = text.find(function_start)
+              if start < 0:
+                  raise SystemExit("Reviewed function is missing from schema dump")
+              end_match = re.search(r"\n(\$[A-Za-z0-9_]*\$);\n", text[start:])
+              if not end_match:
+                  raise SystemExit("Could not locate reviewed function terminator")
+              end = start + end_match.end()
+              return start, end, text[start:end]
+
+          def canonical_function(block: str) -> str:
+              block = re.sub(r"--[^\n]*", " ", block)
+              block = block.replace("public.", "")
+              return re.sub(r"\s+", " ", block).strip()
+
+          r_start, r_end, r_function = extract_function(reference)
+          p_start, p_end, p_function = extract_function(production)
+
+          if canonical_function(r_function) != canonical_function(p_function):
+              raise SystemExit(
+                  "preserve_planner_task_text_assignee differs beyond the reviewed "
+                  "formatting/comment/public-qualification equivalence"
+              )
+
+          sentinel_function = (
+              "CREATE FUNCTION public.preserve_planner_task_text_assignee() "
+              "/* REVIEWED_EQUIVALENT_BODY */\n"
+          )
+          reference = reference[:r_start] + sentinel_function + reference[r_end:]
+          production = production[:p_start] + sentinel_function + production[p_end:]
+
+          expected_styles = {
+              "ivory-floral-gold",
+              "midnight",
+              "botanical",
+              "royal-emerald",
+              "classic-white",
+              "blush-romance",
+              "african-luxe",
+              "editorial",
+              "black-tie",
+              "watercolour-garden",
+              "sunset-terracotta",
+              "celestial",
+          }
+
+          constraint = re.compile(
+              r'CONSTRAINT "Wedding_invitationCardStyle_check" CHECK '
+              r'\(\("invitationCardStyle" = ANY \(ARRAY\[(?P<items>[^\]]+)\]\)\)\)'
+          )
+
+          def canonicalize_constraint(text: str) -> str:
+              match = constraint.search(text)
+              if not match:
+                  raise SystemExit("Reviewed invitation-card CHECK constraint is missing")
+              values = re.findall(r"'([^']+)'::text", match.group("items"))
+              if len(values) != len(expected_styles) or set(values) != expected_styles:
+                  raise SystemExit(
+                      "Wedding_invitationCardStyle_check differs beyond reviewed ordering"
+                  )
+              replacement = (
+                  'CONSTRAINT "Wedding_invitationCardStyle_check" '
+                  'CHECK ("REVIEWED_EQUIVALENT_12_STYLE_SET")'
+              )
+              return text[:match.start()] + replacement + text[match.end():]
+
+          reference = canonicalize_constraint(reference)
+          production = canonicalize_constraint(production)
+
+          (audit / "reference-schema.reviewed.sql").write_text(reference)
+          (audit / "production-schema.reviewed.sql").write_text(production)
+          print(
+              "Reviewed equivalences validated: planner trigger body semantics and "
+              "12-style invitation constraint set."
+          )
+          PY
+
+          set +e
+          diff -u \
+            baseline-audit/reference-schema.reviewed.sql \
+            baseline-audit/production-schema.reviewed.sql \
+            > baseline-audit/raw-schema.reviewed.diff
           status=$?
           set -e
 
           echo "status=$status" >> "$GITHUB_OUTPUT"
           if [[ "$status" == "0" ]]; then
-            echo "Raw PostgreSQL schema matches the clean current-main reference."
+            if [[ "$literal_status" == "0" ]]; then
+              echo "Raw PostgreSQL schema matches the clean current-main reference literally."
+            else
+              echo "Raw PostgreSQL schema matches after ONLY the two pre-approved semantic-equivalence normalizations."
+            fi
           elif [[ "$status" == "1" ]]; then
-            echo "::warning::Raw PostgreSQL schema differs from the clean current-main reference."
-            echo "::group::Raw schema diff (first 500 lines)"
-            sed -n '1,500p' baseline-audit/raw-schema.diff
+            echo "::warning::Raw PostgreSQL schema still differs after reviewed equivalence normalization."
+            echo "::group::Unapproved raw schema diff (first 500 lines)"
+            sed -n '1,500p' baseline-audit/raw-schema.reviewed.diff
             echo "::endgroup::"
           else
-            echo "::error::Raw schema comparison failed."
+            echo "::error::Reviewed raw schema comparison failed."
           fi
 
       - name: Baseline audit verdict
@@ -728,9 +853,12 @@ jobs:
           top_level_dml_count="${{ steps.dml.outputs.top_level_count }}"
           function_body_dml_count="${{ steps.dml.outputs.function_body_count }}"
 
+          raw_literal_status="${{ steps.raw_diff.outputs.literal_status }}"
+
           echo "### Production migration baseline audit" >> "$GITHUB_STEP_SUMMARY"
           echo "- Prisma structural diff status: $prisma_status (0 = equal, 2 = different)" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Raw PostgreSQL schema diff status: $raw_status (0 = equal, 1 = different)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Raw PostgreSQL literal diff status: $raw_literal_status (0 = byte/text equal, 1 = literal differences)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Raw PostgreSQL reviewed-equivalence diff status: $raw_status (0 = equal after only the two pre-approved equivalences, 1 = unapproved difference remains)" >> "$GITHUB_STEP_SUMMARY"
           echo "- Ledger-missing migrations with top-level data-changing SQL: $top_level_dml_count" >> "$GITHUB_STEP_SUMMARY"
           echo "- Ledger-missing migrations with DML inside function/trigger bodies: $function_body_dml_count" >> "$GITHUB_STEP_SUMMARY"
           echo "- Production changes performed: **none**" >> "$GITHUB_STEP_SUMMARY"
