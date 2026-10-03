@@ -126,6 +126,39 @@ jobs:
           echo "Completed production migrations: $completed_migrations"
           echo "Pending repository migrations: $((repo_migrations - completed_migrations))"
 
+      - name: Fail closed unless PR #245 has exactly the reviewed three pending migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_REF_NAME" != "integration/guest-invitation-attendance-20261001" ]]; then
+            echo "Exact three-migration guard is scoped to PR #245 integration branch; skipping for $GITHUB_REF_NAME."
+            exit 0
+          fi
+
+          find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -u > /tmp/repository-migrations.txt
+          psql "$DATABASE_URL" -Atqc \
+            "select distinct migration_name from public._prisma_migrations where finished_at is not null and rolled_back_at is null order by migration_name" \
+            | sort -u > /tmp/applied-migrations.txt
+          comm -23 /tmp/repository-migrations.txt /tmp/applied-migrations.txt > /tmp/pending-migrations.txt
+
+          printf '%s\n' \
+            20260930103000_guest_native_presence \
+            20261001003000_guest_attendance_allocation_capacity \
+            20261001013000_service_provider_teams \
+            | sort -u > /tmp/expected-pending-pr245.txt
+
+          echo "::group::Pending migrations detected for PR #245"
+          cat /tmp/pending-migrations.txt
+          echo "::endgroup::"
+
+          if ! diff -u /tmp/expected-pending-pr245.txt /tmp/pending-migrations.txt; then
+            echo "::error::Refusing production migration: pending set is not exactly the three reviewed PR #245 migrations."
+            exit 1
+          fi
+
+          echo "PASS: pending migration set is exactly the reviewed three PR #245 migrations."
+
       - name: Deploy pending migrations
         run: bunx prisma migrate deploy --schema prisma/schema.prisma
 
