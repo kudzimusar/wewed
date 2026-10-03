@@ -45,7 +45,7 @@ describe('digital invitation card delivery', () => {
       style: 'midnight',
     })
     expect(url).toBe(
-      'https://wewed.example/w/aurora-and-blake?rsvp=guest+token&card=midnight',
+      'https://wewed.example/invite/aurora-and-blake?rsvp=guest+token',
     )
     const message = buildDigitalInvitationMessage({
       guestName: 'Taylor',
@@ -151,6 +151,17 @@ describe('digital invitation card delivery', () => {
     expect(delivery).toContain('weddingSlug: wedding.slug')
     expect(delivery).toContain('token: recipient.token')
     expect(delivery).not.toContain('`${siteUrl}/?rsvp=')
+  })
+
+  test('legacy /w personal links are upgraded through the install-aware invitation gateway', () => {
+    const page = source('src/app/w/[slug]/page.tsx')
+    const builder = source('src/lib/digital-invitation-card.ts')
+
+    expect(page).toContain('const inviteQuery = new URLSearchParams({ rsvp: invitationToken })')
+    expect(page).toContain('/invite/${encodeURIComponent(slug)}?')
+    expect(page).not.toContain('/api/weddings/${encodeURIComponent(slug)}/guest-session/exchange?')
+    expect(builder).toContain('return `${origin}/invite/${encodeURIComponent(weddingSlug)}?${query.toString()}`')
+    expect(builder).not.toContain('return `${origin}/w/${encodeURIComponent(weddingSlug)}?')
   })
 
   test('guest exchange strips the RSVP credential and ignores stale card overrides', () => {
