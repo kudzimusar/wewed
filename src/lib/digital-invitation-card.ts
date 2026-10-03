@@ -76,8 +76,11 @@ export function getInvitationCardStyleDefinition(
 
 export function buildDigitalInvitationUrl({ siteUrl, weddingSlug, token, style }: { siteUrl: string; weddingSlug: string; token: string; style: InvitationCardStyle }): string {
   const origin = siteUrl.replace(/\/$/, '')
-  const query = new URLSearchParams({ rsvp: token, card: style })
-  return `${origin}/w/${encodeURIComponent(weddingSlug)}?${query.toString()}`
+  // Keep this legacy helper source-compatible, but converge every newly generated personal
+  // invitation on the install-aware gateway. The saved Wedding style is server-authoritative.
+  void style
+  const query = new URLSearchParams({ rsvp: token })
+  return `${origin}/invite/${encodeURIComponent(weddingSlug)}?${query.toString()}`
 }
 
 export function buildDigitalInvitationMessage({ guestName, weddingTitle, invitationUrl }: { guestName: string; weddingTitle: string; invitationUrl: string }): string {
