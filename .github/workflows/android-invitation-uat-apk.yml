@@ -28,7 +28,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
@@ -53,7 +53,7 @@ jobs:
           "$AAPT2" dump badging android/app/build/outputs/apk/uat/app-uat.apk | grep -q "^package: name='pro.wewed.app.uatdev'"
           "$AAPT2" dump resources android/app/build/outputs/apk/uat/app-uat.apk | grep -A1 'string/providerAuthority' | grep -q '"pro.wewed.app.uatdev.fileprovider"'
       - name: Upload installable UAT APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wewed-uat-invitation-apk
           path: android/app/build/outputs/apk/uat/app-uat.apk
