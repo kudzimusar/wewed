@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test'
 import { randomUUID } from 'node:crypto'
+import { NextRequest } from 'next/server'
 
 const url = process.env.AUTHORITY_TEST_DATABASE_URL ?? ''
 const isLocal = /^postgres(ql)?:\/\/[^@]*@(localhost|127\.0\.0\.1)(:\d+)?\//.test(url)
@@ -21,6 +22,9 @@ let createPlannerGuest: typeof import('@/lib/planner-guest-operations')['createP
 let updatePlannerGuest: typeof import('@/lib/planner-guest-operations')['updatePlannerGuest']
 let applyGuestRsvpUpdate: typeof import('@/lib/guest-rsvp-mutation')['applyGuestRsvpUpdate']
 let loadPlannerInvitationProjection: typeof import('@/lib/planner-invitation-projection')['loadPlannerInvitationProjection']
+let createWeddingGuestSessionToken: typeof import('@/lib/wedding-guest-session')['createWeddingGuestSessionToken']
+let WEDDING_GUEST_SESSION_COOKIE: typeof import('@/lib/wedding-guest-session')['WEDDING_GUEST_SESSION_COOKIE']
+let getGuestSession: typeof import('@/app/api/weddings/[slug]/guest-session/route')['GET']
 
 const suffix = randomUUID().slice(0, 8)
 let coupleId = ''
@@ -29,6 +33,7 @@ let actorId = ''
 let vendorId = ''
 let engagementId = ''
 let teamId = ''
+let weddingDate = new Date(0)
 
 describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL', () => {
   beforeAll(async () => {
@@ -44,6 +49,8 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
     ;({ createPlannerGuest, updatePlannerGuest } = await import('@/lib/planner-guest-operations'))
     ;({ applyGuestRsvpUpdate } = await import('@/lib/guest-rsvp-mutation'))
     ;({ loadPlannerInvitationProjection } = await import('@/lib/planner-invitation-projection'))
+    ;({ createWeddingGuestSessionToken, WEDDING_GUEST_SESSION_COOKIE } = await import('@/lib/wedding-guest-session'))
+    ;({ GET: getGuestSession } = await import('@/app/api/weddings/[slug]/guest-session/route'))
 
     const couple = await db.couple.create({
       data: { slug: `service-team-${suffix}`, partner1: 'Service', partner2: 'Team' },
@@ -62,6 +69,7 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
       },
     })
     weddingId = wedding.id
+    weddingDate = wedding.date
 
     const actor = await db.user.create({
       data: { email: `service-team-${suffix}@example.com`, name: 'Service Team UAT Actor', role: 'planner' },
@@ -246,6 +254,36 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
     expect(staleRoleGuest).toMatchObject({
       status: 'attending',
       passState: 'not_yet_issuable',
+    })
+
+    await db.rSVP.update({
+      where: { guestId: memberships[0].guestId },
+      data: {
+        plusOne: true,
+        plusOneName: 'Historical Provider +1',
+        kidsAttending: true,
+        kidsCount: 2,
+      },
+    })
+    const guestSession = createWeddingGuestSessionToken({
+      weddingId,
+      guestId: memberships[0].guestId,
+      rsvpToken: staleRoleRsvp.token,
+      weddingDate,
+    })
+    const guestSessionResponse = await getGuestSession(
+      new NextRequest(
+        `http://localhost/api/weddings/service-team-wedding-${suffix}/guest-session`,
+        { headers: { cookie: `${WEDDING_GUEST_SESSION_COOKIE}=${guestSession}` } },
+      ),
+      { params: Promise.resolve({ slug: `service-team-wedding-${suffix}` }) },
+    )
+    expect(guestSessionResponse.status).toBe(200)
+    const guestSessionBody = await guestSessionResponse.json()
+    expect(guestSessionBody.rsvp).toMatchObject({
+      plusOne: false,
+      kidsAttending: false,
+      partySize: 1,
     })
 
     await submitServiceTeam({ weddingId, serviceTeamId: teamId, actorId })
