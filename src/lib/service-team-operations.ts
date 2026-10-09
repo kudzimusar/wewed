@@ -120,8 +120,8 @@ export async function addServiceTeamMember(input: {
   // permanently unable to receive approval/Pass authority. Email is the only safe automatic
   // identity key here; no fuzzy name/phone merge is attempted.
   const normalizedEmail = input.email?.trim().toLowerCase() || null
-  const legacyProvider = normalizedEmail
-    ? await db.guest.findFirst({
+  const legacyProviderMatches = normalizedEmail
+    ? await db.guest.findMany({
         where: {
           weddingId: input.weddingId,
           email: { equals: normalizedEmail, mode: 'insensitive' },
@@ -133,8 +133,22 @@ export async function addServiceTeamMember(input: {
           rsvp: { select: { id: true } },
           serviceTeamMemberships: { select: { id: true, serviceTeamId: true } },
         },
+        // Guest email is intentionally not a database-unique key. Historical/imported data can
+        // therefore contain exact-email collisions even though current Planner writes reject them.
+        // Never choose an arbitrary canonical identity in that state.
+        take: 2,
       })
-    : null
+    : []
+
+  if (legacyProviderMatches.length > 1) {
+    throw new ServiceTeamRosterError(
+      'SERVICE_TEAM_MEMBER_CONFLICT',
+      'Multiple Guests with this email already exist for this wedding. Resolve the Guest identity before roster adoption.',
+      409,
+    )
+  }
+
+  const legacyProvider = legacyProviderMatches[0] ?? null
 
   if (legacyProvider) {
     if (
