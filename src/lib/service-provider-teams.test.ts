@@ -16,6 +16,7 @@ const pass = readFileSync('src/lib/wedding-day.ts', 'utf8')
 const manifest = readFileSync('src/lib/wedding-day-manifest.ts', 'utf8')
 const guestDay = readFileSync('src/app/api/wedding-day/guest/route.ts', 'utf8')
 const plannerProjection = readFileSync('src/lib/planner-invitation-projection.ts', 'utf8')
+const convergenceWorkflow = readFileSync('.github/workflows/wedding-pass-convergence-ci.yml', 'utf8')
 const plannerPanel = readFileSync(
   'src/components/wedding/planner/planner-service-teams-panel.tsx',
   'utf8',
@@ -112,6 +113,20 @@ describe('service-provider team admission authority', () => {
     expect(vendorMember).toContain("action: 'service_team.member_adopted'")
     expect(vendorMember).toContain('preservedGuest: true')
     expect(vendorMember).toContain('tx.serviceTeamMember.delete')
+  })
+
+  test('Wedding Pass convergence CI watches provider authority and compatibility migrations', () => {
+    for (const marker of [
+      "src/lib/service-team-*.ts",
+      "src/lib/service-provider-teams*.ts",
+      "src/app/api/planner/service-teams/**",
+      "src/app/api/vendor/service-teams/**",
+      "prisma/migrations/20260930103000_guest_native_presence/**",
+      "prisma/migrations/20261001003000_guest_attendance_allocation_capacity/**",
+      "prisma/migrations/20261001013000_service_provider_teams/**",
+    ]) {
+      expect(convergenceWorkflow).toContain(marker)
+    }
   })
 
   test('operations projection exposes the required event-day roll call', () => {
