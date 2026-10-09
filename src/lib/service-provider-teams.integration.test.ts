@@ -214,6 +214,69 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
     await db.serviceTeam.delete({ where: { id: legacyTeam.id } })
   })
 
+  test('legacy provider adoption refuses ambiguous exact-email identity instead of picking an arbitrary Guest', async () => {
+    const ambiguousEmail = `ambiguous-provider-${suffix}@example.com`
+    const first = await db.guest.create({
+      data: {
+        weddingId,
+        name: 'Ambiguous Provider One',
+        email: ambiguousEmail,
+        role: 'service_provider',
+        attendanceAllocation: 'shared',
+      },
+    })
+    const second = await db.guest.create({
+      data: {
+        weddingId,
+        name: 'Ambiguous Provider Two',
+        email: ambiguousEmail,
+        role: 'service_provider',
+        attendanceAllocation: 'shared',
+      },
+    })
+    const ambiguousTeam = await createServiceTeam({
+      weddingId,
+      actorId,
+      serviceEngagementId: engagementId,
+      name: 'Ambiguous Provider Crew',
+      allowedCrew: 1,
+    })
+
+    await expect(
+      addServiceTeamMember({
+        weddingId,
+        actorId,
+        serviceTeamId: ambiguousTeam.id,
+        name: 'Ambiguous Provider',
+        email: ambiguousEmail,
+        function: 'Ambiguous legacy service provider',
+      }),
+    ).rejects.toMatchObject({
+      code: 'SERVICE_TEAM_MEMBER_CONFLICT',
+      status: 409,
+    })
+
+    expect(
+      await db.serviceTeamMember.count({
+        where: {
+          weddingId,
+          guestId: { in: [first.id, second.id] },
+        },
+      }),
+    ).toBe(0)
+    expect(
+      await db.guest.count({
+        where: {
+          weddingId,
+          email: { equals: ambiguousEmail, mode: 'insensitive' },
+        },
+      }),
+    ).toBe(2)
+
+    await db.guest.deleteMany({ where: { id: { in: [first.id, second.id] } } })
+    await db.serviceTeam.delete({ where: { id: ambiguousTeam.id } })
+  })
+
   test('named crew are capacity-bounded, approved individually, and projected for event-day roll-call', async () => {
     const lead = await addServiceTeamMember({
       weddingId,
