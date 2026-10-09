@@ -95,8 +95,10 @@ describe.skipIf(!isLocal)('Guest native activation against disposable PostgreSQL
       weddingId,
       guestId,
       headers: new Headers({
+        'user-agent': 'Wewed-Android/2.0.0',
         'x-wewed-client': 'native',
         'x-wewed-native-platform': 'android',
+        'x-wewed-native-runtime': 'android-httpurlconnection',
         'x-wewed-app-version': '2.0.0',
         'x-wewed-build-version': '200',
       }),
@@ -106,8 +108,10 @@ describe.skipIf(!isLocal)('Guest native activation against disposable PostgreSQL
       weddingId,
       guestId,
       headers: new Headers({
+        'user-agent': 'Wewed-iOS/2.0.0',
         'x-wewed-client': 'native',
         'x-wewed-native-platform': 'ios',
+        'x-wewed-native-runtime': 'ios-urlsession',
         'x-wewed-app-version': '2.0.0',
         'x-wewed-build-version': '201',
       }),
@@ -136,8 +140,10 @@ describe.skipIf(!isLocal)('Guest native activation against disposable PostgreSQL
       weddingId,
       guestId,
       headers: new Headers({
+        'user-agent': 'Wewed-Android/2.0.0',
         'x-wewed-client': 'native',
         'x-wewed-native-platform': 'android',
+        'x-wewed-native-runtime': 'android-httpurlconnection',
         'x-wewed-app-version': '2.0.1',
         'x-wewed-build-version': '202',
       }),
