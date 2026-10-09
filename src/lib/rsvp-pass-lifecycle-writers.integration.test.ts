@@ -167,6 +167,8 @@ describe('every RSVP writer is classified against the Wedding Pass lifecycle', (
     // QRO08: the shared Planner guest/invitation operations the desktop and native routes call.
     'src/lib/planner-guest-operations.ts',
     'src/lib/planner-invitation-operations.ts',
+    // Legacy provider adoption may create a missing empty RSVP, but never changes attendance.
+    'src/lib/service-team-operations.ts',
   ])
   const RSVP_WRITE = /rSVP\.(update|updateMany|upsert|create|createMany|delete|deleteMany)\(|UPDATE public\."RSVP"|INSERT INTO public\."RSVP"|DELETE FROM public\."RSVP"/
 
