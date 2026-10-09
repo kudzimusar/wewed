@@ -23,7 +23,7 @@ import pro.wewed.app.models.RSVPStatus
  * There is now one, and both the production Guest shells and the Shadow root read it from here.
  *
  * The card does not disappear once RSVP is answered. What changes is what it ASKS: a guest who has
- * already replied is never asked again, and the same card becomes their reminder, their admission
+ * already replied is never asked again, and the same card becomes their reminder, their route to the server-authoritative Pass surface
  * on the day, then a thank-you afterwards.
  */
 object GuestCeremonialEntry {
@@ -50,13 +50,13 @@ object GuestCeremonialEntry {
             headline = "Thank you for celebrating with us",
             statusLabel = null,
             primaryAction = GuestCardAction.VIEW_GALLERY,
-            secondaryActions = listOf(GuestCardAction.VIEW_WEDDING_SITE, GuestCardAction.VIEW_MEMORIES),
-            issuesPass = false
+            secondaryActions = listOf(GuestCardAction.VIEW_WEDDING_SITE, GuestCardAction.VIEW_MEMORIES)
         )
 
         WeddingLifecyclePhase.WEDDING_DAY -> when (rsvp) {
-            // On the day an attending guest needs their pass, the room and the running order —
-            // the card becomes operational without ceasing to be the card.
+            // On the day an attending guest needs the Pass destination, the room and the running order —
+            // the card becomes operational without ceasing to be the card. Pass issuance itself is
+            // server-authoritative and may still render a locked Pre-Pass.
             RSVPStatus.ATTENDING -> GuestCardPresentation(
                 headline = "Today",
                 statusLabel = "You're expected today",
@@ -65,27 +65,24 @@ object GuestCeremonialEntry {
                     GuestCardAction.OPEN_MAPS,
                     GuestCardAction.VIEW_PROGRAMME,
                     GuestCardAction.VIEW_TABLE
-                ),
-                issuesPass = true
+                )
             )
             RSVPStatus.DECLINED -> GuestCardPresentation(
                 headline = "Today",
                 statusLabel = "Response recorded — not attending",
                 primaryAction = GuestCardAction.VIEW_WEDDING_SITE,
-                secondaryActions = listOf(GuestCardAction.VIEW_OUR_STORY),
-                issuesPass = false
+                secondaryActions = listOf(GuestCardAction.VIEW_OUR_STORY)
             )
             RSVPStatus.PENDING -> GuestCardPresentation(
                 headline = "Today",
                 statusLabel = "We haven't heard from you yet",
                 primaryAction = GuestCardAction.RSVP_NOW,
-                secondaryActions = listOf(GuestCardAction.OPEN_MAPS, GuestCardAction.VIEW_DETAILS),
-                issuesPass = false
+                secondaryActions = listOf(GuestCardAction.OPEN_MAPS, GuestCardAction.VIEW_DETAILS)
             )
         }
 
         WeddingLifecyclePhase.BEFORE -> when (rsvp) {
-            // Already answered: never ask twice. The card becomes the reminder and the way in.
+            // Already answered: never ask twice. The card can route to Pass, but RSVP state never issues it.
             RSVPStatus.ATTENDING -> GuestCardPresentation(
                 headline = "You're going",
                 statusLabel = "RSVP confirmed",
@@ -93,8 +90,7 @@ object GuestCeremonialEntry {
                 secondaryActions = listOf(
                     GuestCardAction.CONTINUE_TO_WEDDING,
                     GuestCardAction.VIEW_WEDDING_SITE
-                ),
-                issuesPass = true
+                )
             )
             // A declined guest is still a guest. They keep the wedding's public content, and may
             // change their mind where the couple allows it — but never an admission pass.
@@ -105,8 +101,7 @@ object GuestCeremonialEntry {
                 secondaryActions = listOf(
                     GuestCardAction.VIEW_OUR_STORY,
                     GuestCardAction.CHANGE_RESPONSE
-                ),
-                issuesPass = false
+                )
             )
             RSVPStatus.PENDING -> GuestCardPresentation(
                 headline = "You're invited",
@@ -116,8 +111,7 @@ object GuestCeremonialEntry {
                     GuestCardAction.VIEW_DETAILS,
                     GuestCardAction.OPEN_MAPS,
                     GuestCardAction.VIEW_WEDDING_SITE
-                ),
-                issuesPass = false
+                )
             )
         }
     }
@@ -168,9 +162,7 @@ data class GuestCardPresentation(
     val headline: String,
     val statusLabel: String?,
     val primaryAction: GuestCardAction,
-    val secondaryActions: List<GuestCardAction>,
-    /** Only an attending guest has an admission pass. A declined guest never does. */
-    val issuesPass: Boolean
+    val secondaryActions: List<GuestCardAction>
 ) {
     /** True when the card is still asking the guest to answer. */
     val awaitsResponse: Boolean get() = primaryAction == GuestCardAction.RSVP_NOW
