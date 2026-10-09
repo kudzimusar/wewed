@@ -61,25 +61,36 @@ describe('service-provider team admission authority', () => {
   })
 
   test('professional attendance cannot carry plus-one or child semantics', () => {
-    expect(rsvp).toContain("guest.role === 'service_provider'")
+    expect(rsvp).toContain('guest.serviceProviderParticipant')
     expect(rsvp).toContain('SERVICE_PROVIDER_HOUSEHOLD_NOT_ALLOWED')
     expect(rsvp).toContain('data.plusOne = false')
     expect(rsvp).toContain('data.kidsAttending = false')
-    expect(pass).toContain("guest.role !== 'service_provider'")
+    expect(pass).toContain('!guest.serviceProviderParticipant')
     expect(pass).toContain('guest.plusOne')
     expect(pass).toContain('guest.kidsAttending')
-    expect(manifest).toContain("row.guestRole !== 'service_provider'")
+    expect(manifest).toContain('!row.serviceProviderParticipant')
     expect(manifest).toContain('row.plusOne')
     expect(manifest).toContain('row.kidsAttending')
   })
 
   test('Planner approval is authoritative for Pass issuance and Gate admission', () => {
-    expect(pass).toContain("guest.role === 'service_provider' && !guest.serviceProviderApproved")
+    expect(pass).toContain('guest.serviceProviderParticipant && !guest.serviceProviderApproved')
     expect(pass).toContain('SERVICE_PROVIDER_NOT_APPROVED')
-    expect(pass).toContain("context.guestRole === 'service_provider' && !context.serviceProviderApproved")
+    expect(pass).toContain('context.serviceProviderParticipant && !context.serviceProviderApproved')
     expect(operations).toContain('admissionApproved: Boolean(member.approvedAt)')
     expect(manifest).toContain('credential.serviceProviderApproved')
-    expect(manifest).toContain("credential.guestRole !== 'service_provider' || credential.serviceProviderApproved")
+    expect(manifest).toContain('!credential.serviceProviderParticipant || credential.serviceProviderApproved')
+  })
+
+  test('provider classification cannot be toggled by generic Guest writes and survives stale role text', () => {
+    expect(guestOps).toContain('Service providers must be added through the service-team roster.')
+    expect(guestOps).toContain('Service-provider role is managed through the service-team roster.')
+    expect(guestOps).toContain('Service-provider attendance allocation is managed through the service-team roster.')
+    expect(rsvp).toContain('EXISTS (')
+    expect(rsvp).toContain('FROM public."ServiceTeamMember" stm')
+    expect(rsvp).toContain('AS "serviceProviderParticipant"')
+    expect(pass).toContain('AS "serviceProviderParticipant"')
+    expect(manifest).toContain('AS "serviceProviderParticipant"')
   })
 
   test('operations projection exposes the required event-day roll call', () => {
