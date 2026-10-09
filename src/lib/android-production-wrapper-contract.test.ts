@@ -76,6 +76,16 @@ describe('Google Play production authority (apps/android only)', () => {
     }
   })
 
+  test('native Android changes trigger the surrounding deferred invitation suite', () => {
+    const workflow = source('.github/workflows/deferred-invitation-ci.yml')
+    const occurrences = workflow.match(/- 'apps\/android\/\*\*'/g) ?? []
+
+    // Production authority changes must qualify both PRs and main pushes. Watching only android/**
+    // would exercise the retired TWA while allowing Kotlin invitation regressions to skip this suite.
+    expect(occurrences).toHaveLength(2)
+    expect(workflow).toContain("- 'android/**'")
+  })
+
   test('a disabled deferred handoff never strands Android or silently downgrades adoption to web', () => {
     const personal = source('src/components/wedding/invitation-app-handoff.tsx')
     const physical = source('src/components/wedding/physical-invitation-entry.tsx')
