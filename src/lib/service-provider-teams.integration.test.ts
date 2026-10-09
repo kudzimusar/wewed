@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test'
+// Moderator exact-head verification trigger for Agent B identity hardening.
 import { randomUUID } from 'node:crypto'
 import { NextRequest } from 'next/server'
 
