@@ -336,11 +336,13 @@ export async function loadPlannerInvitationProjection(weddingId: string, siteUrl
       sentAt: null,
       sentBy: null,
     }
+    const serviceProviderParticipant =
+      guest.role === 'service_provider' || guest.serviceTeamMemberships.length > 0
     const passState = resolveWeddingPassCredentialAdminState({
       attending: guest.rsvp?.attending ?? null,
       weddingDate: wedding.date,
       latest: latestPassByGuest.get(guest.id) ?? null,
-      admissionApproved: guest.role === 'service_provider'
+      admissionApproved: serviceProviderParticipant
         ? guest.serviceTeamMemberships.some((membership) => Boolean(membership.approvedAt))
         : true,
     })
