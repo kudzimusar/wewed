@@ -19,6 +19,7 @@ let loadServiceTeamOperations: typeof import('@/lib/service-team-operations')['l
 let recordGuestNativePresence: typeof import('@/lib/guest-native-presence')['recordGuestNativePresence']
 let createPlannerGuest: typeof import('@/lib/planner-guest-operations')['createPlannerGuest']
 let updatePlannerGuest: typeof import('@/lib/planner-guest-operations')['updatePlannerGuest']
+let applyGuestRsvpUpdate: typeof import('@/lib/guest-rsvp-mutation')['applyGuestRsvpUpdate']
 
 const suffix = randomUUID().slice(0, 8)
 let coupleId = ''
@@ -40,6 +41,7 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
     } = await import('@/lib/service-team-operations'))
     ;({ recordGuestNativePresence } = await import('@/lib/guest-native-presence'))
     ;({ createPlannerGuest, updatePlannerGuest } = await import('@/lib/planner-guest-operations'))
+    ;({ applyGuestRsvpUpdate } = await import('@/lib/guest-rsvp-mutation'))
 
     const couple = await db.couple.create({
       data: { slug: `service-team-${suffix}`, partner1: 'Service', partner2: 'Team' },
@@ -203,6 +205,28 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
     expect(protectedProvider).toEqual({
       role: 'service_provider',
       attendanceAllocation: 'operational',
+    })
+
+    // Migration/backward safety: even if a historical row already contains stale role text from
+    // before the write guard existed, the canonical ServiceTeamMember relationship remains the
+    // server authority for professional household restrictions.
+    await db.guest.update({
+      where: { id: memberships[0].guestId },
+      data: { role: 'guest' },
+    })
+    const staleRoleRsvp = await db.rSVP.findUniqueOrThrow({
+      where: { guestId: memberships[0].guestId },
+      select: { token: true },
+    })
+    const staleRoleBypass = await applyGuestRsvpUpdate({
+      weddingId,
+      rsvpToken: staleRoleRsvp.token,
+      requestedFields: { plusOne: true },
+    })
+    expect(staleRoleBypass).toMatchObject({
+      ok: false,
+      status: 400,
+      code: 'SERVICE_PROVIDER_HOUSEHOLD_NOT_ALLOWED',
     })
 
     await submitServiceTeam({ weddingId, serviceTeamId: teamId, actorId })
