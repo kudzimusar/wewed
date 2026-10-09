@@ -290,6 +290,10 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
     )
     expect(guestSessionResponse.status).toBe(200)
     const guestSessionBody = await guestSessionResponse.json()
+    expect(guestSessionBody.guest).toMatchObject({
+      id: memberships[0].guestId,
+      role: 'service_provider',
+    })
     expect(guestSessionBody.rsvp).toMatchObject({
       plusOne: false,
       kidsAttending: false,
