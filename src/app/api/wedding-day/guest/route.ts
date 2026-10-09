@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { loadWeddingChildrenPolicy } from '@/lib/guest-rsvp-mutation'
+import {
+  loadWeddingAdditionalAdultPolicy,
+  loadWeddingChildrenPolicy,
+} from '@/lib/guest-rsvp-mutation'
 import { sortTimelineItems } from '@/lib/planner-timeline-order'
 import { readWeddingDayGuestContext } from '@/lib/wedding-day'
 import { loadPublicSiteStructure, loadPublishedAnnouncements } from '@/lib/wedding-site/server'
@@ -59,9 +62,10 @@ export async function GET(request: NextRequest) {
 
   // Guests see the same programme the Planner presents: nothing while the couple keeps it
   // unpublished, and chronological clock time is authoritative once it is public.
-  const [siteStructure, childrenPolicy] = await Promise.all([
+  const [siteStructure, childrenPolicy, additionalAdultPolicy] = await Promise.all([
     loadPublicSiteStructure(context.weddingId),
     loadWeddingChildrenPolicy(context.weddingId),
+    loadWeddingAdditionalAdultPolicy(context.weddingId),
   ])
   const programmeRows = !programmeIsPublic(siteStructure.sections) ? [] : await db.$queryRawUnsafe<Array<{
     id: string
@@ -90,14 +94,23 @@ export async function GET(request: NextRequest) {
     { attendeeKey: 'primary', attendeeName: guest.guestName },
   ]
 
-  if (guest.plusOne) {
+  if (
+    !context.serviceProviderParticipant
+    && additionalAdultPolicy !== 'named_guests_only'
+    && guest.plusOne
+  ) {
     household.push({
       attendeeKey: 'plus-one',
       attendeeName: guest.plusOneName?.trim() || 'Plus One',
     })
   }
 
-  if (childrenPolicy !== 'adults_only' && guest.kidsAttending && (guest.kidsCount ?? 0) > 0) {
+  if (
+    !context.serviceProviderParticipant
+    && childrenPolicy !== 'adults_only'
+    && guest.kidsAttending
+    && (guest.kidsCount ?? 0) > 0
+  ) {
     for (let index = 1; index <= (guest.kidsCount ?? 0); index += 1) {
       household.push({
         attendeeKey: `child-${index}`,
