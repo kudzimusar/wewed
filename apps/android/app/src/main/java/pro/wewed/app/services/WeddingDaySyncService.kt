@@ -477,6 +477,7 @@ class WeddingDaySyncService(
             "PASS_CREDENTIAL_MISMATCH",
             "PASS_SIGNING_KEY_INACTIVE",
             "PASS_TOKEN_REQUIRED",
+            "ATTENDEE_KEYS_REQUIRED",
             "SERIAL_ONLY_ADMISSION_UNSUPPORTED",
             "GATE_INACTIVE_OR_INVALID",
             "GUEST_INELIGIBLE",
