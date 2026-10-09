@@ -21,6 +21,7 @@ const describeDb = isLocal ? describe : describe.skip
 describeDb('Phase 11A Wedding Day HTTP route handlers', () => {
   let db: typeof import('@/lib/db')['db']
   let getPassRoute: typeof import('@/app/api/wedding-day/pass/route')['GET']
+  let getGuestDayRoute: typeof import('@/app/api/wedding-day/guest/route')['GET']
   let getManifestRoute: typeof import('@/app/api/native/gate/wedding-day/manifest/route')['GET']
   let postCheckInRoute: typeof import('@/app/api/native/gate/wedding-day/check-in/route')['POST']
   let postRevokeRoute: typeof import('@/app/api/native/gate/wedding-day/pass/revoke/route')['POST']
@@ -41,6 +42,7 @@ describeDb('Phase 11A Wedding Day HTTP route handlers', () => {
   beforeAll(async () => {
     ;({ db } = await import('@/lib/db'))
     ;({ GET: getPassRoute } = await import('@/app/api/wedding-day/pass/route'))
+    ;({ GET: getGuestDayRoute } = await import('@/app/api/wedding-day/guest/route'))
     ;({ GET: getManifestRoute } = await import('@/app/api/native/gate/wedding-day/manifest/route'))
     ;({ POST: postCheckInRoute } = await import('@/app/api/native/gate/wedding-day/check-in/route'))
     ;({ POST: postRevokeRoute } = await import('@/app/api/native/gate/wedding-day/pass/revoke/route'))
@@ -214,6 +216,64 @@ describeDb('Phase 11A Wedding Day HTTP route handlers', () => {
       WEDDING_ID,
     )
     expect(body.data.publicKeyDerBase64).toBe(keyRows[0]?.publicKeyDerBase64)
+  })
+
+  test('Guest Wedding Day suppresses historical household members under current RSVP policy', async () => {
+    await db.weddingContent.upsert({
+      where: {
+        weddingId_section_field: {
+          weddingId: WEDDING_ID,
+          section: 'rsvp',
+          field: 'additionalAdultPolicy',
+        },
+      },
+      create: {
+        weddingId: WEDDING_ID,
+        section: 'rsvp',
+        field: 'additionalAdultPolicy',
+        value: 'named_guests_only',
+      },
+      update: { value: 'named_guests_only' },
+    })
+    await db.weddingContent.upsert({
+      where: {
+        weddingId_section_field: {
+          weddingId: WEDDING_ID,
+          section: 'rsvp',
+          field: 'childrenPolicy',
+        },
+      },
+      create: {
+        weddingId: WEDDING_ID,
+        section: 'rsvp',
+        field: 'childrenPolicy',
+        value: 'adults_only',
+      },
+      update: { value: 'adults_only' },
+    })
+    await db.rSVP.update({
+      where: { guestId: GUEST_ID },
+      data: {
+        plusOne: true,
+        plusOneName: 'Historical Anonymous Adult',
+        kidsAttending: true,
+        kidsCount: 2,
+      },
+    })
+
+    const guestSession = createWeddingGuestSessionToken({
+      weddingId: WEDDING_ID,
+      guestId: GUEST_ID,
+      rsvpToken: id('rsvp-token'),
+    })
+    const response = await getGuestDayRoute(new NextRequest('http://localhost/api/wedding-day/guest', {
+      headers: { Cookie: `wewed_wedding_guest=${guestSession}` },
+    }))
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.data.guest.household).toEqual([
+      { attendeeKey: 'primary', attendeeName: 'Guest Routes' },
+    ])
   })
 
   test('enabled feature gate enforces authentication and grant authorization', async () => {
