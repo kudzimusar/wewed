@@ -32,6 +32,7 @@ const CLIENT_ERROR_CODES = new Set([
   'PASS_TOKEN_REQUIRED',
   'GATE_INACTIVE_OR_INVALID',
   'GUEST_INELIGIBLE',
+  'SERVICE_PROVIDER_NOT_APPROVED',
 ])
 
 function hasExactToken(item: CheckInRequestBody): item is CheckInRequestBody & { token: string } {
