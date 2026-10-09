@@ -117,7 +117,7 @@ jobs:
           --to-schema-datamodel prisma/schema.prisma
           --exit-code
       - name: Run invitation link privacy tests
-        run: bun test src/lib/invitation-links.test.ts
+        run: bun test src/lib/invitation-links.test.ts src/lib/android-production-wrapper-contract.test.ts
       - name: Run deferred handoff PostgreSQL integration tests
         run: bun test src/lib/invitation-install-handoff.integration.test.ts src/lib/physical-invitation-install-handoff.integration.test.ts
       - name: Reject TypeScript errors in deferred invitation files
