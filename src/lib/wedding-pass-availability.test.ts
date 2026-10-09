@@ -147,6 +147,7 @@ describe('Wedding Pass Gate reconciliation contracts', () => {
     )
     const terminalCodes = [
       'PASS_SIGNING_KEY_INACTIVE',
+      'ATTENDEE_KEYS_REQUIRED',
       'GATE_INACTIVE_OR_INVALID',
       'GUEST_INELIGIBLE',
       'SERVICE_PROVIDER_NOT_APPROVED',
