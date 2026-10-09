@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets
  *
  * ```
  * /invite/<slug>?rsvp=<private token>   the link a guest is actually sent
+ * /w/<slug>?rsvp=<private token>        historical personal link, still accepted by App Links
  * /invite/resume?h=<opaque handoff>     after a deferred install, or the Android bridge intent
  * wewed://invite/resume + wewed_handoff the package-targeted bridge extra
  * ```
@@ -108,8 +109,30 @@ object InvitationEntryParser {
                 else -> return@runCatching null
             }
 
-            if (segments.firstOrNull()?.lowercase() != "invite") return@runCatching null
+            val route = segments.firstOrNull()?.lowercase()
             val query = uri.rawQuery
+
+            // Historical personal invitations used /w/<slug>?rsvp=<credential>. The release
+            // manifest intentionally still claims /w/ App Links, so an already-installed app can
+            // receive this URL before the web compatibility redirect has a chance to canonicalize
+            // it to /invite/<slug>. Treat the legacy credential-bearing shape as the exact same
+            // private invitation authority. An ordinary /w/<slug> couple-site link remains outside
+            // this parser and continues through normal deep-link routing.
+            if (route == "w") {
+                val legacySlug = segments.getOrNull(1)?.trim().orEmpty()
+                if (legacySlug.isEmpty()) return@runCatching null
+                val legacyToken = parameter(query, "rsvp")?.trim().orEmpty()
+                return@runCatching if (legacyToken.isNotEmpty()) {
+                    InvitationEntry.PrivateInvitation(
+                        weddingSlug = legacySlug,
+                        rsvpToken = legacyToken
+                    )
+                } else {
+                    null
+                }
+            }
+
+            if (route != "invite") return@runCatching null
 
             // Resume: opaque only. `buildAndroidInvitationIntentUrl` refuses to emit a resume URL
             // containing `rsvp`, so one arriving here did not come from Wewed.
