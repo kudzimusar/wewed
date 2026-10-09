@@ -321,7 +321,8 @@ export async function loadServiceTeamOperations(weddingId: string) {
         name: member.guest.name,
         email: member.guest.email,
         phone: member.guest.phone,
-        participantType: member.guest.role,
+        // Membership is the canonical professional classification even if legacy role text drifted.
+        participantType: 'service_provider',
         company: team.companyName,
         serviceCategory: team.serviceCategory,
         function: member.function,
