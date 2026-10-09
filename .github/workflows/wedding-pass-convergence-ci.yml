@@ -13,6 +13,10 @@ on:
       - 'src/lib/guest-rsvp-mutation.ts'
       - 'src/lib/guest-native-presence*.ts'
       - 'src/lib/planner-invitation-projection.ts'
+      - 'src/lib/service-team-*.ts'
+      - 'src/lib/service-provider-teams*.ts'
+      - 'src/app/api/planner/service-teams/**'
+      - 'src/app/api/vendor/service-teams/**'
       - 'apps/android/**'
       - 'apps/ios/Wewed/Invitation/GuestSessionClient.swift'
       - 'src/lib/global-qr-convergence.integration.test.ts'
@@ -31,6 +35,9 @@ on:
       - 'src/app/api/planner/wedding-passes/**'
       - 'src/app/api/weddings/*/guest-session/**'
       - 'prisma/migrations/2026092*/**'
+      - 'prisma/migrations/20260930103000_guest_native_presence/**'
+      - 'prisma/migrations/20261001003000_guest_attendance_allocation_capacity/**'
+      - 'prisma/migrations/20261001013000_service_provider_teams/**'
       - '.github/workflows/wedding-pass-convergence-ci.yml'
   workflow_dispatch:
 
