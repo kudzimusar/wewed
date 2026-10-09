@@ -107,7 +107,7 @@ class GuestCeremonialEntryTest {
         val card = GuestCeremonialEntry.presentation(RSVPStatus.PENDING, WeddingLifecyclePhase.BEFORE)
         assertEquals(GuestCardAction.RSVP_NOW, card.primaryAction)
         assertTrue(card.awaitsResponse)
-        assertFalse("a guest who has not replied has no pass", card.issuesPass)
+        assertFalse("a pending guest must not be routed to Pass", card.offers(GuestCardAction.VIEW_PASS))
     }
 
     /** The single most important behaviour here: never ask someone the same question twice. */
@@ -118,7 +118,7 @@ class GuestCeremonialEntryTest {
         assertFalse(card.offers(GuestCardAction.RSVP_NOW))
         assertEquals("RSVP confirmed", card.statusLabel)
         assertEquals(GuestCardAction.VIEW_PASS, card.primaryAction)
-        assertTrue(card.issuesPass)
+        assertTrue("attending may open the server-authoritative Pass surface", card.offers(GuestCardAction.VIEW_PASS))
     }
 
     @Test
@@ -126,7 +126,6 @@ class GuestCeremonialEntryTest {
         val card = GuestCeremonialEntry.presentation(RSVPStatus.DECLINED, WeddingLifecyclePhase.BEFORE)
         assertFalse(card.awaitsResponse)
         assertEquals("Not attending", card.statusLabel)
-        assertFalse("a declined guest is never admitted", card.issuesPass)
         assertFalse(card.offers(GuestCardAction.VIEW_PASS))
         // They keep the wedding, and may change their mind where the couple allows it.
         assertTrue(card.offers(GuestCardAction.VIEW_WEDDING_SITE))
@@ -150,9 +149,30 @@ class GuestCeremonialEntryTest {
         val card = GuestCeremonialEntry.presentation(RSVPStatus.ATTENDING, WeddingLifecyclePhase.AFTER)
         assertEquals("Thank you for celebrating with us", card.headline)
         assertNull(card.statusLabel)
-        assertFalse("a past wedding issues no pass", card.issuesPass)
+        assertFalse("a past wedding offers no Pass destination", card.offers(GuestCardAction.VIEW_PASS))
         assertFalse(card.offers(GuestCardAction.RSVP_NOW))
         assertTrue(card.offers(GuestCardAction.VIEW_GALLERY))
+    }
+
+    @Test
+    fun ceremonialCardNeverClaimsClientSidePassIssuanceAuthority() {
+        val before = GuestCeremonialEntry.presentation(RSVPStatus.ATTENDING, WeddingLifecyclePhase.BEFORE)
+        val today = GuestCeremonialEntry.presentation(RSVPStatus.ATTENDING, WeddingLifecyclePhase.WEDDING_DAY)
+
+        assertEquals(GuestCardAction.VIEW_PASS, before.primaryAction)
+        assertEquals(GuestCardAction.VIEW_PASS, today.primaryAction)
+
+        var dir: java.io.File? = java.io.File(System.getProperty("user.dir") ?: ".").absoluteFile
+        var source: String? = null
+        while (dir != null && source == null) {
+            val candidate = java.io.File(dir, "app/src/main/java/pro/wewed/app/navigation/GuestCeremonialEntry.kt")
+                .takeIf { it.isFile }
+                ?: java.io.File(dir, "src/main/java/pro/wewed/app/navigation/GuestCeremonialEntry.kt").takeIf { it.isFile }
+            source = candidate?.readText()
+            dir = dir.parentFile
+        }
+        val ceremonial = requireNotNull(source) { "GuestCeremonialEntry.kt not found" }
+        assertFalse("RSVP-derived issuance state must not return", ceremonial.contains("issuesPass"))
     }
 
     @Test
