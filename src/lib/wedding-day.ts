@@ -186,6 +186,7 @@ export interface WeddingPassGuestContext {
   guestId: string
   guestName: string
   guestRole: string
+  serviceProviderParticipant: boolean
   serviceProviderApproved: boolean
   attending: boolean | null
   weddingDate: Date
@@ -475,10 +476,30 @@ export async function ensureWeddingPassCredential(input: {
       // The Guest row is the serialization point for credential issuance/reissue. Locking a
       // possibly-absent credential row is insufficient because two first issuers can both see zero
       // rows. We also lock the RSVP row so attendance cannot flip between eligibility and insert.
-      const guestRows = await tx.$queryRawUnsafe<Array<{ id: string; weddingDate: Date; role: string; serviceProviderApproved: boolean }>>(
+      const guestRows = await tx.$queryRawUnsafe<Array<{
+        id: string
+        weddingDate: Date
+        role: string
+        serviceProviderParticipant: boolean
+        serviceProviderApproved: boolean
+      }>>(
         `SELECT g.id, w.date AS "weddingDate", g.role,
+                (
+                  g.role = 'service_provider'
+                  OR EXISTS (
+                    SELECT 1 FROM public."ServiceTeamMember" stm
+                     WHERE stm."guestId" = g.id
+                       AND stm."weddingId" = g."weddingId"
+                  )
+                ) AS "serviceProviderParticipant",
                 CASE
-                  WHEN g.role <> 'service_provider' THEN TRUE
+                  WHEN g.role <> 'service_provider'
+                    AND NOT EXISTS (
+                      SELECT 1 FROM public."ServiceTeamMember" stm
+                       WHERE stm."guestId" = g.id
+                         AND stm."weddingId" = g."weddingId"
+                    )
+                  THEN TRUE
                   ELSE EXISTS (
                     SELECT 1 FROM public."ServiceTeamMember" stm
                      WHERE stm."guestId" = g.id
@@ -510,7 +531,7 @@ export async function ensureWeddingPassCredential(input: {
       if (rsvpRows[0]?.attending !== true) {
         throw new Error('ATTENDANCE_REQUIRED')
       }
-      if (guest.role === 'service_provider' && !guest.serviceProviderApproved) {
+      if (guest.serviceProviderParticipant && !guest.serviceProviderApproved) {
         throw new WeddingPassUnavailableError(
           weddingPassAvailability('not_yet_issuable', guest.weddingDate),
         )
@@ -769,6 +790,7 @@ export async function readWeddingDayGuestContext(request: NextRequest) {
     weddingTitle: string
     guestName: string
     guestRole: string
+    serviceProviderParticipant: boolean
     serviceProviderApproved: boolean
     attending: boolean | null
     weddingDate: Date
@@ -778,8 +800,22 @@ export async function readWeddingDayGuestContext(request: NextRequest) {
   }>>(
     `SELECT g.id AS "guestId", g."weddingId", w.slug AS "weddingSlug", w.title AS "weddingTitle",
             g.name AS "guestName", g.role AS "guestRole",
+            (
+              g.role = 'service_provider'
+              OR EXISTS (
+                SELECT 1 FROM public."ServiceTeamMember" stm
+                 WHERE stm."guestId" = g.id
+                   AND stm."weddingId" = g."weddingId"
+              )
+            ) AS "serviceProviderParticipant",
             CASE
-              WHEN g.role <> 'service_provider' THEN TRUE
+              WHEN g.role <> 'service_provider'
+                AND NOT EXISTS (
+                  SELECT 1 FROM public."ServiceTeamMember" stm
+                   WHERE stm."guestId" = g.id
+                     AND stm."weddingId" = g."weddingId"
+                )
+              THEN TRUE
               ELSE EXISTS (
                 SELECT 1 FROM public."ServiceTeamMember" stm
                  WHERE stm."guestId" = g.id
@@ -807,6 +843,7 @@ export async function readWeddingDayGuestContext(request: NextRequest) {
     guestId: row.guestId,
     guestName: row.guestName,
     guestRole: row.guestRole,
+    serviceProviderParticipant: row.serviceProviderParticipant,
     serviceProviderApproved: row.serviceProviderApproved,
     attending: row.attending,
     weddingDate: row.weddingDate,
@@ -828,7 +865,7 @@ export async function guestPassForRequest(request: NextRequest) {
   if (context.attending !== true) {
     throw new WeddingPassUnavailableError(weddingPassAvailability('rsvp_required', context.weddingDate), context)
   }
-  if (context.guestRole === 'service_provider' && !context.serviceProviderApproved) {
+  if (context.serviceProviderParticipant && !context.serviceProviderApproved) {
     throw new WeddingPassUnavailableError(weddingPassAvailability('not_yet_issuable', context.weddingDate), context)
   }
   let credential
@@ -895,6 +932,7 @@ export async function checkInWeddingGuest(input: {
       guestId: string
       name: string
       role: string
+      serviceProviderParticipant: boolean
       serviceProviderApproved: boolean
       attending: boolean | null
       plusOne: boolean | null
@@ -905,8 +943,22 @@ export async function checkInWeddingGuest(input: {
       childrenPolicy: string
     }>>(
       `SELECT g.id AS "guestId", g.name, g.role,
+              (
+                g.role = 'service_provider'
+                OR EXISTS (
+                  SELECT 1 FROM public."ServiceTeamMember" stm
+                   WHERE stm."guestId" = g.id
+                     AND stm."weddingId" = g."weddingId"
+                )
+              ) AS "serviceProviderParticipant",
               CASE
-                WHEN g.role <> 'service_provider' THEN TRUE
+                WHEN g.role <> 'service_provider'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM public."ServiceTeamMember" stm
+                     WHERE stm."guestId" = g.id
+                       AND stm."weddingId" = g."weddingId"
+                  )
+                THEN TRUE
                 ELSE EXISTS (
                   SELECT 1 FROM public."ServiceTeamMember" stm
                    WHERE stm."guestId" = g.id
@@ -936,7 +988,7 @@ export async function checkInWeddingGuest(input: {
     )
     const guest = guestRows[0]
     if (!guest || guest.attending !== true) throw new Error('GUEST_INELIGIBLE')
-    if (guest.role === 'service_provider' && !guest.serviceProviderApproved) {
+    if (guest.serviceProviderParticipant && !guest.serviceProviderApproved) {
       throw new Error('SERVICE_PROVIDER_NOT_APPROVED')
     }
 
@@ -976,7 +1028,7 @@ export async function checkInWeddingGuest(input: {
     const validAttendees = new Map<string, { kind: string; name: string }>()
     validAttendees.set('primary', { kind: 'primary', name: guest.name })
     if (
-      guest.role !== 'service_provider'
+      !guest.serviceProviderParticipant
       && guest.additionalAdultPolicy !== 'named_guests_only'
       && guest.plusOne
     ) {
@@ -986,7 +1038,7 @@ export async function checkInWeddingGuest(input: {
       })
     }
     if (
-      guest.role !== 'service_provider'
+      !guest.serviceProviderParticipant
       && guest.childrenPolicy !== 'adults_only'
       && guest.kidsAttending
       && (guest.kidsCount ?? 0) > 0
