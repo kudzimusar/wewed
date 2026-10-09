@@ -17,6 +17,8 @@ let submitServiceTeam: typeof import('@/lib/service-team-operations')['submitSer
 let approveServiceTeam: typeof import('@/lib/service-team-operations')['approveServiceTeam']
 let loadServiceTeamOperations: typeof import('@/lib/service-team-operations')['loadServiceTeamOperations']
 let recordGuestNativePresence: typeof import('@/lib/guest-native-presence')['recordGuestNativePresence']
+let createPlannerGuest: typeof import('@/lib/planner-guest-operations')['createPlannerGuest']
+let updatePlannerGuest: typeof import('@/lib/planner-guest-operations')['updatePlannerGuest']
 
 const suffix = randomUUID().slice(0, 8)
 let coupleId = ''
@@ -37,6 +39,7 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
       loadServiceTeamOperations,
     } = await import('@/lib/service-team-operations'))
     ;({ recordGuestNativePresence } = await import('@/lib/guest-native-presence'))
+    ;({ createPlannerGuest, updatePlannerGuest } = await import('@/lib/planner-guest-operations'))
 
     const couple = await db.couple.create({
       data: { slug: `service-team-${suffix}`, partner1: 'Service', partner2: 'Team' },
@@ -119,6 +122,15 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
     })
   })
 
+  test('generic Guest writes cannot manufacture or shed service-provider admission identity', async () => {
+    const genericProvider = await createPlannerGuest(
+      { weddingId, actorId },
+      { name: 'Generic Provider Bypass', role: 'service_provider' },
+    )
+    expect(genericProvider).toMatchObject({ ok: false, status: 400, field: 'role' })
+    expect(await db.guest.count({ where: { weddingId, name: 'Generic Provider Bypass' } })).toBe(0)
+  })
+
   test('named crew are capacity-bounded, approved individually, and projected for event-day roll-call', async () => {
     const lead = await addServiceTeamMember({
       weddingId,
@@ -167,6 +179,31 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
     })
     expect(memberships).toHaveLength(2)
     expect(new Set(memberships.map((member) => member.guestId)).size).toBe(2)
+
+    const roleBypass = await updatePlannerGuest(
+      { weddingId, actorId },
+      memberships[0].guestId,
+      { role: 'guest' },
+    )
+    expect(roleBypass).toMatchObject({ ok: false, status: 409, field: 'role' })
+    const allocationBypass = await updatePlannerGuest(
+      { weddingId, actorId },
+      memberships[0].guestId,
+      { attendanceAllocation: 'shared' },
+    )
+    expect(allocationBypass).toMatchObject({
+      ok: false,
+      status: 409,
+      field: 'attendanceAllocation',
+    })
+    const protectedProvider = await db.guest.findUniqueOrThrow({
+      where: { id: memberships[0].guestId },
+      select: { role: true, attendanceAllocation: true },
+    })
+    expect(protectedProvider).toEqual({
+      role: 'service_provider',
+      attendanceAllocation: 'operational',
+    })
 
     await submitServiceTeam({ weddingId, serviceTeamId: teamId, actorId })
     await approveServiceTeam({ weddingId, serviceTeamId: teamId, actorId })
