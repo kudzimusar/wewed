@@ -224,6 +224,16 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
       where: { id: memberships[0].guestId },
       data: { role: 'guest' },
     })
+    const staleRoleEditorBypass = await updatePlannerGuest(
+      { weddingId, actorId },
+      memberships[0].guestId,
+      { role: 'guest', attendanceAllocation: 'shared' },
+    )
+    expect(staleRoleEditorBypass).toMatchObject({
+      ok: false,
+      status: 409,
+      field: 'role',
+    })
     const staleRoleRsvp = await db.rSVP.findUniqueOrThrow({
       where: { guestId: memberships[0].guestId },
       select: { token: true },
