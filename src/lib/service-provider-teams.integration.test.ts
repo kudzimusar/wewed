@@ -143,6 +143,64 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
     expect(await db.guest.count({ where: { weddingId, name: 'Generic Provider Bypass' } })).toBe(0)
   })
 
+  test('legacy service-provider Guest is adopted into a roster without duplicate identity', async () => {
+    const legacyEmail = `legacy-provider-${suffix}@example.com`
+    const legacyGuest = await db.guest.create({
+      data: {
+        weddingId,
+        name: 'Legacy Provider',
+        email: legacyEmail,
+        role: 'service_provider',
+        attendanceAllocation: 'shared',
+      },
+    })
+    const legacyRsvp = await db.rSVP.create({
+      data: {
+        guestId: legacyGuest.id,
+        token: `legacy-provider-${suffix}`,
+        attending: true,
+      },
+    })
+    const legacyTeam = await createServiceTeam({
+      weddingId,
+      actorId,
+      serviceEngagementId: engagementId,
+      name: 'Legacy Provider Crew',
+      allowedCrew: 1,
+    })
+
+    const adopted = await addServiceTeamMember({
+      weddingId,
+      actorId,
+      serviceTeamId: legacyTeam.id,
+      name: legacyGuest.name,
+      email: legacyEmail,
+      function: 'Legacy service provider',
+    })
+    expect(adopted.ok).toBe(true)
+    expect(adopted.data.id).toBe(legacyGuest.id)
+    expect(adopted.data.rsvp?.token).toBe(legacyRsvp.token)
+    expect(adopted.data.attendanceAllocation).toBe('operational')
+    expect(
+      await db.guest.count({
+        where: { weddingId, email: { equals: legacyEmail, mode: 'insensitive' } },
+      }),
+    ).toBe(1)
+    expect(
+      await db.serviceTeamMember.findUnique({
+        where: {
+          weddingId_guestId: {
+            weddingId,
+            guestId: legacyGuest.id,
+          },
+        },
+      }),
+    ).toMatchObject({
+      guestId: legacyGuest.id,
+      serviceTeamId: legacyTeam.id,
+    })
+  })
+
   test('named crew are capacity-bounded, approved individually, and projected for event-day roll-call', async () => {
     const lead = await addServiceTeamMember({
       weddingId,
