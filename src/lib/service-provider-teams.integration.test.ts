@@ -199,6 +199,19 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
       guestId: legacyGuest.id,
       serviceTeamId: legacyTeam.id,
     })
+
+    // Keep this compatibility fixture isolated from the shared-wedding roll-call scenario below.
+    await db.serviceTeamMember.deleteMany({ where: { guestId: legacyGuest.id } })
+    await db.auditEvent.deleteMany({
+      where: {
+        weddingId,
+        resourceId: legacyGuest.id,
+        action: 'service_team.member_adopted',
+      },
+    })
+    await db.rSVP.delete({ where: { id: legacyRsvp.id } })
+    await db.guest.delete({ where: { id: legacyGuest.id } })
+    await db.serviceTeam.delete({ where: { id: legacyTeam.id } })
   })
 
   test('named crew are capacity-bounded, approved individually, and projected for event-day roll-call', async () => {
