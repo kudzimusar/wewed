@@ -1,13 +1,19 @@
 import 'server-only'
 
+import { randomUUID } from 'node:crypto'
 import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { createPlannerGuest, cleanGuestText } from '@/lib/planner-guest-operations'
+import { assertAttendanceAllocationCapacity } from '@/lib/guest-capacity-allocation'
+import { runSerializableSeatingTransaction } from '@/lib/planner-seating-transaction'
 import {
   resolveWeddingPassCredentialAdminState,
   type WeddingPassCredentialAdminState,
 } from '@/lib/wedding-pass-availability'
-import { ServiceTeamRosterError } from '@/lib/service-team-authority'
+import {
+  lockServiceTeamRosterSlot,
+  ServiceTeamRosterError,
+} from '@/lib/service-team-authority'
 
 const TEAM_STATUSES = ['draft', 'submitted', 'approved'] as const
 export type ServiceTeamStatus = (typeof TEAM_STATUSES)[number]
@@ -107,6 +113,141 @@ export async function addServiceTeamMember(input: {
     select: { id: true, leaderUserId: true },
   })
   if (!team) throw new ServiceTeamRosterError('SERVICE_TEAM_NOT_FOUND', 'Service team not found.', 404)
+
+  // Backward compatibility for service-provider Guests that pre-date ServiceTeamMember. Planner
+  // Guest creation historically allowed role=service_provider, so the roster migration must adopt
+  // that canonical Guest rather than manufacture a second identity or leave the original Guest
+  // permanently unable to receive approval/Pass authority. Email is the only safe automatic
+  // identity key here; no fuzzy name/phone merge is attempted.
+  const normalizedEmail = input.email?.trim().toLowerCase() || null
+  const legacyProvider = normalizedEmail
+    ? await db.guest.findFirst({
+        where: {
+          weddingId: input.weddingId,
+          email: { equals: normalizedEmail, mode: 'insensitive' },
+        },
+        select: {
+          id: true,
+          role: true,
+          attendanceAllocation: true,
+          rsvp: { select: { id: true } },
+          serviceTeamMemberships: { select: { id: true, serviceTeamId: true } },
+        },
+      })
+    : null
+
+  if (legacyProvider) {
+    if (
+      legacyProvider.role !== 'service_provider'
+      && legacyProvider.serviceTeamMemberships.length === 0
+    ) {
+      throw new ServiceTeamRosterError(
+        'SERVICE_TEAM_MEMBER_CONFLICT',
+        'A Guest with this email already exists but is not registered as a service provider.',
+        409,
+      )
+    }
+    if (legacyProvider.serviceTeamMemberships.length > 0) {
+      throw new ServiceTeamRosterError(
+        'SERVICE_TEAM_MEMBER_CONFLICT',
+        'This service provider is already registered on a service-team roster.',
+        409,
+      )
+    }
+
+    return runSerializableSeatingTransaction(async (tx) => {
+      await lockServiceTeamRosterSlot(tx, {
+        weddingId: input.weddingId,
+        serviceTeamId: team.id,
+      })
+      const current = await tx.guest.findFirst({
+        where: { id: legacyProvider.id, weddingId: input.weddingId },
+        include: {
+          rsvp: true,
+          seatingTable: { select: { id: true, name: true, capacity: true } },
+          serviceTeamMemberships: { select: { id: true } },
+        },
+      })
+      if (!current) {
+        throw new ServiceTeamRosterError(
+          'SERVICE_TEAM_MEMBER_CONFLICT',
+          'The existing service-provider Guest is no longer available.',
+          409,
+        )
+      }
+      if (current.serviceTeamMemberships.length > 0) {
+        throw new ServiceTeamRosterError(
+          'SERVICE_TEAM_MEMBER_CONFLICT',
+          'This service provider is already registered on a service-team roster.',
+          409,
+        )
+      }
+
+      const capacity = await assertAttendanceAllocationCapacity(tx, {
+        weddingId: input.weddingId,
+        allocation: 'operational',
+        excludeGuestId: current.id,
+      })
+      const serviceFunction = cleanGuestText(input.function, 160) || 'Service team'
+      const guest = await tx.guest.update({
+        where: { id: current.id },
+        data: {
+          role: 'service_provider',
+          roleDetail: serviceFunction,
+          attendanceAllocation: 'operational',
+          ...(input.phone ? { phone: cleanGuestText(input.phone, 80) } : {}),
+        },
+        include: {
+          rsvp: true,
+          seatingTable: { select: { id: true, name: true, capacity: true } },
+        },
+      })
+      if (!current.rsvp) {
+        await tx.rSVP.create({
+          data: { guestId: guest.id, token: randomUUID() },
+        })
+      }
+      await tx.serviceTeamMember.create({
+        data: {
+          serviceTeamId: team.id,
+          weddingId: input.weddingId,
+          guestId: guest.id,
+          function: serviceFunction,
+          isLeader: input.isLeader === true,
+          submittedAt: input.submitted === true ? new Date() : null,
+        },
+      })
+      await tx.auditEvent.create({
+        data: {
+          action: 'service_team.member_adopted',
+          resourceType: 'service_team_member',
+          resourceId: guest.id,
+          beforeValue: JSON.stringify({
+            guestId: current.id,
+            role: current.role,
+            attendanceAllocation: current.attendanceAllocation,
+          }),
+          afterValue: JSON.stringify({
+            guestId: guest.id,
+            serviceTeamId: team.id,
+            role: guest.role,
+            attendanceAllocation: guest.attendanceAllocation,
+            function: serviceFunction,
+          }),
+          weddingId: input.weddingId,
+          actorId: input.actorId,
+        },
+      })
+      const canonical = await tx.guest.findUniqueOrThrow({
+        where: { id: guest.id },
+        include: {
+          rsvp: true,
+          seatingTable: { select: { id: true, name: true, capacity: true } },
+        },
+      })
+      return { ok: true, status: 201, data: canonical, capacity } as const
+    })
+  }
 
   const result = await createPlannerGuest(
     { weddingId: input.weddingId, actorId: input.actorId },
