@@ -125,7 +125,9 @@ export async function GET(request: NextRequest, { params }: Params) {
         id: guest.id,
         name: guest.name,
         email: guest.email,
-        role: guest.role,
+        // Service-team membership is the canonical professional identity even if historical
+        // Guest.role text drifted before the roster write guards existed.
+        role: serviceProviderParticipant ? 'service_provider' : guest.role,
         tableNumber: guest.tableNumber,
         tableName: guest.tableName,
         seatingTableId: guest.seatingTableId,
