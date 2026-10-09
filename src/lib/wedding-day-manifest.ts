@@ -28,6 +28,7 @@ interface ManifestCredentialRow {
   guestId: string
   guestName: string
   guestRole: string
+  serviceProviderParticipant: boolean
   serviceProviderApproved: boolean
   tableNumber: number | null
   passSerial: string
@@ -98,7 +99,7 @@ function householdMembers(
   ]
 
   if (
-    row.guestRole !== 'service_provider'
+    !row.serviceProviderParticipant
     && policies.additionalAdultPolicy !== 'named_guests_only'
     && row.plusOne
   ) {
@@ -110,7 +111,7 @@ function householdMembers(
   }
 
   if (
-    row.guestRole !== 'service_provider'
+    !row.serviceProviderParticipant
     && policies.childrenPolicy !== 'adults_only'
     && row.kidsAttending
     && row.kidsCount > 0
@@ -167,8 +168,24 @@ export async function signedNativeWeddingDayManifest(weddingId: string) {
       `SELECT c."guestId",
               g.name AS "guestName",
               g.role AS "guestRole",
+              (
+                g.role = 'service_provider'
+                OR EXISTS (
+                  SELECT 1
+                    FROM public."ServiceTeamMember" stm
+                   WHERE stm."guestId" = g.id
+                     AND stm."weddingId" = g."weddingId"
+                )
+              ) AS "serviceProviderParticipant",
               CASE
-                WHEN g.role <> 'service_provider' THEN TRUE
+                WHEN g.role <> 'service_provider'
+                  AND NOT EXISTS (
+                    SELECT 1
+                      FROM public."ServiceTeamMember" stm
+                     WHERE stm."guestId" = g.id
+                       AND stm."weddingId" = g."weddingId"
+                  )
+                THEN TRUE
                 ELSE EXISTS (
                   SELECT 1
                     FROM public."ServiceTeamMember" stm
@@ -248,7 +265,7 @@ export async function signedNativeWeddingDayManifest(weddingId: string) {
         eventBitmask: credential.eventBitmask,
         keyId: credential.keyId,
         eligible: credential.attending === true
-          && (credential.guestRole !== 'service_provider' || credential.serviceProviderApproved),
+          && (!credential.serviceProviderParticipant || credential.serviceProviderApproved),
         household,
         partySize: household.length,
         checkedInAttendeeKeys: checkedInByGuest.get(credential.guestId) ?? [],
