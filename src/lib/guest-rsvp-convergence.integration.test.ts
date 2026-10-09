@@ -375,6 +375,19 @@ describe.skipIf(!isLocal)('Phase 9 — guest RSVP mutation convergence against a
       'Service providers are admitted as individually named crew members; household attendance cannot be added through the guest worksheet.',
     )
 
+    await expect(
+      applyGuestWorksheetRow(
+        w.id,
+        {
+          displayName: guest.name,
+          attendanceAllocation: 'shared',
+        },
+        guest.id,
+      ),
+    ).rejects.toThrow(
+      'Service-provider attendance allocation is managed through the service-team roster.',
+    )
+
     const stored = await db.rSVP.findUnique({ where: { guestId: guest.id } })
     expect(stored?.plusOne).toBe(false)
     expect(stored?.kidsAttending).toBe(false)
