@@ -105,6 +105,15 @@ describe('service-provider team admission authority', () => {
     expect(guestDay).toContain("childrenPolicy !== 'adults_only'")
   })
 
+  test('legacy provider roster adoption preserves canonical Guest identity and removal preserves invitation history', () => {
+    expect(operations).toContain('service_team.member_adopted')
+    expect(operations).toContain('legacyProvider.id')
+    expect(operations).toContain("attendanceAllocation: 'operational'")
+    expect(vendorMember).toContain("action: 'service_team.member_adopted'")
+    expect(vendorMember).toContain('preservedGuest: true')
+    expect(vendorMember).toContain('tx.serviceTeamMember.delete')
+  })
+
   test('operations projection exposes the required event-day roll call', () => {
     for (const marker of [
       'allowedCrew',
