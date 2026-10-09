@@ -14,6 +14,8 @@ const vendorMember = readFileSync('src/app/api/vendor/service-teams/[id]/roster/
 const rsvp = readFileSync('src/lib/guest-rsvp-mutation.ts', 'utf8')
 const pass = readFileSync('src/lib/wedding-day.ts', 'utf8')
 const manifest = readFileSync('src/lib/wedding-day-manifest.ts', 'utf8')
+const guestDay = readFileSync('src/app/api/wedding-day/guest/route.ts', 'utf8')
+const plannerProjection = readFileSync('src/lib/planner-invitation-projection.ts', 'utf8')
 const plannerPanel = readFileSync(
   'src/components/wedding/planner/planner-service-teams-panel.tsx',
   'utf8',
@@ -91,6 +93,16 @@ describe('service-provider team admission authority', () => {
     expect(rsvp).toContain('AS "serviceProviderParticipant"')
     expect(pass).toContain('AS "serviceProviderParticipant"')
     expect(manifest).toContain('AS "serviceProviderParticipant"')
+    expect(plannerProjection).toContain('guest.serviceTeamMemberships.length > 0')
+    expect(plannerProjection).toContain('admissionApproved: serviceProviderParticipant')
+    expect(operations).toContain("participantType: 'service_provider'")
+  })
+
+  test('Guest Wedding Day household follows the same provider/named-adult/children authority', () => {
+    expect(guestDay).toContain('loadWeddingAdditionalAdultPolicy')
+    expect(guestDay.match(/!context\.serviceProviderParticipant/g)?.length).toBe(2)
+    expect(guestDay).toContain("additionalAdultPolicy !== 'named_guests_only'")
+    expect(guestDay).toContain("childrenPolicy !== 'adults_only'")
   })
 
   test('operations projection exposes the required event-day roll call', () => {
