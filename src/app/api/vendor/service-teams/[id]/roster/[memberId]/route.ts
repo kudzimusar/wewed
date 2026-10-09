@@ -93,6 +93,46 @@ export async function DELETE(
     const member = await memberForTeam(id, memberId, access.team.weddingId)
     if (!member) return response({ success: false, error: 'Crew member not found.' }, 404)
 
+    // A Guest adopted from the pre-ServiceTeamMember model already owns a canonical invitation
+    // and RSVP identity. Removing them from a roster must remove only the roster relationship;
+    // deleting the Guest would destroy a pre-existing invitation. Roster-created crew keep the
+    // existing delete semantics (with pass/check-in/contribution history protection).
+    const adopted = await db.auditEvent.findFirst({
+      where: {
+        weddingId: access.team.weddingId,
+        action: 'service_team.member_adopted',
+        resourceId: member.guestId,
+      },
+      select: { id: true },
+    })
+    if (adopted) {
+      await db.$transaction(async (tx) => {
+        await tx.serviceTeamMember.delete({ where: { id: member.id } })
+        await tx.auditEvent.create({
+          data: {
+            action: 'service_team.member_removed',
+            resourceType: 'service_team_member',
+            resourceId: member.guestId,
+            beforeValue: JSON.stringify({
+              serviceTeamId: id,
+              memberId: member.id,
+              guestId: member.guestId,
+            }),
+            afterValue: JSON.stringify({
+              preservedGuest: true,
+              guestId: member.guestId,
+            }),
+            weddingId: access.team.weddingId,
+            actorId: access.session.userId,
+          },
+        })
+      })
+      return response({
+        success: true,
+        data: { id: member.id, deleted: true, preservedGuest: true, guestId: member.guestId },
+      })
+    }
+
     const result = await deletePlannerGuest(
       { weddingId: access.team.weddingId, actorId: access.session.userId },
       member.guestId,
