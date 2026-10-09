@@ -112,6 +112,9 @@ jobs:
       - name: Guest RSVP convergence
         run: bun test src/lib/guest-rsvp-convergence.integration.test.ts
 
+      - name: Service-provider canonical identity regression
+        run: bun test src/lib/service-provider-teams.integration.test.ts
+
       - name: Guest / invitation / attendance increment contracts
         run: >-
           bun test
