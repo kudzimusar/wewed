@@ -593,11 +593,12 @@ public actor GuestSessionClient {
         request.httpMethod = method
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let appVersion = (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "unknown"
+        request.setValue("Wewed-iOS/\(appVersion)", forHTTPHeaderField: "User-Agent")
         request.setValue("native", forHTTPHeaderField: "x-wewed-client")
         request.setValue("ios", forHTTPHeaderField: "x-wewed-native-platform")
-        if let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
-            request.setValue(appVersion, forHTTPHeaderField: "x-wewed-app-version")
-        }
+        request.setValue("ios-urlsession", forHTTPHeaderField: "x-wewed-native-runtime")
+        request.setValue(appVersion, forHTTPHeaderField: "x-wewed-app-version")
         if let buildVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String {
             request.setValue(buildVersion, forHTTPHeaderField: "x-wewed-build-version")
         }
