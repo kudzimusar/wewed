@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'android/**'
+      - 'apps/android/**'
       - 'e2e/deferred-invitation.chromium.spec.mjs'
       - 'e2e/deferred-invitation-guest-switch.chromium.spec.mjs'
       - 'e2e/deferred-invitation.android.mjs'
@@ -32,6 +33,7 @@ on:
       - main
     paths:
       - 'android/**'
+      - 'apps/android/**'
       - 'e2e/deferred-invitation.chromium.spec.mjs'
       - 'e2e/deferred-invitation-guest-switch.chromium.spec.mjs'
       - 'e2e/deferred-invitation.android.mjs'
