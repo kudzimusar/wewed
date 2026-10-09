@@ -112,15 +112,27 @@ function mergedWorksheetData(args: {
   existing: GuestWorksheetDataRow | null
   attending: boolean | null | undefined
   plusOne: boolean | undefined
+  serviceProviderParticipant?: boolean
 }): GuestWorksheetDataRow {
-  const { weddingId, guestId, guestName, input, existing, attending, plusOne } = args
+  const {
+    weddingId,
+    guestId,
+    guestName,
+    input,
+    existing,
+    attending,
+    plusOne,
+    serviceProviderParticipant = false,
+  } = args
   const firstName = input.firstName || existing?.firstName || null
   const lastName = input.lastName || existing?.lastName || null
   const completeName = firstName && lastName ? `${firstName} ${lastName}` : ''
   const displayName = input.displayName || completeName || existing?.displayName || guestName
-  const partySize = input.numberAttending
-    ?? existing?.partySize
-    ?? (input.plusOneName || plusOne ? 2 : 1)
+  const partySize = serviceProviderParticipant
+    ? 1
+    : input.numberAttending
+      ?? existing?.partySize
+      ?? (input.plusOneName || plusOne ? 2 : 1)
   const now = new Date()
   return {
     guestId,
@@ -236,9 +248,19 @@ export async function applyGuestWorksheetRow(
       )
     }
 
-    const attendanceAllocation = input.attendanceAllocation
+    const requestedAttendanceAllocation = input.attendanceAllocation
       ? normalizeAttendanceAllocation(input.attendanceAllocation)
-      : normalizeAttendanceAllocation(existingGuest?.attendanceAllocation)
+      : null
+    if (
+      serviceProviderParticipant
+      && requestedAttendanceAllocation
+      && requestedAttendanceAllocation !== 'operational'
+    ) {
+      throw new Error('Service-provider attendance allocation is managed through the service-team roster.')
+    }
+    const attendanceAllocation = serviceProviderParticipant
+      ? 'operational'
+      : requestedAttendanceAllocation ?? normalizeAttendanceAllocation(existingGuest?.attendanceAllocation)
     if (!existingGuest || attendanceAllocation !== existingGuest.attendanceAllocation) {
       await assertAttendanceAllocationCapacity(tx, {
         weddingId,
@@ -254,7 +276,12 @@ export async function applyGuestWorksheetRow(
             ...(requestedUpdateName ? { name: mergedName } : {}),
             ...(input.email ? { email: input.email } : {}),
             ...(input.phone ? { phone: input.phone } : {}),
-            ...(input.attendanceAllocation ? { attendanceAllocation } : {}),
+            ...(
+              input.attendanceAllocation
+              || (serviceProviderParticipant && existingGuest.attendanceAllocation !== 'operational')
+                ? { attendanceAllocation }
+                : {}
+            ),
           },
         })
       : await tx.guest.create({
@@ -342,6 +369,7 @@ export async function applyGuestWorksheetRow(
       existing: existingWorksheet,
       attending: resultingRsvp?.attending,
       plusOne: resultingRsvp?.plusOne,
+      serviceProviderParticipant,
     }))
 
     return { id: guest.id, created: !existingGuest }
