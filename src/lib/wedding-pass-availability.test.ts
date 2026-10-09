@@ -129,6 +129,12 @@ describe('Couple/Planner administrative state', () => {
         { additionalAdultPolicy: 'named_guests_only', childrenPolicy: 'adults_only' },
       ),
     ).toEqual(['primary'])
+    expect(
+      weddingHouseholdAttendeeKeys(
+        { plusOne: true, kidsAttending: true, kidsCount: 2 },
+        { serviceProviderParticipant: true },
+      ),
+    ).toEqual(['primary'])
   })
 })
 
