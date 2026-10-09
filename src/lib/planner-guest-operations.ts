@@ -216,8 +216,16 @@ export async function createPlannerGuest(actor: PlannerGuestActor, body: CreateP
 
 export async function updatePlannerGuest(actor: PlannerGuestActor, guestId: string, body: UpdatePlannerGuestInput) {
   const { weddingId } = actor
-  const existing = await db.guest.findFirst({ where: { id: guestId, weddingId }, include: guestInclude })
+  const existing = await db.guest.findFirst({
+    where: { id: guestId, weddingId },
+    include: {
+      ...guestInclude,
+      serviceTeamMemberships: { select: { id: true } },
+    },
+  })
   if (!existing) return { ok: false, status: 404, error: 'Guest not found' } as const
+  const serviceProviderParticipant =
+    existing.role === 'service_provider' || existing.serviceTeamMemberships.length > 0
 
   const updates: Record<string, unknown> = {}
   if (body.name !== undefined) {
@@ -251,8 +259,8 @@ export async function updatePlannerGuest(actor: PlannerGuestActor, guestId: stri
     // approval. Likewise a normal Guest cannot be promoted into provider authority without the
     // roster relationship. Both transitions must go through service-team operations.
     if (
-      (existing.role === 'service_provider' && body.role !== 'service_provider')
-      || (existing.role !== 'service_provider' && body.role === 'service_provider')
+      (serviceProviderParticipant && body.role !== 'service_provider')
+      || (!serviceProviderParticipant && body.role === 'service_provider')
     ) {
       return {
         ok: false,
@@ -270,7 +278,7 @@ export async function updatePlannerGuest(actor: PlannerGuestActor, guestId: stri
       return { ok: false, status: 400, error: 'Invalid attendance allocation. Allowed: bride, groom, shared, operational', field: 'attendanceAllocation' } as const
     }
     nextAttendanceAllocation = normalizeAttendanceAllocation(body.attendanceAllocation)
-    if (existing.role === 'service_provider' && nextAttendanceAllocation !== 'operational') {
+    if (serviceProviderParticipant && nextAttendanceAllocation !== 'operational') {
       return {
         ok: false,
         status: 409,
