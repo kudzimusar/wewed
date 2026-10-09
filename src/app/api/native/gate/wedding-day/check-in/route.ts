@@ -30,8 +30,10 @@ const CLIENT_ERROR_CODES = new Set([
   'PASS_CREDENTIAL_MISMATCH',
   'PASS_SIGNING_KEY_INACTIVE',
   'PASS_TOKEN_REQUIRED',
+  'ATTENDEE_KEYS_REQUIRED',
   'GATE_INACTIVE_OR_INVALID',
   'GUEST_INELIGIBLE',
+  'SERVICE_PROVIDER_NOT_APPROVED',
 ])
 
 function hasExactToken(item: CheckInRequestBody): item is CheckInRequestBody & { token: string } {

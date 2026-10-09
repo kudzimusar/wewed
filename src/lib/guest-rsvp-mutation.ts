@@ -216,8 +216,16 @@ export async function applyGuestRsvpUpdate(params: {
   let updated: GuestRsvpRecord
   try {
     updated = await db.$transaction(async (tx) => {
-    const guestRows = await tx.$queryRawUnsafe<Array<{ id: string; role: string }>>(
-      `SELECT g.id, g.role
+    const guestRows = await tx.$queryRawUnsafe<Array<{ id: string; role: string; serviceProviderParticipant: boolean }>>(
+      `SELECT g.id, g.role,
+              (
+                g.role = 'service_provider'
+                OR EXISTS (
+                  SELECT 1 FROM public."ServiceTeamMember" stm
+                   WHERE stm."guestId" = g.id
+                     AND stm."weddingId" = g."weddingId"
+                )
+              ) AS "serviceProviderParticipant"
          FROM public."Guest" g
          JOIN public."RSVP" r ON r."guestId" = g.id
         WHERE r.token = $1 AND g."weddingId" = $2
@@ -231,14 +239,14 @@ export async function applyGuestRsvpUpdate(params: {
     if (!guestId) throw new Error('RSVP_NOT_FOUND')
 
     if (
-      guest.role === 'service_provider'
+      guest.serviceProviderParticipant
       && (requestedFields.plusOne === true || requestedFields.kidsAttending === true)
     ) {
       throw new ServiceProviderHouseholdError(
         'Service providers are admitted as individually named crew members; plus-ones and children are not part of service attendance.',
       )
     }
-    if (guest.role === 'service_provider') {
+    if (guest.serviceProviderParticipant) {
       data.plusOne = false
       data.kidsAttending = false
       // Keep historical labels/counts for audit; only current attendance semantics are forced off.

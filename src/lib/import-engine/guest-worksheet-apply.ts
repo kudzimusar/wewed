@@ -112,15 +112,27 @@ function mergedWorksheetData(args: {
   existing: GuestWorksheetDataRow | null
   attending: boolean | null | undefined
   plusOne: boolean | undefined
+  serviceProviderParticipant?: boolean
 }): GuestWorksheetDataRow {
-  const { weddingId, guestId, guestName, input, existing, attending, plusOne } = args
+  const {
+    weddingId,
+    guestId,
+    guestName,
+    input,
+    existing,
+    attending,
+    plusOne,
+    serviceProviderParticipant = false,
+  } = args
   const firstName = input.firstName || existing?.firstName || null
   const lastName = input.lastName || existing?.lastName || null
   const completeName = firstName && lastName ? `${firstName} ${lastName}` : ''
   const displayName = input.displayName || completeName || existing?.displayName || guestName
-  const partySize = input.numberAttending
-    ?? existing?.partySize
-    ?? (input.plusOneName || plusOne ? 2 : 1)
+  const partySize = serviceProviderParticipant
+    ? 1
+    : input.numberAttending
+      ?? existing?.partySize
+      ?? (input.plusOneName || plusOne ? 2 : 1)
   const now = new Date()
   return {
     guestId,
@@ -174,6 +186,22 @@ export async function applyGuestWorksheetRow(
     const childrenPolicy =
       policy.get('childrenPolicy') === 'adults_only' ? 'adults_only' : 'welcome'
 
+    // Service-team membership is the canonical professional-attendance authority. Historical
+    // rows may have stale role text, so the worksheet import must not rely on Guest.role alone.
+    const serviceTeamMembership = existingGuest
+      ? await tx.serviceTeamMember.findUnique({
+          where: {
+            weddingId_guestId: {
+              weddingId,
+              guestId: existingGuest.id,
+            },
+          },
+          select: { id: true },
+        })
+      : null
+    const serviceProviderParticipant =
+      existingGuest?.role === 'service_provider' || Boolean(serviceTeamMembership)
+
     const existingWorksheet = existingGuest
       ? await fetchGuestWorksheetDataRow(tx, weddingId, existingGuest.id)
       : null
@@ -207,10 +235,32 @@ export async function applyGuestWorksheetRow(
     ) {
       throw new Error('Children are not permitted for this adults-only wedding.')
     }
+    if (
+      serviceProviderParticipant
+      && (
+        Boolean(input.plusOneName)
+        || (input.numberAttending !== null && input.numberAttending > 1)
+        || (input.numberOfChildren !== null && input.numberOfChildren > 0)
+      )
+    ) {
+      throw new Error(
+        'Service providers are admitted as individually named crew members; household attendance cannot be added through the guest worksheet.',
+      )
+    }
 
-    const attendanceAllocation = input.attendanceAllocation
+    const requestedAttendanceAllocation = input.attendanceAllocation
       ? normalizeAttendanceAllocation(input.attendanceAllocation)
-      : normalizeAttendanceAllocation(existingGuest?.attendanceAllocation)
+      : null
+    if (
+      serviceProviderParticipant
+      && requestedAttendanceAllocation
+      && requestedAttendanceAllocation !== 'operational'
+    ) {
+      throw new Error('Service-provider attendance allocation is managed through the service-team roster.')
+    }
+    const attendanceAllocation = serviceProviderParticipant
+      ? 'operational'
+      : requestedAttendanceAllocation ?? normalizeAttendanceAllocation(existingGuest?.attendanceAllocation)
     if (!existingGuest || attendanceAllocation !== existingGuest.attendanceAllocation) {
       await assertAttendanceAllocationCapacity(tx, {
         weddingId,
@@ -226,7 +276,12 @@ export async function applyGuestWorksheetRow(
             ...(requestedUpdateName ? { name: mergedName } : {}),
             ...(input.email ? { email: input.email } : {}),
             ...(input.phone ? { phone: input.phone } : {}),
-            ...(input.attendanceAllocation ? { attendanceAllocation } : {}),
+            ...(
+              input.attendanceAllocation
+              || (serviceProviderParticipant && existingGuest.attendanceAllocation !== 'operational')
+                ? { attendanceAllocation }
+                : {}
+            ),
           },
         })
       : await tx.guest.create({
@@ -266,15 +321,19 @@ export async function applyGuestWorksheetRow(
       const kidsCount = input.numberOfChildren ?? currentRsvp?.kidsCount ?? 0
       const data = {
         ...(input.rsvpStatus ? { attending: attendingFromStatus(responseStatus) } : {}),
-        ...(input.numberAttending != null || input.plusOneName
-          ? {
-              plusOne: additionalAdultPolicy === 'named_guests_only'
-                ? false
-                : partySize > 1 || Boolean(input.plusOneName),
-            }
+        ...(serviceProviderParticipant
+          ? { plusOne: false, kidsAttending: false }
+          : input.numberAttending != null || input.plusOneName
+            ? {
+                plusOne: additionalAdultPolicy === 'named_guests_only'
+                  ? false
+                  : partySize > 1 || Boolean(input.plusOneName),
+              }
+            : {}),
+        ...(!serviceProviderParticipant && input.plusOneName ? { plusOneName: input.plusOneName } : {}),
+        ...(!serviceProviderParticipant && input.numberOfChildren != null
+          ? { kidsCount, kidsAttending: kidsCount > 0 }
           : {}),
-        ...(input.plusOneName ? { plusOneName: input.plusOneName } : {}),
-        ...(input.numberOfChildren != null ? { kidsCount, kidsAttending: kidsCount > 0 } : {}),
         ...(input.dietary ? { dietaryNotes: input.dietary } : {}),
       }
       resultingRsvp = currentRsvp
@@ -284,12 +343,14 @@ export async function applyGuestWorksheetRow(
               guestId: guest.id,
               token: `rsvp_${randomUUID().replace(/-/g, '')}`,
               attending: input.rsvpStatus ? attendingFromStatus(responseStatus) : null,
-              plusOne: additionalAdultPolicy === 'named_guests_only'
+              plusOne: serviceProviderParticipant || additionalAdultPolicy === 'named_guests_only'
                 ? false
                 : partySize > 1 || Boolean(input.plusOneName),
-              plusOneName: input.plusOneName || null,
+              plusOneName: serviceProviderParticipant ? null : input.plusOneName || null,
               kidsCount,
-              kidsAttending: childrenPolicy === 'adults_only' ? false : kidsCount > 0,
+              kidsAttending: serviceProviderParticipant || childrenPolicy === 'adults_only'
+                ? false
+                : kidsCount > 0,
               dietaryNotes: input.dietary || null,
             },
           })
@@ -308,6 +369,7 @@ export async function applyGuestWorksheetRow(
       existing: existingWorksheet,
       attending: resultingRsvp?.attending,
       plusOne: resultingRsvp?.plusOne,
+      serviceProviderParticipant,
     }))
 
     return { id: guest.id, created: !existingGuest }

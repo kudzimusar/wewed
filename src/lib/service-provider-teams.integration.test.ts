@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test'
 import { randomUUID } from 'node:crypto'
+import { NextRequest } from 'next/server'
 
 const url = process.env.AUTHORITY_TEST_DATABASE_URL ?? ''
 const isLocal = /^postgres(ql)?:\/\/[^@]*@(localhost|127\.0\.0\.1)(:\d+)?\//.test(url)
@@ -17,6 +18,13 @@ let submitServiceTeam: typeof import('@/lib/service-team-operations')['submitSer
 let approveServiceTeam: typeof import('@/lib/service-team-operations')['approveServiceTeam']
 let loadServiceTeamOperations: typeof import('@/lib/service-team-operations')['loadServiceTeamOperations']
 let recordGuestNativePresence: typeof import('@/lib/guest-native-presence')['recordGuestNativePresence']
+let createPlannerGuest: typeof import('@/lib/planner-guest-operations')['createPlannerGuest']
+let updatePlannerGuest: typeof import('@/lib/planner-guest-operations')['updatePlannerGuest']
+let applyGuestRsvpUpdate: typeof import('@/lib/guest-rsvp-mutation')['applyGuestRsvpUpdate']
+let loadPlannerInvitationProjection: typeof import('@/lib/planner-invitation-projection')['loadPlannerInvitationProjection']
+let createWeddingGuestSessionToken: typeof import('@/lib/wedding-guest-session')['createWeddingGuestSessionToken']
+let WEDDING_GUEST_SESSION_COOKIE: typeof import('@/lib/wedding-guest-session')['WEDDING_GUEST_SESSION_COOKIE']
+let getGuestSession: typeof import('@/app/api/weddings/[slug]/guest-session/route')['GET']
 
 const suffix = randomUUID().slice(0, 8)
 let coupleId = ''
@@ -25,6 +33,7 @@ let actorId = ''
 let vendorId = ''
 let engagementId = ''
 let teamId = ''
+let weddingDate = new Date(0)
 
 describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL', () => {
   beforeAll(async () => {
@@ -37,6 +46,11 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
       loadServiceTeamOperations,
     } = await import('@/lib/service-team-operations'))
     ;({ recordGuestNativePresence } = await import('@/lib/guest-native-presence'))
+    ;({ createPlannerGuest, updatePlannerGuest } = await import('@/lib/planner-guest-operations'))
+    ;({ applyGuestRsvpUpdate } = await import('@/lib/guest-rsvp-mutation'))
+    ;({ loadPlannerInvitationProjection } = await import('@/lib/planner-invitation-projection'))
+    ;({ createWeddingGuestSessionToken, WEDDING_GUEST_SESSION_COOKIE } = await import('@/lib/wedding-guest-session'))
+    ;({ GET: getGuestSession } = await import('@/app/api/weddings/[slug]/guest-session/route'))
 
     const couple = await db.couple.create({
       data: { slug: `service-team-${suffix}`, partner1: 'Service', partner2: 'Team' },
@@ -55,6 +69,7 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
       },
     })
     weddingId = wedding.id
+    weddingDate = wedding.date
 
     const actor = await db.user.create({
       data: { email: `service-team-${suffix}@example.com`, name: 'Service Team UAT Actor', role: 'planner' },
@@ -119,6 +134,149 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
     })
   })
 
+  test('generic Guest writes cannot manufacture or shed service-provider admission identity', async () => {
+    const genericProvider = await createPlannerGuest(
+      { weddingId, actorId },
+      { name: 'Generic Provider Bypass', role: 'service_provider' },
+    )
+    expect(genericProvider).toMatchObject({ ok: false, status: 400, field: 'role' })
+    expect(await db.guest.count({ where: { weddingId, name: 'Generic Provider Bypass' } })).toBe(0)
+  })
+
+  test('legacy service-provider Guest is adopted into a roster without duplicate identity', async () => {
+    const legacyEmail = `legacy-provider-${suffix}@example.com`
+    const legacyGuest = await db.guest.create({
+      data: {
+        weddingId,
+        name: 'Legacy Provider',
+        email: legacyEmail,
+        role: 'service_provider',
+        attendanceAllocation: 'shared',
+      },
+    })
+    const legacyRsvp = await db.rSVP.create({
+      data: {
+        guestId: legacyGuest.id,
+        token: `legacy-provider-${suffix}`,
+        attending: true,
+      },
+    })
+    const legacyTeam = await createServiceTeam({
+      weddingId,
+      actorId,
+      serviceEngagementId: engagementId,
+      name: 'Legacy Provider Crew',
+      allowedCrew: 1,
+    })
+
+    const adopted = await addServiceTeamMember({
+      weddingId,
+      actorId,
+      serviceTeamId: legacyTeam.id,
+      name: legacyGuest.name,
+      email: legacyEmail,
+      function: 'Legacy service provider',
+    })
+    expect(adopted.ok).toBe(true)
+    expect(adopted.data.id).toBe(legacyGuest.id)
+    expect(adopted.data.rsvp?.token).toBe(legacyRsvp.token)
+    expect(adopted.data.attendanceAllocation).toBe('operational')
+    expect(
+      await db.guest.count({
+        where: { weddingId, email: { equals: legacyEmail, mode: 'insensitive' } },
+      }),
+    ).toBe(1)
+    expect(
+      await db.serviceTeamMember.findUnique({
+        where: {
+          weddingId_guestId: {
+            weddingId,
+            guestId: legacyGuest.id,
+          },
+        },
+      }),
+    ).toMatchObject({
+      guestId: legacyGuest.id,
+      serviceTeamId: legacyTeam.id,
+    })
+
+    // Keep this compatibility fixture isolated from the shared-wedding roll-call scenario below.
+    await db.serviceTeamMember.deleteMany({ where: { guestId: legacyGuest.id } })
+    await db.auditEvent.deleteMany({
+      where: {
+        weddingId,
+        resourceId: legacyGuest.id,
+        action: 'service_team.member_adopted',
+      },
+    })
+    await db.rSVP.delete({ where: { id: legacyRsvp.id } })
+    await db.guest.delete({ where: { id: legacyGuest.id } })
+    await db.serviceTeam.delete({ where: { id: legacyTeam.id } })
+  })
+
+  test('legacy provider adoption refuses ambiguous exact-email identity instead of picking an arbitrary Guest', async () => {
+    const ambiguousEmail = `ambiguous-provider-${suffix}@example.com`
+    const first = await db.guest.create({
+      data: {
+        weddingId,
+        name: 'Ambiguous Provider One',
+        email: ambiguousEmail,
+        role: 'service_provider',
+        attendanceAllocation: 'shared',
+      },
+    })
+    const second = await db.guest.create({
+      data: {
+        weddingId,
+        name: 'Ambiguous Provider Two',
+        email: ambiguousEmail,
+        role: 'service_provider',
+        attendanceAllocation: 'shared',
+      },
+    })
+    const ambiguousTeam = await createServiceTeam({
+      weddingId,
+      actorId,
+      serviceEngagementId: engagementId,
+      name: 'Ambiguous Provider Crew',
+      allowedCrew: 1,
+    })
+
+    await expect(
+      addServiceTeamMember({
+        weddingId,
+        actorId,
+        serviceTeamId: ambiguousTeam.id,
+        name: 'Ambiguous Provider',
+        email: ambiguousEmail,
+        function: 'Ambiguous legacy service provider',
+      }),
+    ).rejects.toMatchObject({
+      code: 'SERVICE_TEAM_MEMBER_CONFLICT',
+      status: 409,
+    })
+
+    expect(
+      await db.serviceTeamMember.count({
+        where: {
+          weddingId,
+          guestId: { in: [first.id, second.id] },
+        },
+      }),
+    ).toBe(0)
+    expect(
+      await db.guest.count({
+        where: {
+          weddingId,
+          email: { equals: ambiguousEmail, mode: 'insensitive' },
+        },
+      }),
+    ).toBe(2)
+
+    await db.guest.deleteMany({ where: { id: { in: [first.id, second.id] } } })
+    await db.serviceTeam.delete({ where: { id: ambiguousTeam.id } })
+  })
+
   test('named crew are capacity-bounded, approved individually, and projected for event-day roll-call', async () => {
     const lead = await addServiceTeamMember({
       weddingId,
@@ -168,6 +326,114 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
     expect(memberships).toHaveLength(2)
     expect(new Set(memberships.map((member) => member.guestId)).size).toBe(2)
 
+    const roleBypass = await updatePlannerGuest(
+      { weddingId, actorId },
+      memberships[0].guestId,
+      { role: 'guest' },
+    )
+    expect(roleBypass).toMatchObject({ ok: false, status: 409, field: 'role' })
+    const allocationBypass = await updatePlannerGuest(
+      { weddingId, actorId },
+      memberships[0].guestId,
+      { attendanceAllocation: 'shared' },
+    )
+    expect(allocationBypass).toMatchObject({
+      ok: false,
+      status: 409,
+      field: 'attendanceAllocation',
+    })
+    const protectedProvider = await db.guest.findUniqueOrThrow({
+      where: { id: memberships[0].guestId },
+      select: { role: true, attendanceAllocation: true },
+    })
+    expect(protectedProvider).toEqual({
+      role: 'service_provider',
+      attendanceAllocation: 'operational',
+    })
+
+    // Migration/backward safety: even if a historical row already contains stale role text from
+    // before the write guard existed, the canonical ServiceTeamMember relationship remains the
+    // server authority for professional household restrictions.
+    await db.guest.update({
+      where: { id: memberships[0].guestId },
+      data: { role: 'guest' },
+    })
+    const staleRoleEditorBypass = await updatePlannerGuest(
+      { weddingId, actorId },
+      memberships[0].guestId,
+      { role: 'guest', attendanceAllocation: 'shared' },
+    )
+    expect(staleRoleEditorBypass).toMatchObject({
+      ok: false,
+      status: 409,
+      field: 'role',
+    })
+    const staleRoleRsvp = await db.rSVP.findUniqueOrThrow({
+      where: { guestId: memberships[0].guestId },
+      select: { token: true },
+    })
+    const staleRoleBypass = await applyGuestRsvpUpdate({
+      weddingId,
+      rsvpToken: staleRoleRsvp.token,
+      requestedFields: { plusOne: true },
+    })
+    expect(staleRoleBypass).toMatchObject({
+      ok: false,
+      status: 400,
+      code: 'SERVICE_PROVIDER_HOUSEHOLD_NOT_ALLOWED',
+    })
+    const attendingBeforeApproval = await applyGuestRsvpUpdate({
+      weddingId,
+      rsvpToken: staleRoleRsvp.token,
+      requestedFields: { attending: true },
+    })
+    expect(attendingBeforeApproval.ok).toBe(true)
+    const beforeApprovalProjection = await loadPlannerInvitationProjection(
+      weddingId,
+      'https://wewed.pro',
+    )
+    const staleRoleGuest = beforeApprovalProjection?.data.find(
+      (guest) => guest.id === memberships[0].guestId,
+    )
+    expect(staleRoleGuest).toMatchObject({
+      status: 'attending',
+      passState: 'not_yet_issuable',
+    })
+
+    await db.rSVP.update({
+      where: { guestId: memberships[0].guestId },
+      data: {
+        plusOne: true,
+        plusOneName: 'Historical Provider +1',
+        kidsAttending: true,
+        kidsCount: 2,
+      },
+    })
+    const guestSession = createWeddingGuestSessionToken({
+      weddingId,
+      guestId: memberships[0].guestId,
+      rsvpToken: staleRoleRsvp.token,
+      weddingDate,
+    })
+    const guestSessionResponse = await getGuestSession(
+      new NextRequest(
+        `http://localhost/api/weddings/service-team-wedding-${suffix}/guest-session`,
+        { headers: { cookie: `${WEDDING_GUEST_SESSION_COOKIE}=${guestSession}` } },
+      ),
+      { params: Promise.resolve({ slug: `service-team-wedding-${suffix}` }) },
+    )
+    expect(guestSessionResponse.status).toBe(200)
+    const guestSessionBody = await guestSessionResponse.json()
+    expect(guestSessionBody.guest).toMatchObject({
+      id: memberships[0].guestId,
+      role: 'service_provider',
+    })
+    expect(guestSessionBody.rsvp).toMatchObject({
+      plusOne: false,
+      kidsAttending: false,
+      partySize: 1,
+    })
+
     await submitServiceTeam({ weddingId, serviceTeamId: teamId, actorId })
     await approveServiceTeam({ weddingId, serviceTeamId: teamId, actorId })
 
@@ -184,8 +450,10 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
       weddingId,
       guestId: memberships[0].guestId,
       headers: new Headers({
+        'user-agent': 'Wewed-Android/2.0.0',
         'x-wewed-client': 'native',
         'x-wewed-native-platform': 'android',
+        'x-wewed-native-runtime': 'android-httpurlconnection',
         'x-wewed-app-version': '2.0.0',
         'x-wewed-build-version': '200',
       }),

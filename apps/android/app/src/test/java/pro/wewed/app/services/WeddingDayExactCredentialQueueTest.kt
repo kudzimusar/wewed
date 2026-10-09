@@ -310,7 +310,9 @@ class WeddingDayExactCredentialQueueTest {
         val terminal = listOf(
             "PASS_NOT_FOUND", "PASS_REVOKED_OR_EXPIRED", "INVALID_PASS_TOKEN", "PASS_WEDDING_MISMATCH",
             "PASS_EVENT_NOT_PERMITTED", "PASS_SIGNATURE_INVALID", "PASS_CREDENTIAL_MISMATCH",
-            "PASS_TOKEN_REQUIRED", "SERIAL_ONLY_ADMISSION_UNSUPPORTED", "GUEST_INELIGIBLE", "INVALID_ATTENDEE_KEY"
+            "PASS_SIGNING_KEY_INACTIVE", "PASS_TOKEN_REQUIRED", "ATTENDEE_KEYS_REQUIRED",
+            "SERIAL_ONLY_ADMISSION_UNSUPPORTED", "GATE_INACTIVE_OR_INVALID", "GUEST_INELIGIBLE",
+            "SERVICE_PROVIDER_NOT_APPROVED", "INVALID_ATTENDEE_KEY"
         )
         assertEquals(terminal.toSet(), WeddingDaySyncService.TERMINAL_CHECK_IN_REJECTION_CODES)
 
@@ -337,8 +339,8 @@ class WeddingDayExactCredentialQueueTest {
         val transport = ScriptedTransport(
             { WeddingDayHttpResponse(500, """{"success":false,"code":"INTERNAL"}""") },
             { throw IOException("offline") },
-            { WeddingDayHttpResponse(400, """{"success":false,"code":"PASS_SIGNING_KEY_INACTIVE","error":"PASS_SIGNING_KEY_INACTIVE"}""") },
-            { WeddingDayHttpResponse(400, """{"success":false,"code":"GATE_INACTIVE_OR_INVALID"}""") },
+            { WeddingDayHttpResponse(400, """{"success":false,"code":"UNKNOWN_CHECKIN_POLICY","error":"UNKNOWN_CHECKIN_POLICY"}""") },
+            { WeddingDayHttpResponse(400, """{"success":false,"code":"UNCLASSIFIED_GATE_REFUSAL"}""") },
             { WeddingDayHttpResponse(401, "") },
             { WeddingDayHttpResponse(403, """{"success":false,"code":"PASS_REVOKED_OR_EXPIRED"}""") },
             { WeddingDayHttpResponse(409, "") },

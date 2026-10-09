@@ -340,6 +340,59 @@ describe.skipIf(!isLocal)('Phase 9 — guest RSVP mutation convergence against a
     expect(await db.guest.count({ where: { weddingId: adultsOnly.id } })).toBe(0)
   })
 
+  test('Planner worksheet import cannot add household attendance to a service-provider Guest', async () => {
+    const w = await wedding('worksheet-service-provider')
+    const guest = await db.guest.create({
+      data: {
+        weddingId: w.id,
+        name: 'Worksheet Service Provider',
+        role: 'service_provider',
+        attendanceAllocation: 'operational',
+      },
+    })
+    await db.rSVP.create({
+      data: {
+        guestId: guest.id,
+        token: `p9-${run}-worksheet-provider-${randomUUID().replaceAll('-', '')}`,
+        attending: true,
+        plusOne: false,
+        kidsAttending: false,
+      },
+    })
+
+    await expect(
+      applyGuestWorksheetRow(
+        w.id,
+        {
+          displayName: guest.name,
+          rsvpStatus: 'attending',
+          numberAttending: '2',
+          plusOneName: 'Anonymous Provider Guest',
+        },
+        guest.id,
+      ),
+    ).rejects.toThrow(
+      'Service providers are admitted as individually named crew members; household attendance cannot be added through the guest worksheet.',
+    )
+
+    await expect(
+      applyGuestWorksheetRow(
+        w.id,
+        {
+          displayName: guest.name,
+          attendanceAllocation: 'shared',
+        },
+        guest.id,
+      ),
+    ).rejects.toThrow(
+      'Service-provider attendance allocation is managed through the service-team roster.',
+    )
+
+    const stored = await db.rSVP.findUnique({ where: { guestId: guest.id } })
+    expect(stored?.plusOne).toBe(false)
+    expect(stored?.kidsAttending).toBe(false)
+  })
+
   // -----------------------------------------------------------------------------------
   // §15 stale-context matrix — PUT /api/weddings/[slug]/guest-session
   // -----------------------------------------------------------------------------------

@@ -578,8 +578,10 @@ class GuestSessionClient(
             connection.connectTimeout = 15_000
             connection.readTimeout = 20_000
             connection.setRequestProperty("Accept", "application/json")
+            connection.setRequestProperty("User-Agent", "Wewed-Android/${BuildConfig.VERSION_NAME}")
             connection.setRequestProperty("x-wewed-client", "native")
             connection.setRequestProperty("x-wewed-native-platform", "android")
+            connection.setRequestProperty("x-wewed-native-runtime", "android-httpurlconnection")
             connection.setRequestProperty("x-wewed-app-version", BuildConfig.VERSION_NAME)
             connection.setRequestProperty("x-wewed-build-version", BuildConfig.VERSION_CODE.toString())
             val sentSession = synchronized(sessionLock) { if (withSession) secureStorage.get(STORED_SESSION) else null }

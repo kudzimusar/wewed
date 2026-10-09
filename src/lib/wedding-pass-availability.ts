@@ -124,9 +124,11 @@ export function weddingHouseholdAttendeeKeys(
   policies: {
     additionalAdultPolicy?: 'plus_ones_allowed' | 'named_guests_only' | null
     childrenPolicy?: 'welcome' | 'adults_only' | null
+    serviceProviderParticipant?: boolean
   } = {},
 ): string[] {
   const keys = ['primary']
+  if (policies.serviceProviderParticipant) return keys
   if (policies.additionalAdultPolicy !== 'named_guests_only' && rsvp.plusOne) keys.push('plus-one')
   if (policies.childrenPolicy !== 'adults_only' && rsvp.kidsAttending && (rsvp.kidsCount ?? 0) > 0) {
     for (let index = 1; index <= (rsvp.kidsCount ?? 0); index += 1) keys.push(`child-${index}`)

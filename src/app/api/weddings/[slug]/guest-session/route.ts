@@ -71,10 +71,21 @@ export async function GET(request: NextRequest, { params }: Params) {
     return noStore(response)
   }
 
-  const [childrenPolicy, additionalAdultPolicy] = await Promise.all([
+  const [childrenPolicy, additionalAdultPolicy, serviceTeamMembership] = await Promise.all([
     loadWeddingChildrenPolicy(wedding.id),
     loadWeddingAdditionalAdultPolicy(wedding.id),
+    db.serviceTeamMember.findUnique({
+      where: {
+        weddingId_guestId: {
+          weddingId: wedding.id,
+          guestId: guest.id,
+        },
+      },
+      select: { id: true },
+    }),
   ])
+  const serviceProviderParticipant =
+    guest.role === 'service_provider' || Boolean(serviceTeamMembership)
 
   // Confirmed Native Activation is recorded only after this request has resolved a real Guest
   // session. Telemetry is deliberately non-blocking for the invitation experience.
@@ -114,7 +125,9 @@ export async function GET(request: NextRequest, { params }: Params) {
         id: guest.id,
         name: guest.name,
         email: guest.email,
-        role: guest.role,
+        // Service-team membership is the canonical professional identity even if historical
+        // Guest.role text drifted before the roster write guards existed.
+        role: serviceProviderParticipant ? 'service_provider' : guest.role,
         tableNumber: guest.tableNumber,
         tableName: guest.tableName,
         seatingTableId: guest.seatingTableId,
@@ -122,13 +135,13 @@ export async function GET(request: NextRequest, { params }: Params) {
       rsvp: {
         attending: guest.attending,
         mealChoice: guest.mealChoice,
-        plusOne: guest.role === 'service_provider' || additionalAdultPolicy === 'named_guests_only' ? false : guest.plusOne,
+        plusOne: serviceProviderParticipant || additionalAdultPolicy === 'named_guests_only' ? false : guest.plusOne,
         plusOneName: guest.plusOneName,
         plusOneMeal: guest.plusOneMeal,
-        kidsAttending: guest.role === 'service_provider' || childrenPolicy === 'adults_only' ? false : guest.kidsAttending,
+        kidsAttending: serviceProviderParticipant || childrenPolicy === 'adults_only' ? false : guest.kidsAttending,
         kidsCount: guest.kidsCount,
         // The canonical Gate household (shared guestPartySize); clients display it, never derive it.
-        partySize: guest.role === 'service_provider'
+        partySize: serviceProviderParticipant
           ? 1
           : guestPartySize(
               {

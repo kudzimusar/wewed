@@ -17,8 +17,10 @@ describe('Guest native activation telemetry', () => {
     }))).toBeNull()
 
     expect(nativeGuestClientFromHeaders(new Headers({
+      'user-agent': 'Wewed-Android/1.4.0',
       'x-wewed-client': 'native',
       'x-wewed-native-platform': 'android',
+      'x-wewed-native-runtime': 'android-httpurlconnection',
       'x-wewed-app-version': '1.4.0',
       'x-wewed-build-version': '104',
     }))).toEqual({
@@ -28,11 +30,42 @@ describe('Guest native activation telemetry', () => {
     })
   })
 
+  test('browser/PWA fetch metadata cannot forge native activation', () => {
+    const forged = new Headers({
+      'user-agent': 'Mozilla/5.0',
+      'sec-fetch-site': 'same-origin',
+      'sec-fetch-mode': 'cors',
+      'sec-fetch-dest': 'empty',
+      'x-wewed-client': 'native',
+      'x-wewed-native-platform': 'android',
+      'x-wewed-native-runtime': 'android-httpurlconnection',
+    })
+    expect(nativeGuestClientFromHeaders(forged)).toBeNull()
+
+    const wrongRuntime = new Headers({
+      'user-agent': 'Wewed-Android/1.4.0',
+      'x-wewed-client': 'native',
+      'x-wewed-native-platform': 'android',
+      'x-wewed-native-runtime': 'ios-urlsession',
+    })
+    expect(nativeGuestClientFromHeaders(wrongRuntime)).toBeNull()
+
+    const browserUserAgent = new Headers({
+      'user-agent': 'Mozilla/5.0 (Linux; Android 16)',
+      'x-wewed-client': 'native',
+      'x-wewed-native-platform': 'android',
+      'x-wewed-native-runtime': 'android-httpurlconnection',
+    })
+    expect(nativeGuestClientFromHeaders(browserUserAgent)).toBeNull()
+  })
+
   test('metadata is bounded and contains no device advertising identifier', () => {
     const long = 'x'.repeat(200)
     const parsed = nativeGuestClientFromHeaders(new Headers({
+      'user-agent': 'Wewed-iOS/2.0.0',
       'x-wewed-client': 'native',
       'x-wewed-native-platform': 'ios',
+      'x-wewed-native-runtime': 'ios-urlsession',
       'x-wewed-app-version': long,
       'x-wewed-build-version': long,
     }))
@@ -86,11 +119,15 @@ describe('Guest native activation telemetry', () => {
       'utf8',
     )
 
+    expect(android).toContain('"User-Agent", "Wewed-Android/${BuildConfig.VERSION_NAME}"')
     expect(android).toContain('"x-wewed-native-platform", "android"')
+    expect(android).toContain('"x-wewed-native-runtime", "android-httpurlconnection"')
     expect(android).toContain('"x-wewed-app-version", BuildConfig.VERSION_NAME')
     expect(android).toContain('"x-wewed-build-version", BuildConfig.VERSION_CODE.toString()')
 
+    expect(ios).toContain('"Wewed-iOS/\\(appVersion)", forHTTPHeaderField: "User-Agent"')
     expect(ios).toContain('"ios", forHTTPHeaderField: "x-wewed-native-platform"')
+    expect(ios).toContain('"ios-urlsession", forHTTPHeaderField: "x-wewed-native-runtime"')
     expect(ios).toContain('CFBundleShortVersionString')
     expect(ios).toContain('CFBundleVersion')
   })

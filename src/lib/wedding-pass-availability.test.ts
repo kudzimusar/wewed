@@ -129,7 +129,35 @@ describe('Couple/Planner administrative state', () => {
         { additionalAdultPolicy: 'named_guests_only', childrenPolicy: 'adults_only' },
       ),
     ).toEqual(['primary'])
+    expect(
+      weddingHouseholdAttendeeKeys(
+        { plusOne: true, kidsAttending: true, kidsCount: 2 },
+        { serviceProviderParticipant: true },
+      ),
+    ).toEqual(['primary'])
   })
+})
+
+describe('Wedding Pass Gate reconciliation contracts', () => {
+
+  test('Android offline reconciliation treats every server-authoritative Gate refusal as terminal', async () => {
+    const route = await source('src/app/api/native/gate/wedding-day/check-in/route.ts')
+    const android = await source(
+      'apps/android/app/src/main/java/pro/wewed/app/services/WeddingDaySyncService.kt',
+    )
+    const terminalCodes = [
+      'PASS_SIGNING_KEY_INACTIVE',
+      'ATTENDEE_KEYS_REQUIRED',
+      'GATE_INACTIVE_OR_INVALID',
+      'GUEST_INELIGIBLE',
+      'SERVICE_PROVIDER_NOT_APPROVED',
+    ]
+    for (const code of terminalCodes) {
+      expect(route).toContain(`'${code}'`)
+      expect(android).toContain(`"${code}"`)
+    }
+  })
+
 })
 
 describe('Wedding Pass token containment (source contracts)', () => {

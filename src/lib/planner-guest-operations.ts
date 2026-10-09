@@ -106,6 +106,18 @@ export async function createPlannerGuest(actor: PlannerGuestActor, body: CreateP
   }
 
   const serviceRoster = Boolean(body.serviceTeamId)
+  // Service-provider identity is admission authority, not a cosmetic Guest label. It is created
+  // only through the service-team roster transaction, which also creates the canonical
+  // ServiceTeamMember relationship and enforces crew capacity. Generic Guest creation must not
+  // manufacture an unbound provider identity.
+  if (!serviceRoster && body.role === 'service_provider') {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Service providers must be added through the service-team roster.',
+      field: 'role',
+    } as const
+  }
   const role = serviceRoster
     ? 'service_provider'
     : PLANNER_GUEST_ROLES.includes(body.role as (typeof PLANNER_GUEST_ROLES)[number]) ? body.role! : 'guest'
@@ -204,8 +216,16 @@ export async function createPlannerGuest(actor: PlannerGuestActor, body: CreateP
 
 export async function updatePlannerGuest(actor: PlannerGuestActor, guestId: string, body: UpdatePlannerGuestInput) {
   const { weddingId } = actor
-  const existing = await db.guest.findFirst({ where: { id: guestId, weddingId }, include: guestInclude })
+  const existing = await db.guest.findFirst({
+    where: { id: guestId, weddingId },
+    include: {
+      ...guestInclude,
+      serviceTeamMemberships: { select: { id: true } },
+    },
+  })
   if (!existing) return { ok: false, status: 404, error: 'Guest not found' } as const
+  const serviceProviderParticipant =
+    existing.role === 'service_provider' || existing.serviceTeamMemberships.length > 0
 
   const updates: Record<string, unknown> = {}
   if (body.name !== undefined) {
@@ -234,6 +254,21 @@ export async function updatePlannerGuest(actor: PlannerGuestActor, guestId: stri
     if (!PLANNER_GUEST_ROLES.includes(body.role as (typeof PLANNER_GUEST_ROLES)[number])) {
       return { ok: false, status: 400, error: `Invalid role. Allowed: ${PLANNER_GUEST_ROLES.join(', ')}` } as const
     }
+    // A ServiceTeamMember cannot shed the service-provider classification through the generic
+    // Guest editor: Pass issuance and Gate authority deliberately use this role to require Planner
+    // approval. Likewise a normal Guest cannot be promoted into provider authority without the
+    // roster relationship. Both transitions must go through service-team operations.
+    if (
+      (serviceProviderParticipant && body.role !== 'service_provider')
+      || (!serviceProviderParticipant && body.role === 'service_provider')
+    ) {
+      return {
+        ok: false,
+        status: 409,
+        error: 'Service-provider role is managed through the service-team roster.',
+        field: 'role',
+      } as const
+    }
     updates.role = body.role
   }
   if (body.roleDetail !== undefined) updates.roleDetail = cleanGuestText(body.roleDetail, 160)
@@ -243,6 +278,14 @@ export async function updatePlannerGuest(actor: PlannerGuestActor, guestId: stri
       return { ok: false, status: 400, error: 'Invalid attendance allocation. Allowed: bride, groom, shared, operational', field: 'attendanceAllocation' } as const
     }
     nextAttendanceAllocation = normalizeAttendanceAllocation(body.attendanceAllocation)
+    if (serviceProviderParticipant && nextAttendanceAllocation !== 'operational') {
+      return {
+        ok: false,
+        status: 409,
+        error: 'Service-provider attendance allocation is managed through the service-team roster.',
+        field: 'attendanceAllocation',
+      } as const
+    }
     updates.attendanceAllocation = nextAttendanceAllocation
   }
   if (body.side !== undefined) {
