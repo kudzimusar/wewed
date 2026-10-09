@@ -59,6 +59,40 @@ class GuestOnlyEntryStateTest {
         )
     }
 
+    @Test
+    fun aWarmGuestSwitchRoundTripRestoresAThroughTheProductionNativeEntryState() {
+        val a = InvitationEntry.PrivateInvitation("charity-and-kudzie", "TOKEN-A")
+        val b = InvitationEntry.PrivateInvitation("charity-and-kudzie", "TOKEN-B")
+
+        assertTrue(GuestOnlyEntryState.publish("https://wewed.pro/invite/charity-and-kudzie?rsvp=TOKEN-A"))
+        assertEquals(a, GuestOnlyEntryState.entry.value)
+
+        assertTrue(GuestOnlyEntryState.publish("https://wewed.pro/invite/charity-and-kudzie?rsvp=TOKEN-B"))
+        assertEquals(b, GuestOnlyEntryState.entry.value)
+
+        assertTrue(GuestOnlyEntryState.publish("https://wewed.pro/invite/charity-and-kudzie?rsvp=TOKEN-A"))
+        assertEquals("Guest A must be restorable after B through the same native channel", a, GuestOnlyEntryState.entry.value)
+    }
+
+    @Test
+    fun productionActivityPublishesEveryWarmInvitationBeforeOptionalWorkspaceRouting() {
+        var dir: java.io.File? = java.io.File(System.getProperty("user.dir") ?: ".").absoluteFile
+        var source: String? = null
+        while (dir != null && source == null) {
+            val candidate = java.io.File(dir, "app/src/main/java/pro/wewed/app/MainActivity.kt")
+                .takeIf { it.isFile }
+                ?: java.io.File(dir, "src/main/java/pro/wewed/app/MainActivity.kt").takeIf { it.isFile }
+            source = candidate?.readText()
+            dir = dir.parentFile
+        }
+        val activity = requireNotNull(source) { "MainActivity.kt not found" }
+        val onNewIntent = activity.substringAfter("override fun onNewIntent(intent: Intent)")
+            .substringBefore("companion object")
+
+        assertTrue(onNewIntent.contains("GuestOnlyEntryState.publish("))
+        assertTrue(onNewIntent.indexOf("GuestOnlyEntryState.publish(") < onNewIntent.indexOf("if (::appViewModel.isInitialized)"))
+    }
+
     /** The package-targeted bridge intent is an entry point too. */
     @Test
     fun aBridgeIntentExtraPublishesAHandoff() {
