@@ -13,7 +13,8 @@ export class ServiceTeamRosterError extends Error {
       | 'SERVICE_TEAM_CREW_LIMIT_EXCEEDED'
       | 'SERVICE_TEAM_ROSTER_APPROVED'
       | 'SERVICE_TEAM_LEADER_REQUIRED'
-      | 'SERVICE_TEAM_ACCESS_DENIED',
+      | 'SERVICE_TEAM_ACCESS_DENIED'
+      | 'SERVICE_TEAM_MEMBER_CONFLICT',
     message: string,
     readonly status: number,
   ) {
