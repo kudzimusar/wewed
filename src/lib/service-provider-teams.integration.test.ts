@@ -184,8 +184,10 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
       weddingId,
       guestId: memberships[0].guestId,
       headers: new Headers({
+        'user-agent': 'Wewed-Android/2.0.0',
         'x-wewed-client': 'native',
         'x-wewed-native-platform': 'android',
+        'x-wewed-native-runtime': 'android-httpurlconnection',
         'x-wewed-app-version': '2.0.0',
         'x-wewed-build-version': '200',
       }),
