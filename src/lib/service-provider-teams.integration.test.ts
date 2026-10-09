@@ -20,6 +20,7 @@ let recordGuestNativePresence: typeof import('@/lib/guest-native-presence')['rec
 let createPlannerGuest: typeof import('@/lib/planner-guest-operations')['createPlannerGuest']
 let updatePlannerGuest: typeof import('@/lib/planner-guest-operations')['updatePlannerGuest']
 let applyGuestRsvpUpdate: typeof import('@/lib/guest-rsvp-mutation')['applyGuestRsvpUpdate']
+let loadPlannerInvitationProjection: typeof import('@/lib/planner-invitation-projection')['loadPlannerInvitationProjection']
 
 const suffix = randomUUID().slice(0, 8)
 let coupleId = ''
@@ -42,6 +43,7 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
     ;({ recordGuestNativePresence } = await import('@/lib/guest-native-presence'))
     ;({ createPlannerGuest, updatePlannerGuest } = await import('@/lib/planner-guest-operations'))
     ;({ applyGuestRsvpUpdate } = await import('@/lib/guest-rsvp-mutation'))
+    ;({ loadPlannerInvitationProjection } = await import('@/lib/planner-invitation-projection'))
 
     const couple = await db.couple.create({
       data: { slug: `service-team-${suffix}`, partner1: 'Service', partner2: 'Team' },
@@ -227,6 +229,23 @@ describe.skipIf(!isLocal)('Service-provider teams against disposable PostgreSQL'
       ok: false,
       status: 400,
       code: 'SERVICE_PROVIDER_HOUSEHOLD_NOT_ALLOWED',
+    })
+    const attendingBeforeApproval = await applyGuestRsvpUpdate({
+      weddingId,
+      rsvpToken: staleRoleRsvp.token,
+      requestedFields: { attending: true },
+    })
+    expect(attendingBeforeApproval.ok).toBe(true)
+    const beforeApprovalProjection = await loadPlannerInvitationProjection(
+      weddingId,
+      'https://wewed.pro',
+    )
+    const staleRoleGuest = beforeApprovalProjection?.data.find(
+      (guest) => guest.id === memberships[0].guestId,
+    )
+    expect(staleRoleGuest).toMatchObject({
+      status: 'attending',
+      passState: 'not_yet_issuable',
     })
 
     await submitServiceTeam({ weddingId, serviceTeamId: teamId, actorId })
