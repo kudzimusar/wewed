@@ -292,20 +292,21 @@ test('iPhone: personal invitation continues honestly in the browser (no App Stor
   await context.close()
 })
 
-test('iPhone: printed QR shows App Store coming soon and continues to browser claim', async ({ browser }) => {
+test('iPhone: printed QR opens the shared invitation directly in the browser', async ({ browser }) => {
   const fixture = await createFixture('iPhone physical', { physical: true })
   const context = await browser.newContext({ viewport: MOBILE_VIEWPORT, userAgent: IOS_UA, locale: 'en-ZW' })
   const page = await context.newPage()
   await page.goto(`${BASE_URL}/i/${fixture.physicalCode}`, { waitUntil: 'domcontentloaded' })
 
-  await expect(page.getByTestId('physical-invitation-ios-gate')).toBeVisible()
-  await expect(page.getByText('Coming Soon', { exact: true })).toBeVisible()
-  await expect(page.getByRole('img', { name: 'Download on the App Store' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Find my RSVP' })).toHaveCount(0)
-
-  await page.getByRole('button', { name: /App Store coming soon/i }).click()
+  await expect(page.getByTestId('physical-invitation-claim')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Find my RSVP' })).toBeVisible()
   await expect(page.getByTestId('physical-invitation-ios-gate')).toHaveCount(0)
+  await expect(page.getByRole('img', { name: 'Download on the App Store' })).toHaveCount(0)
+  await expectIvoryRevealed(page)
+
+  const cookies = await context.cookies(BASE_URL)
+  expect(cookies.some((cookie) => cookie.name === 'wewed_wedding_shared_invitation')).toBe(true)
+  expect(cookies.some((cookie) => cookie.name === 'wewed_wedding_guest')).toBe(false)
   await context.close()
 })
 
@@ -320,60 +321,26 @@ test('Chrome Android: installed Wewed is offered directly and Ivory remains hidd
   await context.close()
 })
 
-test('Chrome Android: printed QR installs Wewed, restores shared invitation, claims guest, RSVPs, and reaches same Couple Site', async ({ browser }) => {
+test('Chrome Android: printed QR opens the same shared invitation, claims guest, RSVPs, and reaches the Couple Site', async ({ browser }) => {
   const fixture = await createFixture('Physical Android', { physical: true })
 
   const browserContext = await androidContext(browser, ANDROID_UA)
   const browserPage = await browserContext.newPage()
   await browserPage.goto(`${BASE_URL}/i/${fixture.physicalCode}`, { waitUntil: 'domcontentloaded' })
 
-  await expect(browserPage.getByRole('heading', { name: 'Your invitation is waiting in Wewed' })).toBeVisible()
-  await expect(browserPage.getByTestId('physical-invitation-android-gate')).toBeVisible()
-  await expect(browserPage.getByTestId('premium-invitation-experience')).toHaveCount(0)
-  await expect(browserPage.getByRole('heading', { name: 'Find my RSVP' })).toHaveCount(0)
+  await expect(browserPage.getByTestId('physical-invitation-claim')).toBeVisible()
+  await expect(browserPage.getByRole('heading', { name: 'Find my RSVP' })).toBeVisible()
+  await expect(browserPage.getByTestId('physical-invitation-android-gate')).toHaveCount(0)
   const browserCookies = await browserContext.cookies(BASE_URL)
   expect(browserCookies.some((cookie) => cookie.name === 'wewed_wedding_shared_invitation')).toBe(true)
   expect(browserCookies.some((cookie) => cookie.name === 'wewed_wedding_guest')).toBe(false)
 
-  const playStoreUrl = await capturePlayNavigation(
-    browserPage,
-    'Get Wewed on Google Play and reveal my invitation',
-  )
-  const physicalHandoff = physicalHandoffFromPlayUrl(playStoreUrl)
-  const visiblePlayUrl = decodeURIComponent(playStoreUrl)
-  expect(visiblePlayUrl).not.toContain(fixture.weddingId)
-  expect(visiblePlayUrl).not.toContain(fixture.weddingSlug)
-  expect(visiblePlayUrl).not.toContain(fixture.destinationId)
-  expect(visiblePlayUrl).not.toContain(fixture.guestId)
-  expect(visiblePlayUrl).not.toContain(fixture.guestEmail)
-  expect(visiblePlayUrl).not.toContain(fixture.rsvpToken)
-  await browserContext.close()
-
-  const appContext = await androidContext(browser, ANDROID_UA, { standalone: true })
-  const appPage = await appContext.newPage()
-  await appPage.goto(`${BASE_URL}/invite/physical-resume?h=${encodeURIComponent(physicalHandoff)}`, {
-    waitUntil: 'domcontentloaded',
-  })
-
-  const resumedUrl = new URL(appPage.url())
-  expect(resumedUrl.pathname).toBe(`/w/${fixture.weddingSlug}`)
-  expect(resumedUrl.searchParams.get('source')).toBe('printed-invitation')
-  expect(resumedUrl.searchParams.get('card')).toBe('ivory-floral-gold')
-  expect(resumedUrl.searchParams.has('h')).toBe(false)
-
-  const cookiesBeforeClaim = await appContext.cookies(BASE_URL)
-  expect(cookiesBeforeClaim.some((cookie) => cookie.name === 'wewed_wedding_shared_invitation')).toBe(true)
-  expect(cookiesBeforeClaim.some((cookie) => cookie.name === 'wewed_wedding_guest')).toBe(false)
-
-  const { experience, card } = await expectIvoryRevealed(appPage)
-  await expect(appPage.getByRole('heading', { name: 'Find my RSVP' })).toBeVisible()
-  await openIvoryDetails(experience, card)
-  await experience.getByTestId('invitation-cta-rsvp').click()
-  await appPage.getByLabel('Full name').fill(fixture.guestName)
-  await appPage.getByLabel(/^Email or phone/).fill(fixture.guestEmail)
+  await expectIvoryRevealed(browserPage)
+  await browserPage.getByLabel('Full name').fill(fixture.guestName)
+  await browserPage.getByLabel(/^Email or phone/).fill(fixture.guestEmail)
 
   const claimPath = `/api/weddings/${fixture.weddingSlug}/physical-invitation/claim`
-  const claimResponsePromise = appPage.waitForResponse((response) => {
+  const claimResponsePromise = browserPage.waitForResponse((response) => {
     try {
       return (
         response.request().method() === 'POST' &&
@@ -383,50 +350,51 @@ test('Chrome Android: printed QR installs Wewed, restores shared invitation, cla
       return false
     }
   })
-  await appPage.getByRole('button', { name: 'Continue to my digital invitation' }).click()
+  await browserPage.getByRole('button', { name: 'Continue to my digital invitation' }).click()
   const claimResponse = await claimResponsePromise
   expect(claimResponse.status()).toBe(200)
 
   await expect.poll(
-    () => new URL(appPage.url()).searchParams.get('invitation'),
+    () => new URL(browserPage.url()).searchParams.get('invitation'),
     { timeout: 10_000 },
   ).toBe('1')
-  const claimedUrl = new URL(appPage.url())
+  const claimedUrl = new URL(browserPage.url())
   expect(claimedUrl.pathname).toBe(`/w/${fixture.weddingSlug}`)
   expect(claimedUrl.searchParams.get('card')).toBe('ivory-floral-gold')
   expect(claimedUrl.searchParams.get('source')).toBe('printed-invitation')
   expect(claimedUrl.searchParams.has('rsvp')).toBe(false)
   expect(claimedUrl.searchParams.has('h')).toBe(false)
-  const cookiesAfterClaim = await appContext.cookies(BASE_URL)
+
+  const cookiesAfterClaim = await browserContext.cookies(BASE_URL)
   expect(cookiesAfterClaim.some((cookie) => cookie.name === 'wewed_wedding_shared_invitation')).toBe(false)
   expect(cookiesAfterClaim.some((cookie) => cookie.name === 'wewed_wedding_guest')).toBe(true)
 
-  const personal = await expectIvoryRevealed(appPage)
+  const personal = await expectIvoryRevealed(browserPage)
   await openIvoryDetails(personal.experience, personal.card)
   await personal.experience.getByTestId('invitation-cta-rsvp').click()
-  await expect(appPage.getByTestId('premium-invitation-rsvp-dialog')).toBeVisible()
-  await appPage.getByLabel('Joyfully accept', { exact: true }).check()
-  await appPage.getByLabel('Message to the couple', { exact: true }).fill('Android install journey qualified.')
-  await appPage.getByRole('button', { name: 'Save RSVP', exact: true }).click()
-  await expect(appPage.getByText('Your RSVP has been saved.')).toBeVisible()
+  await expect(browserPage.getByTestId('premium-invitation-rsvp-dialog')).toBeVisible()
+  await browserPage.getByLabel('Joyfully accept', { exact: true }).check()
+  await browserPage.getByLabel('Message to the couple', { exact: true }).fill('Android browser journey qualified.')
+  await browserPage.getByRole('button', { name: 'Save RSVP', exact: true }).click()
+  await expect(browserPage.getByText('Your RSVP has been saved.')).toBeVisible()
 
   const saved = await prisma.rSVP.findUnique({ where: { id: fixture.rsvpId } })
   expect(saved?.attending).toBe(true)
-  expect(saved?.message).toBe('Android install journey qualified.')
+  expect(saved?.message).toBe('Android browser journey qualified.')
 
-  await appPage.getByRole('button', { name: 'Close', exact: true }).click()
-  await appPage.getByRole('button', { name: 'Visit Couple Website', exact: true }).click()
-  await expect(appPage).toHaveURL(`${BASE_URL}/w/${fixture.weddingSlug}`)
-  await expect(appPage.getByTestId('premium-invitation-experience')).toHaveCount(0)
+  await browserPage.getByRole('button', { name: 'Close', exact: true }).click()
+  await browserPage.getByRole('button', { name: 'Visit Couple Website', exact: true }).click()
+  await expect(browserPage).toHaveURL(`${BASE_URL}/w/${fixture.weddingSlug}`)
+  await expect(browserPage.getByTestId('premium-invitation-experience')).toHaveCount(0)
 
-  const preservedSession = await appContext.request.get(
+  const preservedSession = await browserContext.request.get(
     `${BASE_URL}/api/weddings/${fixture.weddingSlug}/guest-session`,
   )
   expect(preservedSession.status()).toBe(200)
   const preservedPayload = await preservedSession.json()
   expect(preservedPayload.guest.name).toBe(fixture.guestName)
   expect(preservedPayload.rsvp.attending).toBe(true)
-  await appContext.close()
+  await browserContext.close()
 })
 
 test('Chrome Android: tampered physical handoff fails closed without revealing Ivory', async ({ browser }) => {
