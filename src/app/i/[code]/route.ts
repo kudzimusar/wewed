@@ -101,8 +101,8 @@ export async function GET(
     `/w/${encodeURIComponent(destination.wedding.slug)}?${query.toString()}`,
   )
 
-  // Every fresh printed-QR scan returns to the Android entry gate. Only the
-  // dedicated app-resume route may mint app reveal authority again.
+  // Every fresh printed-QR scan returns to the platform-neutral shared invitation.
+  // Only the dedicated app-resume route may mint app reveal authority again.
   clearPersonalInvitationContext(response)
   setWeddingSharedInvitationCookie(response, {
     weddingId: destination.weddingId,
